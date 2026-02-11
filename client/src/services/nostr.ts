@@ -119,7 +119,13 @@ export async function handleLogin(): Promise<NostrUser> {
   const signedEvent = await window.nostr.signEvent(event);
 
   const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
+  console.log("FULL RESULT:", JSON.stringify(result));
+  console.log("TOKEN:", result.data?.token);
+
   sessionStorage.setItem("brainstorm_session_token", result.data.token);
+
+  const storedToken = sessionStorage.getItem("brainstorm_session_token");
+  console.log("STORED TOKEN:", storedToken);
 
   const selfData = await apiClient.getSelf();
 
