@@ -118,19 +118,32 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <Card>
-            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-              <CardTitle className="text-base">User Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre
-                className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96"
-                data-testid="text-user-data"
-              >
-                {JSON.stringify(user.userData, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+          {user.userData ? (
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+                <CardTitle className="text-base">User Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre
+                  className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96"
+                  data-testid="text-user-data"
+                >
+                  {JSON.stringify(user.userData, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+                <CardTitle className="text-base">Authenticated</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground" data-testid="text-auth-status">
+                  Signed in via Nostr. Backend user data is not yet available from the brainstormserver API.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

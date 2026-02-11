@@ -29,7 +29,6 @@ export const apiClient = {
 
   async getSelf() {
     const token = sessionStorage.getItem('brainstorm_session_token');
-    console.log("SENDING TOKEN IN HEADER:", token);
     if (!token) {
       throw new Error("No session token found");
     }
