@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Zap, LogOut, Loader2, User, Copy, Check } from "lucide-react";
+import { Zap, LogOut, User, Copy, Check } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 
 export default function DashboardPage() {
@@ -120,28 +120,15 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-              <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-              <CardTitle className="text-base">Waiting for backend integration</CardTitle>
+              <CardTitle className="text-base">User Data</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                This shell is ready for the backend team to integrate applesauce for Nostr
-                functionality and connect to the brainstormserver API.
-              </p>
-              <div className="mt-4 flex flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-                  <span>Nostr extension connection (NIP-07)</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-                  <span>Applesauce event signing</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-                  <span>brainstormserver API integration</span>
-                </div>
-              </div>
+              <pre
+                className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96"
+                data-testid="text-user-data"
+              >
+                {JSON.stringify(user.userData, null, 2)}
+              </pre>
             </CardContent>
           </Card>
         </div>

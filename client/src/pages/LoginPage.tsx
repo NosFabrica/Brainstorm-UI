@@ -3,18 +3,18 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Zap, Loader2, AlertCircle } from "lucide-react";
-import { connectNostr } from "@/services/nostr";
+import { handleLogin } from "@/services/nostr";
 
 export default function LoginPage() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
+  const onLogin = async () => {
     setError(null);
     setLoading(true);
     try {
-      await connectNostr();
+      await handleLogin();
       navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect to Nostr.");
@@ -50,7 +50,7 @@ export default function LoginPage() {
                 <Button
                   size="lg"
                   className="w-full"
-                  onClick={handleLogin}
+                  onClick={onLogin}
                   disabled={loading}
                   data-testid="button-sign-in"
                 >

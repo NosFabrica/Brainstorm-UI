@@ -1,0 +1,103 @@
+Integrate authentication with the Brainstorm backend API using the provided login implementation.
+
+API DOCS: https://brainstormserver.nosfabrica.com/docs
+API BASE: https://brainstormserver.nosfabrica.com
+
+IMPORTANT: The backend dev provided the exact login flow. Implement it exactly as shown below.
+
+1. Implement src/services/api.ts:
+
+Add these functions:
+```typescript
+const API_BASE = 'https://brainstormserver.nosfabrica.com';
+
+export const apiClient = {
+  async getAuthChallenge(pubkey: string): Promise<string> {
+    const response = await fetch(`${API_BASE}/authChallenge/${pubkey}`);
+    const data = await response.json();
+    return data.data.challenge;
+  },
+
+  async verifyAuthChallenge(pubkey: string, signedEvent: any) {
+    const response = await fetch(`${API_BASE}/authChallenge/${pubkey}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signed_event: signedEvent })
+    });
+    return await response.json();
+  },
+
+  async getSelf() {
+    const token = sessionStorage.getItem('brainstorm_session_token');
+    const response = await fetch(`${API_BASE}/user/self`, {
+      headers: { 'access_token': token || '' }
+    });
+    return await response.json();
+  }
+};
+```
+
+2. Update src/services/nostr.ts to include this exact login flow:
+```typescript
+export const handleLogin = async () => {
+  try {
+    // 1️⃣ Get pubkey from Nostr Browser extension
+    if (!window.nostr) {
+      throw new Error("Nostr extension not found!");
+    }
+
+    const pubkey = await window.nostr.getPublicKey();
+    console.log("Pubkey:", pubkey);
+
+    // 2️⃣ Call backend to get challenge
+    const challenge: string = await apiClient.getAuthChallenge(pubkey);
+
+    // 3️⃣ Sign event with Nostr extension
+    const event = {
+      kind: 22242,
+      tags: [
+        ["t", "brainstorm_login"],
+        ["challenge", challenge]
+      ],
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey
+    };
+
+    const signedEvent = await window.nostr.signEvent(event);
+    console.log("Signed event:", signedEvent);
+
+    // 4️⃣ Send signed event to backend for verification
+    const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
+    sessionStorage.setItem("brainstorm_session_token", result.data.token);
+    console.log("Login successful!");
+
+    // 5️⃣ Verify auth works by fetching user data
+    const selfData = await apiClient.getSelf();
+    console.log("User data:", selfData);
+
+    return { pubkey, userData: selfData };
+  } catch (error) {
+    console.error("Error during login:", error);
+    throw error;
+  }
+};
+```
+
+3. Update LoginPage.tsx:
+   - Call handleLogin() when button is clicked
+   - Navigate to /dashboard on success
+   - Show error message on failure
+
+4. Update DashboardPage.tsx:
+   - Display the user data from getSelf()
+   - Show it in a <pre> tag for now (raw JSON)
+   - Logout should clear sessionStorage and redirect to /
+
+KEY DETAILS:
+- Event kind MUST be 22242
+- Tags MUST include ["t", "brainstorm_login"]
+- Token stored in sessionStorage as "brainstorm_session_token"
+- Authenticated calls use header "access_token" (not Authorization Bearer)
+
+TEST: Login → signs event → token stored → dashboard shows user data

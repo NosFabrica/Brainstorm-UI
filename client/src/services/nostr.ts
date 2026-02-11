@@ -7,6 +7,7 @@ import {
   isValidProfile,
 } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { apiClient } from "./api";
 
 declare global {
   interface Window {
@@ -25,6 +26,7 @@ export interface NostrUser {
   about?: string;
   nip05?: string;
   profile?: ProfileContent;
+  userData?: any;
 }
 
 const eventStore = new EventStore();
@@ -85,7 +87,7 @@ async function fetchProfileFromServer(pubkey: string): Promise<ProfileContent | 
   return undefined;
 }
 
-export async function connectNostr(): Promise<NostrUser> {
+export async function handleLogin(): Promise<NostrUser> {
   if (!window.nostr) {
     throw new Error("No Nostr extension found. Please install a NIP-07 compatible extension like nos2x or Alby.");
   }
@@ -101,11 +103,32 @@ export async function connectNostr(): Promise<NostrUser> {
     throw new Error("Invalid public key received from extension.");
   }
 
+  const challenge = await apiClient.getAuthChallenge(pubkey);
+
+  const event = {
+    kind: 22242,
+    tags: [
+      ["t", "brainstorm_login"],
+      ["challenge", challenge]
+    ],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey
+  };
+
+  const signedEvent = await window.nostr.signEvent(event);
+
+  const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
+  sessionStorage.setItem("brainstorm_session_token", result.data.token);
+
+  const selfData = await apiClient.getSelf();
+
   const npub = nip19.npubEncode(pubkey);
 
   const user: NostrUser = {
     pubkey,
     npub,
+    userData: selfData,
   };
 
   try {
@@ -117,9 +140,7 @@ export async function connectNostr(): Promise<NostrUser> {
       user.about = content.about;
       user.nip05 = content.nip05;
     }
-  } catch {
-    // Profile fetch failed; user can still proceed with pubkey only
-  }
+  } catch {}
 
   setCurrentUser(user);
   return user;
@@ -127,6 +148,7 @@ export async function connectNostr(): Promise<NostrUser> {
 
 export function logout() {
   setCurrentUser(null);
+  sessionStorage.removeItem("brainstorm_session_token");
 }
 
 export { eventStore };
