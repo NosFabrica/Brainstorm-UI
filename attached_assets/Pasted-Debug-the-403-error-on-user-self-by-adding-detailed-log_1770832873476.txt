@@ -1,0 +1,69 @@
+Debug the 403 error on /user/self by adding detailed logging.
+
+TASK: Add console logs to see exactly what's happening with the token.
+
+1. Update src/services/nostr.ts - add debugging after verification:
+```typescript
+// After this line:
+const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
+
+// Add this debugging:
+console.log("==== VERIFY RESPONSE DEBUG ====");
+console.log("Full result:", result);
+console.log("result.data:", result.data);
+console.log("result.data.token:", result.data?.token);
+console.log("result.token:", result.token);
+console.log("================================");
+
+// Store token (try both paths)
+const token = result.data?.token || result.token;
+if (!token) {
+  console.error("❌ NO TOKEN FOUND IN RESPONSE!");
+}
+sessionStorage.setItem("brainstorm_session_token", token);
+console.log("✅ Token stored:", token?.substring(0, 20) + "...");
+```
+
+2. Update src/services/api.ts - add debugging to getSelf():
+```typescript
+async getSelf() {
+  const token = sessionStorage.getItem('brainstorm_session_token');
+  
+  console.log("==== CALLING /user/self ====");
+  console.log("Token from storage:", token?.substring(0, 20) + "...");
+  
+  const headers = { 
+    'access_token': token || '',
+    'Content-Type': 'application/json'
+  };
+  console.log("Headers being sent:", headers);
+  
+  const response = await fetch(`${API_BASE}/user/self`, {
+    method: 'GET',
+    headers: headers
+  });
+  
+  console.log("Response status:", response.status);
+  console.log("Response headers:", [...response.headers.entries()]);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Error body:", errorText);
+    throw new Error(`API returned ${response.status}`);
+  }
+  
+  const data = await response.json();
+  console.log("Success! User data:", data);
+  return data;
+}
+```
+
+3. After login, check sessionStorage in the browser console manually:
+Type: sessionStorage.getItem('brainstorm_session_token')
+
+Run the login flow and share ALL the console output, especially:
+- The "VERIFY RESPONSE DEBUG" section
+- The "CALLING /user/self" section
+- Any error messages
+
+This will show us exactly where the token is breaking.

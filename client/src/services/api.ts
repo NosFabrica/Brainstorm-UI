@@ -29,15 +29,27 @@ export const apiClient = {
 
   async getSelf() {
     const token = sessionStorage.getItem('brainstorm_session_token');
+
+    console.log("==== CALLING /user/self ====");
+    console.log("Token from storage:", token ? token.substring(0, 20) + "..." : "NONE");
+
     if (!token) {
       throw new Error("No session token found");
     }
     const response = await fetch(`/api/auth/self`, {
       headers: { 'x-brainstorm-token': token }
     });
+
+    console.log("Response status:", response.status);
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch user data (${response.status})`);
+      const errorText = await response.text();
+      console.error("Error body:", errorText);
+      throw new Error(`API returned ${response.status}: ${errorText}`);
     }
-    return await response.json();
+
+    const data = await response.json();
+    console.log("Success! User data:", data);
+    return data;
   }
 };
