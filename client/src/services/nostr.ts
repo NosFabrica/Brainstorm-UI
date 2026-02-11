@@ -67,7 +67,7 @@ function fetchProfileEvent(relayUrl: string, pubkey: string): Promise<Record<str
     const timeout = setTimeout(() => {
       try { ws.close(); } catch {}
       resolve(null);
-    }, 5000);
+    }, 8000);
 
     let ws: WebSocket;
     try {
@@ -91,12 +91,12 @@ function fetchProfileEvent(relayUrl: string, pubkey: string): Promise<Record<str
         if (data[0] === "EVENT" && data[2]) {
           resolved = true;
           clearTimeout(timeout);
-          ws.close();
+          try { ws.close(); } catch {}
           resolve(data[2]);
         } else if (data[0] === "EOSE") {
           if (!resolved) {
             clearTimeout(timeout);
-            ws.close();
+            try { ws.close(); } catch {}
             resolve(null);
           }
         }
@@ -104,24 +104,73 @@ function fetchProfileEvent(relayUrl: string, pubkey: string): Promise<Record<str
     };
 
     ws.onerror = () => {
-      clearTimeout(timeout);
-      if (!resolved) resolve(null);
+      if (!resolved) {
+        clearTimeout(timeout);
+        resolve(null);
+      }
+    };
+
+    ws.onclose = () => {
+      if (!resolved) {
+        clearTimeout(timeout);
+        resolve(null);
+      }
     };
   });
 }
 
-async function fetchAndStoreProfile(pubkey: string): Promise<ProfileContent | undefined> {
-  for (const url of DEFAULT_RELAYS) {
-    try {
-      const event = await fetchProfileEvent(url, pubkey);
-      if (event) {
-        eventStore.add(event as any);
-        if (isValidProfile(event as any)) {
-          return getProfileContent(event as any);
-        }
+async function fetchProfileViaHttp(pubkey: string): Promise<Record<string, unknown> | null> {
+  try {
+    const npub = nip19.npubEncode(pubkey);
+    const resp = await fetch(`https://relay.nostr.band/nostr?method=req&params=[{"kinds":[0],"authors":["${pubkey}"],"limit":1}]`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data[0];
       }
-    } catch {
-      continue;
+    }
+  } catch {}
+
+  try {
+    const resp = await fetch(`https://api.nostr.band/v0/profiles/${pubkey}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data?.profiles?.[0]?.event) {
+        return data.profiles[0].event;
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+async function fetchAndStoreProfile(pubkey: string): Promise<ProfileContent | undefined> {
+  const relayPromises = DEFAULT_RELAYS.map((url) => fetchProfileEvent(url, pubkey));
+  const httpPromise = fetchProfileViaHttp(pubkey);
+
+  const results = await Promise.allSettled([...relayPromises, httpPromise]);
+
+  for (const result of results) {
+    if (result.status === "fulfilled" && result.value) {
+      const event = result.value;
+      try {
+        eventStore.add(event as any);
+      } catch {}
+
+      if (isValidProfile(event as any)) {
+        return getProfileContent(event as any);
+      }
+
+      if (typeof (event as any).content === "string") {
+        try {
+          const parsed = JSON.parse((event as any).content);
+          return parsed as ProfileContent;
+        } catch {}
+      }
     }
   }
   return undefined;
@@ -154,8 +203,8 @@ export async function connectNostr(): Promise<NostrUser> {
     const content = await fetchAndStoreProfile(pubkey);
     if (content) {
       user.profile = content;
-      user.displayName = getDisplayName(content);
-      user.picture = getProfilePicture(content);
+      user.displayName = getDisplayName(content) || content.name || content.display_name;
+      user.picture = getProfilePicture(content) || content.picture || content.image;
       user.about = content.about;
       user.nip05 = content.nip05;
     }
