@@ -1,0 +1,68 @@
+Create a minimal Brainstorm shell in Replit using React + Vite + TypeScript.
+
+This shell is designed for the backend team to integrate applesauce (https://github.com/hzrd149/applesauce) for Nostr functionality and connect to brainstormserver API.
+
+STACK:
+- React 18 + TypeScript + Vite
+- Tailwind CSS (minimal)
+- wouter for routing
+
+STRUCTURE:
+src/
+├── pages/
+│   ├── LoginPage.tsx         # Simple button that routes to /dashboard
+│   └── DashboardPage.tsx     # Placeholder content
+├── services/
+│   ├── nostr.ts              # Empty - Backend will add applesauce integration here
+│   └── api.ts                # Empty - Backend will add API calls here
+└── App.tsx                   # Basic routing
+
+LOGIN PAGE (/):
+- Centered "Sign in with Nostr" button
+- onClick -> navigate to /dashboard
+- No actual functionality (just routing)
+
+DASHBOARD PAGE (/dashboard):
+- "Dashboard" heading
+- Placeholder text: "Waiting for backend integration"
+- "Logout" button that routes back to /
+
+SERVICE FILES (Empty with TODOs):
+src/services/nostr.ts:
+```typescript
+// TODO: Install applesauce: npm install applesauce
+// TODO: Import and setup applesauce for Nostr operations
+// TODO: Handle Nostr extension connection (NIP-07)
+// TODO: Sign events with applesauce
+
+export const connectNostr = async () => {
+  // Backend will implement
+}
+```
+
+src/services/api.ts:
+```typescript
+// TODO: API client for https://brainstormserver.nosfabrica.com
+// TODO: Implement auth flow (challenge/verify)
+// TODO: Add authenticated endpoints with token header
+
+const API_BASE = 'https://brainstormserver.nosfabrica.com'
+
+export const api = {
+  // Backend will implement
+}
+```
+
+STYLING:
+- Minimal Tailwind (centering, spacing, basic buttons)
+- Clean, simple layout
+- Easy to build complex UX/UI on top later
+
+WHAT NOT TO INCLUDE:
+- No actual auth logic
+- No API calls
+- No state management
+- No complex components
+- Just structure + placeholders
+
+GOAL: Clean foundation where backend adds applesauce + API integration, then UX/UI designer builds the interface on top without conflicts.
