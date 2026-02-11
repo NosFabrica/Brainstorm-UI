@@ -139,5 +139,49 @@ export async function registerRoutes(
     }
   });
 
+  const BRAINSTORM_API = 'https://brainstormserver.nosfabrica.com';
+
+  app.get("/api/auth/challenge/:pubkey", async (req, res) => {
+    const { pubkey } = req.params;
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/authChallenge/${pubkey}`);
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to reach auth server" });
+    }
+  });
+
+  app.post("/api/auth/verify/:pubkey", async (req, res) => {
+    const { pubkey } = req.params;
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/authChallenge/${pubkey}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to reach auth server" });
+    }
+  });
+
+  app.get("/api/auth/self", async (req, res) => {
+    const token = req.headers['x-brainstorm-token'] as string;
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/user/self`, {
+        headers: { 'access_token': token }
+      });
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to reach auth server" });
+    }
+  });
+
   return httpServer;
 }

@@ -1,8 +1,6 @@
-const API_BASE = 'https://brainstormserver.nosfabrica.com';
-
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
-    const response = await fetch(`${API_BASE}/authChallenge/${pubkey}`);
+    const response = await fetch(`/api/auth/challenge/${pubkey}`);
     if (!response.ok) {
       throw new Error(`Failed to get auth challenge (${response.status})`);
     }
@@ -14,7 +12,7 @@ export const apiClient = {
   },
 
   async verifyAuthChallenge(pubkey: string, signedEvent: any) {
-    const response = await fetch(`${API_BASE}/authChallenge/${pubkey}/verify`, {
+    const response = await fetch(`/api/auth/verify/${pubkey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signed_event: signedEvent })
@@ -34,8 +32,8 @@ export const apiClient = {
     if (!token) {
       throw new Error("No session token found");
     }
-    const response = await fetch(`${API_BASE}/user/self`, {
-      headers: { 'access_token': token }
+    const response = await fetch(`/api/auth/self`, {
+      headers: { 'x-brainstorm-token': token }
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
