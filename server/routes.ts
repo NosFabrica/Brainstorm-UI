@@ -19,6 +19,10 @@ export async function registerRoutes(
       "wss://relay.nostr.band",
       "wss://nos.lol",
       "wss://relay.primal.net",
+      "wss://purplepag.es",
+      "wss://relay.nostr.info",
+      "wss://nostr.wine",
+      "wss://relay.snort.social",
     ];
 
     function fetchFromRelay(relayUrl: string): Promise<any | null> {
@@ -78,8 +82,36 @@ export async function registerRoutes(
       });
     }
 
+    async function fetchFromHttpApi(): Promise<any | null> {
+      try {
+        const resp = await fetch(`https://api.nostr.band/v0/profiles/${pubkey}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data?.profiles?.[0]?.event) {
+            return data.profiles[0].event;
+          }
+        }
+      } catch {}
+
+      try {
+        const resp = await fetch(`https://purplepag.es/api/profiles/${pubkey}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data?.event) {
+            return data.event;
+          }
+        }
+      } catch {}
+
+      return null;
+    }
+
     try {
-      const result = await Promise.any(
+      const relayRace = Promise.any(
         relays.map((url) =>
           fetchFromRelay(url).then((ev) => {
             if (ev) return ev;
@@ -87,6 +119,19 @@ export async function registerRoutes(
           })
         )
       ).catch(() => null);
+
+      const httpFetch = fetchFromHttpApi();
+
+      const result = await Promise.any([
+        relayRace.then((ev) => {
+          if (ev) return ev;
+          throw new Error("no result");
+        }),
+        httpFetch.then((ev) => {
+          if (ev) return ev;
+          throw new Error("no result");
+        }),
+      ]).catch(() => null);
 
       return res.json({ event: result });
     } catch (err) {
