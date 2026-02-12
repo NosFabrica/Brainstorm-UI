@@ -65,7 +65,9 @@ export const apiClient = {
       headers: { 'x-brainstorm-token': token }
     });
     if (!response.ok) {
-      throw new Error(`Failed to trigger GrapeRank calculation (${response.status})`);
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message;
+      throw new Error(detail || `Failed to trigger GrapeRank calculation (${response.status})`);
     }
     return await response.json();
   },

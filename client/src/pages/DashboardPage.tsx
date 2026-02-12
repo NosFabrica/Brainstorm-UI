@@ -257,7 +257,7 @@ export default function DashboardPage() {
               )}
               {triggerGrapeRankMutation.isError && (
                 <p className="text-sm text-destructive mb-3" data-testid="graperank-trigger-error">
-                  Failed to trigger GrapeRank calculation. Please try again.
+                  {triggerGrapeRankMutation.error?.message || "Failed to trigger GrapeRank calculation. Please try again."}
                 </p>
               )}
               {grapeRankQuery.isLoading ? (
