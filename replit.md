@@ -9,6 +9,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-11: Added more relays + nostr.band/purplepag.es HTTP API fallbacks for profile fetching
 - 2026-02-11: Integrated Brainstorm backend auth (challenge/verify flow with kind 22242 events)
 - 2026-02-12: Added GrapeRank result display on dashboard, cleaned up debug logging
+- 2026-02-12: Added Network card showing social graph counts (followers, following, muted, reports, influence)
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -42,6 +43,7 @@ client/src/
 - `getAuthChallenge(pubkey)` - Gets challenge string from brainstormserver
 - `verifyAuthChallenge(pubkey, signedEvent)` - Verifies signed event, returns token
 - `getSelf()` - Fetches authenticated user data with stored token
+- `getUserByPubkey(pubkey)` - Fetches user social graph data (followers, following, mutes, reports, influence)
 - `getGrapeRankResult()` - Fetches latest GrapeRank reputation score
 - All endpoints proxied through Express server to avoid CORS issues
 - External API: https://brainstormserver.nosfabrica.com

@@ -183,6 +183,26 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/user/:pubkey", async (req, res) => {
+    const { pubkey } = req.params;
+    if (!pubkey || !/^[0-9a-f]{64}$/i.test(pubkey)) {
+      return res.status(400).json({ error: "Invalid pubkey" });
+    }
+    const token = req.headers['x-brainstorm-token'] as string;
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/user/${pubkey}`, {
+        headers: { 'access_token': token }
+      });
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to reach API server" });
+    }
+  });
+
   app.get("/api/auth/graperankResult", async (req, res) => {
     const token = req.headers['x-brainstorm-token'] as string;
     if (!token) {

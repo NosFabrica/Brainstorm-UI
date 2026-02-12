@@ -41,6 +41,20 @@ export const apiClient = {
     return await response.json();
   },
 
+  async getUserByPubkey(pubkey: string) {
+    const token = sessionStorage.getItem('brainstorm_session_token');
+    if (!token) {
+      throw new Error("No session token found");
+    }
+    const response = await fetch(`/api/user/${pubkey}`, {
+      headers: { 'x-brainstorm-token': token }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user data (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async getGrapeRankResult() {
     const token = sessionStorage.getItem('brainstorm_session_token');
     if (!token) {

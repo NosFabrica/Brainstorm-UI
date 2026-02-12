@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Zap, LogOut, User, Copy, Check, Loader2, TrendingUp } from "lucide-react";
+import { Zap, LogOut, User, Copy, Check, Loader2, TrendingUp, Users, UserPlus, UserMinus, VolumeX, ShieldAlert, Star } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 
@@ -31,6 +31,14 @@ export default function DashboardPage() {
     retry: false,
   });
 
+  const networkQuery = useQuery({
+    queryKey: ["/api/user", user?.pubkey],
+    queryFn: () => apiClient.getUserByPubkey(user!.pubkey),
+    enabled: !!user && hasToken,
+    retry: false,
+  });
+
+  const network = networkQuery.data?.data;
   const grapeRank = grapeRankQuery.data?.data || grapeRankQuery.data;
 
   const handleLogout = () => {
@@ -130,6 +138,85 @@ export default function DashboardPage() {
               Your Brainstorm workspace
             </p>
           </div>
+
+          <Card data-testid="card-network">
+            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="text-base">Network</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {networkQuery.isLoading ? (
+                <div className="flex items-center gap-2" data-testid="network-loading">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading network data...</p>
+                </div>
+              ) : networkQuery.isError ? (
+                <p className="text-sm text-muted-foreground" data-testid="network-error">
+                  Could not load network data.
+                </p>
+              ) : network ? (
+                <div className="flex flex-col gap-4" data-testid="network-data">
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-followers">{network.followed_by?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Followers</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-following">{network.following?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Following</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <VolumeX className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-muted-by">{network.muted_by?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Muted By</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <UserMinus className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-muting">{network.muting?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Muting</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-reported-by">{network.reported_by?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Reported By</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-reporting">{network.reporting?.length ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Reporting</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-lg font-semibold" data-testid="network-influence">{network.influence ?? 0}</p>
+                        <p className="text-xs text-muted-foreground">Influence</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="network-empty">
+                  No network data available yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card data-testid="card-graperank">
             <CardHeader className="flex flex-row flex-wrap items-center gap-2">
