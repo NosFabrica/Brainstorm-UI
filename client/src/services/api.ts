@@ -1,3 +1,37 @@
+function handleUnauthorized() {
+  localStorage.removeItem("brainstorm_session_token");
+  localStorage.removeItem("nostr_user");
+  window.location.href = "/";
+}
+
+async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = localStorage.getItem('brainstorm_session_token');
+  if (!token) {
+    handleUnauthorized();
+    throw new Error("No session token found");
+  }
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...options.headers, 'x-brainstorm-token': token }
+  });
+  if (response.status === 401 || response.status === 403) {
+    const data = await response.json().catch(() => null);
+    const detail = data?.detail || data?.message || "";
+    const isExpired = response.status === 401 ||
+      detail.toLowerCase().includes("expired") ||
+      detail.toLowerCase().includes("invalid token") ||
+      detail.toLowerCase().includes("unauthorized");
+    if (isExpired && response.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (response.status === 403) {
+      throw new Error(detail || `Request forbidden (${response.status})`);
+    }
+  }
+  return response;
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`/api/auth/challenge/${pubkey}`);
@@ -28,13 +62,7 @@ export const apiClient = {
   },
 
   async getSelf() {
-    const token = localStorage.getItem('brainstorm_session_token');
-    if (!token) {
-      throw new Error("No session token found");
-    }
-    const response = await fetch(`/api/auth/self`, {
-      headers: { 'x-brainstorm-token': token }
-    });
+    const response = await authenticatedFetch(`/api/auth/self`);
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
     }
@@ -42,13 +70,7 @@ export const apiClient = {
   },
 
   async getUserByPubkey(pubkey: string) {
-    const token = localStorage.getItem('brainstorm_session_token');
-    if (!token) {
-      throw new Error("No session token found");
-    }
-    const response = await fetch(`/api/user/${pubkey}`, {
-      headers: { 'x-brainstorm-token': token }
-    });
+    const response = await authenticatedFetch(`/api/user/${pubkey}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
     }
@@ -56,13 +78,8 @@ export const apiClient = {
   },
 
   async triggerGrapeRank() {
-    const token = localStorage.getItem('brainstorm_session_token');
-    if (!token) {
-      throw new Error("No session token found");
-    }
-    const response = await fetch(`/api/auth/graperank`, {
+    const response = await authenticatedFetch(`/api/auth/graperank`, {
       method: 'POST',
-      headers: { 'x-brainstorm-token': token }
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -73,13 +90,7 @@ export const apiClient = {
   },
 
   async getGrapeRankResult() {
-    const token = localStorage.getItem('brainstorm_session_token');
-    if (!token) {
-      throw new Error("No session token found");
-    }
-    const response = await fetch(`/api/auth/graperankResult`, {
-      headers: { 'x-brainstorm-token': token }
-    });
+    const response = await authenticatedFetch(`/api/auth/graperankResult`);
     if (!response.ok) {
       throw new Error(`Failed to fetch GrapeRank data (${response.status})`);
     }
