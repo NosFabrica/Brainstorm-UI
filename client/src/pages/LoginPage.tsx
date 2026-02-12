@@ -24,14 +24,14 @@ const connectionPairs = [
 ];
 
 const calculations = [
-  "npub1qx3f...verified",
-  "trust_score: 0.94",
-  "follows: 847",
-  "wot_rank: #127",
-  "relay: wss://nos.lol",
-  "kind:3 → follows",
-  "sig: schnorr✓",
-  "hops: 2 → 0.73",
+  "WOT(u) = f(G, seeds)",
+  "sig = Schnorr(sk, id)",
+  "G = (V, E)",
+  "score = f(hops)",
+  "relay: wss://...",
+  "kind:3 graph",
+  "verify(sig)",
+  "compute(trust)",
 ];
 
 const BRAIN_SVG_PATHS = [
