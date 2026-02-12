@@ -10,6 +10,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-11: Integrated Brainstorm backend auth (challenge/verify flow with kind 22242 events)
 - 2026-02-12: Added GrapeRank result display on dashboard, cleaned up debug logging
 - 2026-02-12: Added Network card showing social graph counts (followers, following, muted, reports, influence)
+- 2026-02-12: Added Calculate GrapeRank button (POST /user/graperank) to trigger calculations
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui

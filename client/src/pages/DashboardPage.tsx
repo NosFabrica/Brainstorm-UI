@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Zap, LogOut, User, Copy, Check, Loader2, TrendingUp, Users, UserPlus, UserMinus, VolumeX, ShieldAlert, Star } from "lucide-react";
+import { Zap, LogOut, User, Copy, Check, Loader2, TrendingUp, Users, UserPlus, UserMinus, VolumeX, ShieldAlert, Star, Play } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 
@@ -36,6 +37,17 @@ export default function DashboardPage() {
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user && hasToken,
     retry: false,
+  });
+
+  const triggerGrapeRankMutation = useMutation({
+    mutationFn: () => apiClient.triggerGrapeRank(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
+    },
+    onError: () => {
+      setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
+    },
   });
 
   const selfData = selfQuery.data?.data;
@@ -217,11 +229,37 @@ export default function DashboardPage() {
           </Card>
 
           <Card data-testid="card-graperank">
-            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-              <CardTitle className="text-base">GrapeRank</CardTitle>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                <CardTitle className="text-base">GrapeRank</CardTitle>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => triggerGrapeRankMutation.mutate()}
+                disabled={triggerGrapeRankMutation.isPending}
+                data-testid="button-trigger-graperank"
+              >
+                {triggerGrapeRankMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                {triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate"}
+              </Button>
             </CardHeader>
             <CardContent>
+              {triggerGrapeRankMutation.isSuccess && (
+                <p className="text-sm text-chart-3 mb-3" data-testid="graperank-triggered">
+                  GrapeRank calculation triggered successfully. Results may take a moment to appear.
+                </p>
+              )}
+              {triggerGrapeRankMutation.isError && (
+                <p className="text-sm text-destructive mb-3" data-testid="graperank-trigger-error">
+                  Failed to trigger GrapeRank calculation. Please try again.
+                </p>
+              )}
               {grapeRankQuery.isLoading ? (
                 <div className="flex items-center gap-2" data-testid="graperank-loading">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />

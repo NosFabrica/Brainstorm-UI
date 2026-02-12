@@ -55,6 +55,21 @@ export const apiClient = {
     return await response.json();
   },
 
+  async triggerGrapeRank() {
+    const token = sessionStorage.getItem('brainstorm_session_token');
+    if (!token) {
+      throw new Error("No session token found");
+    }
+    const response = await fetch(`/api/auth/graperank`, {
+      method: 'POST',
+      headers: { 'x-brainstorm-token': token }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to trigger GrapeRank calculation (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async getGrapeRankResult() {
     const token = sessionStorage.getItem('brainstorm_session_token');
     if (!token) {

@@ -203,6 +203,23 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/auth/graperank", async (req, res) => {
+    const token = req.headers['x-brainstorm-token'] as string;
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/user/graperank`, {
+        method: 'POST',
+        headers: { 'access_token': token }
+      });
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to reach API server" });
+    }
+  });
+
   app.get("/api/auth/graperankResult", async (req, res) => {
     const token = req.headers['x-brainstorm-token'] as string;
     if (!token) {
