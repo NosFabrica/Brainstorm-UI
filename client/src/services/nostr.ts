@@ -119,27 +119,16 @@ export async function handleLogin(): Promise<NostrUser> {
   const signedEvent = await window.nostr.signEvent(event);
 
   const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
-
-  console.log("==== VERIFY RESPONSE DEBUG ====");
-  console.log("Full result:", result);
-  console.log("result.data:", result.data);
-  console.log("result.data.token:", result.data?.token);
-  console.log("result.token:", (result as any).token);
-  console.log("================================");
-
   const token = result.data?.token || (result as any).token;
   if (!token) {
-    console.error("NO TOKEN FOUND IN RESPONSE!");
+    throw new Error("No token received from server");
   }
   sessionStorage.setItem("brainstorm_session_token", token);
-  console.log("Token stored:", token?.substring(0, 20) + "...");
 
   let selfData: any = null;
   try {
     selfData = await apiClient.getSelf();
-  } catch (err) {
-    console.warn("Could not fetch user data from backend:", err);
-  }
+  } catch {}
 
   const npub = nip19.npubEncode(pubkey);
 

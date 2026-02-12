@@ -169,7 +169,6 @@ export async function registerRoutes(
 
   app.get("/api/auth/self", async (req, res) => {
     const token = req.headers['x-brainstorm-token'] as string;
-    console.log("SERVER /api/auth/self - token received:", token ? `${token.substring(0, 20)}...` : "NONE");
     if (!token) {
       return res.status(401).json({ error: "No token provided" });
     }
@@ -177,12 +176,25 @@ export async function registerRoutes(
       const resp = await fetch(`${BRAINSTORM_API}/user/self`, {
         headers: { 'access_token': token }
       });
-      console.log("SERVER /api/auth/self - brainstorm response status:", resp.status);
       const data = await resp.json();
-      console.log("SERVER /api/auth/self - brainstorm response:", JSON.stringify(data).substring(0, 200));
       return res.status(resp.status).json(data);
     } catch (err) {
-      console.error("SERVER /api/auth/self - error:", err);
+      return res.status(502).json({ error: "Failed to reach auth server" });
+    }
+  });
+
+  app.get("/api/auth/graperankResult", async (req, res) => {
+    const token = req.headers['x-brainstorm-token'] as string;
+    if (!token) {
+      return res.status(401).json({ error: "No token provided" });
+    }
+    try {
+      const resp = await fetch(`${BRAINSTORM_API}/user/graperankResult`, {
+        headers: { 'access_token': token }
+      });
+      const data = await resp.json();
+      return res.status(resp.status).json(data);
+    } catch (err) {
       return res.status(502).json({ error: "Failed to reach auth server" });
     }
   });

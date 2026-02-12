@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Zap, LogOut, User, Copy, Check } from "lucide-react";
+import { Zap, LogOut, User, Copy, Check, Loader2, TrendingUp } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { apiClient } from "@/services/api";
 
 export default function DashboardPage() {
   const [, navigate] = useLocation();
@@ -19,6 +21,17 @@ export default function DashboardPage() {
     }
     setUser(u);
   }, [navigate]);
+
+  const hasToken = !!sessionStorage.getItem("brainstorm_session_token");
+
+  const grapeRankQuery = useQuery({
+    queryKey: ["/api/auth/graperankResult"],
+    queryFn: () => apiClient.getGrapeRankResult(),
+    enabled: !!user && hasToken,
+    retry: false,
+  });
+
+  const grapeRank = grapeRankQuery.data?.data || grapeRankQuery.data;
 
   const handleLogout = () => {
     logout();
@@ -118,32 +131,87 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {user.userData ? (
-            <Card>
-              <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-                <CardTitle className="text-base">User Data</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card data-testid="card-graperank">
+            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="text-base">GrapeRank</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {grapeRankQuery.isLoading ? (
+                <div className="flex items-center gap-2" data-testid="graperank-loading">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Loading GrapeRank data...</p>
+                </div>
+              ) : grapeRankQuery.isError ? (
+                <p className="text-sm text-muted-foreground" data-testid="graperank-error">
+                  Could not load GrapeRank data.
+                </p>
+              ) : grapeRank ? (
+                <div className="flex flex-col gap-3" data-testid="graperank-data">
+                  <div className="grid grid-cols-2 gap-4">
+                    {grapeRank.status && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <p className="text-sm font-medium" data-testid="graperank-status">{grapeRank.status}</p>
+                      </div>
+                    )}
+                    {grapeRank.algorithm && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Algorithm</p>
+                        <p className="text-sm font-medium" data-testid="graperank-algorithm">{grapeRank.algorithm}</p>
+                      </div>
+                    )}
+                  </div>
+                  {grapeRank.result && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Result</p>
+                      <pre
+                        className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-48"
+                        data-testid="graperank-result"
+                      >
+                        {typeof grapeRank.result === "string" ? grapeRank.result : JSON.stringify(grapeRank.result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  {grapeRank.parameters && (
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Parameters</p>
+                      <pre
+                        className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-32"
+                        data-testid="graperank-parameters"
+                      >
+                        {typeof grapeRank.parameters === "string" ? grapeRank.parameters : JSON.stringify(grapeRank.parameters, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="graperank-empty">
+                  No GrapeRank calculation results yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+              <CardTitle className="text-base">User Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {user.userData ? (
                 <pre
                   className="text-xs bg-muted p-4 rounded-md overflow-auto max-h-96"
                   data-testid="text-user-data"
                 >
                   {JSON.stringify(user.userData, null, 2)}
                 </pre>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader className="flex flex-row flex-wrap items-center gap-2">
-                <CardTitle className="text-base">Authenticated</CardTitle>
-              </CardHeader>
-              <CardContent>
+              ) : (
                 <p className="text-sm text-muted-foreground" data-testid="text-auth-status">
-                  Signed in via Nostr. Backend user data is not yet available from the brainstormserver API.
+                  Signed in via Nostr. Backend user data is not yet available.
                 </p>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

@@ -8,6 +8,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-11: Implemented real Nostr login using applesauce-core (NIP-07 + profile fetching)
 - 2026-02-11: Added more relays + nostr.band/purplepag.es HTTP API fallbacks for profile fetching
 - 2026-02-11: Integrated Brainstorm backend auth (challenge/verify flow with kind 22242 events)
+- 2026-02-12: Added GrapeRank result display on dashboard, cleaned up debug logging
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -21,10 +22,10 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 client/src/
 ├── pages/
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
-│   └── DashboardPage.tsx     # User profile card + raw user data from API
+│   └── DashboardPage.tsx     # User profile card + user data + GrapeRank result
 ├── services/
 │   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt
-│   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf)
+│   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf, getGrapeRankResult)
 └── App.tsx                   # Routing setup
 ```
 
@@ -41,8 +42,9 @@ client/src/
 - `getAuthChallenge(pubkey)` - Gets challenge string from brainstormserver
 - `verifyAuthChallenge(pubkey, signedEvent)` - Verifies signed event, returns token
 - `getSelf()` - Fetches authenticated user data with stored token
-- All endpoints include response validation and error handling
-- Base URL: https://brainstormserver.nosfabrica.com
+- `getGrapeRankResult()` - Fetches latest GrapeRank reputation score
+- All endpoints proxied through Express server to avoid CORS issues
+- External API: https://brainstormserver.nosfabrica.com
 
 ### Profile Fetching (server-side `routes.ts`)
 - `GET /api/profile/:pubkey` - Fetches kind:0 metadata from 8 WebSocket relays + 2 HTTP APIs
