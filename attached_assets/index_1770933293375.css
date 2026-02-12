@@ -1,6 +1,67 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@keyframes softPulse {
+  0%, 100% {
+    transform: translateZ(0) scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateZ(0) scale(1.02);
+    filter: brightness(1.06);
+  }
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-primary-border: hsl(var(--primary-border));
+  --color-accent-border: hsl(var(--accent-border));
+  --color-card-border: hsl(var(--card-border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-primary-border: var(--primary-border);
+  --color-secondary-border: var(--secondary-border);
+  --color-muted-border: var(--muted-border);
+  --color-accent-border: var(--accent-border);
+  --color-destructive-border: var(--destructive-border);
+}
 
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -127,21 +188,6 @@
   --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
   --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.5);
   --shadow-2xl: 0 35px 60px -15px rgb(0 0 0 / 0.6);
-
-  --sidebar-primary-border: hsl(var(--sidebar-primary));
-  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --sidebar-accent-border: hsl(var(--sidebar-accent));
-  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --primary-border: hsl(var(--primary));
-  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --secondary-border: hsl(var(--secondary));
-  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --muted-border: hsl(var(--muted));
-  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --accent-border: hsl(var(--accent));
-  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
-  --destructive-border: hsl(var(--destructive));
-  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
 @layer base {
@@ -155,22 +201,42 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Prevent page-edge "white gutters" under dark footers */
   body:has(footer.bg-slate-950),
   body:has(footer[data-footer-dark="true"]) {
     background: #020617;
   }
-
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     @apply tracking-tight;
   }
 
-  h1 { font-size: 1.5rem; line-height: 1.15; }
-  h2 { font-size: 1.25rem; line-height: 1.2; }
-  h3 { font-size: 1.125rem; line-height: 1.25; }
-  h4 { font-size: 1rem; line-height: 1.35; }
-  h5 { font-size: 0.95rem; line-height: 1.35; }
-  h6 { font-size: 0.875rem; line-height: 1.35; }
+  /* Mobile-first type defaults for any plain headings.
+     Most headings already use Tailwind classes; this catches the rest. */
+  h1 {
+    font-size: 1.5rem;
+    line-height: 1.15;
+  }
+  h2 {
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+  h3 {
+    font-size: 1.125rem;
+    line-height: 1.25;
+  }
+  h4 {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  h5 {
+    font-size: 0.95rem;
+    line-height: 1.35;
+  }
+  h6 {
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
 
   @media (min-width: 640px) {
     h1 { font-size: 1.875rem; }
@@ -184,19 +250,19 @@
   .text-balance {
     text-wrap: balance;
   }
-
+  
   .animate-in {
     animation: animate-in 0.3s ease-out;
   }
-
+  
   .animate-fadeIn {
     animation: fadeIn 0.4s ease-in-out;
   }
-
+  
   .slide-in-from-bottom {
     --tw-enter-translate-y: 8px;
   }
-
+  
   .fade-in {
     --tw-enter-opacity: 0;
   }
@@ -205,7 +271,7 @@
     backdrop-filter: blur(12px) saturate(180%);
     background-color: rgba(255, 255, 255, 0.7);
   }
-
+  
   .dark .glass {
     background-color: rgba(10, 10, 10, 0.7);
   }
@@ -225,7 +291,7 @@
   }
 
   .mesh-gradient {
-    background:
+    background: 
       radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.15) 0px, transparent 50%),
       radial-gradient(at 97% 21%, hsla(260, 98%, 74%, 0.15) 0px, transparent 50%),
       radial-gradient(at 52% 99%, hsla(354, 98%, 61%, 0.08) 0px, transparent 50%),
@@ -241,86 +307,6 @@
 
   .glow-sm {
     box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
-  }
-
-  input[type="search"]::-webkit-search-cancel-button {
-    @apply hidden;
-  }
-
-  [contenteditable][data-placeholder]:empty::before {
-    content: attr(data-placeholder);
-    color: hsl(var(--muted-foreground));
-    pointer-events: none;
-  }
-
-  .no-default-hover-elevate {}
-  .no-default-active-elevate {}
-
-  .toggle-elevate::before,
-  .toggle-elevate-2::before {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    border-radius: inherit;
-    z-index: -1;
-  }
-
-  .toggle-elevate.toggle-elevated::before {
-    background-color: var(--elevate-2);
-  }
-
-  .border.toggle-elevate::before {
-    inset: -1px;
-  }
-
-  .hover-elevate:not(.no-default-hover-elevate),
-  .active-elevate:not(.no-default-active-elevate),
-  .hover-elevate-2:not(.no-default-hover-elevate),
-  .active-elevate-2:not(.no-default-active-elevate) {
-    position: relative;
-    z-index: 0;
-  }
-
-  .hover-elevate:not(.no-default-hover-elevate)::after,
-  .active-elevate:not(.no-default-active-elevate)::after,
-  .hover-elevate-2:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:not(.no-default-active-elevate)::after {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    inset: 0px;
-    border-radius: inherit;
-    z-index: 999;
-  }
-
-  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-1);
-  }
-
-  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
-  .active-elevate-2:active:not(.no-default-active-elevate)::after {
-    background-color: var(--elevate-2);
-  }
-
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
-  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
-  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
-    inset: -1px;
-  }
-}
-
-@keyframes softPulse {
-  0%, 100% {
-    transform: translateZ(0) scale(1);
-    filter: brightness(1);
-  }
-  50% {
-    transform: translateZ(0) scale(1.02);
-    filter: brightness(1.06);
   }
 }
 
