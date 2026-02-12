@@ -24,6 +24,13 @@ export default function DashboardPage() {
 
   const hasToken = !!sessionStorage.getItem("brainstorm_session_token");
 
+  const selfQuery = useQuery({
+    queryKey: ["/api/auth/self"],
+    queryFn: () => apiClient.getSelf(),
+    enabled: !!user && hasToken,
+    retry: false,
+  });
+
   const grapeRankQuery = useQuery({
     queryKey: ["/api/auth/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
@@ -31,15 +38,10 @@ export default function DashboardPage() {
     retry: false,
   });
 
-  const networkQuery = useQuery({
-    queryKey: ["/api/user", user?.pubkey],
-    queryFn: () => apiClient.getUserByPubkey(user!.pubkey),
-    enabled: !!user && hasToken,
-    retry: false,
-  });
-
-  const network = networkQuery.data?.data;
-  const grapeRank = grapeRankQuery.data?.data || grapeRankQuery.data;
+  const selfData = selfQuery.data?.data;
+  const network = selfData?.graph || user?.userData?.data?.graph || null;
+  const grapeRankRaw = grapeRankQuery.data?.data;
+  const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
 
   const handleLogout = () => {
     logout();
@@ -145,15 +147,11 @@ export default function DashboardPage() {
               <CardTitle className="text-base">Network</CardTitle>
             </CardHeader>
             <CardContent>
-              {networkQuery.isLoading ? (
+              {selfQuery.isLoading ? (
                 <div className="flex items-center gap-2" data-testid="network-loading">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">Loading network data...</p>
                 </div>
-              ) : networkQuery.isError ? (
-                <p className="text-sm text-muted-foreground" data-testid="network-error">
-                  Could not load network data.
-                </p>
               ) : network ? (
                 <div className="flex flex-col gap-4" data-testid="network-data">
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
