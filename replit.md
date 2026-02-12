@@ -11,6 +11,8 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-12: Added GrapeRank result display on dashboard, cleaned up debug logging
 - 2026-02-12: Added Network card showing social graph counts (followers, following, muted, reports, influence)
 - 2026-02-12: Added Calculate GrapeRank button (POST /user/graperank) to trigger calculations
+- 2026-02-12: Replaced LoginPage with polished dark-theme glass-card design (brain SVG logo, gradient text, CSS animations, no framer-motion)
+- 2026-02-12: Replaced DashboardPage with polished prototype-inspired design (dark nav bar, avatar dropdown, gradient stat cards, social graph grid, GrapeRank panel with status fields)
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
