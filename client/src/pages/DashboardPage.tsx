@@ -278,10 +278,18 @@ export default function DashboardPage() {
                         <p className="text-sm font-medium" data-testid="graperank-status">{grapeRank.status}</p>
                       </div>
                     )}
-                    {grapeRank.algorithm && (
+                    {grapeRank.ta_status && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Algorithm</p>
-                        <p className="text-sm font-medium" data-testid="graperank-algorithm">{grapeRank.algorithm}</p>
+                        <p className="text-xs text-muted-foreground">TA Status</p>
+                        <p className="text-sm font-medium" data-testid="graperank-ta-status">{grapeRank.ta_status}</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {grapeRank.internal_publication_status && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Publication Status</p>
+                        <p className="text-sm font-medium" data-testid="graperank-publication-status">{grapeRank.internal_publication_status}</p>
                       </div>
                     )}
                   </div>
@@ -293,17 +301,6 @@ export default function DashboardPage() {
                         data-testid="graperank-result"
                       >
                         {typeof grapeRank.result === "string" ? grapeRank.result : JSON.stringify(grapeRank.result, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  {grapeRank.parameters && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Parameters</p>
-                      <pre
-                        className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-32"
-                        data-testid="graperank-parameters"
-                      >
-                        {typeof grapeRank.parameters === "string" ? grapeRank.parameters : JSON.stringify(grapeRank.parameters, null, 2)}
                       </pre>
                     </div>
                   )}
