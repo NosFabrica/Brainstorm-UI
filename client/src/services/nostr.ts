@@ -36,7 +36,7 @@ let currentUser: NostrUser | null = null;
 export function getCurrentUser(): NostrUser | null {
   if (currentUser) return currentUser;
 
-  const stored = sessionStorage.getItem("nostr_user");
+  const stored = localStorage.getItem("nostr_user");
   if (stored) {
     try {
       currentUser = JSON.parse(stored);
@@ -51,9 +51,9 @@ export function getCurrentUser(): NostrUser | null {
 function setCurrentUser(user: NostrUser | null) {
   currentUser = user;
   if (user) {
-    sessionStorage.setItem("nostr_user", JSON.stringify(user));
+    localStorage.setItem("nostr_user", JSON.stringify(user));
   } else {
-    sessionStorage.removeItem("nostr_user");
+    localStorage.removeItem("nostr_user");
   }
 }
 
@@ -123,7 +123,7 @@ export async function handleLogin(): Promise<NostrUser> {
   if (!token) {
     throw new Error("No token received from server");
   }
-  sessionStorage.setItem("brainstorm_session_token", token);
+  localStorage.setItem("brainstorm_session_token", token);
 
   let selfData: any = null;
   try {
@@ -155,7 +155,7 @@ export async function handleLogin(): Promise<NostrUser> {
 
 export function logout() {
   setCurrentUser(null);
-  sessionStorage.removeItem("brainstorm_session_token");
+  localStorage.removeItem("brainstorm_session_token");
 }
 
 export { eventStore };

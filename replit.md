@@ -17,7 +17,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
-- **Auth**: Challenge-response via brainstormserver API, token in sessionStorage
+- **Auth**: Challenge-response via brainstormserver API, token in localStorage
 
 ### Structure
 ```
@@ -36,7 +36,7 @@ client/src/
 2. Request challenge from `GET /authChallenge/:pubkey`
 3. Sign kind 22242 event with tags `["t", "brainstorm_login"]` and `["challenge", <challenge>]`
 4. Verify signed event via `POST /authChallenge/:pubkey/verify`
-5. Store token in sessionStorage as `brainstorm_session_token`
+5. Store token in localStorage as `brainstorm_session_token`
 6. Fetch user data via `GET /user/self` with `access_token` header
 7. Fetch Nostr profile metadata from relays for display name/avatar
 
@@ -59,4 +59,4 @@ client/src/
 - Event kind for auth: 22242
 - Auth header: `access_token` (not Authorization Bearer)
 - Session token key: `brainstorm_session_token`
-- User profile stored in sessionStorage as `nostr_user`
+- User profile stored in localStorage as `nostr_user`

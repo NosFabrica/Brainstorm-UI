@@ -23,7 +23,7 @@ export default function DashboardPage() {
     setUser(u);
   }, [navigate]);
 
-  const hasToken = !!sessionStorage.getItem("brainstorm_session_token");
+  const hasToken = !!localStorage.getItem("brainstorm_session_token");
 
   const selfQuery = useQuery({
     queryKey: ["/api/auth/self"],

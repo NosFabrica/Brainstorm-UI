@@ -28,7 +28,7 @@ export const apiClient = {
   },
 
   async getSelf() {
-    const token = sessionStorage.getItem('brainstorm_session_token');
+    const token = localStorage.getItem('brainstorm_session_token');
     if (!token) {
       throw new Error("No session token found");
     }
@@ -42,7 +42,7 @@ export const apiClient = {
   },
 
   async getUserByPubkey(pubkey: string) {
-    const token = sessionStorage.getItem('brainstorm_session_token');
+    const token = localStorage.getItem('brainstorm_session_token');
     if (!token) {
       throw new Error("No session token found");
     }
@@ -56,7 +56,7 @@ export const apiClient = {
   },
 
   async triggerGrapeRank() {
-    const token = sessionStorage.getItem('brainstorm_session_token');
+    const token = localStorage.getItem('brainstorm_session_token');
     if (!token) {
       throw new Error("No session token found");
     }
@@ -73,7 +73,7 @@ export const apiClient = {
   },
 
   async getGrapeRankResult() {
-    const token = sessionStorage.getItem('brainstorm_session_token');
+    const token = localStorage.getItem('brainstorm_session_token');
     if (!token) {
       throw new Error("No session token found");
     }
