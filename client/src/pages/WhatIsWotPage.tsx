@@ -560,7 +560,7 @@ export default function WhatIsWoT() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <motion.button
-                onClick={() => window.history.length > 1 ? window.history.back() : setLocation('/')}
+                onClick={() => setLocation('/')}
                 className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors text-sm"
                 whileHover={{ x: -4 }}
                 data-testid="button-back"
