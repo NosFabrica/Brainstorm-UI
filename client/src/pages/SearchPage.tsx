@@ -257,11 +257,11 @@ export default function SearchPage() {
         {decorativeText.map((calc, i) => (
           <div
             key={i}
-            className="absolute text-[11px] font-mono text-indigo-900/30 font-semibold select-none hidden md:block tracking-widest uppercase"
+            className="absolute text-xs font-mono text-indigo-400/40 select-none hidden md:block"
             style={{
-              left: `${5 + (i % 4) * 25}%`,
-              top: `${15 + Math.floor(i / 4) * 35}%`,
-              animation: `searchCalcFloat 8s ease-in-out infinite ${i * 1.5}s`,
+              left: `${8 + (i % 4) * 22}%`,
+              top: `${20 + Math.floor(i / 4) * 40}%`,
+              animation: `searchCalcFloat 6s ease-in-out infinite ${i * 1.2}s`,
             }}
           >
             {calc}
@@ -876,12 +876,12 @@ export default function SearchPage() {
           40%, 60% { opacity: 0.3; }
         }
         @keyframes searchNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.4; }
-          50% { transform: translateY(-30px); opacity: 0.8; }
+          0%, 100% { transform: translateY(0); opacity: 0.15; }
+          50% { transform: translateY(-40px); opacity: 0.5; }
         }
         @keyframes searchCalcFloat {
-          0%, 100% { opacity: 0.2; transform: translateY(0); }
-          50% { opacity: 0.6; transform: translateY(-20px); }
+          0%, 100% { opacity: 0; transform: translateY(0); }
+          40%, 60% { opacity: 0.35; transform: translateY(-15px); }
         }
         @keyframes searchScanLine {
           0% { left: 0%; }
