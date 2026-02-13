@@ -859,13 +859,14 @@ export default function SearchPage() {
 
                   <div className="p-5 sm:p-6 relative overflow-hidden"
                     style={{
+                      backgroundColor: 'rgb(239,243,255)',
                       backgroundImage: [
-                        'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.12) 0%, transparent 50%)',
-                        'radial-gradient(circle at 5% 95%, rgba(99,102,241,0.06) 0%, transparent 40%)',
-                        'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)',
+                        'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.08) 0%, transparent 50%)',
+                        'radial-gradient(circle at 5% 95%, rgba(99,102,241,0.04) 0%, transparent 40%)',
+                        'radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px)',
                       ].join(', '),
                       backgroundSize: '100% 100%, 100% 100%, 20px 20px',
-                      boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.12), inset 0 -1px 0 0 rgba(99,102,241,0.04)',
+                      boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.08), inset 0 -1px 0 0 rgba(99,102,241,0.03)',
                     }}
                   >
                     <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" data-testid="svg-network-bg">
@@ -1181,20 +1182,20 @@ export default function SearchPage() {
         }
         @keyframes searchLineDraw {
           0% { stroke-dashoffset: var(--dash); opacity: 0; }
-          100% { stroke-dashoffset: 0; opacity: 0.18; }
+          100% { stroke-dashoffset: 0; opacity: 0.07; }
         }
         @keyframes searchLinePulse {
-          0%, 100% { opacity: 0.12; }
-          50% { opacity: 0.2; }
+          0%, 100% { opacity: 0.05; }
+          50% { opacity: 0.09; }
         }
         @keyframes searchNodePop {
           0% { opacity: 0; transform: scale(0); }
-          60% { opacity: 0.25; transform: scale(1.15); }
-          100% { opacity: 0.18; transform: scale(1); }
+          60% { opacity: 0.1; transform: scale(1.15); }
+          100% { opacity: 0.07; transform: scale(1); }
         }
         @keyframes searchNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.15; }
-          50% { transform: translateY(-12px); opacity: 0.25; }
+          0%, 100% { transform: translateY(0); opacity: 0.06; }
+          50% { transform: translateY(-12px); opacity: 0.1; }
         }
         @keyframes searchCalcFloat {
           0%, 100% { opacity: 0; transform: translateY(0); }
