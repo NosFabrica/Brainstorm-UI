@@ -990,10 +990,10 @@ export default function SearchPage() {
                       const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
                       const score = Math.min(1, Math.max(0, rawScore));
                       const pct = Math.round(score * 100);
-                      const tier = pct >= 80 ? { label: "Excellent", ring: "stroke-indigo-500", opacity: "1" }
-                        : pct >= 50 ? { label: "Good", ring: "stroke-indigo-400", opacity: "0.85" }
-                        : pct >= 25 ? { label: "Fair", ring: "stroke-indigo-300", opacity: "0.7" }
-                        : { label: "Low", ring: "stroke-indigo-200", opacity: "0.55" };
+                      const tier = pct >= 80 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
+                        : pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
+                        : pct >= 25 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
+                        : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
                       const circumference = 2 * Math.PI * 18;
                       const offset = circumference - (score * circumference);
                       return (
