@@ -642,8 +642,8 @@ export default function DashboardPage() {
                       </span>
                     )}
                     {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                      <span className="text-[9px] text-slate-400/80 mt-0.5" data-testid="text-trust-signals-updated" title={formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}>
-                        Updated {formatRelativeTime(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                      <span className="text-[9px] text-slate-400/80 mt-0.5" data-testid="text-trust-signals-updated">
+                        Last calculated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                       </span>
                     )}
                   </div>
