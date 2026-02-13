@@ -12,6 +12,11 @@ const connectionPairs = [
   [9, 12], [10, 13], [0, 6], [2, 8], [4, 10], [1, 7], [5, 11],
 ];
 
+const LINE_DRAW_DURATION = 4;
+const LINE_STAGGER = 3;
+const INITIAL_DELAY = 3;
+const TOTAL_CYCLE = connectionPairs.length * LINE_STAGGER + LINE_DRAW_DURATION;
+
 const calculations = [
   "npub1qx3f...verified",
   "trust_score: 0.94",
@@ -27,6 +32,25 @@ const calculations = [
 export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "light" }) {
   const isDark = variant === "dark";
 
+  const lineKeyframes = connectionPairs.map((_, i) => {
+    const startPct = ((i * LINE_STAGGER) / TOTAL_CYCLE) * 100;
+    const drawEndPct = ((i * LINE_STAGGER + LINE_DRAW_DURATION * 0.4) / TOTAL_CYCLE) * 100;
+    const holdEndPct = ((i * LINE_STAGGER + LINE_DRAW_DURATION * 0.7) / TOTAL_CYCLE) * 100;
+    const fadeEndPct = ((i * LINE_STAGGER + LINE_DRAW_DURATION) / TOTAL_CYCLE) * 100;
+
+    return `
+      @keyframes cbLine${i} {
+        0% { stroke-dashoffset: 1000; opacity: 0; }
+        ${startPct.toFixed(1)}% { stroke-dashoffset: 1000; opacity: 0; }
+        ${((startPct + drawEndPct) / 2).toFixed(1)}% { stroke-dashoffset: 500; opacity: 0.04; }
+        ${drawEndPct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0.08; }
+        ${holdEndPct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0.06; }
+        ${fadeEndPct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0; }
+        100% { stroke-dashoffset: 0; opacity: 0; }
+      }
+    `;
+  }).join('\n');
+
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
       <style>{`
@@ -37,15 +61,6 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           60% { transform: translateY(-22px) scale(1.05); opacity: 0.3; }
           80% { transform: translateY(-10px) scale(0.9); opacity: 0.12; }
           100% { transform: translateY(0) scale(0.5); opacity: 0; }
-        }
-        @keyframes cbLineFade {
-          0% { stroke-dashoffset: 100%; opacity: 0; }
-          15% { stroke-dashoffset: 80%; opacity: 0; }
-          30% { stroke-dashoffset: 40%; opacity: 0.08; }
-          50% { stroke-dashoffset: 0%; opacity: 0.14; }
-          65% { stroke-dashoffset: 0%; opacity: 0.1; }
-          80% { stroke-dashoffset: 0%; opacity: 0.04; }
-          100% { stroke-dashoffset: 0%; opacity: 0; }
         }
         @keyframes cbCalcFade {
           0% { opacity: 0; transform: translateY(4px); }
@@ -68,6 +83,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           0%, 100% { opacity: 0.03; transform: scale(1); }
           50% { opacity: 0.1; transform: scale(1.4); }
         }
+        ${lineKeyframes}
       `}</style>
 
       {isDark ? (
@@ -116,23 +132,25 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
             x2={`${floatingNodes[b].x}%`}
             y2={`${floatingNodes[b].y}%`}
             stroke={isDark ? `url(#cbLineGrad)` : `url(#cbLineGradLight)`}
-            strokeWidth={isDark ? "0.4" : "1"}
+            strokeWidth={isDark ? "0.3" : "0.8"}
             strokeLinecap="round"
             strokeDasharray="1000"
+            strokeDashoffset="1000"
             style={{
-              animation: `cbLineFade ${14 + (i % 5) * 3}s ease-in-out infinite ${4 + i * 1.4}s`,
+              opacity: 0,
+              animation: `cbLine${i} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_DELAY}s`,
             }}
           />
         ))}
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
-            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.12" />
           </linearGradient>
           <linearGradient id="cbLineGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.15" />
           </linearGradient>
         </defs>
       </svg>
