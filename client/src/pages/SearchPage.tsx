@@ -1047,77 +1047,82 @@ export default function SearchPage() {
                     </svg>
 
                     <div className="relative z-10">
-                    {profileResult.influence !== undefined && (() => {
-                      const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-                      const score = Math.min(1, Math.max(0, rawScore));
-                      const pct = Math.round(score * 100);
-                      const tier = pct >= 80 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
-                        : pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
-                        : pct >= 25 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
-                        : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
-                      const circumference = 2 * Math.PI * 18;
-                      const offset = circumference - (score * circumference);
-                      return (
-                        <div className="absolute top-0 right-0 flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm" data-testid="badge-trust-score">
-                          <div className="flex items-center gap-1">
-                            <BrainLogo size={10} className="text-indigo-400" />
-                            <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-                          </div>
-                          <div className="relative w-12 h-12 flex items-center justify-center">
-                            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
-                              <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                                className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out", opacity: tier.opacity }} />
-                            </svg>
-                            <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{pct}</span>
-                          </div>
-                          <span className="text-[9px] font-semibold text-indigo-600">{tier.label}</span>
-                        </div>
-                      );
-                    })()}
-                    <div className="flex items-start gap-4 mb-5">
-                      <Avatar className="h-16 w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                    <div className="flex items-start gap-3 sm:gap-4 mb-5">
+                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
                         {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-600 text-lg font-bold">
+                        <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
                           {(nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0 pr-20">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
-                            {nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 18) + "..."}
-                          </h3>
-                          <Badge variant="secondary" className="text-[9px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-search-result-found">
-                            Profile Found
-                          </Badge>
-                        </div>
-                        {nostrProfile?.nip05 && (
-                          <p className="text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-search-result-nip05">{nostrProfile.nip05}</p>
-                        )}
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <code className="text-[10px] text-slate-400 font-mono truncate max-w-[200px] sm:max-w-[300px]" data-testid="text-search-result-npub">{searchQuery}</code>
-                          <button onClick={() => handleCopyNpub(searchQuery)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-search-npub">
-                            {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                        </div>
-                        {nostrProfile?.about && (
-                          <div className="mt-2" data-testid="text-search-result-about">
-                            <p className={`text-xs text-slate-500 leading-relaxed whitespace-pre-line ${!aboutExpanded ? "line-clamp-4" : ""}`}>
-                              {renderLinkedText(nostrProfile.about)}
-                            </p>
-                            {nostrProfile.about.length > 180 && (
-                              <button
-                                onClick={() => setAboutExpanded(!aboutExpanded)}
-                                className="text-[10px] text-indigo-500 font-medium mt-1"
-                                data-testid="button-about-toggle"
-                              >
-                                {aboutExpanded ? "Show less" : "Show more"}
-                              </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
+                                {nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 18) + "..."}
+                              </h3>
+                              <Badge variant="secondary" className="text-[9px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-search-result-found">
+                                Profile Found
+                              </Badge>
+                            </div>
+                            {nostrProfile?.nip05 && (
+                              <p className="text-[11px] sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-search-result-nip05">{nostrProfile.nip05}</p>
                             )}
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <code className="text-[10px] text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-search-result-npub">{searchQuery}</code>
+                              <button onClick={() => handleCopyNpub(searchQuery)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-search-npub">
+                                {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            </div>
                           </div>
-                        )}
+                          {profileResult.influence !== undefined && (() => {
+                            const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+                            const score = Math.min(1, Math.max(0, rawScore));
+                            const pct = Math.round(score * 100);
+                            const tier = pct >= 80 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
+                              : pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
+                              : pct >= 25 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
+                              : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
+                            const circumference = 2 * Math.PI * 18;
+                            const offset = circumference - (score * circumference);
+                            return (
+                              <div className="flex flex-col items-center gap-0.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
+                                <div className="flex items-center gap-1">
+                                  <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
+                                  <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
+                                  <span className="text-[6px] sm:text-[7px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+                                </div>
+                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                                  <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
+                                    <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
+                                      className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out", opacity: tier.opacity }} />
+                                  </svg>
+                                  <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{pct}</span>
+                                </div>
+                                <span className="text-[8px] sm:text-[9px] font-semibold text-indigo-600">{tier.label}</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
+                    {nostrProfile?.about && (
+                      <div className="mb-4 overflow-hidden" data-testid="text-search-result-about">
+                        <p className={`text-xs text-slate-500 leading-relaxed whitespace-pre-line break-words overflow-wrap-anywhere ${!aboutExpanded ? "line-clamp-3" : ""}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                          {renderLinkedText(nostrProfile.about)}
+                        </p>
+                        {nostrProfile.about.length > 140 && (
+                          <button
+                            onClick={() => setAboutExpanded(!aboutExpanded)}
+                            className="text-[10px] text-indigo-500 font-medium mt-1"
+                            data-testid="button-about-toggle"
+                          >
+                            {aboutExpanded ? "Show less" : "Show more"}
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
                       const mutedByCount = Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : (profileResult.muted_by || 0);
