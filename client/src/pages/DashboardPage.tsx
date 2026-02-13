@@ -1618,7 +1618,7 @@ export default function DashboardPage() {
                             </Button>
                           </a>
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#333286] !text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
