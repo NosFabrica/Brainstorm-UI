@@ -917,7 +917,7 @@ export default function SearchPage() {
                           )}
 
                           {profileResult.influence !== undefined && (
-                            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100" data-testid="metric-search-influence">
+                            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 cursor-help" title="Score from 0–1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <TrendingUp className="h-3 w-3 text-emerald-500" />
                                 <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wide">Influence</p>
@@ -930,7 +930,7 @@ export default function SearchPage() {
                           )}
 
                           {profileResult.muted_by !== undefined && (
-                            <div className={`p-3 rounded-xl border ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "bg-amber-50/70 border-amber-200" : "bg-slate-50/70 border-slate-100"}`} data-testid="metric-search-muted-by">
+                            <div className={`p-3 rounded-xl border cursor-help ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "bg-amber-50/70 border-amber-200" : "bg-slate-50/70 border-slate-100"}`} title="A soft negative signal. Muting means someone chose to hide this account's content from their feed." data-testid="metric-search-muted-by">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <VolumeX className={`h-3 w-3 ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "text-amber-500" : "text-slate-400"}`} />
                                 <p className={`text-[10px] font-bold uppercase tracking-wide ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "text-amber-700" : "text-slate-500"}`}>Muted by</p>
@@ -943,7 +943,7 @@ export default function SearchPage() {
                           )}
 
                           {profileResult.reported_by !== undefined && (
-                            <div className={`p-3 rounded-xl border ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "bg-red-50/70 border-red-200" : "bg-slate-50/70 border-slate-100"}`} data-testid="metric-search-reported-by">
+                            <div className={`p-3 rounded-xl border cursor-help ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "bg-red-50/70 border-red-200" : "bg-slate-50/70 border-slate-100"}`} title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior." data-testid="metric-search-reported-by">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <Flag className={`h-3 w-3 ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "text-red-500" : "text-slate-400"}`} />
                                 <p className={`text-[10px] font-bold uppercase tracking-wide ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "text-red-700" : "text-slate-500"}`}>Reported by</p>
