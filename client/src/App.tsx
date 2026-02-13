@@ -9,12 +9,14 @@ import DashboardPage from "@/pages/DashboardPage";
 import SearchPage from "@/pages/SearchPage";
 import SettingsPage from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
+import OnboardingPage from "@/pages/OnboardingPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/login">{() => <Redirect to="/" />}</Route>
+      <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/search" component={SearchPage} />
       <Route path="/settings" component={SettingsPage} />

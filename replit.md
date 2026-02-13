@@ -16,10 +16,12 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Added SearchPage with npub lookup, real API integration (getUserByPubkey), input validation, loading/error/result states, mobile nav drawer, CSS-only animations
 - 2026-02-13: Added What is WoT? educational page with dark theme, mode toggle (Why/How), trust node visualization, interactive parameter tuning, Show vs Tell scenarios, use cases, FAQ accordion, and CTA section
 - 2026-02-13: Added Landing page at / with hero section, Footer component, CSS-only animations (no framer-motion), moved LoginPage to /login
+- 2026-02-13: Created ComputingBackground component (dark/light variants, CSS-only) with animated graph nodes, connection lines, floating calculation text
+- 2026-02-13: Added OnboardingPage at /onboarding with 3-step guide, ComputingBackground dark variant, sign-in and learn CTA buttons
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Routing**: wouter (`/` = Landing, `/login` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
+- **Routing**: wouter (`/` = Landing, `/login` = Login, `/onboarding` = Onboarding, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
 - **Auth**: Challenge-response via brainstormserver API, token in localStorage
@@ -28,9 +30,11 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 ```
 client/src/
 ├── components/
+│   ├── ComputingBackground.tsx # Animated graph background (dark/light variants, CSS-only)
 │   └── Footer.tsx            # Dark footer with partner logos, WoT link, version (CSS-only)
 ├── pages/
-│   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, Footer
+│   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, ComputingBackground, Footer
+│   ├── OnboardingPage.tsx    # 3-step getting started guide with ComputingBackground dark variant
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
 │   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
