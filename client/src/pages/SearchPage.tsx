@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -136,6 +136,9 @@ export default function SearchPage() {
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
+  const resultPanelRef = useRef<HTMLDivElement>(null);
+  const processingPanelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
@@ -144,6 +147,27 @@ export default function SearchPage() {
     }
     setUser(u);
   }, [navigate]);
+
+  useEffect(() => {
+    if (isSearching && processingPanelRef.current) {
+      setTimeout(() => {
+        processingPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+    if (!isSearching && hasSearched && resultPanelRef.current) {
+      setTimeout(() => {
+        resultPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [isSearching, hasSearched]);
+
+  useEffect(() => {
+    if (aboutExpanded && resultPanelRef.current) {
+      setTimeout(() => {
+        resultPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+  }, [aboutExpanded]);
 
   const handleLogout = () => {
     logout();
@@ -758,7 +782,7 @@ export default function SearchPage() {
           </Card>
 
           {isSearching && (
-            <div className="overflow-hidden" data-testid="panel-search-processing">
+            <div ref={processingPanelRef} className="overflow-hidden scroll-mt-4" data-testid="panel-search-processing">
               <div className="relative w-full rounded-xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)]">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/40 via-violet-900/40 to-slate-900/40 backdrop-blur-md" />
                 <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(to right, #6366f1 1px, transparent 1px), linear-gradient(to bottom, #6366f1 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
@@ -781,7 +805,7 @@ export default function SearchPage() {
           )}
 
           {!isSearching && hasSearched && (
-            <div className="mt-6" data-testid="panel-search-result">
+            <div ref={resultPanelRef} className="mt-6 scroll-mt-4" data-testid="panel-search-result">
               {searchError ? (
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-empty-state">
                   <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
