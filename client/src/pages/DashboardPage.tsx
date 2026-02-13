@@ -278,8 +278,8 @@ export default function DashboardPage() {
       : null
     : null;
 
-  const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at) : null;
-  const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at) : null;
+  const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at.endsWith("Z") ? (grapeRank as any).created_at : (grapeRank as any).created_at + "Z") : null;
+  const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at.endsWith("Z") ? (grapeRank as any).updated_at : (grapeRank as any).updated_at + "Z") : null;
 
   const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
   const calcDone = grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
