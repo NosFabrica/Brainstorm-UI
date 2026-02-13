@@ -1125,7 +1125,7 @@ export default function DashboardPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-indigo-500/60" />
                       Coming soon
                     </div>
-                    <Button size="sm" className="h-7 px-3 text-[10px] font-bold bg-slate-200 text-[#ffffff] shadow-sm rounded-lg cursor-not-allowed opacity-80" disabled data-testid="button-view-all-followers-disabled" aria-disabled="true">
+                    <Button size="sm" variant="ghost" className="h-7 px-3 text-[10px] font-bold !bg-slate-100 !text-slate-400 shadow-none rounded-lg cursor-not-allowed opacity-60 border border-slate-200" disabled data-testid="button-view-all-followers-disabled" aria-disabled="true">
                       View All
                       <ChevronRight className="ml-1.5 h-3 w-3" />
                     </Button>
