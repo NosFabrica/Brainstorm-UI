@@ -841,12 +841,12 @@ export default function SearchPage() {
                   <div className="p-5 sm:p-6 relative"
                     style={{
                       backgroundImage: [
-                        'radial-gradient(circle at 85% 15%, rgba(99,102,241,0.045) 0%, transparent 55%)',
-                        'radial-gradient(circle at 10% 90%, rgba(99,102,241,0.025) 0%, transparent 45%)',
-                        'radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px)',
+                        'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.12) 0%, transparent 50%)',
+                        'radial-gradient(circle at 5% 95%, rgba(99,102,241,0.06) 0%, transparent 40%)',
+                        'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)',
                       ].join(', '),
-                      backgroundSize: '100% 100%, 100% 100%, 18px 18px',
-                      boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.06)',
+                      backgroundSize: '100% 100%, 100% 100%, 20px 20px',
+                      boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.12), inset 0 -1px 0 0 rgba(99,102,241,0.04)',
                     }}
                   >
                     <div className="flex items-start gap-4 mb-5">
