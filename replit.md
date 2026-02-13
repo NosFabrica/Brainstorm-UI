@@ -20,6 +20,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Added OnboardingPage at /onboarding with 3-step guide, ComputingBackground dark variant, sign-in and learn CTA buttons
 - 2026-02-13: Upgraded WhatIsWotPage with framer-motion animations, real avatar images (generated + stock), interactive Show vs Tell scenarios with 5 trust contexts, FAQ accordion, CTA section
 - 2026-02-13: Merged comprehensive Good UI dashboard: onboarding panel (flashlight effect, 8-slide carousel, progress tracker, queue position), GrapeRank hero card, key metrics grid (trusted followers, network alerts, extended reach with hops slider), recharts PieChart network health, educational strip, supported clients carousel (Amethyst + Nostria), keyboard shortcuts modal (E/H/?), JSON export
+- 2026-02-13: Enhanced SearchPage: npub→hex decoding via nip19, parallel profile+graph fetch, trust profile card with avatar/name/NIP-05/about, all 7 social metrics (followers, following, influence, muted_by, reported_by, muting, reporting) with color-coded tiles, trust warning banner
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -41,7 +42,7 @@ client/src/
 │   ├── OnboardingPage.tsx    # 3-step getting started guide with ComputingBackground dark variant
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # Full dashboard: onboarding panel, GrapeRank hero, metrics grid, PieChart, educational strip, clients carousel, keyboard shortcuts
-│   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
+│   ├── SearchPage.tsx        # Npub lookup with npub→hex decode, parallel profile+graph fetch, trust profile card, all 7 metrics, warning banner
 │   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
 │   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
 ├── services/

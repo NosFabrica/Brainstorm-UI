@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { nip19 } from "nostr-tools";
 import {
   Search as SearchIcon,
   User,
@@ -13,7 +14,14 @@ import {
   Check,
   Settings as SettingsIcon,
   BookOpen,
+  Users,
+  ShieldAlert,
+  VolumeX,
+  Flag,
+  TrendingUp,
+  ExternalLink,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -124,6 +132,7 @@ export default function SearchPage() {
   const [searchError, setSearchError] = useState<SearchError | null>(null);
 
   const [profileResult, setProfileResult] = useState<any>(null);
+  const [nostrProfile, setNostrProfile] = useState<{ name?: string; display_name?: string; picture?: string; nip05?: string; about?: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -149,6 +158,7 @@ export default function SearchPage() {
     setSearchError(null);
     setHasSearched(false);
     setProfileResult(null);
+    setNostrProfile(null);
 
     if (!q) {
       setSearchError({
@@ -171,14 +181,43 @@ export default function SearchPage() {
       return;
     }
 
+    let hexPubkey: string;
+    try {
+      const decoded = nip19.decode(q);
+      if (decoded.type !== "npub" || typeof decoded.data !== "string") {
+        setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+        return;
+      }
+      hexPubkey = decoded.data;
+    } catch {
+      setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+      return;
+    }
+
     setSearchQuery(q);
     setIsSearching(true);
+    setNostrProfile(null);
 
     try {
-      const res = await apiClient.getUserByPubkey(q);
-      setProfileResult(res?.data || null);
+      const [graphRes, profileRes] = await Promise.allSettled([
+        apiClient.getUserByPubkey(hexPubkey),
+        fetch(`/api/profile/${hexPubkey}`).then(r => r.json()),
+      ]);
+
+      const graphData = graphRes.status === "fulfilled" ? graphRes.value?.data : null;
+      setProfileResult(graphData || null);
+
+      if (profileRes.status === "fulfilled" && profileRes.value?.event) {
+        try {
+          const meta = JSON.parse(profileRes.value.event.content);
+          setNostrProfile(meta);
+        } catch {
+          setNostrProfile(null);
+        }
+      }
+
       setHasSearched(true);
-      if (!res?.data) {
+      if (!graphData) {
         setSearchError({
           code: "NOT_FOUND",
           title: "No profile found",
@@ -779,6 +818,7 @@ export default function SearchPage() {
                             setSearchQuery("");
                             setNpub("");
                             setProfileResult(null);
+                            setNostrProfile(null);
                           }}
                           className="h-10 rounded-xl px-4 border-slate-200 bg-white"
                           data-testid="button-search-clear"
@@ -797,56 +837,164 @@ export default function SearchPage() {
               ) : profileResult ? (
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-result">
                   <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+
                   <div className="p-5 sm:p-6">
-                    <p className="text-xs font-bold tracking-wider uppercase text-slate-400 mb-1" data-testid="text-search-result-kicker">Profile Found</p>
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mb-4" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
-                      {searchQuery}
-                    </h3>
-
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3" data-testid="section-search-result-data">
-                      <div className="flex items-center gap-2">
-                        <code className="text-[10px] text-slate-500 font-mono flex-1 truncate" data-testid="text-search-result-npub">{searchQuery}</code>
-                        <button onClick={() => handleCopyNpub(searchQuery)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors" data-testid="button-copy-search-npub">
-                          {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                        </button>
+                    <div className="flex items-start gap-4 mb-5">
+                      <Avatar className="h-16 w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                        {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
+                        <AvatarFallback className="bg-indigo-50 text-indigo-600 text-lg font-bold">
+                          {(nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 2)).charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
+                            {nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 18) + "..."}
+                          </h3>
+                          <Badge variant="secondary" className="text-[9px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-search-result-found">
+                            Profile Found
+                          </Badge>
+                        </div>
+                        {nostrProfile?.nip05 && (
+                          <p className="text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-search-result-nip05">{nostrProfile.nip05}</p>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <code className="text-[10px] text-slate-400 font-mono truncate max-w-[200px] sm:max-w-[300px]" data-testid="text-search-result-npub">{searchQuery}</code>
+                          <button onClick={() => handleCopyNpub(searchQuery)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-search-npub">
+                            {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                        {nostrProfile?.about && (
+                          <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed" data-testid="text-search-result-about">{nostrProfile.about}</p>
+                        )}
                       </div>
+                    </div>
 
-                      {profileResult.graph && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                          {profileResult.graph.followed_by && (
-                            <div className="p-2.5 rounded-xl bg-white border border-slate-100">
-                              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Followers</p>
-                              <p className="text-sm font-bold text-slate-900 font-mono mt-0.5" data-testid="text-search-result-followers">
-                                {Array.isArray(profileResult.graph.followed_by) ? profileResult.graph.followed_by.length : profileResult.graph.followed_by}
+                    {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1 rounded-md bg-indigo-50 text-indigo-600">
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Trust Signals</h4>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          {profileResult.followed_by !== undefined && (
+                            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100" data-testid="metric-search-followers">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Users className="h-3 w-3 text-blue-500" />
+                                <p className="text-[10px] text-blue-700 font-bold uppercase tracking-wide">Followers</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-followers">
+                                {Array.isArray(profileResult.followed_by) ? profileResult.followed_by.length.toLocaleString() : profileResult.followed_by}
                               </p>
+                              <p className="text-[9px] text-blue-600/60 mt-0.5">People following this account</p>
                             </div>
                           )}
-                          {profileResult.graph.following && (
-                            <div className="p-2.5 rounded-xl bg-white border border-slate-100">
-                              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Following</p>
-                              <p className="text-sm font-bold text-slate-900 font-mono mt-0.5" data-testid="text-search-result-following">
-                                {Array.isArray(profileResult.graph.following) ? profileResult.graph.following.length : profileResult.graph.following}
+
+                          {profileResult.following !== undefined && (
+                            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100" data-testid="metric-search-following">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <ExternalLink className="h-3 w-3 text-blue-500" />
+                                <p className="text-[10px] text-blue-700 font-bold uppercase tracking-wide">Following</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-following">
+                                {Array.isArray(profileResult.following) ? profileResult.following.length.toLocaleString() : profileResult.following}
                               </p>
+                              <p className="text-[9px] text-blue-600/60 mt-0.5">Accounts this person follows</p>
                             </div>
                           )}
-                          {profileResult.graph.influence !== undefined && (
-                            <div className="p-2.5 rounded-xl bg-white border border-slate-100">
-                              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">Influence</p>
-                              <p className="text-sm font-bold text-slate-900 font-mono mt-0.5" data-testid="text-search-result-influence">
-                                {profileResult.graph.influence}
+
+                          {profileResult.influence !== undefined && (
+                            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100" data-testid="metric-search-influence">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <TrendingUp className="h-3 w-3 text-emerald-500" />
+                                <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wide">Influence</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-influence">
+                                {typeof profileResult.influence === "number" ? profileResult.influence.toFixed(2) : profileResult.influence}
                               </p>
+                              <p className="text-[9px] text-emerald-600/60 mt-0.5">Network influence score</p>
+                            </div>
+                          )}
+
+                          {profileResult.muted_by !== undefined && (
+                            <div className={`p-3 rounded-xl border ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "bg-amber-50/70 border-amber-200" : "bg-slate-50/70 border-slate-100"}`} data-testid="metric-search-muted-by">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <VolumeX className={`h-3 w-3 ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                                <p className={`text-[10px] font-bold uppercase tracking-wide ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : profileResult.muted_by) > 0 ? "text-amber-700" : "text-slate-500"}`}>Muted by</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-muted-by">
+                                {Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length.toLocaleString() : profileResult.muted_by}
+                              </p>
+                              <p className="text-[9px] text-slate-500/60 mt-0.5">Others who muted this account</p>
+                            </div>
+                          )}
+
+                          {profileResult.reported_by !== undefined && (
+                            <div className={`p-3 rounded-xl border ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "bg-red-50/70 border-red-200" : "bg-slate-50/70 border-slate-100"}`} data-testid="metric-search-reported-by">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Flag className={`h-3 w-3 ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "text-red-500" : "text-slate-400"}`} />
+                                <p className={`text-[10px] font-bold uppercase tracking-wide ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : profileResult.reported_by) > 0 ? "text-red-700" : "text-slate-500"}`}>Reported by</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-reported-by">
+                                {Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length.toLocaleString() : profileResult.reported_by}
+                              </p>
+                              <p className="text-[9px] text-slate-500/60 mt-0.5">Reports filed against this account</p>
+                            </div>
+                          )}
+
+                          {profileResult.muting !== undefined && (
+                            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100" data-testid="metric-search-muting">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <VolumeX className="h-3 w-3 text-slate-400" />
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Muting</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-muting">
+                                {Array.isArray(profileResult.muting) ? profileResult.muting.length.toLocaleString() : profileResult.muting}
+                              </p>
+                              <p className="text-[9px] text-slate-500/60 mt-0.5">Accounts this person has muted</p>
+                            </div>
+                          )}
+
+                          {profileResult.reporting !== undefined && (
+                            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-100" data-testid="metric-search-reporting">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Flag className="h-3 w-3 text-slate-400" />
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Reporting</p>
+                              </div>
+                              <p className="text-lg font-bold text-slate-900 font-mono leading-none" data-testid="text-search-result-reporting">
+                                {Array.isArray(profileResult.reporting) ? profileResult.reporting.length.toLocaleString() : profileResult.reporting}
+                              </p>
+                              <p className="text-[9px] text-slate-500/60 mt-0.5">Reports filed by this person</p>
                             </div>
                           )}
                         </div>
-                      )}
 
-                      <details className="mt-2">
-                        <summary className="text-[10px] text-slate-500 font-medium uppercase tracking-wide cursor-pointer" data-testid="button-search-result-raw">Raw Data</summary>
-                        <pre className="text-[10px] text-slate-600 bg-white rounded-lg p-3 border border-slate-100 overflow-auto max-h-48 font-mono mt-2" data-testid="text-search-result-raw">
-                          {JSON.stringify(profileResult, null, 2)}
-                        </pre>
-                      </details>
-                    </div>
+                        {((Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : 0) > 0 || (Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : 0) > 0) && (
+                          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5" data-testid="alert-search-trust-warning">
+                            <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-[11px] font-bold text-amber-900">Heads up</p>
+                              <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                                This account has been {(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : 0) > 0 ? `muted by ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : 0).toLocaleString()} ${(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : 0) === 1 ? "person" : "people"}` : ""}
+                                {(Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : 0) > 0 && (Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : 0) > 0 ? " and " : ""}
+                                {(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : 0) > 0 ? `reported by ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : 0).toLocaleString()} ${(Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : 0) === 1 ? "person" : "people"}` : ""}.
+                                Use your own judgment when interacting with this account.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <details className="mt-4">
+                      <summary className="text-[10px] text-slate-400 font-medium uppercase tracking-wide cursor-pointer hover:text-slate-600 transition-colors" data-testid="button-search-result-raw">Raw API Data</summary>
+                      <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 overflow-auto max-h-48 font-mono mt-2" data-testid="text-search-result-raw">
+                        {JSON.stringify(profileResult, null, 2)}
+                      </pre>
+                    </details>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <Button
@@ -858,6 +1006,7 @@ export default function SearchPage() {
                           setSearchQuery("");
                           setNpub("");
                           setProfileResult(null);
+                          setNostrProfile(null);
                         }}
                         className="h-10 rounded-xl px-4 border-slate-200 bg-white"
                         data-testid="button-search-new"
