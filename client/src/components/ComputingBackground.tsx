@@ -65,25 +65,23 @@ function buildClusterKeyframes(
   const nodeCount = cluster.nodes.length;
   const lineCount = cluster.lines.length;
 
-  const connectedAt: number[] = new Array(nodeCount).fill(0);
+  const firstLineArrival: number[] = new Array(nodeCount).fill(Infinity);
   cluster.lines.forEach(([a, b], li) => {
     const lineArrives = 2 + li * 3 + 6;
-    connectedAt[a] = Math.max(connectedAt[a], lineArrives);
-    connectedAt[b] = Math.max(connectedAt[b], lineArrives);
+    firstLineArrival[a] = Math.min(firstLineArrival[a], lineArrives);
+    firstLineArrival[b] = Math.min(firstLineArrival[b], lineArrives);
   });
 
   cluster.nodes.forEach((_, ni) => {
     const appearAt = ni * 1.2;
-    const brightAt = 2 + ni * 1.5;
+    const fadeAt = firstLineArrival[ni] === Infinity ? 12 : firstLineArrival[ni];
     kf.push(`
       @keyframes ${prefix}T${ni} {
         0% { opacity: 0; transform: translateY(3px); }
         ${p(appearAt)}% { opacity: 0; transform: translateY(3px); }
-        ${p(appearAt + 1.5)}% { opacity: 0.25; transform: translateY(1px); }
-        ${p(brightAt + 3)}% { opacity: 0.45; transform: translateY(0); }
-        ${p(brightAt + 8)}% { opacity: 0.4; transform: translateY(0); }
-        ${p(22)}% { opacity: 0.3; transform: translateY(0); }
-        ${p(26)}% { opacity: 0; transform: translateY(-2px); }
+        ${p(appearAt + 2)}% { opacity: 0.22; transform: translateY(0); }
+        ${p(fadeAt - 1)}% { opacity: 0.2; transform: translateY(0); }
+        ${p(fadeAt + 1.5)}% { opacity: 0; transform: translateY(-2px); }
         100% { opacity: 0; transform: translateY(-2px); }
       }
     `);
@@ -190,7 +188,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         key={`${prefix}-t-${ni}`}
         className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-          isDark ? 'text-blue-200' : 'text-indigo-800'
+          isDark ? 'text-blue-300/60' : 'text-indigo-800/30'
         }`}
         style={{
           left: `${node.x}%`,
