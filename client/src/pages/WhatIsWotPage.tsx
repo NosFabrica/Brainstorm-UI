@@ -10,8 +10,8 @@ import selfAvatar from '@assets/generated_images/self_avatar_glowing_silhouette.
 import friendAvatar from '@assets/generated_images/friendly_trusted_person_avatar.png';
 import fofAvatar from '@assets/generated_images/distant_friend-of-friend_avatar.png';
 import unknownAvatar from '@assets/generated_images/unknown_stranger_avatar_silhouette.png';
-import socialAliceAvatar from '@assets/stock_images/young_creative_woman_14461b61.jpg';
-import socialBobAvatar from '@assets/stock_images/young_man_profession_46072db4.jpg';
+import socialAliceAvatar from '@assets/young_creative_woman_14461b61_1770965715586.jpg';
+import socialBobAvatar from '@assets/young_man_profession_46072db4_1770965705548.jpg';
 import businessClientAvatar from '@assets/stock_images/professional_man_wor_ca204bd6.jpg';
 import businessVendorAvatar from '@assets/stock_images/red_brick_building_e_b5643b62.jpg';
 import musicFanAvatar from '@assets/generated_images/music_fan_listener_avatar.png';
