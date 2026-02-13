@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -148,26 +148,42 @@ export default function SearchPage() {
     setUser(u);
   }, [navigate]);
 
+  const smoothScrollTo = useCallback((el: HTMLElement, duration = 600, offset = -16) => {
+    const targetY = el.getBoundingClientRect().top + window.scrollY + offset;
+    const startY = window.scrollY;
+    const diff = targetY - startY;
+    if (Math.abs(diff) < 4) return;
+    let start: number | null = null;
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const step = (timestamp: number) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      window.scrollTo(0, startY + diff * easeOutCubic(progress));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, []);
+
   useEffect(() => {
     if (isSearching && processingPanelRef.current) {
       setTimeout(() => {
-        processingPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
+        if (processingPanelRef.current) smoothScrollTo(processingPanelRef.current, 700);
+      }, 200);
     }
     if (!isSearching && hasSearched && resultPanelRef.current) {
       setTimeout(() => {
-        resultPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+        if (resultPanelRef.current) smoothScrollTo(resultPanelRef.current, 800);
+      }, 300);
     }
-  }, [isSearching, hasSearched]);
+  }, [isSearching, hasSearched, smoothScrollTo]);
 
   useEffect(() => {
     if (aboutExpanded && resultPanelRef.current) {
       setTimeout(() => {
-        resultPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 50);
+        if (resultPanelRef.current) smoothScrollTo(resultPanelRef.current, 600);
+      }, 150);
     }
-  }, [aboutExpanded]);
+  }, [aboutExpanded, smoothScrollTo]);
 
   const handleLogout = () => {
     logout();
