@@ -633,15 +633,6 @@ export default function SearchPage() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
-                  onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
-                  data-testid="button-mobile-nav-settings"
-                >
-                  <SettingsIcon className="h-5 w-5 text-slate-200/80" />
-                  Settings
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }}
                   data-testid="button-mobile-nav-wot"
                 >
@@ -652,6 +643,15 @@ export default function SearchPage() {
             </div>
 
             <div className="relative p-4 border-t border-white/10 bg-white/[0.04]">
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl mb-4 no-default-hover-elevate no-default-active-elevate"
+                onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
+                data-testid="button-mobile-nav-settings"
+              >
+                <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                Settings
+              </Button>
               <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
                 <Avatar className="h-10 w-10 border border-white/10">
                   {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
