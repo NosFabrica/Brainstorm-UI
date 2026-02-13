@@ -64,7 +64,7 @@ export default function PageBackground() {
         <svg className="absolute inset-0 w-full h-full">
           {connectionPairs.map(([a, b], i) => {
             const len = estimateLineLength(a, b);
-            const drawDelay = i * 1.8 + 0.5;
+            const drawDelay = i * 0.8 + 0.3;
             return (
               <line
                 key={i}
@@ -73,20 +73,20 @@ export default function PageBackground() {
                 x2={`${floatingNodes[b].x}%`}
                 y2={`${floatingNodes[b].y}%`}
                 stroke="url(#pageBgLineGrad)"
-                strokeWidth="1"
+                strokeWidth="0.5"
                 strokeDasharray={len}
                 strokeDashoffset={len}
                 style={{
                   ["--dash" as string]: len,
-                  animation: `pageLineDraw ${3 + (i % 3)}s ease-out ${drawDelay}s forwards, pageLinePulse 8s ease-in-out ${drawDelay + 3}s infinite`,
+                  animation: `pageLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${drawDelay}s forwards, pageLinePulse 12s ease-in-out ${drawDelay + 1.5}s infinite`,
                 } as React.CSSProperties}
               />
             );
           })}
           <defs>
             <linearGradient id="pageBgLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.3" />
+              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0.14" />
             </linearGradient>
           </defs>
         </svg>
@@ -94,7 +94,7 @@ export default function PageBackground() {
         {floatingNodes.map((node) => (
           <div
             key={node.id}
-            className="absolute rounded-full bg-white border border-indigo-200/60 shadow-sm"
+            className="absolute rounded-full bg-white/80 border border-slate-200/40"
             style={{
               left: `${node.x}%`,
               top: `${node.y}%`,
@@ -146,22 +146,21 @@ export default function PageBackground() {
           50% { transform: translateY(-25px); opacity: 0.35; }
         }
         @keyframes pageLineDraw {
-          0% { stroke-dashoffset: var(--dash); opacity: 0.15; }
-          15% { opacity: 0.3; }
-          100% { stroke-dashoffset: 0; opacity: 0.22; }
+          0% { stroke-dashoffset: var(--dash); opacity: 0; }
+          100% { stroke-dashoffset: 0; opacity: 0.18; }
         }
         @keyframes pageLinePulse {
-          0%, 100% { opacity: 0.15; }
-          50% { opacity: 0.28; }
+          0%, 100% { opacity: 0.12; }
+          50% { opacity: 0.2; }
         }
         @keyframes pageNodePop {
           0% { opacity: 0; transform: scale(0); }
-          60% { opacity: 0.4; transform: scale(1.3); }
-          100% { opacity: 0.3; transform: scale(1); }
+          60% { opacity: 0.25; transform: scale(1.15); }
+          100% { opacity: 0.18; transform: scale(1); }
         }
         @keyframes pageNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.25; }
-          50% { transform: translateY(-18px); opacity: 0.4; }
+          0%, 100% { transform: translateY(0); opacity: 0.15; }
+          50% { transform: translateY(-12px); opacity: 0.25; }
         }
         @keyframes pageCalcFloat {
           0%, 100% { opacity: 0; transform: translateY(0); }
