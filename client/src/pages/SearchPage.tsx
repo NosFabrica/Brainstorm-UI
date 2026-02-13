@@ -14,12 +14,6 @@ import {
   Check,
   Settings as SettingsIcon,
   BookOpen,
-  Users,
-  ShieldAlert,
-  VolumeX,
-  Flag,
-  TrendingUp,
-  ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +33,73 @@ import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+
+const FollowersIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M2.5 19.5c0-3.5 2.8-6 6.5-6s6.5 2.5 6.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="17.5" cy="8.5" r="2.5" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.6" />
+    <path d="M17.5 13c2.2 0 4 1.5 4.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
+  </svg>
+);
+
+const FollowingIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M5 20c0-3.5 3-6.5 7-6.5s7 3 7 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M16 4l2 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.7" />
+    <path d="M12 6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
+  </svg>
+);
+
+const InfluenceIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth="1" strokeDasharray="3 2" strokeOpacity="0.4" />
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="0.75" strokeDasharray="2 3" strokeOpacity="0.2" />
+    <path d="M12 5v-2M12 21v-2M5 12H3M21 12h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.35" />
+  </svg>
+);
+
+const MutedByIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M17 9l-5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M12 9l5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const ReportedByIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M12 3L4 9v11a1 1 0 001 1h14a1 1 0 001-1V9l-8-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.06" />
+    <path d="M12 8v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="12" cy="16" r="1" fill="currentColor" />
+  </svg>
+);
+
+const MutingIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M16 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const ReportingIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M5 4h10l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12 11v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
+  </svg>
+);
+
+const RiskAdvisoryIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M12 3l9 16H3L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08" />
+    <path d="M12 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="12" cy="17" r="1" fill="currentColor" />
+  </svg>
+);
 
 const EnterpriseSearchIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -1083,7 +1144,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-followers">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                    <Users className="h-3.5 w-3.5 text-blue-500" />
+                                    <FollowersIcon className="h-4 w-4 text-blue-500" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Followers</p>
@@ -1099,7 +1160,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-following">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                    <ExternalLink className="h-3.5 w-3.5 text-blue-500" />
+                                    <FollowingIcon className="h-4 w-4 text-blue-500" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Following</p>
@@ -1114,8 +1175,8 @@ export default function SearchPage() {
                             {profileResult.influence !== undefined && (
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                                    <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                                  <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                    <InfluenceIcon className="h-4 w-4 text-indigo-500" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Influence Score</p>
@@ -1124,7 +1185,7 @@ export default function SearchPage() {
                                 </div>
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" style={{ width: `${Math.min((typeof profileResult.influence === "number" ? profileResult.influence : 0) * 100, 100)}%` }} />
+                                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof profileResult.influence === "number" ? profileResult.influence : 0) * 100, 100)}%` }} />
                                   </div>
                                   <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-influence">
                                     {typeof profileResult.influence === "number" ? profileResult.influence.toFixed(2) : profileResult.influence}
@@ -1148,7 +1209,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A soft negative signal. Muting means someone chose to hide this account's content from their feed." data-testid="metric-search-muted-by">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
-                                    <VolumeX className={`h-3.5 w-3.5 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                                    <MutedByIcon className={`h-4 w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Muted By</p>
@@ -1164,7 +1225,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior." data-testid="metric-search-reported-by">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
-                                    <Flag className={`h-3.5 w-3.5 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
+                                    <ReportedByIcon className={`h-4 w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Reported By</p>
@@ -1180,7 +1241,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-muting">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                    <VolumeX className="h-3.5 w-3.5 text-slate-400" />
+                                    <MutingIcon className="h-4 w-4 text-slate-400" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Muting</p>
@@ -1196,7 +1257,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-reporting">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                    <Flag className="h-3.5 w-3.5 text-slate-400" />
+                                    <ReportingIcon className="h-4 w-4 text-slate-400" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Reporting</p>
@@ -1215,7 +1276,7 @@ export default function SearchPage() {
                           <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-amber-50/50 overflow-hidden" data-testid="alert-search-trust-warning">
                             <div className="px-4 py-3 flex items-start gap-3">
                               <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
-                                <ShieldAlert className="h-4 w-4 text-amber-600" />
+                                <RiskAdvisoryIcon className="h-4 w-4 text-amber-600" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
