@@ -199,6 +199,8 @@ export default function SearchPage() {
 
   const resultPanelRef = useRef<HTMLDivElement>(null);
   const processingPanelRef = useRef<HTMLDivElement>(null);
+  const autoSearchTriggered = useRef(false);
+  const pendingAutoSearch = useRef<string | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -207,6 +209,14 @@ export default function SearchPage() {
       return;
     }
     setUser(u);
+
+    const params = new URLSearchParams(window.location.search);
+    const prefill = params.get("npub");
+    if (prefill && !autoSearchTriggered.current) {
+      setNpub(prefill);
+      setActiveTab("npub");
+      pendingAutoSearch.current = prefill;
+    }
   }, [navigate]);
 
   const smoothScrollTo = useCallback((el: HTMLElement, duration = 600, offset = -16) => {
@@ -358,6 +368,14 @@ export default function SearchPage() {
       setIsSearching(false);
     }
   };
+
+  useEffect(() => {
+    if (pendingAutoSearch.current && npub === pendingAutoSearch.current && !autoSearchTriggered.current) {
+      autoSearchTriggered.current = true;
+      pendingAutoSearch.current = null;
+      handleSearch();
+    }
+  }, [npub]);
 
   const handleCopyNpub = async (text: string) => {
     try {

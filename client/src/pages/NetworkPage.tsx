@@ -755,7 +755,7 @@ export default function NetworkPage() {
                   <div
                     key={pk}
                     className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 hover:border-indigo-300/50 hover:shadow-md transition-all cursor-pointer group"
-                    onClick={() => navigate("/search")}
+                    onClick={() => navigate(`/search?npub=${npub}`)}
                     data-testid={`card-profile-${pk.slice(0, 8)}`}
                   >
                     <div className="flex items-center gap-3">
