@@ -1548,7 +1548,8 @@ export default function DashboardPage() {
 
                 <div className="flex-shrink-0">
                   <Button
-                    className="bg-white text-indigo-950 hover:bg-indigo-50 border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
+                    variant="ghost"
+                    className="!bg-white !text-indigo-950 border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
                     onClick={() => navigate("/what-is-wot")}
                     data-testid="button-learn-wot"
                   >
