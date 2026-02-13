@@ -1125,7 +1125,7 @@ export default function DashboardPage() {
                               Network Alerts
                             </DialogTitle>
                             <DialogDescription className="text-[12px] text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
-                              A safety lens on your follows \u2014 highlights suspicious patterns, look-alikes, and spam pressure in your extended graph.
+                              Stay informed about who you follow. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
                             </DialogDescription>
                           </div>
                         </div>
