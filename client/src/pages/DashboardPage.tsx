@@ -216,7 +216,10 @@ export default function DashboardPage() {
 
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.data && typeof data.data === "object") {
+        queryClient.setQueryData(["/api/auth/graperankResult"], data);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
     },
