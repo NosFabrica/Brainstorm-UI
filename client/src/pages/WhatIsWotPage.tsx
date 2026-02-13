@@ -357,7 +357,7 @@ export default function WhatIsWoT() {
       question: "How is this different from followers or likes?",
       answer: {
         normal: "Followers and likes are flat - 1 million followers from bots counts the same as 100 from real people. Web of Trust is personalized: it weighs connections based on YOUR network. Someone followed by people YOU trust scores higher than a stranger with millions of followers you've never heard of.",
-        power: "Traditional social metrics are global and gameable (Sybil attacks, purchased followers). WoT scores are ego-centric graph traversals - computed relative to YOUR position in the network. A profile's score varies per viewer. This makes manipulation economically infeasible: you'd need to compromise the specific viewer's trust graph."
+        power: "Followers and likes are flat - 1 million followers from bots counts the same as 100 from real people. Web of Trust is personalized: it weighs connections based on YOUR network. Someone followed by people YOU trust scores higher than a stranger with millions of followers you've never heard of."
       }
     },
     {
