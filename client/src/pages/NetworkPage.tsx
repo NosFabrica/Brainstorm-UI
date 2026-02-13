@@ -838,7 +838,7 @@ export default function NetworkPage() {
                     return (
                       <div
                         key={pk}
-                        className={`bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl animate-pulse ${viewMode === "grid" ? "p-4" : "p-3"}`}
+                        className={`bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pulse ${viewMode === "grid" ? "p-4" : "p-3"}`}
                         data-testid={`skeleton-profile-${pk.slice(0, 8)}`}
                       >
                         <div className="flex items-center gap-3">
@@ -856,7 +856,7 @@ export default function NetworkPage() {
                     return (
                       <div
                         key={pk}
-                        className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl px-4 py-2.5 hover:border-indigo-300/50 hover:shadow-sm transition-all cursor-pointer flex items-center gap-3"
+                        className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3"
                         onClick={() => navigate(`/search?npub=${npub}`)}
                         data-testid={`card-profile-${pk.slice(0, 8)}`}
                       >
@@ -915,7 +915,7 @@ export default function NetworkPage() {
                   return (
                     <div
                       key={pk}
-                      className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 hover:border-indigo-300/50 hover:shadow-md transition-all cursor-pointer group"
+                      className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group"
                       onClick={() => navigate(`/search?npub=${npub}`)}
                       data-testid={`card-profile-${pk.slice(0, 8)}`}
                     >
