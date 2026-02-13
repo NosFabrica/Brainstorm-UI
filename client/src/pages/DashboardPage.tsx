@@ -165,11 +165,6 @@ const NETWORK_METRICS = [
   { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500", bgColor: "bg-orange-500" },
 ] as const;
 
-const TOP_PROFILES_MOCK = [
-  { displayName: "Alice", score: 0.95 },
-  { displayName: "Bob", score: 0.91 },
-  { displayName: "Carol", score: 0.88 },
-];
 
 export default function DashboardPage() {
   const [, navigate] = useLocation();
@@ -185,7 +180,6 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
-  const [scoresCalculatedAt, setScoresCalculatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -308,16 +302,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (onboardingProgress < 100) return;
-    if (scoresCalculatedAt) return;
-
-    const d = new Date();
-    const date = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
-    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-
-    setScoresCalculatedAt(`${date} \u00b7 ${time}`);
-  }, [onboardingProgress, scoresCalculatedAt]);
 
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
@@ -436,7 +420,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const showOnboarding = !grapeRankScore;
+  const showOnboarding = !grapeRankScore && onboardingProgress < 100;
 
   return (
     <TooltipProvider>
@@ -612,6 +596,11 @@ export default function DashboardPage() {
                   {!grapeRankScore ? (
                     <span className="text-[11px] text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
                       Awaiting calculation
+                    </span>
+                  ) : triggerGrapeRankMutation.isPending ? (
+                    <span className="text-[11px] text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Recalculating...
                     </span>
                   ) : (
                     <span className="text-[11px] text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
@@ -1044,29 +1033,10 @@ export default function DashboardPage() {
                         </>
                       ) : (
                         <>
-                          {TOP_PROFILES_MOCK.slice(0, 3).map((profile, i) => (
-                            <UITooltip key={i}>
-                              <TooltipTrigger asChild>
-                                <div className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white hover:scale-110 hover:z-20 transition-all duration-300 ease-out cursor-pointer shadow-sm" data-testid={`avatar-trusted-profile-${i}`}>
-                                  <Avatar className="h-full w-full border-[0.5px] border-black/5 bg-white">
-                                    <AvatarFallback className="bg-indigo-100 text-[8px] font-bold text-indigo-700">
-                                      {profile.displayName.charAt(0)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-white/95 backdrop-blur-xl border-[#7c86ff]/20 text-slate-700 shadow-xl p-2 px-3">
-                                <div className="flex flex-col gap-0.5">
-                                  <p className="font-bold text-xs text-[#333286]">{profile.displayName}</p>
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="h-1 w-12 bg-slate-100 rounded-full overflow-hidden">
-                                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${profile.score * 100}%` }} />
-                                    </div>
-                                    <p className="text-[9px] font-mono text-slate-500">{Math.round(profile.score * 100)}% Trust</p>
-                                  </div>
-                                </div>
-                              </TooltipContent>
-                            </UITooltip>
+                          {[0, 1, 2].map((i) => (
+                            <div key={i} className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-50 border border-indigo-100 shadow-sm" data-testid={`avatar-trusted-profile-${i}`} aria-hidden="true">
+                              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200/50 to-white/20" />
+                            </div>
                           ))}
                           <div className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white hover:scale-110 hover:z-20 transition-all duration-300 ease-out cursor-pointer shadow-sm" data-testid="avatar-trusted-more">
                             <Avatar className="h-full w-full">
