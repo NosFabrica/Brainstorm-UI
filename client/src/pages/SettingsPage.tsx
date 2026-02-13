@@ -278,15 +278,6 @@ export default function SettingsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-white bg-white/10 no-default-hover-elevate no-default-active-elevate"
-                  data-testid="button-nav-settings"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  Settings
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
                   className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
                   onClick={() => navigate("/what-is-wot")}
                   data-testid="button-nav-wot"
@@ -318,6 +309,11 @@ export default function SettingsPage() {
                       <p className="text-xs leading-none text-slate-500" data-testid="text-settings-menu-npub">{user.npub.slice(0, 16)}...</p>
                     </div>
                   </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
+                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
