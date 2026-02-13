@@ -18,6 +18,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Added Landing page at / with hero section, Footer component, CSS-only animations (no framer-motion), moved LoginPage to /login
 - 2026-02-13: Created ComputingBackground component (dark/light variants, CSS-only) with animated graph nodes, connection lines, floating calculation text
 - 2026-02-13: Added OnboardingPage at /onboarding with 3-step guide, ComputingBackground dark variant, sign-in and learn CTA buttons
+- 2026-02-13: Upgraded WhatIsWotPage with framer-motion animations, real avatar images (generated + stock), interactive Show vs Tell scenarios with 5 trust contexts, FAQ accordion, CTA section
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -30,8 +31,10 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 ```
 client/src/
 ├── components/
+│   ├── BrainLogo.tsx          # Brain SVG logo component with size/color props
 │   ├── ComputingBackground.tsx # Animated graph background (dark/light variants, CSS-only)
-│   └── Footer.tsx            # Dark footer with partner logos, WoT link, version (CSS-only)
+│   ├── Footer.tsx             # Dark footer with partner logos, WoT link, version (CSS-only)
+│   └── WotIcons.tsx           # Custom SVG icon components for Web of Trust UI
 ├── pages/
 │   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, ComputingBackground, Footer
 │   ├── OnboardingPage.tsx    # 3-step getting started guide with ComputingBackground dark variant
@@ -39,7 +42,7 @@ client/src/
 │   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
 │   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
 │   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
-│   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (Why/How mode toggle, trust visualization, FAQ)
+│   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
 ├── services/
 │   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt
 │   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf, getGrapeRankResult)
