@@ -798,21 +798,21 @@ export default function SearchPage() {
           </Card>
 
           {isSearching && (
-            <div ref={processingPanelRef} className="overflow-hidden scroll-mt-4" data-testid="panel-search-processing">
+            <div ref={processingPanelRef} className="overflow-hidden scroll-mt-4" data-testid="panel-search-processing" style={{ animation: "processingFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
               <div className="relative w-full rounded-xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)]">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/40 via-violet-900/40 to-slate-900/40 backdrop-blur-md" />
                 <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(to right, #6366f1 1px, transparent 1px), linear-gradient(to bottom, #6366f1 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-                <div className="absolute top-0 bottom-0 w-1 bg-indigo-500/50 blur-[4px]" style={{ animation: "searchScanLine 2s linear infinite" }} />
+                <div className="absolute top-0 bottom-0 w-1 bg-indigo-500/50 blur-[4px]" style={{ animation: "searchScanLine 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite" }} />
                 <div className="relative z-10 p-8 flex flex-col items-center text-center">
-                  <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4 border border-indigo-500/20">
-                    <Loader2 className="h-6 w-6 text-indigo-400 animate-spin" />
+                  <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4 border border-indigo-500/20" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both" }}>
+                    <Loader2 className="h-6 w-6 text-indigo-400" style={{ animation: "spin 1.8s linear infinite" }} />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2 tracking-tight" data-testid="text-search-processing-title">Analyzing Trust Signals...</h3>
-                  <p className="text-indigo-200/60 text-sm font-mono mb-6" data-testid="text-search-processing-subtitle">Querying Decentralized Identity Network</p>
-                  <div className="w-full max-w-md bg-slate-800/50 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" style={{ animation: "searchProgressBar 1.5s ease-out forwards" }} />
+                  <h3 className="text-xl font-bold text-white mb-2 tracking-tight" data-testid="text-search-processing-title" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both" }}>Analyzing Trust Signals...</h3>
+                  <p className="text-indigo-200/60 text-sm font-mono mb-6" data-testid="text-search-processing-subtitle" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both" }}>Querying Decentralized Identity Network</p>
+                  <div className="w-full max-w-md bg-slate-800/50 rounded-full h-1.5 overflow-hidden" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both" }}>
+                    <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" style={{ animation: "searchProgressBar 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.8s forwards", width: 0 }} />
                   </div>
-                  <div className="mt-6 text-xs text-indigo-300/60 font-mono border-t border-indigo-500/10 pt-4 w-full flex items-center justify-center">
+                  <div className="mt-6 text-xs text-indigo-300/60 font-mono border-t border-indigo-500/10 pt-4 w-full flex items-center justify-center" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both" }}>
                     <span data-testid="text-search-processing-query">Query: <span className="text-indigo-200">{searchQuery || "..."}</span></span>
                   </div>
                 </div>
@@ -821,7 +821,7 @@ export default function SearchPage() {
           )}
 
           {!isSearching && hasSearched && (
-            <div ref={resultPanelRef} className="mt-6 scroll-mt-4" data-testid="panel-search-result">
+            <div ref={resultPanelRef} className="mt-6 scroll-mt-4" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
               {searchError ? (
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-empty-state">
                   <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
@@ -1240,12 +1240,21 @@ export default function SearchPage() {
           0%, 100% { opacity: 0; transform: translateY(0); }
           20%, 80% { opacity: 0.45; transform: translateY(-6px); }
         }
+        @keyframes processingFadeIn {
+          0% { opacity: 0; transform: translateY(24px) scale(0.97); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes processingElementIn {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
         @keyframes searchScanLine {
-          0% { left: 0%; }
-          100% { left: 100%; }
+          0% { left: -2%; }
+          100% { left: 102%; }
         }
         @keyframes searchProgressBar {
           0% { width: 0%; }
+          60% { width: 70%; }
           100% { width: 100%; }
         }
       `}</style>
