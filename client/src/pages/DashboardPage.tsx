@@ -636,22 +636,20 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
+                <button
                   onClick={() => triggerGrapeRankMutation.mutate()}
                   disabled={triggerGrapeRankMutation.isPending}
-                  className="gap-1.5 bg-white hover:bg-slate-50 text-[#0c0e29] border-[#0c0e29]/20 shadow-sm rounded-xl"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-[#0c0e29] bg-white border border-[#0c0e29]/15 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   data-testid="button-trigger-graperank"
                 >
                   {triggerGrapeRankMutation.isPending ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3 h-3 animate-spin" />
                       <span className="hidden sm:inline">Calculating...</span>
                     </>
                   ) : (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0">
                         <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -663,7 +661,7 @@ export default function DashboardPage() {
                       <span className="hidden sm:inline">Calculate</span>
                     </>
                   )}
-                </Button>
+                </button>
               </div>
 
             </div>
