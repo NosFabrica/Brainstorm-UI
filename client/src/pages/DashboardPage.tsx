@@ -732,7 +732,6 @@ export default function DashboardPage() {
                       >
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90" data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">Queue</span>
-                        <span className="text-slate-300/70" data-testid="text-queue-sep">\u00b7</span>
                         <span className="font-mono" data-testid="text-queue-value">
                           {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
                         </span>
