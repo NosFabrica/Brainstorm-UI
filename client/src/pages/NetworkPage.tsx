@@ -166,7 +166,8 @@ export default function NetworkPage() {
       setIsLoading(true);
       try {
         const data = await apiClient.getSelf();
-        setNetworkData(data?.data || data);
+        const inner = data?.data || data;
+        setNetworkData(inner?.graph || inner);
       } catch {
         setNetworkData(null);
       } finally {
