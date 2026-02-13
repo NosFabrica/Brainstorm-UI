@@ -4,17 +4,18 @@ import { useState, useEffect } from 'react';
 import { Footer } from '@/components/Footer';
 import { handleLogin } from '@/services/nostr';
 
-const floatingNodes = Array.from({ length: 12 }, (_, i) => ({
+const floatingNodes = Array.from({ length: 14 }, (_, i) => ({
   id: i,
-  x: 10 + Math.random() * 80,
-  y: 10 + Math.random() * 80,
+  x: 8 + Math.random() * 84,
+  y: 8 + Math.random() * 84,
   size: Math.random() * 3 + 2,
-  duration: Math.random() * 20 + 15,
-  delay: Math.random() * 5,
+  duration: 10 + Math.random() * 8,
+  delay: i * 1.2,
 }));
 
 const connectionPairs = [
-  [0, 3], [1, 4], [2, 5], [3, 6], [4, 7], [5, 8], [6, 9], [7, 10], [8, 11], [0, 6], [2, 8], [4, 10]
+  [0, 3], [1, 4], [2, 5], [3, 6], [4, 7], [5, 8], [6, 9], [7, 10], [8, 11],
+  [9, 12], [10, 13], [0, 6], [2, 8], [4, 10], [1, 7], [5, 11],
 ];
 
 const calculations = [
@@ -26,6 +27,7 @@ const calculations = [
   "kind:3 → follows",
   "sig: schnorr✓",
   "hops: 2 → 0.73",
+  "1 Mathematical computation → signal clarity: p",
 ];
 
 const mathChars = "∑∏∫∂∇×÷±√∞≈≠≤≥αβγδεζηθλμπσφψω0123456789";
@@ -120,28 +122,42 @@ export default function Landing() {
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
       <style>{`
         @keyframes floatNode {
-          0%, 100% { transform: translateY(0); opacity: 0.06; }
-          50% { transform: translateY(-40px); opacity: 0.2; }
-        }
-        @keyframes glowOrb1 {
-          0%, 100% { opacity: 0.15; transform: scale(1) translateX(0); }
-          50% { opacity: 0.3; transform: scale(1.2) translateX(20px); }
-        }
-        @keyframes glowOrb2 {
-          0%, 100% { opacity: 0.1; transform: scale(1) translateY(0); }
-          50% { opacity: 0.25; transform: scale(1.3) translateY(-15px); }
-        }
-        @keyframes glowOrb3 {
-          0%, 100% { opacity: 0.05; transform: scale(1); }
-          50% { opacity: 0.2; transform: scale(1.4); }
-        }
-        @keyframes calcFade {
-          0%, 100% { opacity: 0; transform: translateY(0); }
-          50% { opacity: 0.1; transform: translateY(-15px); }
+          0% { transform: translateY(0) scale(0.5); opacity: 0; }
+          15% { transform: translateY(-8px) scale(1); opacity: 0.45; }
+          35% { transform: translateY(-20px) scale(1.15); opacity: 0.55; }
+          50% { transform: translateY(-28px) scale(1.2); opacity: 0.5; }
+          70% { transform: translateY(-18px) scale(1); opacity: 0.35; }
+          85% { transform: translateY(-6px) scale(0.8); opacity: 0.15; }
+          100% { transform: translateY(0) scale(0.5); opacity: 0; }
         }
         @keyframes lineDraw {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 0.08; }
+          0% { stroke-dashoffset: 100%; opacity: 0; }
+          10% { opacity: 0; }
+          20% { opacity: 0.25; }
+          40% { stroke-dashoffset: 0%; opacity: 0.35; }
+          60% { stroke-dashoffset: 0%; opacity: 0.3; }
+          80% { opacity: 0.12; }
+          100% { stroke-dashoffset: -100%; opacity: 0; }
+        }
+        @keyframes calcFade {
+          0% { opacity: 0; transform: translateY(4px); }
+          20% { opacity: 0.3; transform: translateY(0); }
+          40% { opacity: 0.35; transform: translateY(-6px); }
+          60% { opacity: 0.28; transform: translateY(-10px); }
+          80% { opacity: 0.1; transform: translateY(-14px); }
+          100% { opacity: 0; transform: translateY(-18px); }
+        }
+        @keyframes glowOrb1 {
+          0%, 100% { opacity: 0.08; transform: scale(1) translateX(0); }
+          50% { opacity: 0.2; transform: scale(1.2) translateX(20px); }
+        }
+        @keyframes glowOrb2 {
+          0%, 100% { opacity: 0.06; transform: scale(1) translateY(0); }
+          50% { opacity: 0.18; transform: scale(1.3) translateY(-15px); }
+        }
+        @keyframes glowOrb3 {
+          0%, 100% { opacity: 0.04; transform: scale(1); }
+          50% { opacity: 0.14; transform: scale(1.4); }
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
@@ -183,14 +199,17 @@ export default function Landing() {
               x2={`${floatingNodes[b].x}%`}
               y2={`${floatingNodes[b].y}%`}
               stroke="url(#lineGradient)"
-              strokeWidth="0.35"
-              style={{ animation: `lineDraw 8s ease-in-out infinite ${i * 0.8}s` }}
+              strokeWidth="0.5"
+              strokeDasharray="6 4"
+              style={{
+                animation: `lineDraw ${10 + (i % 4) * 2}s ease-in-out infinite ${i * 1.1}s`,
+              }}
             />
           ))}
           <defs>
             <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6366f1" />
-              <stop offset="100%" stopColor="#8b5cf6" />
+              <stop offset="0%" stopColor="#818cf8" />
+              <stop offset="100%" stopColor="#a78bfa" />
             </linearGradient>
           </defs>
         </svg>
@@ -198,12 +217,14 @@ export default function Landing() {
         {floatingNodes.map((node) => (
           <div
             key={node.id}
-            className="absolute rounded-full bg-indigo-300/20"
+            className="absolute rounded-full"
             style={{
               left: `${node.x}%`,
               top: `${node.y}%`,
-              width: node.size + 2,
-              height: node.size + 2,
+              width: node.size + 3,
+              height: node.size + 3,
+              background: 'radial-gradient(circle, rgba(129,140,248,0.6) 0%, rgba(129,140,248,0.15) 60%, transparent 100%)',
+              boxShadow: '0 0 6px 1px rgba(129,140,248,0.2)',
               animation: `floatNode ${node.duration}s ease-in-out infinite ${node.delay}s`,
             }}
           />
@@ -212,11 +233,11 @@ export default function Landing() {
         {calculations.map((calc, i) => (
           <div
             key={i}
-            className="absolute text-xs font-mono text-slate-500/25 pointer-events-none select-none hidden md:block"
+            className="absolute text-[11px] font-mono text-indigo-300/70 pointer-events-none select-none hidden md:block"
             style={{
-              left: `${5 + (i % 4) * 25}%`,
-              top: `${10 + Math.floor(i / 4) * 70}%`,
-              animation: `calcFade 6s ease-in-out infinite ${i * 1.2}s`,
+              left: `${4 + (i % 5) * 20}%`,
+              top: `${8 + Math.floor(i / 5) * 45 + (i % 3) * 12}%`,
+              animation: `calcFade ${8 + (i % 3) * 2}s ease-in-out infinite ${i * 1.8}s`,
             }}
           >
             {calc}
