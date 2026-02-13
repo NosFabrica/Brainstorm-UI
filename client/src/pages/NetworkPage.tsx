@@ -148,7 +148,7 @@ export default function NetworkPage() {
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>("all");
   const [searchFilter, setSearchFilter] = useState("");
-  type TrustTier = "all" | "high" | "medium" | "low" | "minimal";
+  type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "flagged";
   const [trustFilter, setTrustFilter] = useState<TrustTier>("all");
   const [networkData, setNetworkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -278,17 +278,28 @@ export default function NetworkPage() {
       });
     }
     if (trustFilter !== "all") {
-      pubkeys = pubkeys.filter(pk => {
-        const influence = trustCache.current.get(pk);
-        if (influence === undefined) return true;
-        if (influence === null) return false;
-        const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
-        if (trustFilter === "high") return pct >= 80;
-        if (trustFilter === "medium") return pct >= 50 && pct < 80;
-        if (trustFilter === "low") return pct >= 25 && pct < 50;
-        if (trustFilter === "minimal") return pct < 25;
-        return true;
-      });
+      if (trustFilter === "flagged") {
+        const flaggedGroups: GroupKey[] = ["muted_by", "muting", "reported_by", "reporting"];
+        const flaggedSet = new Set<string>();
+        for (const gk of flaggedGroups) {
+          for (const pk of getGroupPubkeys(gk)) {
+            flaggedSet.add(pk);
+          }
+        }
+        pubkeys = pubkeys.filter(pk => flaggedSet.has(pk));
+      } else {
+        pubkeys = pubkeys.filter(pk => {
+          const influence = trustCache.current.get(pk);
+          if (influence === undefined) return true;
+          if (influence === null) return false;
+          const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
+          if (trustFilter === "high") return pct >= 80;
+          if (trustFilter === "medium") return pct >= 50 && pct < 80;
+          if (trustFilter === "neutral") return pct >= 25 && pct < 50;
+          if (trustFilter === "low") return pct < 25;
+          return true;
+        });
+      }
     }
     return pubkeys;
   }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, loadedCount, trustLoadedCount]);
@@ -738,11 +749,12 @@ export default function NetworkPage() {
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
                 {([
-                  { key: "all" as TrustTier, label: "All Scores", icon: null },
-                  { key: "high" as TrustTier, label: "High 80+", icon: "text-indigo-500" },
-                  { key: "medium" as TrustTier, label: "Mid 50-79", icon: "text-indigo-400" },
-                  { key: "low" as TrustTier, label: "Low 25-49", icon: "text-indigo-300" },
-                  { key: "minimal" as TrustTier, label: "Minimal <25", icon: "text-slate-400" },
+                  { key: "all" as TrustTier, label: "All", icon: null, ringFill: 0 },
+                  { key: "high" as TrustTier, label: "Highly Trusted", icon: "text-emerald-500", ringFill: 0.9 },
+                  { key: "medium" as TrustTier, label: "Trusted", icon: "text-indigo-500", ringFill: 0.65 },
+                  { key: "neutral" as TrustTier, label: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
+                  { key: "low" as TrustTier, label: "Low Trust", icon: "text-amber-500", ringFill: 0.12 },
+                  { key: "flagged" as TrustTier, label: "Flagged / Muted", icon: "text-red-500", ringFill: 0 },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
@@ -757,11 +769,16 @@ export default function NetworkPage() {
                       }`}
                       data-testid={`button-trust-filter-${tier.key}`}
                     >
-                      {tier.icon && (
+                      {tier.key === "flagged" ? (
+                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                          <line x1="4" y1="22" x2="4" y2="15" />
+                        </svg>
+                      ) : tier.icon && (
                         <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`} viewBox="0 0 44 44">
                           <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.3" />
                           <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
-                            style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - (tier.key === "high" ? 0.9 : tier.key === "medium" ? 0.65 : tier.key === "low" ? 0.37 : 0.12))}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
+                            style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
                         </svg>
                       )}
                       <span>{tier.label}</span>
@@ -866,7 +883,7 @@ export default function NetworkPage() {
                   if (rawInfluence === null) return null;
                   const score = Math.min(1, Math.max(0, rawInfluence));
                   const pct = Math.round(score * 100);
-                  const ringColor = pct >= 80 ? "stroke-indigo-500" : pct >= 50 ? "stroke-indigo-400" : pct >= 25 ? "stroke-indigo-300" : "stroke-indigo-200";
+                  const ringColor = pct >= 80 ? "stroke-emerald-500" : pct >= 50 ? "stroke-indigo-500" : pct >= 25 ? "stroke-slate-400" : "stroke-amber-500";
                   const circumference = 2 * Math.PI * 18;
                   const offset = circumference - (score * circumference);
                   const size = compact ? "w-7 h-7" : "w-9 h-9";
