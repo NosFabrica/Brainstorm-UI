@@ -59,17 +59,17 @@ function buildClusterKeyframes(
   const p = (sec: number) => (((startDelay + sec) / cycle) * 100).toFixed(2);
 
   cluster.nodes.forEach((_, ni) => {
-    const s = ni * 2.5;
     kf.push(`
       @keyframes ${prefix}T${ni} {
         0% { opacity: 0; }
-        ${p(s)}% { opacity: 0; }
-        ${p(s + 2)}% { opacity: 0.3; }
-        ${p(s + 14)}% { opacity: 0.25; }
-        ${p(s + 18)}% { opacity: 0; }
+        ${p(0)}% { opacity: 0; }
+        ${p(2)}% { opacity: 0.22; }
+        ${p(16)}% { opacity: 0.18; }
+        ${p(20)}% { opacity: 0; }
         100% { opacity: 0; }
       }
     `);
+    void ni;
   });
 
   cluster.lines.forEach((_, li) => {
@@ -78,10 +78,10 @@ function buildClusterKeyframes(
       @keyframes ${prefix}L${li} {
         0% { stroke-dashoffset: 1; opacity: 0; }
         ${p(lineStart)}% { stroke-dashoffset: 1; opacity: 0; }
-        ${p(lineStart + 0.5)}% { stroke-dashoffset: 0.92; opacity: 0.2; }
-        ${p(lineStart + 2.5)}% { stroke-dashoffset: 0.5; opacity: 0.22; }
-        ${p(lineStart + 5)}% { stroke-dashoffset: 0; opacity: 0.18; }
-        ${p(lineStart + 10)}% { stroke-dashoffset: 0; opacity: 0.12; }
+        ${p(lineStart + 0.5)}% { stroke-dashoffset: 0.92; opacity: 0.12; }
+        ${p(lineStart + 2.5)}% { stroke-dashoffset: 0.5; opacity: 0.14; }
+        ${p(lineStart + 5)}% { stroke-dashoffset: 0; opacity: 0.1; }
+        ${p(lineStart + 10)}% { stroke-dashoffset: 0; opacity: 0.07; }
         ${p(lineStart + 14)}% { stroke-dashoffset: 0; opacity: 0; }
         100% { stroke-dashoffset: 0; opacity: 0; }
       }
@@ -89,18 +89,18 @@ function buildClusterKeyframes(
   });
 
   cluster.nodes.forEach((_, ni) => {
-    const s = ni * 2;
     kf.push(`
       @keyframes ${prefix}D${ni} {
         0% { opacity: 0; transform: scale(0); }
-        ${p(s)}% { opacity: 0; transform: scale(0); }
-        ${p(s + 1.5)}% { opacity: 0.4; transform: scale(1.3); }
-        ${p(s + 3)}% { opacity: 0.3; transform: scale(1); }
-        ${p(s + 14)}% { opacity: 0.2; transform: scale(1); }
-        ${p(s + 18)}% { opacity: 0; transform: scale(0.5); }
+        ${p(0)}% { opacity: 0; transform: scale(0); }
+        ${p(1.5)}% { opacity: 0.25; transform: scale(1.2); }
+        ${p(3)}% { opacity: 0.2; transform: scale(1); }
+        ${p(16)}% { opacity: 0.15; transform: scale(1); }
+        ${p(20)}% { opacity: 0; transform: scale(0.5); }
         100% { opacity: 0; transform: scale(0); }
       }
     `);
+    void ni;
   });
 
   return kf;
@@ -151,7 +151,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           cx={node.x}
           cy={node.y}
           r="0.4"
-          fill={isDark ? 'rgba(96,165,250,0.45)' : 'rgba(99,102,241,0.35)'}
+          fill={isDark ? 'rgba(96,165,250,0.3)' : 'rgba(99,102,241,0.25)'}
           style={{
             transformOrigin: `${node.x}px ${node.y}px`,
             opacity: 0,
@@ -172,7 +172,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         key={`${prefix}-t-${ni}`}
         className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-          isDark ? 'text-blue-300/45' : 'text-indigo-900/25'
+          isDark ? 'text-blue-300/35' : 'text-indigo-900/20'
         }`}
         style={{
           left: `${node.x}%`,
@@ -256,13 +256,13 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
 
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.7" />
-            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.5" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
+            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.25" />
           </linearGradient>
           <linearGradient id="cbLineGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.4" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
           </linearGradient>
         </defs>
       </svg>
