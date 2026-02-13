@@ -1711,7 +1711,6 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Users className="h-4 w-4 text-indigo-500" />
                 <span className="text-sm font-semibold text-slate-800">Network</span>
-                <span className="ml-auto font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">GET /api/auth/self</span>
               </div>
               {selfQuery.isLoading ? (
                 <div className="flex items-center gap-2">
@@ -1743,15 +1742,11 @@ export default function DashboardPage() {
               ) : (
                 <p className="text-xs text-slate-400">No network data available.</p>
               )}
-              <p className="text-[10px] text-slate-400 leading-relaxed mt-3 pt-2 border-t border-slate-100">
-                Proxies to <span className="font-mono bg-slate-50 px-1 rounded">/user/self</span> &mdash; graph object fields: followed_by, following, muted_by, muting, reported_by, reporting, influence.
-              </p>
             </div>
             <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-graperank-api">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-4 w-4 text-purple-500" />
                 <span className="text-sm font-semibold text-slate-800">GrapeRank</span>
-                <span className="ml-auto font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">GET /api/auth/graperankResult</span>
               </div>
               {grapeRankQuery.isLoading ? (
                 <div className="flex items-center gap-2">
@@ -1785,9 +1780,6 @@ export default function DashboardPage() {
               ) : (
                 <p className="text-xs text-slate-400">No GrapeRank data available.</p>
               )}
-              <p className="text-[10px] text-slate-400 leading-relaxed mt-3 pt-2 border-t border-slate-100">
-                Proxies to <span className="font-mono bg-slate-50 px-1 rounded">/user/graperank</span> &mdash; Calculate triggers <span className="font-mono bg-slate-50 px-1 rounded">POST /api/auth/graperank</span>.
-              </p>
             </div>
           </div>
 
