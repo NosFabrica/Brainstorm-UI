@@ -476,13 +476,12 @@ export default function SettingsPage() {
                               {saveState === "saving" ? "Saving\u2026" : "Save"}
                             </Button>
                             <AlertDialogContent
-                              className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/25 bg-white/92 backdrop-blur-xl shadow-[0_44px_120px_-60px_rgba(15,23,42,0.55)] p-0 overflow-hidden"
+                              className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
                               data-testid="dialog-confirm-recalculate"
                             >
                               <div className="absolute inset-0 pointer-events-none">
-                                <div className="absolute -top-28 -right-28 h-[320px] w-[320px] rounded-full bg-indigo-500/18 blur-[80px]" />
-                                <div className="absolute -bottom-28 -left-28 h-[340px] w-[340px] rounded-full bg-indigo-800/12 blur-[90px]" />
-                                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500" />
+                                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+                                <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
                               </div>
                               <div className="relative p-4 sm:p-5">
                                 <AlertDialogHeader className="space-y-2">
