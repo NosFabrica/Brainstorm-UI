@@ -22,6 +22,7 @@ import showTrustImage from '@assets/generated_images/show_trust_behavioral_proof
 import tellTrustImage from '@assets/generated_images/tell_trust_attestation_speech_bubbles.png';
 import wellnessPatientAvatar from '@assets/generated_images/male_patient_portrait_headshot.png';
 import wellnessNaturopathAvatar from '@assets/generated_images/naturopath_doctor_portrait_headshot.png';
+import ostrichRunning from '@assets/generated_images/ostrich_running.png';
 import { 
   SpamFilterIcon, 
   DiscoveryIcon, 
@@ -2020,11 +2021,10 @@ export default function WhatIsWoT() {
                     </p>
                     <div className="flex justify-center mt-4">
                       <motion.div 
-                        className="opacity-50"
-                        animate={{ opacity: [0.4, 0.6, 0.4] }}
-                        transition={{ duration: 3, repeat: Infinity }}
+                        animate={{ x: [-20, 20, -20] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                       >
-                        <BrainLogo size={32} className="text-indigo-400" />
+                        <img src={ostrichRunning} alt="Ostrich running" className="w-10 h-10 object-contain" />
                       </motion.div>
                     </div>
                   </motion.div>
