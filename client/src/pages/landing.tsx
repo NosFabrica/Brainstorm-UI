@@ -2,6 +2,7 @@ import { useLocation } from 'wouter';
 import { ArrowRight, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Footer } from '@/components/Footer';
+import { handleLogin } from '@/services/nostr';
 
 const floatingNodes = Array.from({ length: 12 }, (_, i) => ({
   id: i,
@@ -102,6 +103,18 @@ function FadingText() {
 
 export default function Landing() {
   const [, setLocation] = useLocation();
+  const [signingIn, setSigningIn] = useState(false);
+
+  const onSignIn = async () => {
+    if (signingIn) return;
+    setSigningIn(true);
+    try {
+      await handleLogin();
+      setLocation('/dashboard');
+    } catch {
+      setSigningIn(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
@@ -377,12 +390,13 @@ export default function Landing() {
 
               <div className="flex flex-col gap-3 group/signin">
                 <button
-                  className="relative px-6 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 rounded-lg transition-all duration-300 inline-flex items-center justify-center gap-2 w-full overflow-hidden group cursor-pointer active:scale-[0.98]"
-                  onClick={() => setLocation('/login')}
+                  className="relative px-6 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 rounded-lg transition-all duration-300 inline-flex items-center justify-center gap-2 w-full overflow-hidden group cursor-pointer active:scale-[0.98] disabled:opacity-50"
+                  onClick={onSignIn}
+                  disabled={signingIn}
                   data-testid="button-sign-in-hero"
                 >
                   <span className="absolute inset-0 bg-gradient-to-r from-indigo-400/0 via-indigo-400/30 to-indigo-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                  <span className="relative">Sign In</span>
+                  <span className="relative">{signingIn ? 'Signing In...' : 'Sign In'}</span>
                   <ArrowRight className="h-5 w-5 relative group-hover:translate-x-0.5 transition-transform" />
                   <img 
                     src="/nostr-ostrich.gif" 
