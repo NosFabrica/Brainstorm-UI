@@ -640,7 +640,7 @@ export default function DashboardPage() {
                   size="sm"
                   onClick={() => triggerGrapeRankMutation.mutate()}
                   disabled={triggerGrapeRankMutation.isPending}
-                  className="gap-1.5 bg-[#333286] hover:bg-[#2a2970] text-white shadow-[0_4px_12px_-4px_rgba(51,50,134,0.5)] rounded-xl"
+                  className="gap-1.5 bg-[#0c0e29] hover:bg-[#2a2970] text-white shadow-[0_4px_12px_-4px_rgba(51,50,134,0.5)] rounded-xl"
                   data-testid="button-trigger-graperank"
                 >
                   {triggerGrapeRankMutation.isPending ? (
