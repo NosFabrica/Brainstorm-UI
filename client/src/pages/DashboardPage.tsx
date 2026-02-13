@@ -730,7 +730,7 @@ export default function DashboardPage() {
                         Clarity in a fragmented world
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
-                        Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5\u201310 minutes</span> to calculate. The Queue badge shows how many people are ahead of you. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
+                        Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. The Queue badge shows how many people are ahead of you. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
