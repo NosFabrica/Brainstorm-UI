@@ -14,7 +14,7 @@ import socialAliceAvatar from '@assets/young_creative_woman_14461b61_17709657155
 import socialBobAvatar from '@assets/young_man_profession_46072db4_1770965705548.jpg';
 import businessClientAvatar from '@assets/stock_images/professional_man_wor_ca204bd6.jpg';
 import businessVendorAvatar from '@assets/stock_images/red_brick_building_e_b5643b62.jpg';
-import musicFanAvatar from '@assets/generated_images/music_fan_listener_avatar.png';
+import musicFanAvatar from '@assets/stock_images/music_fan_real_person.jpg';
 import musicArtistAvatar from '@assets/stock_images/live_band_concert_st_a3f0f7e3.jpg';
 import tasteFoodieAvatar from '@assets/stock_images/food_influencer_eati_33799fa5.jpg';
 import tasteRestaurantAvatar from '@assets/stock_images/upscale_fine_dining__0f9e2af1.jpg';
