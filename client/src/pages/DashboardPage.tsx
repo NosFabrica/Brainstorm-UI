@@ -1509,27 +1509,7 @@ export default function DashboardPage() {
               <div className="flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12">
                 <div className="flex-shrink-0 relative group-hover:scale-110 transition-transform duration-700 ease-out">
                   <div className="absolute -inset-8 bg-indigo-500/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
-                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="relative z-10 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] text-indigo-400">
-                    <title>brainstorm</title>
-                    <g clipPath="url(#clip0_brain_edu)">
-                      <path d="M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M10.25 10C10.8 10 11.25 9.55 11.25 9C11.25 8.45 10.8 8 10.25 8" stroke="currentColor" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M15.5 13C16.0523 13 16.5 12.5523 16.5 12C16.5 11.4477 16.0523 11 15.5 11C14.9477 11 14.5 11.4477 14.5 12C14.5 12.5523 14.9477 13 15.5 13Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M8.5 13C9.05228 13 9.5 12.5523 9.5 12C9.5 11.4477 9.05228 11 8.5 11C7.94772 11 7.5 11.4477 7.5 12C7.5 12.5523 7.94772 13 8.5 13Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M10.25 16C10.8023 16 11.25 15.5523 11.25 15C11.25 14.4477 10.8023 14 10.25 14C9.69772 14 9.25 14.4477 9.25 15C9.25 15.5523 9.69772 16 10.25 16Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M12.0508 6.75C12.465 6.75 12.8008 6.41421 12.8008 6C12.8008 5.58579 12.465 5.25 12.0508 5.25C11.6366 5.25 11.3008 5.58579 11.3008 6C11.3008 6.41421 11.6366 6.75 12.0508 6.75Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M12.0508 18.9492C12.465 18.9492 12.8008 18.6134 12.8008 18.1992C12.8008 17.785 12.465 17.4492 12.0508 17.4492C11.6366 17.4492 11.3008 17.785 11.3008 18.1992C11.3008 18.6134 11.6366 18.9492 12.0508 18.9492Z" stroke="currentColor" strokeMiterlimit="10" />
-                      <path d="M11.9492 2.5V2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M11.9492 21.5508V21.5508" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M1.5 12.0508V12.0508" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M22.4492 12.0508V12.0508" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </g>
-                    <defs>
-                      <clipPath id="clip0_brain_edu">
-                        <rect width="24" height="24" fill="white" />
-                      </clipPath>
-                    </defs>
-                  </svg>
+                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] text-indigo-400" />
                 </div>
 
                 <div className="flex-1 text-center md:text-left">
