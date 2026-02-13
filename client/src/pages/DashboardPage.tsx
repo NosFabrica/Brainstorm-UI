@@ -1,4 +1,10 @@
 import { useEffect, useState, useRef } from "react";
+import amethystHeroImg from "../assets/amethyst-hero.webp";
+import amethystLogoImg from "../assets/amethyst-logo.png";
+import nostriaHeroImg from "../assets/nostria-hero.png";
+import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
+import nostriaTeaserImg from "../assets/nostria-teaser.png";
+import nostriaIconImg from "../assets/nostria-icon.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1577,7 +1583,7 @@ export default function DashboardPage() {
                     aria-label="Next supported client"
                   >
                     <div className="absolute inset-0 z-0">
-                      <img src="/assets/amethyst-hero.webp" alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
+                      <img src={amethystHeroImg} alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
                       <div className="absolute inset-0 bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-transparent" />
                     </div>
 
@@ -1593,7 +1599,7 @@ export default function DashboardPage() {
 
                         <div className="space-y-4">
                           <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <img src="/assets/amethyst-logo.png" alt="Amethyst Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
+                            <img src={amethystLogoImg} alt="Amethyst Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
                             <div className="space-y-1">
                               <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-amethyst-title">
                                 Amethyst
@@ -1656,10 +1662,10 @@ export default function DashboardPage() {
                       Coming soon
                     </div>
                     <div className="absolute inset-0 z-0">
-                      <img src="/assets/nostria-hero.png" alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <img src="/assets/nostria-manifesto-overlay.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
+                      <img src={nostriaHeroImg} alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
+                      <img src={nostriaManifestoImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
                       <img
-                        src="/assets/nostria-teaser.png"
+                        src={nostriaTeaserImg}
                         alt=""
                         className="absolute right-[-24%] top-[-14%] w-[80%] h-auto opacity-[0.52] mix-blend-soft-light saturate-[0.92] contrast-[1.04] brightness-[1.06] rotate-[-2deg] blur-[0.35px] pointer-events-none"
                         style={{
@@ -1684,7 +1690,7 @@ export default function DashboardPage() {
 
                         <div className="space-y-4">
                           <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <img src="/assets/nostria-icon.png" alt="Nostria Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
+                            <img src={nostriaIconImg} alt="Nostria Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
                             <div className="space-y-1">
                               <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-nostria-title">
                                 Nostria
