@@ -609,7 +609,7 @@ export default function SearchPage() {
               </Button>
             </div>
 
-            <div className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
+            <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
               <div className="space-y-2">
                 <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]">Navigation</p>
                 <Button
@@ -640,18 +640,20 @@ export default function SearchPage() {
                   What is WoT?
                 </Button>
               </div>
+              <div className="mt-auto pt-4 px-0">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
+                  data-testid="button-mobile-nav-settings"
+                >
+                  <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                  Settings
+                </Button>
+              </div>
             </div>
 
             <div className="relative p-4 border-t border-white/10 bg-white/[0.04]">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl mb-4 no-default-hover-elevate no-default-active-elevate"
-                onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
-                data-testid="button-mobile-nav-settings"
-              >
-                <SettingsIcon className="h-5 w-5 text-slate-200/80" />
-                Settings
-              </Button>
               <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
                 <Avatar className="h-10 w-10 border border-white/10">
                   {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
