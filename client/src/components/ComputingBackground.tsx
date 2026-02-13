@@ -1,43 +1,45 @@
 const clusterA = {
   nodes: [
     { label: "npub1qx3f...verified", x: 8, y: 10 },
-    { label: "trust_score: 0.94", x: 32, y: 18 },
-    { label: "follows: 847", x: 20, y: 35 },
+    { label: "trust_score: 0.94", x: 34, y: 16 },
+    { label: "follows: 847", x: 18, y: 34 },
+    { label: "verified: true", x: 40, y: 36 },
   ],
-  lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
+  lines: [[0, 1], [1, 3], [0, 2], [2, 3], [1, 2]] as [number, number][],
 };
 
 const clusterB = {
   nodes: [
-    { label: "wot_rank: #127", x: 65, y: 8 },
-    { label: "relay: wss://nos.lol", x: 88, y: 22 },
-    { label: "kind:3 → follows", x: 75, y: 38 },
+    { label: "wot_rank: #127", x: 62, y: 8 },
+    { label: "relay: wss://nos.lol", x: 90, y: 16 },
+    { label: "kind:3 → follows", x: 72, y: 32 },
+    { label: "pubkey: a1b2c3...", x: 56, y: 28 },
   ],
-  lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
+  lines: [[0, 1], [0, 3], [1, 2], [3, 2], [0, 2]] as [number, number][],
 };
 
 const clusterC = {
   nodes: [
-    { label: "sig: schnorr✓", x: 10, y: 60 },
-    { label: "confidence: 0.87", x: 38, y: 70 },
-    { label: "hops: 2 → 0.73", x: 22, y: 85 },
+    { label: "sig: schnorr✓", x: 8, y: 58 },
+    { label: "confidence: 0.87", x: 36, y: 64 },
+    { label: "hops: 2 → 0.73", x: 20, y: 80 },
+    { label: "attest: positive", x: 42, y: 82 },
   ],
-  lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
+  lines: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 2]] as [number, number][],
 };
 
 const clusterD = {
   nodes: [
-    { label: "influence: 0.61", x: 60, y: 56 },
-    { label: "mutes: 12", x: 86, y: 65 },
-    { label: "depth: 3", x: 70, y: 80 },
+    { label: "influence: 0.61", x: 58, y: 55 },
+    { label: "mutes: 12", x: 88, y: 60 },
+    { label: "depth: 3", x: 68, y: 76 },
+    { label: "context: global", x: 86, y: 80 },
   ],
-  lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
+  lines: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 2]] as [number, number][],
 };
 
-const allClusters = [clusterA, clusterB, clusterC, clusterD];
-
-const CYCLE_A = 48;
-const CYCLE_B = 56;
+const CYCLE_A = 52;
+const CYCLE_B = 60;
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -55,52 +57,68 @@ function buildClusterKeyframes(
   startDelay: number,
 ) {
   const kf: string[] = [];
+  const p = (sec: number) => {
+    const val = ((startDelay + sec) / cycle) * 100;
+    return Math.min(val, 99.9).toFixed(2);
+  };
 
-  const p = (sec: number) => (((startDelay + sec) / cycle) * 100).toFixed(2);
+  const nodeCount = cluster.nodes.length;
+  const lineCount = cluster.lines.length;
+
+  const connectedAt: number[] = new Array(nodeCount).fill(0);
+  cluster.lines.forEach(([a, b], li) => {
+    const lineArrives = 2 + li * 3 + 6;
+    connectedAt[a] = Math.max(connectedAt[a], lineArrives);
+    connectedAt[b] = Math.max(connectedAt[b], lineArrives);
+  });
 
   cluster.nodes.forEach((_, ni) => {
+    const appearAt = ni * 1.2;
+    const brightAt = 2 + ni * 1.5;
     kf.push(`
       @keyframes ${prefix}T${ni} {
-        0% { opacity: 0; }
-        ${p(0)}% { opacity: 0; }
-        ${p(2)}% { opacity: 0.22; }
-        ${p(16)}% { opacity: 0.18; }
-        ${p(20)}% { opacity: 0; }
-        100% { opacity: 0; }
+        0% { opacity: 0; transform: translateY(3px); }
+        ${p(appearAt)}% { opacity: 0; transform: translateY(3px); }
+        ${p(appearAt + 1.5)}% { opacity: 0.25; transform: translateY(1px); }
+        ${p(brightAt + 3)}% { opacity: 0.45; transform: translateY(0); }
+        ${p(brightAt + 8)}% { opacity: 0.4; transform: translateY(0); }
+        ${p(22)}% { opacity: 0.3; transform: translateY(0); }
+        ${p(26)}% { opacity: 0; transform: translateY(-2px); }
+        100% { opacity: 0; transform: translateY(-2px); }
       }
     `);
-    void ni;
   });
 
   cluster.lines.forEach((_, li) => {
-    const lineStart = 2 + li * 4;
+    const lineStart = 2 + li * 3;
     kf.push(`
       @keyframes ${prefix}L${li} {
         0% { stroke-dashoffset: 1; opacity: 0; }
         ${p(lineStart)}% { stroke-dashoffset: 1; opacity: 0; }
-        ${p(lineStart + 0.5)}% { stroke-dashoffset: 0.92; opacity: 0.12; }
-        ${p(lineStart + 2.5)}% { stroke-dashoffset: 0.5; opacity: 0.14; }
-        ${p(lineStart + 5)}% { stroke-dashoffset: 0; opacity: 0.1; }
-        ${p(lineStart + 10)}% { stroke-dashoffset: 0; opacity: 0.07; }
-        ${p(lineStart + 14)}% { stroke-dashoffset: 0; opacity: 0; }
+        ${p(lineStart + 1)}% { stroke-dashoffset: 0.85; opacity: 0.12; }
+        ${p(lineStart + 3)}% { stroke-dashoffset: 0.45; opacity: 0.14; }
+        ${p(lineStart + 6)}% { stroke-dashoffset: 0; opacity: 0.1; }
+        ${p(lineStart + 14)}% { stroke-dashoffset: 0; opacity: 0.07; }
+        ${p(lineStart + 18)}% { stroke-dashoffset: 0; opacity: 0; }
         100% { stroke-dashoffset: 0; opacity: 0; }
       }
     `);
+    void lineCount;
   });
 
   cluster.nodes.forEach((_, ni) => {
+    const dotAppear = ni * 1.0;
     kf.push(`
       @keyframes ${prefix}D${ni} {
         0% { opacity: 0; transform: scale(0); }
-        ${p(0)}% { opacity: 0; transform: scale(0); }
-        ${p(1.5)}% { opacity: 0.25; transform: scale(1.2); }
-        ${p(3)}% { opacity: 0.2; transform: scale(1); }
-        ${p(16)}% { opacity: 0.15; transform: scale(1); }
-        ${p(20)}% { opacity: 0; transform: scale(0.5); }
+        ${p(dotAppear)}% { opacity: 0; transform: scale(0); }
+        ${p(dotAppear + 1)}% { opacity: 0.35; transform: scale(1.4); }
+        ${p(dotAppear + 2.5)}% { opacity: 0.25; transform: scale(1); }
+        ${p(22)}% { opacity: 0.18; transform: scale(1); }
+        ${p(26)}% { opacity: 0; transform: scale(0.3); }
         100% { opacity: 0; transform: scale(0); }
       }
     `);
-    void ni;
   });
 
   return kf;
@@ -111,8 +129,8 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
 
   const keyframesA = buildClusterKeyframes(clusterA, 'cA', CYCLE_A, 0);
   const keyframesB = buildClusterKeyframes(clusterB, 'cB', CYCLE_B, 0);
-  const keyframesC = buildClusterKeyframes(clusterC, 'cC', CYCLE_A, 22);
-  const keyframesD = buildClusterKeyframes(clusterD, 'cD', CYCLE_B, 26);
+  const keyframesC = buildClusterKeyframes(clusterC, 'cC', CYCLE_A, 24);
+  const keyframesD = buildClusterKeyframes(clusterD, 'cD', CYCLE_B, 28);
 
   const allKf = [...keyframesA, ...keyframesB, ...keyframesC, ...keyframesD].join('\n');
 
@@ -151,7 +169,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           cx={node.x}
           cy={node.y}
           r="0.4"
-          fill={isDark ? 'rgba(96,165,250,0.3)' : 'rgba(99,102,241,0.25)'}
+          fill={isDark ? 'rgba(96,165,250,0.35)' : 'rgba(99,102,241,0.3)'}
           style={{
             transformOrigin: `${node.x}px ${node.y}px`,
             opacity: 0,
@@ -172,7 +190,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         key={`${prefix}-t-${ni}`}
         className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-          isDark ? 'text-blue-300/35' : 'text-indigo-900/20'
+          isDark ? 'text-blue-200' : 'text-indigo-800'
         }`}
         style={{
           left: `${node.x}%`,
