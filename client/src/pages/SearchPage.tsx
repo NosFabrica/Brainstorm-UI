@@ -134,6 +134,7 @@ export default function SearchPage() {
   const [profileResult, setProfileResult] = useState<any>(null);
   const [nostrProfile, setNostrProfile] = useState<{ name?: string; display_name?: string; picture?: string; nip05?: string; about?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -149,6 +150,23 @@ export default function SearchPage() {
     navigate("/");
   };
 
+  const renderLinkedText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s<>"')\]]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        urlRegex.lastIndex = 0;
+        const display = part.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        return (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline underline-offset-2 decoration-indigo-300 break-all" data-testid={`link-about-url-${i}`}>
+            {display}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   const isLikelyNpub = (value: string) =>
     /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());
 
@@ -159,6 +177,7 @@ export default function SearchPage() {
     setHasSearched(false);
     setProfileResult(null);
     setNostrProfile(null);
+    setAboutExpanded(false);
 
     if (!q) {
       setSearchError({
@@ -875,7 +894,20 @@ export default function SearchPage() {
                           </button>
                         </div>
                         {nostrProfile?.about && (
-                          <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed" data-testid="text-search-result-about">{nostrProfile.about}</p>
+                          <div className="mt-2" data-testid="text-search-result-about">
+                            <p className={`text-xs text-slate-500 leading-relaxed whitespace-pre-line ${!aboutExpanded ? "line-clamp-4" : ""}`}>
+                              {renderLinkedText(nostrProfile.about)}
+                            </p>
+                            {nostrProfile.about.length > 180 && (
+                              <button
+                                onClick={() => setAboutExpanded(!aboutExpanded)}
+                                className="text-[10px] text-indigo-500 font-medium mt-1"
+                                data-testid="button-about-toggle"
+                              >
+                                {aboutExpanded ? "Show less" : "Show more"}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
