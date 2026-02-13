@@ -40,6 +40,7 @@ import {
   ExternalLink,
   Search,
   Settings as SettingsIcon,
+  BookOpen,
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -187,6 +188,10 @@ export default function DashboardPage() {
                     <SettingsIcon className="h-4 w-4" />
                     Settings
                   </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/what-is-wot")} data-testid="button-nav-wot">
+                    <BookOpen className="h-4 w-4" />
+                    What is WoT?
+                  </Button>
                 </div>
               </div>
 
@@ -265,6 +270,10 @@ export default function DashboardPage() {
                   <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
                     <SettingsIcon className="h-5 w-5 text-slate-200/80" />
                     Settings
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
+                    <BookOpen className="h-5 w-5 text-slate-200/80" />
+                    What is WoT?
                   </Button>
                 </div>
               </div>

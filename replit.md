@@ -14,10 +14,11 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-12: Replaced LoginPage with polished dark-theme glass-card design (brain SVG logo, gradient text, CSS animations, no framer-motion)
 - 2026-02-12: Replaced DashboardPage with polished prototype-inspired design (dark nav bar, avatar dropdown, gradient stat cards, social graph grid, GrapeRank panel with status fields)
 - 2026-02-13: Added SearchPage with npub lookup, real API integration (getUserByPubkey), input validation, loading/error/result states, mobile nav drawer, CSS-only animations
+- 2026-02-13: Added What is WoT? educational page with dark theme, mode toggle (Why/How), trust node visualization, interactive parameter tuning, Show vs Tell scenarios, use cases, FAQ accordion, and CTA section
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings)
+- **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
 - **Auth**: Challenge-response via brainstormserver API, token in localStorage
@@ -29,7 +30,8 @@ client/src/
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
 │   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
-│   └── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
+│   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
+│   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (Why/How mode toggle, trust visualization, FAQ)
 ├── services/
 │   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt
 │   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf, getGrapeRankResult)

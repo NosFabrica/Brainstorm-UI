@@ -8,6 +8,7 @@ import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import SearchPage from "@/pages/SearchPage";
 import SettingsPage from "@/pages/SettingsPage";
+import WhatIsWotPage from "@/pages/WhatIsWotPage";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/search" component={SearchPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/what-is-wot" component={WhatIsWotPage} />
       <Route component={NotFound} />
     </Switch>
   );
