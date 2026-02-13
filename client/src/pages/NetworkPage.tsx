@@ -14,6 +14,10 @@ import {
   BookOpen,
   Users,
   Filter,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -148,6 +152,9 @@ export default function NetworkPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
 
   const profileCache = useRef<Map<string, any>>(new Map());
 
@@ -646,7 +653,7 @@ export default function NetworkPage() {
                     <button
                       key={group.key}
                       type="button"
-                      onClick={() => setActiveGroup(group.key)}
+                      onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
@@ -668,17 +675,37 @@ export default function NetworkPage() {
                 })}
               </div>
 
-              <div className="relative group/input">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
-                <div className="relative flex items-center">
-                  <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
-                  <Input
-                    placeholder="Search by name or npub..."
-                    className="relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9"
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    data-testid="input-network-search"
-                  />
+              <div className="flex items-center gap-3">
+                <div className="relative group/input flex-1">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
+                  <div className="relative flex items-center">
+                    <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
+                    <Input
+                      placeholder="Search by name or npub..."
+                      className="relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9"
+                      value={searchFilter}
+                      onChange={(e) => { setSearchFilter(e.target.value); setCurrentPage(1); }}
+                      data-testid="input-network-search"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
+                  <button
+                    type="button"
+                    className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                    onClick={() => setViewMode("grid")}
+                    data-testid="button-view-grid"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                    onClick={() => setViewMode("list")}
+                    data-testid="button-view-list"
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             </CardContent>
@@ -723,105 +750,204 @@ export default function NetworkPage() {
               </div>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-network-profiles">
-              {visiblePubkeys.map((pk) => {
-                const profile = profileCache.current.get(pk);
-                const npub = nip19.npubEncode(pk);
-                const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
-                const memberGroups = getPubkeyGroups(pk);
-                const isProfileLoaded = profileCache.current.has(pk);
+            <>
+              {(() => {
+                const totalPages = Math.ceil(visiblePubkeys.length / PAGE_SIZE);
+                const safePage = Math.min(currentPage, totalPages || 1);
+                const startIdx = (safePage - 1) * PAGE_SIZE;
+                const pageItems = visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE);
 
-                if (!isProfileLoaded) {
+                const renderProfileCard = (pk: string) => {
+                  const profile = profileCache.current.get(pk);
+                  const npub = nip19.npubEncode(pk);
+                  const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
+                  const memberGroups = getPubkeyGroups(pk);
+                  const isProfileLoaded = profileCache.current.has(pk);
+                  const displayName = profile?.display_name || profile?.name || displayNpub;
+
+                  if (!isProfileLoaded) {
+                    return (
+                      <div
+                        key={pk}
+                        className={`bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl animate-pulse ${viewMode === "grid" ? "p-4" : "p-3"}`}
+                        data-testid={`skeleton-profile-${pk.slice(0, 8)}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`rounded-full bg-slate-200 shrink-0 ${viewMode === "grid" ? "h-8 w-8" : "h-7 w-7"}`} />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3 bg-slate-200 rounded w-24" />
+                            <div className="h-2 bg-slate-100 rounded w-32" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (viewMode === "list") {
+                    return (
+                      <div
+                        key={pk}
+                        className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl px-4 py-2.5 hover:border-indigo-300/50 hover:shadow-sm transition-all cursor-pointer flex items-center gap-3"
+                        onClick={() => navigate(`/search?npub=${npub}`)}
+                        data-testid={`card-profile-${pk.slice(0, 8)}`}
+                      >
+                        <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
+                          {profile?.picture ? (
+                            <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
+                          ) : null}
+                          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                            {(displayName || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                          <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px]" data-testid={`text-profile-name-${pk.slice(0, 8)}`}>
+                            {displayName}
+                          </p>
+                          {profile?.nip05 && (
+                            <span className="text-[10px] text-indigo-500 truncate max-w-[140px] hidden sm:inline" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
+                              {profile.nip05}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono text-slate-400 truncate hidden md:inline" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
+                            {displayNpub}
+                          </span>
+                        </div>
+                        {memberGroups.length > 0 && (
+                          <div className="flex items-center gap-1 shrink-0 flex-wrap" data-testid={`row-profile-groups-${pk.slice(0, 8)}`}>
+                            {memberGroups.map((gk) => {
+                              const groupDef = groups.find(g => g.key === gk);
+                              if (!groupDef) return null;
+                              return (
+                                <Badge
+                                  key={gk}
+                                  variant="outline"
+                                  className={`text-[9px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                                  data-testid={`badge-group-${gk}-${pk.slice(0, 8)}`}
+                                >
+                                  {groupDef.label}
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="p-1 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
+                          onClick={(e) => { e.stopPropagation(); handleCopyNpub(npub, pk); }}
+                          data-testid={`button-copy-npub-${pk.slice(0, 8)}`}
+                        >
+                          {copiedPubkey === pk ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={pk}
-                      className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 animate-pulse"
-                      data-testid={`skeleton-profile-${pk.slice(0, 8)}`}
+                      className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 hover:border-indigo-300/50 hover:shadow-md transition-all cursor-pointer group"
+                      onClick={() => navigate(`/search?npub=${npub}`)}
+                      data-testid={`card-profile-${pk.slice(0, 8)}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-slate-200" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-3 bg-slate-200 rounded w-24" />
-                          <div className="h-2 bg-slate-100 rounded w-32" />
+                        <Avatar className="h-8 w-8 border border-slate-200/60">
+                          {profile?.picture ? (
+                            <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
+                          ) : null}
+                          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
+                            {(displayName || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate" data-testid={`text-profile-name-${pk.slice(0, 8)}`}>
+                            {displayName}
+                          </p>
+                          {profile?.nip05 && (
+                            <p className="text-[10px] text-indigo-500 truncate" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
+                              {profile.nip05}
+                            </p>
+                          )}
                         </div>
                       </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
+                          {displayNpub}
+                        </span>
+                        <button
+                          type="button"
+                          className="p-0.5 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
+                          onClick={(e) => { e.stopPropagation(); handleCopyNpub(npub, pk); }}
+                          data-testid={`button-copy-npub-${pk.slice(0, 8)}`}
+                        >
+                          {copiedPubkey === pk ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                      </div>
+                      {memberGroups.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1" data-testid={`row-profile-groups-${pk.slice(0, 8)}`}>
+                          {memberGroups.map((gk) => {
+                            const groupDef = groups.find(g => g.key === gk);
+                            if (!groupDef) return null;
+                            return (
+                              <Badge
+                                key={gk}
+                                variant="outline"
+                                className={`text-[9px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                                data-testid={`badge-group-${gk}-${pk.slice(0, 8)}`}
+                              >
+                                {groupDef.label}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
-                }
-
-                const displayName = profile?.display_name || profile?.name || displayNpub;
+                };
 
                 return (
-                  <div
-                    key={pk}
-                    className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 hover:border-indigo-300/50 hover:shadow-md transition-all cursor-pointer group"
-                    onClick={() => navigate(`/search?npub=${npub}`)}
-                    data-testid={`card-profile-${pk.slice(0, 8)}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8 border border-slate-200/60">
-                        {profile?.picture ? (
-                          <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
-                          {(displayName || "?").charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate" data-testid={`text-profile-name-${pk.slice(0, 8)}`}>
-                          {displayName}
-                        </p>
-                        {profile?.nip05 && (
-                          <p className="text-[10px] text-indigo-500 truncate" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
-                            {profile.nip05}
-                          </p>
-                        )}
-                      </div>
+                  <>
+                    <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} data-testid="grid-network-profiles">
+                      {pageItems.map(renderProfileCard)}
                     </div>
 
-                    <div className="mt-2 flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
-                        {displayNpub}
+                    <div className="flex items-center justify-between gap-4 pt-4" data-testid="row-pagination">
+                      <span className="text-xs text-slate-500">
+                        {startIdx + 1}&ndash;{Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length)} of {visiblePubkeys.length}
                       </span>
-                      <button
-                        type="button"
-                        className="p-0.5 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyNpub(npub, pk);
-                        }}
-                        data-testid={`button-copy-npub-${pk.slice(0, 8)}`}
-                      >
-                        {copiedPubkey === pk ? (
-                          <Check className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </button>
+                      {totalPages > 1 && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-xs"
+                            disabled={safePage <= 1}
+                            onClick={() => { setCurrentPage(safePage - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            data-testid="button-page-prev"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                            Previous
+                          </Button>
+                          <span className="text-xs font-medium text-slate-600 tabular-nums px-2" data-testid="text-page-indicator">
+                            {safePage} / {totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-xs"
+                            disabled={safePage >= totalPages}
+                            onClick={() => { setCurrentPage(safePage + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            data-testid="button-page-next"
+                          >
+                            Next
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-
-                    {memberGroups.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1" data-testid={`row-profile-groups-${pk.slice(0, 8)}`}>
-                        {memberGroups.map((gk) => {
-                          const groupDef = groups.find(g => g.key === gk);
-                          if (!groupDef) return null;
-                          return (
-                            <Badge
-                              key={gk}
-                              variant="outline"
-                              className={`text-[9px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
-                              data-testid={`badge-group-${gk}-${pk.slice(0, 8)}`}
-                            >
-                              {groupDef.label}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  </>
                 );
-              })}
-            </div>
+              })()}
+            </>
           )}
         </div>
       </main>
