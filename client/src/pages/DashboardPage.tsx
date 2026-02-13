@@ -26,7 +26,6 @@ import {
   Zap,
   LogOut,
   User as UserIcon,
-  Copy,
   Check,
   Loader2,
   TrendingUp,
@@ -176,7 +175,6 @@ const TOP_PROFILES_MOCK = [
 export default function DashboardPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [copied, setCopied] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -236,15 +234,6 @@ export default function DashboardPage() {
   const handleLogout = () => {
     logout();
     navigate("/");
-  };
-
-  const handleCopyNpub = async () => {
-    if (!user) return;
-    try {
-      await navigator.clipboard.writeText(user.npub);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
   };
 
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
@@ -648,8 +637,43 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  onClick={() => triggerGrapeRankMutation.mutate()}
+                  disabled={triggerGrapeRankMutation.isPending}
+                  className="gap-1.5 bg-[#333286] hover:bg-[#2a2970] text-white shadow-[0_4px_12px_-4px_rgba(51,50,134,0.5)] rounded-xl"
+                  data-testid="button-trigger-graperank"
+                >
+                  {triggerGrapeRankMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span className="hidden sm:inline">Calculating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Calculate</span>
+                    </>
+                  )}
+                </Button>
               </div>
+
             </div>
+
+            {triggerGrapeRankMutation.isSuccess && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 w-fit ml-auto" data-testid="graperank-success">
+                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <p className="text-[10px] text-emerald-700 font-medium">Calculation triggered. Results will update shortly.</p>
+              </div>
+            )}
+            {triggerGrapeRankMutation.isError && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200 w-fit ml-auto" data-testid="graperank-error">
+                <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <p className="text-[10px] text-red-600 font-medium">
+                  {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
+                </p>
+              </div>
+            )}
 
             {showOnboarding && (
               <div
@@ -983,96 +1007,6 @@ export default function DashboardPage() {
                     </AnimatePresence>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 p-6 sm:p-8 mb-8 shadow-sm" data-testid="card-hero">
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-indigo-100/40 blur-3xl" />
-              <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-100/30 blur-3xl" />
-            </div>
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-              <div className="flex items-start gap-4">
-                <Avatar className="h-14 w-14 border-2 border-indigo-200 ring-2 ring-indigo-100 shadow-lg shrink-0" data-testid="img-user-avatar">
-                  {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
-                  <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold text-lg">
-                    <UserIcon className="w-6 h-6" />
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/60 w-fit mb-2">
-                    <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#818cf8]" />
-                    <p className="text-[9px] font-bold tracking-[0.15em] text-indigo-600 uppercase" data-testid="text-hero-kicker">Clarity in a fragmented world</p>
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-dashboard-title">
-                    Welcome back, {user.displayName || "Traveler"}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <code className="text-xs text-slate-500 font-mono" data-testid="text-npub">{truncatedNpub}</code>
-                    <button onClick={handleCopyNpub} className="p-0.5 text-slate-400 hover:text-indigo-600 transition-colors" data-testid="button-copy-npub">
-                      {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                    {user.nip05 && (
-                      <span className="text-xs text-slate-400" data-testid="text-nip05">{user.nip05}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-4 shrink-0">
-                <div className="flex flex-col items-center justify-center px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 min-w-[140px]">
-                  <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-slate-500 mb-1" data-testid="text-graperank-label">GrapeRank</span>
-                  {grapeRankQuery.isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-                  ) : grapeRankScore ? (
-                    <span className="text-xl font-bold font-mono text-slate-900" data-testid="text-graperank-score">{grapeRankScore}</span>
-                  ) : (
-                    <span className="text-sm text-slate-400" data-testid="text-graperank-score">{"\u2014"}</span>
-                  )}
-                  {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) ? (
-                    <span className="text-[9px] text-slate-400/70 mt-0.5" data-testid="text-graperank-updated" title={formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}>
-                      Last calculated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 mt-0.5" data-testid="text-graperank-status">
-                      {grapeRankStatus === "calculating" ? "Calculating..." : grapeRankStatus === "complete" ? "Complete" : "Not calculated"}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  onClick={() => triggerGrapeRankMutation.mutate()}
-                  disabled={triggerGrapeRankMutation.isPending}
-                  className="gap-2 bg-[#333286] hover:bg-[#2a2970] text-white"
-                  data-testid="button-trigger-graperank"
-                >
-                  {triggerGrapeRankMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Calculating...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4" />
-                      Calculate GrapeRank
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {triggerGrapeRankMutation.isSuccess && (
-              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200" data-testid="graperank-success">
-                <Check className="w-4 h-4 text-emerald-600" />
-                <p className="text-xs text-emerald-700 font-medium">Calculation triggered successfully. Results will update shortly.</p>
-              </div>
-            )}
-            {triggerGrapeRankMutation.isError && (
-              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="graperank-error">
-                <ShieldAlert className="w-4 h-4 text-red-500" />
-                <p className="text-xs text-red-600 font-medium">
-                  {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
-                </p>
               </div>
             )}
           </div>
