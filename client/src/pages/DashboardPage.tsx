@@ -440,7 +440,7 @@ export default function DashboardPage() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
-        <ComputingBackground />
+        <ComputingBackground variant="light" />
 
         <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
@@ -960,58 +960,57 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-6 sm:p-8 mb-8 shadow-xl" data-testid="card-hero">
+          <div className="relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-xl border border-slate-200/80 p-6 sm:p-8 mb-8 shadow-sm" data-testid="card-hero">
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
-              <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
+              <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-indigo-100/40 blur-3xl" />
+              <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-100/30 blur-3xl" />
             </div>
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               <div className="flex items-start gap-4">
-                <Avatar className="h-14 w-14 border-2 border-indigo-400/40 ring-2 ring-indigo-500/20 shadow-lg shrink-0" data-testid="img-user-avatar">
+                <Avatar className="h-14 w-14 border-2 border-indigo-200 ring-2 ring-indigo-100 shadow-lg shrink-0" data-testid="img-user-avatar">
                   {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
-                  <AvatarFallback className="bg-indigo-800 text-white font-bold text-lg">
+                  <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold text-lg">
                     <UserIcon className="w-6 h-6" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/10 w-fit mb-2">
-                    <div className="w-1 h-1 rounded-full bg-indigo-400 shadow-[0_0_4px_#818cf8]" />
-                    <p className="text-[9px] font-bold tracking-[0.15em] text-indigo-200 uppercase" data-testid="text-hero-kicker">Clarity in a fragmented world</p>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/60 w-fit mb-2">
+                    <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#818cf8]" />
+                    <p className="text-[9px] font-bold tracking-[0.15em] text-indigo-600 uppercase" data-testid="text-hero-kicker">Clarity in a fragmented world</p>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-dashboard-title">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-dashboard-title">
                     Welcome back, {user.displayName || "Traveler"}
                   </h1>
                   <div className="flex flex-wrap items-center gap-2">
-                    <code className="text-xs text-indigo-300/70 font-mono" data-testid="text-npub">{truncatedNpub}</code>
-                    <button onClick={handleCopyNpub} className="p-0.5 text-indigo-300/50 hover:text-indigo-200 transition-colors" data-testid="button-copy-npub">
-                      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <code className="text-xs text-slate-500 font-mono" data-testid="text-npub">{truncatedNpub}</code>
+                    <button onClick={handleCopyNpub} className="p-0.5 text-slate-400 hover:text-indigo-600 transition-colors" data-testid="button-copy-npub">
+                      {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                     </button>
                     {user.nip05 && (
-                      <span className="text-xs text-indigo-300/60" data-testid="text-nip05">{user.nip05}</span>
+                      <span className="text-xs text-slate-400" data-testid="text-nip05">{user.nip05}</span>
                     )}
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-4 shrink-0">
-                <div className="flex flex-col items-center justify-center px-5 py-3 rounded-xl bg-white/5 border border-white/10 min-w-[140px]">
-                  <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-indigo-300/70 mb-1" data-testid="text-graperank-label">GrapeRank</span>
+                <div className="flex flex-col items-center justify-center px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 min-w-[140px]">
+                  <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-slate-500 mb-1" data-testid="text-graperank-label">GrapeRank</span>
                   {grapeRankQuery.isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-300" />
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                   ) : grapeRankScore ? (
-                    <span className="text-xl font-bold font-mono text-white" data-testid="text-graperank-score">{grapeRankScore}</span>
+                    <span className="text-xl font-bold font-mono text-slate-900" data-testid="text-graperank-score">{grapeRankScore}</span>
                   ) : (
-                    <span className="text-sm text-indigo-300/50" data-testid="text-graperank-score">{"\u2014"}</span>
+                    <span className="text-sm text-slate-400" data-testid="text-graperank-score">{"\u2014"}</span>
                   )}
-                  <span className="text-[10px] text-indigo-300/50 mt-0.5" data-testid="text-graperank-status">
+                  <span className="text-[10px] text-slate-400 mt-0.5" data-testid="text-graperank-status">
                     {grapeRankStatus === "calculating" ? "Calculating..." : grapeRankStatus === "complete" ? "Complete" : "Not calculated"}
                   </span>
                 </div>
                 <Button
-                  variant="default"
                   onClick={() => triggerGrapeRankMutation.mutate()}
                   disabled={triggerGrapeRankMutation.isPending}
-                  className="gap-2 bg-[#7c86ff] hover:bg-[#6b75ee] text-white"
+                  className="gap-2 bg-[#333286] hover:bg-[#2a2970] text-white"
                   data-testid="button-trigger-graperank"
                 >
                   {triggerGrapeRankMutation.isPending ? (
@@ -1030,15 +1029,15 @@ export default function DashboardPage() {
             </div>
 
             {triggerGrapeRankMutation.isSuccess && (
-              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20" data-testid="graperank-success">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <p className="text-xs text-emerald-300 font-medium">Calculation triggered successfully. Results will update shortly.</p>
+              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200" data-testid="graperank-success">
+                <Check className="w-4 h-4 text-emerald-600" />
+                <p className="text-xs text-emerald-700 font-medium">Calculation triggered successfully. Results will update shortly.</p>
               </div>
             )}
             {triggerGrapeRankMutation.isError && (
-              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20" data-testid="graperank-error">
-                <ShieldAlert className="w-4 h-4 text-red-400" />
-                <p className="text-xs text-red-300 font-medium">
+              <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="graperank-error">
+                <ShieldAlert className="w-4 h-4 text-red-500" />
+                <p className="text-xs text-red-600 font-medium">
                   {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
                 </p>
               </div>
