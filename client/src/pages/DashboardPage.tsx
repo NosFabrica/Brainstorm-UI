@@ -1612,13 +1612,13 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
                           <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-android">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
                           </a>
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto bg-[#333286] text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#333286] !text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -1705,13 +1705,13 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
                           <a href="https://play.google.com/store/apps/details?id=app.nostria.twa" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-android" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-android">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
                           </a>
                           <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto bg-white/10 hover:bg-white/15 text-white border border-white/15 font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/10 transition-all hover:scale-105" data-testid="button-supported-nostria-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#333286] !text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
