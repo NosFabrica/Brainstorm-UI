@@ -141,7 +141,7 @@ const ONBOARDING_SLIDES = [
   },
 ];
 
-const ONBOARDING_DURATION_MS = 270 * 1000;
+const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
 
 const INTEREST_CLUSTERS = [
   { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
@@ -185,9 +185,7 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
-  const [onboardingProgress, setOnboardingProgress] = useState(0);
   const [scoresCalculatedAt, setScoresCalculatedAt] = useState<string | null>(null);
-  const [trustScore, setTrustScore] = useState<number | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -271,6 +269,12 @@ export default function DashboardPage() {
   const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at) : null;
   const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at) : null;
 
+  const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
+  const calcDone = grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
+  const publishDone = grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
+  const completedSteps = (setupDone ? 1 : 0) + (calcDone ? 1 : 0) + (publishDone ? 1 : 0);
+  const onboardingProgress = [0, 33, 66, 100][completedSteps];
+
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
     const now = new Date();
@@ -305,22 +309,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (grapeRankScore) return;
-    const startTime = Date.now();
-
-    const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const nextProgress = Math.min((elapsed / ONBOARDING_DURATION_MS) * 100, 100);
-      setOnboardingProgress(nextProgress);
-
-      if (nextProgress < 100) requestAnimationFrame(tick);
-    };
-
-    const raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [grapeRankScore]);
-
-  useEffect(() => {
     if (onboardingProgress < 100) return;
     if (scoresCalculatedAt) return;
 
@@ -329,7 +317,6 @@ export default function DashboardPage() {
     const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
     setScoresCalculatedAt(`${date} \u00b7 ${time}`);
-    setTrustScore(92);
   }, [onboardingProgress, scoresCalculatedAt]);
 
   const mouseX = useMotionValue(0);
@@ -837,11 +824,13 @@ export default function DashboardPage() {
                               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                               data-testid="text-onboarding-progress-step"
                             >
-                              {onboardingProgress >= 80
-                                ? "Publishing Trusted Assertion"
-                                : onboardingProgress >= 40
-                                  ? "Computing network trust"
-                                  : "Fetching your graph"}
+                              {publishDone
+                                ? "Calculation complete"
+                                : calcDone
+                                  ? "Publishing Trusted Assertion"
+                                  : setupDone
+                                    ? "Computing network trust"
+                                    : "Fetching your graph"}
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0" data-testid="row-onboarding-progress-meta">
@@ -862,53 +851,53 @@ export default function DashboardPage() {
 
                         <div className="mt-2 grid grid-cols-3 gap-2" data-testid="grid-onboarding-status">
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${onboardingProgress > 10 ? "bg-indigo-500/10 border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]" : onboardingProgress <= 10 ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${setupDone ? "bg-indigo-500/10 border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]" : !setupDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-relays"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${onboardingProgress > 10 ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" : onboardingProgress <= 10 ? "bg-indigo-300 shadow-[0_0_10px_rgba(129,140,248,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${setupDone ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" : grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(129,140,248,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-relays"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${onboardingProgress > 10 ? "text-indigo-200" : onboardingProgress <= 10 ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
+                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${setupDone ? "text-indigo-200" : grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${onboardingProgress > 10 ? "text-indigo-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
-                              {onboardingProgress > 10 ? "Done" : "Working"}
+                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${setupDone ? "text-indigo-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
+                              {setupDone ? "Done" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
 
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${onboardingProgress > 40 ? "bg-violet-500/10 border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)]" : onboardingProgress > 10 && onboardingProgress <= 40 ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-violet-500/10 border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)]" : setupDone && !calcDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-graph"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${onboardingProgress > 40 ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : onboardingProgress > 10 && onboardingProgress <= 40 ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${calcDone ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : setupDone && !calcDone ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-graph"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${onboardingProgress > 40 ? "text-violet-200" : onboardingProgress > 10 && onboardingProgress <= 40 ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
+                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : setupDone && !calcDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${onboardingProgress > 40 ? "text-violet-200/80" : onboardingProgress > 10 ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
-                              {onboardingProgress > 40 ? "Done" : onboardingProgress > 10 ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : setupDone ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                              {calcDone ? "Done" : setupDone ? "Working" : "Waiting"}
                             </span>
                           </div>
 
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${onboardingProgress > 80 ? "bg-fuchsia-500/10 border-fuchsia-500/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]" : onboardingProgress > 40 && onboardingProgress <= 80 ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-fuchsia-500/10 border-fuchsia-500/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-scores"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${onboardingProgress > 80 ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : onboardingProgress > 40 && onboardingProgress <= 80 ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${publishDone ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-scores"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${onboardingProgress > 80 ? "text-fuchsia-200" : onboardingProgress > 40 && onboardingProgress <= 80 ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
-                              <span className={`hidden lg:inline text-[10px] font-semibold tracking-wide ${onboardingProgress > 80 ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
+                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
+                              <span className={`hidden lg:inline text-[10px] font-semibold tracking-wide ${publishDone ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${onboardingProgress > 80 ? "text-fuchsia-200/80" : onboardingProgress > 40 ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {onboardingProgress > 80 ? "Done" : onboardingProgress > 40 ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                              {publishDone ? "Done" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
                         </div>
