@@ -246,12 +246,18 @@ export default function DashboardPage() {
     ? "calculating"
     : "idle";
 
-  const grapeRankScore = grapeRank
-    ? typeof (grapeRank as any).average === "number"
-      ? ((grapeRank as any).average as number).toFixed(4)
-      : typeof (grapeRank as any).score === "number"
-      ? ((grapeRank as any).score as number).toFixed(4)
-      : null
+  const grapeRankScoreNum = grapeRank
+    ? [
+        (grapeRank as any).average,
+        (grapeRank as any).score,
+        (grapeRank as any).graperank,
+        (grapeRank as any).result,
+        (grapeRank as any).confidence,
+        (grapeRank as any).value,
+      ].find((v) => typeof v === "number") ?? null
+    : null;
+  const grapeRankScore = grapeRankScoreNum !== null
+    ? grapeRankScoreNum.toFixed(4)
     : null;
 
   const queuePosition = grapeRank
@@ -420,7 +426,8 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const showOnboarding = !grapeRankScore && onboardingProgress < 100;
+  const isCalculationComplete = !!grapeRankScore || publishDone;
+  const showOnboarding = !isCalculationComplete && onboardingProgress < 100;
 
   return (
     <TooltipProvider>
@@ -593,21 +600,25 @@ export default function DashboardPage() {
               >
                 <div className="flex flex-col leading-tight min-w-0">
                   <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
-                  {!grapeRankScore ? (
-                    <span className="text-[11px] text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
-                      Awaiting calculation
-                    </span>
-                  ) : triggerGrapeRankMutation.isPending ? (
+                  {triggerGrapeRankMutation.isPending ? (
                     <span className="text-[11px] text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
-                  ) : (
+                  ) : grapeRankScore ? (
                     <span className="text-[11px] text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
+                  ) : publishDone ? (
+                    <span className="text-[11px] text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
+                      Complete
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
+                      Awaiting calculation
+                    </span>
                   )}
-                  {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                  {(grapeRankScore || publishDone) && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
                     <span className="text-[9px] text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
                       {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
