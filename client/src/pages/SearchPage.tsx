@@ -217,55 +217,57 @@ export default function SearchPage() {
         />
       </div>
 
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
-        {connectionPairs.map(([a, b], i) => (
-          <line
-            key={i}
-            x1={`${floatingNodes[a].x}%`}
-            y1={`${floatingNodes[a].y}%`}
-            x2={`${floatingNodes[b].x}%`}
-            y2={`${floatingNodes[b].y}%`}
-            stroke="url(#searchLineGrad)"
-            strokeWidth="1.5"
-            className="opacity-0"
-            style={{ animation: `searchLineFlash 8s ease-in-out infinite ${i * 0.8}s` }}
+      <div className="absolute top-0 left-0 right-0 h-[500px] overflow-hidden pointer-events-none z-0">
+        <svg className="absolute inset-0 w-full h-full">
+          {connectionPairs.map(([a, b], i) => (
+            <line
+              key={i}
+              x1={`${floatingNodes[a].x}%`}
+              y1={`${floatingNodes[a].y}%`}
+              x2={`${floatingNodes[b].x}%`}
+              y2={`${floatingNodes[b].y}%`}
+              stroke="url(#searchLineGrad)"
+              strokeWidth="1.5"
+              className="opacity-0"
+              style={{ animation: `searchLineFlash 8s ease-in-out infinite ${i * 0.8}s` }}
+            />
+          ))}
+          <defs>
+            <linearGradient id="searchLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.4" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {floatingNodes.map((node) => (
+          <div
+            key={node.id}
+            className="absolute rounded-full bg-white border-2 border-indigo-100 shadow-sm"
+            style={{
+              left: `${node.x}%`,
+              top: `${node.y}%`,
+              width: node.size + 6,
+              height: node.size + 6,
+              animation: `searchNodeFloat ${node.duration}s ease-in-out infinite ${node.delay}s`,
+            }}
           />
         ))}
-        <defs>
-          <linearGradient id="searchLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.4" />
-          </linearGradient>
-        </defs>
-      </svg>
 
-      {floatingNodes.map((node) => (
-        <div
-          key={node.id}
-          className="absolute rounded-full bg-white border-2 border-indigo-100 z-0 shadow-sm"
-          style={{
-            left: `${node.x}%`,
-            top: `${node.y}%`,
-            width: node.size + 6,
-            height: node.size + 6,
-            animation: `searchNodeFloat ${node.duration}s ease-in-out infinite ${node.delay}s`,
-          }}
-        />
-      ))}
-
-      {decorativeText.map((calc, i) => (
-        <div
-          key={i}
-          className="absolute text-[11px] font-mono text-indigo-900/30 font-semibold pointer-events-none select-none hidden md:block tracking-widest uppercase z-0"
-          style={{
-            left: `${5 + (i % 4) * 25}%`,
-            top: `${10 + Math.floor(i / 4) * 70}%`,
-            animation: `searchCalcFloat 8s ease-in-out infinite ${i * 1.5}s`,
-          }}
-        >
-          {calc}
-        </div>
-      ))}
+        {decorativeText.map((calc, i) => (
+          <div
+            key={i}
+            className="absolute text-[11px] font-mono text-indigo-900/30 font-semibold select-none hidden md:block tracking-widest uppercase"
+            style={{
+              left: `${5 + (i % 4) * 25}%`,
+              top: `${15 + Math.floor(i / 4) * 35}%`,
+              animation: `searchCalcFloat 8s ease-in-out infinite ${i * 1.5}s`,
+            }}
+          >
+            {calc}
+          </div>
+        ))}
+      </div>
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
