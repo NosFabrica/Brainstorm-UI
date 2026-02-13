@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { Footer } from "@/components/Footer";
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -913,6 +914,7 @@ export default function SearchPage() {
           100% { width: 100%; }
         }
       `}</style>
+      <Footer />
     </div>
   );
 }
