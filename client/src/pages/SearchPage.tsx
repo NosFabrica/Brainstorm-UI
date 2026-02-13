@@ -1052,7 +1052,7 @@ export default function SearchPage() {
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.followed_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 group" data-testid="metric-search-followers">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-followers">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
                                     <Users className="h-3.5 w-3.5 text-blue-500" />
@@ -1068,7 +1068,7 @@ export default function SearchPage() {
                               </div>
                             )}
                             {profileResult.following !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 group" data-testid="metric-search-following">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-following">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
                                     <ExternalLink className="h-3.5 w-3.5 text-blue-500" />
@@ -1084,7 +1084,7 @@ export default function SearchPage() {
                               </div>
                             )}
                             {profileResult.influence !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
                                     <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
@@ -1117,7 +1117,7 @@ export default function SearchPage() {
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.muted_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 cursor-help" title="A soft negative signal. Muting means someone chose to hide this account's content from their feed." data-testid="metric-search-muted-by">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A soft negative signal. Muting means someone chose to hide this account's content from their feed." data-testid="metric-search-muted-by">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
                                     <VolumeX className={`h-3.5 w-3.5 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
@@ -1133,7 +1133,7 @@ export default function SearchPage() {
                               </div>
                             )}
                             {profileResult.reported_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 cursor-help" title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior." data-testid="metric-search-reported-by">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior." data-testid="metric-search-reported-by">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
                                     <Flag className={`h-3.5 w-3.5 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
@@ -1149,7 +1149,7 @@ export default function SearchPage() {
                               </div>
                             )}
                             {profileResult.muting !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5" data-testid="metric-search-muting">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-muting">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                                     <VolumeX className="h-3.5 w-3.5 text-slate-400" />
@@ -1165,7 +1165,7 @@ export default function SearchPage() {
                               </div>
                             )}
                             {profileResult.reporting !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5" data-testid="metric-search-reporting">
+                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-reporting">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                                     <Flag className="h-3.5 w-3.5 text-slate-400" />
