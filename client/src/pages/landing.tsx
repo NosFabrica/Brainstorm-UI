@@ -2,33 +2,8 @@ import { useLocation } from 'wouter';
 import { ArrowRight, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Footer } from '@/components/Footer';
+import { ComputingBackground } from '@/components/ComputingBackground';
 import { handleLogin } from '@/services/nostr';
-
-const floatingNodes = Array.from({ length: 14 }, (_, i) => ({
-  id: i,
-  x: 8 + Math.random() * 84,
-  y: 8 + Math.random() * 84,
-  size: Math.random() * 3 + 2,
-  duration: 10 + Math.random() * 8,
-  delay: i * 1.2,
-}));
-
-const connectionPairs = [
-  [0, 3], [1, 4], [2, 5], [3, 6], [4, 7], [5, 8], [6, 9], [7, 10], [8, 11],
-  [9, 12], [10, 13], [0, 6], [2, 8], [4, 10], [1, 7], [5, 11],
-];
-
-const calculations = [
-  "npub1qx3f...verified",
-  "trust_score: 0.94",
-  "follows: 847",
-  "wot_rank: #127",
-  "relay: wss://nos.lol",
-  "kind:3 → follows",
-  "sig: schnorr✓",
-  "hops: 2 → 0.73",
-  "1 Mathematical computation → signal clarity: p",
-];
 
 const mathChars = "∑∏∫∂∇×÷±√∞≈≠≤≥αβγδεζηθλμπσφψω0123456789";
 const algorithmWord = "algorithm";
@@ -119,46 +94,8 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col relative overflow-hidden">
       <style>{`
-        @keyframes floatNode {
-          0% { transform: translateY(0) scale(0.5); opacity: 0; }
-          15% { transform: translateY(-8px) scale(1); opacity: 0.45; }
-          35% { transform: translateY(-20px) scale(1.15); opacity: 0.55; }
-          50% { transform: translateY(-28px) scale(1.2); opacity: 0.5; }
-          70% { transform: translateY(-18px) scale(1); opacity: 0.35; }
-          85% { transform: translateY(-6px) scale(0.8); opacity: 0.15; }
-          100% { transform: translateY(0) scale(0.5); opacity: 0; }
-        }
-        @keyframes lineDraw {
-          0% { stroke-dashoffset: 100%; opacity: 0; }
-          10% { opacity: 0; }
-          20% { opacity: 0.25; }
-          40% { stroke-dashoffset: 0%; opacity: 0.35; }
-          60% { stroke-dashoffset: 0%; opacity: 0.3; }
-          80% { opacity: 0.12; }
-          100% { stroke-dashoffset: -100%; opacity: 0; }
-        }
-        @keyframes calcFade {
-          0% { opacity: 0; transform: translateY(4px); }
-          20% { opacity: 0.3; transform: translateY(0); }
-          40% { opacity: 0.35; transform: translateY(-6px); }
-          60% { opacity: 0.28; transform: translateY(-10px); }
-          80% { opacity: 0.1; transform: translateY(-14px); }
-          100% { opacity: 0; transform: translateY(-18px); }
-        }
-        @keyframes glowOrb1 {
-          0%, 100% { opacity: 0.08; transform: scale(1) translateX(0); }
-          50% { opacity: 0.2; transform: scale(1.2) translateX(20px); }
-        }
-        @keyframes glowOrb2 {
-          0%, 100% { opacity: 0.06; transform: scale(1) translateY(0); }
-          50% { opacity: 0.18; transform: scale(1.3) translateY(-15px); }
-        }
-        @keyframes glowOrb3 {
-          0%, 100% { opacity: 0.04; transform: scale(1); }
-          50% { opacity: 0.14; transform: scale(1.4); }
-        }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
@@ -174,75 +111,7 @@ export default function Landing() {
       `}</style>
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
-        
-        <div
-          className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-indigo-600/5 blur-3xl"
-          style={{ animation: 'glowOrb1 12s ease-in-out infinite' }}
-        />
-        <div
-          className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-violet-600/5 blur-3xl"
-          style={{ animation: 'glowOrb2 15s ease-in-out infinite 3s' }}
-        />
-        <div
-          className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full bg-blue-500/5 blur-2xl"
-          style={{ animation: 'glowOrb3 10s ease-in-out infinite 5s' }}
-        />
-        
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {connectionPairs.map(([a, b], i) => (
-            <line
-              key={i}
-              x1={`${floatingNodes[a].x}%`}
-              y1={`${floatingNodes[a].y}%`}
-              x2={`${floatingNodes[b].x}%`}
-              y2={`${floatingNodes[b].y}%`}
-              stroke="url(#lineGradient)"
-              strokeWidth="0.5"
-              strokeDasharray="6 4"
-              style={{
-                animation: `lineDraw ${10 + (i % 4) * 2}s ease-in-out infinite ${i * 1.1}s`,
-              }}
-            />
-          ))}
-          <defs>
-            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#818cf8" />
-              <stop offset="100%" stopColor="#a78bfa" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {floatingNodes.map((node) => (
-          <div
-            key={node.id}
-            className="absolute rounded-full"
-            style={{
-              left: `${node.x}%`,
-              top: `${node.y}%`,
-              width: node.size + 3,
-              height: node.size + 3,
-              background: 'radial-gradient(circle, rgba(129,140,248,0.6) 0%, rgba(129,140,248,0.15) 60%, transparent 100%)',
-              boxShadow: '0 0 6px 1px rgba(129,140,248,0.2)',
-              animation: `floatNode ${node.duration}s ease-in-out infinite ${node.delay}s`,
-            }}
-          />
-        ))}
-
-        {calculations.map((calc, i) => (
-          <div
-            key={i}
-            className="absolute text-[11px] font-mono text-indigo-300/70 pointer-events-none select-none hidden md:block"
-            style={{
-              left: `${4 + (i % 5) * 20}%`,
-              top: `${8 + Math.floor(i / 5) * 45 + (i % 3) * 12}%`,
-              animation: `calcFade ${8 + (i % 3) * 2}s ease-in-out infinite ${i * 1.8}s`,
-            }}
-          >
-            {calc}
-          </div>
-        ))}
+        <ComputingBackground />
         
         <div 
           className="max-w-4xl w-full relative z-10 px-6"
@@ -256,11 +125,11 @@ export default function Landing() {
               <div 
                 className="flex flex-col sm:flex-row items-center lg:items-start gap-4 sm:gap-5 group/brand cursor-pointer relative transition-transform duration-300 hover:scale-[1.02]"
               >
-                <div className="absolute -inset-8 bg-gradient-to-r from-indigo-500/0 via-violet-500/0 to-indigo-500/0 group-hover/brand:from-indigo-500/20 group-hover/brand:via-violet-500/30 group-hover/brand:to-indigo-500/20 blur-3xl rounded-full opacity-0 group-hover/brand:opacity-100 transition-all duration-700 pointer-events-none" />
+                <div className="absolute -inset-8 bg-gradient-to-r from-indigo-500/0 via-violet-500/0 to-indigo-500/0 group-hover/brand:from-indigo-500/10 group-hover/brand:via-violet-500/15 group-hover/brand:to-indigo-500/10 blur-3xl rounded-full opacity-0 group-hover/brand:opacity-100 transition-all duration-700 pointer-events-none" />
                 
                 <div className="relative flex-shrink-0">
-                  <div className="absolute inset-0 bg-indigo-500/40 blur-3xl rounded-full scale-[2] group-hover/brand:scale-[3] group-hover/brand:bg-indigo-400/50 transition-all duration-700" />
-                  <div className="absolute inset-0 bg-violet-500/20 blur-2xl rounded-full scale-150 group-hover/brand:scale-[2] group-hover/brand:bg-violet-400/30 transition-all duration-500" />
+                  <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full scale-[2] group-hover/brand:scale-[3] group-hover/brand:bg-indigo-400/30 transition-all duration-700" />
+                  <div className="absolute inset-0 bg-violet-500/10 blur-2xl rounded-full scale-150 group-hover/brand:scale-[2] group-hover/brand:bg-violet-400/20 transition-all duration-500" />
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
                     width="72" 
