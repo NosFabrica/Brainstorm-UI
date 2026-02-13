@@ -33,32 +33,7 @@ import {
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { Footer } from "@/components/Footer";
-
-const BRAIN_SVG_PATHS = [
-  "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
-  "M15.5 13C16.0523 13 16.5 12.5523 16.5 12C16.5 11.4477 16.0523 11 15.5 11C14.9477 11 14.5 11.4477 14.5 12C14.5 12.5523 14.9477 13 15.5 13Z",
-  "M8.5 13C9.05228 13 9.5 12.5523 9.5 12C9.5 11.4477 9.05228 11 8.5 11C7.94772 11 7.5 11.4477 7.5 12C7.5 12.5523 7.94772 13 8.5 13Z",
-  "M10.25 16C10.8023 16 11.25 15.5523 11.25 15C11.25 14.4477 10.8023 14 10.25 14C9.69772 14 9.25 14.4477 9.25 15C9.25 15.5523 9.69772 16 10.25 16Z",
-  "M12.0508 6.75C12.465 6.75 12.8008 6.41421 12.8008 6C12.8008 5.58579 12.465 5.25 12.0508 5.25C11.6366 5.25 11.3008 5.58579 11.3008 6C11.3008 6.41421 11.6366 6.75 12.0508 6.75Z",
-  "M12.0508 18.9492C12.465 18.9492 12.8008 18.6134 12.8008 18.1992C12.8008 17.785 12.465 17.4492 12.0508 17.4492C11.6366 17.4492 11.3008 17.785 11.3008 18.1992C11.3008 18.6134 11.6366 18.9492 12.0508 18.9492Z",
-];
-
-function BrainIcon({ size = 28, className = "text-indigo-400" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <g clipPath="url(#clip0_settings_brain)">
-        {BRAIN_SVG_PATHS.map((d, i) => (
-          <path key={i} d={d} stroke="currentColor" strokeMiterlimit="10" />
-        ))}
-      </g>
-      <defs>
-        <clipPath id="clip0_settings_brain">
-          <rect width="24" height="24" fill="white" />
-        </clipPath>
-      </defs>
-    </svg>
-  );
-}
+import { BrainLogo } from "@/components/BrainLogo";
 
 type PresetKey = "permissive" | "balanced" | "restrictive";
 
@@ -237,7 +212,7 @@ export default function SettingsPage() {
                 data-testid="button-settings-mobile-brand"
               >
                 <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center shrink-0">
-                  <BrainIcon size={20} className="text-indigo-200" />
+                  <BrainLogo size={20} className="text-indigo-200" />
                 </div>
                 <div className="leading-tight text-left min-w-0">
                   <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-settings-mobile-nav-kicker">Brainstorm</p>
@@ -251,7 +226,7 @@ export default function SettingsPage() {
                 onClick={() => navigate("/dashboard")}
                 data-testid="button-desktop-brand"
               >
-                <BrainIcon size={28} className="text-indigo-500" />
+                <BrainLogo size={28} className="text-indigo-500" />
                 <span className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</span>
               </button>
 
@@ -340,7 +315,7 @@ export default function SettingsPage() {
             <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center">
-                  <BrainIcon size={22} className="text-indigo-200" />
+                  <BrainLogo size={22} className="text-indigo-200" />
                 </div>
                 <div className="leading-tight">
                   <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
@@ -513,7 +488,7 @@ export default function SettingsPage() {
                                 <AlertDialogHeader className="space-y-2">
                                   <div className="flex items-start gap-3">
                                     <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate">
-                                      <BrainIcon size={18} className="text-indigo-800" />
+                                      <BrainLogo size={18} className="text-indigo-800" />
                                     </div>
                                     <div className="min-w-0">
                                       <AlertDialogTitle className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-title">
@@ -596,7 +571,7 @@ export default function SettingsPage() {
                           <div className="shrink-0 flex items-center gap-2">
                             {selected ? (
                               <div className="h-6 w-6 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center" data-testid={`icon-toggle-selected-${key}`}>
-                                <BrainIcon size={14} className="text-white" />
+                                <BrainLogo size={14} className="text-white" />
                               </div>
                             ) : (
                               <div className="h-6 w-6 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm" data-testid={`icon-toggle-unselected-${key}`}>
@@ -625,7 +600,7 @@ export default function SettingsPage() {
                         </div>
                         <div className="shrink-0 flex items-center gap-2" data-testid="row-preset-details-indicator">
                           <div className="h-8 w-8 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)]" data-testid="icon-preset-details-selected">
-                            <BrainIcon size={18} className="text-indigo-800" />
+                            <BrainLogo size={18} className="text-indigo-800" />
                           </div>
                         </div>
                       </div>
@@ -656,7 +631,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="flex items-start gap-3 relative">
                     <div className="h-9 w-9 rounded-2xl bg-indigo-800 border border-indigo-800/40 flex items-center justify-center shrink-0 shadow-[0_18px_40px_-24px_rgba(99,102,241,0.55)]">
-                      <BrainIcon size={18} className="text-white" />
+                      <BrainLogo size={18} className="text-white" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold tracking-wider uppercase text-slate-500" data-testid="text-settings-perspective-kicker">What changes with this preset</p>
