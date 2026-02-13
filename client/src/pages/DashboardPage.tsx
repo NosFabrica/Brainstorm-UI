@@ -277,6 +277,29 @@ export default function DashboardPage() {
       : null
     : null;
 
+  const grapeRankCreatedAt = grapeRank && (grapeRank as any).created_at ? new Date((grapeRank as any).created_at) : null;
+  const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at) : null;
+
+  const formatRelativeTime = (date: Date | null): string => {
+    if (!date || isNaN(date.getTime())) return "";
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const formatTimestamp = (date: Date | null): string => {
+    if (!date || isNaN(date.getTime())) return "";
+    return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  };
+
   const trustDistribution = [
     { label: "Highly Trusted", count: followersCount, color: "#22c55e" },
     { label: "Trusted", count: followingCount, color: "#4ade80" },
@@ -616,6 +639,11 @@ export default function DashboardPage() {
                     ) : (
                       <span className="text-[10px] text-slate-500" data-testid="text-overall-trust-score-sub">
                         Score: {grapeRankScore}
+                      </span>
+                    )}
+                    {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                      <span className="text-[9px] text-slate-400/80 mt-0.5" data-testid="text-trust-signals-updated" title={formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}>
+                        Updated {formatRelativeTime(grapeRankUpdatedAt || grapeRankCreatedAt)}
                       </span>
                     )}
                   </div>
@@ -1002,9 +1030,15 @@ export default function DashboardPage() {
                   ) : (
                     <span className="text-sm text-slate-400" data-testid="text-graperank-score">{"\u2014"}</span>
                   )}
-                  <span className="text-[10px] text-slate-400 mt-0.5" data-testid="text-graperank-status">
-                    {grapeRankStatus === "calculating" ? "Calculating..." : grapeRankStatus === "complete" ? "Complete" : "Not calculated"}
-                  </span>
+                  {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) ? (
+                    <span className="text-[9px] text-slate-400/70 mt-0.5" data-testid="text-graperank-updated" title={formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}>
+                      Last calculated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 mt-0.5" data-testid="text-graperank-status">
+                      {grapeRankStatus === "calculating" ? "Calculating..." : grapeRankStatus === "complete" ? "Complete" : "Not calculated"}
+                    </span>
+                  )}
                 </div>
                 <Button
                   onClick={() => triggerGrapeRankMutation.mutate()}
