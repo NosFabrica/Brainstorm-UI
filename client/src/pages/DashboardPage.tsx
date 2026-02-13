@@ -5,7 +5,6 @@ import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Zap,
   LogOut,
@@ -36,14 +34,18 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronDown,
   Award,
   ExternalLink,
   Search,
   Settings as SettingsIcon,
   BookOpen,
+  Smartphone,
+  ArrowRight,
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { Footer } from "@/components/Footer";
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -79,19 +81,57 @@ function BrainIcon({ size = 28, className = "text-indigo-400" }: { size?: number
 }
 
 const NETWORK_METRICS = [
-  { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-indigo-500" },
-  { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500" },
-  { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500" },
-  { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500" },
-  { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500" },
+  { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
+  { key: "following", label: "Following", icon: Users, color: "text-indigo-500", bgColor: "bg-indigo-500" },
+  { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
+  { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
+  { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
+  { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500", bgColor: "bg-orange-500" },
 ] as const;
+
+function DonutChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return null;
+  let cumAngle = 0;
+  const size = 120;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = 52;
+  const innerR = 32;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+      {data.filter(d => d.value > 0).map((d, i) => {
+        const angle = (d.value / total) * 360;
+        const startAngle = cumAngle;
+        cumAngle += angle;
+        const endAngle = cumAngle;
+        const largeArc = angle > 180 ? 1 : 0;
+        const s1 = Math.cos(((startAngle - 90) * Math.PI) / 180);
+        const c1 = Math.sin(((startAngle - 90) * Math.PI) / 180);
+        const s2 = Math.cos(((endAngle - 90) * Math.PI) / 180);
+        const c2 = Math.sin(((endAngle - 90) * Math.PI) / 180);
+        const path = [
+          `M ${cx + outerR * s1} ${cy + outerR * c1}`,
+          `A ${outerR} ${outerR} 0 ${largeArc} 1 ${cx + outerR * s2} ${cy + outerR * c2}`,
+          `L ${cx + innerR * s2} ${cy + innerR * c2}`,
+          `A ${innerR} ${innerR} 0 ${largeArc} 0 ${cx + innerR * s1} ${cy + innerR * c1}`,
+          `Z`,
+        ].join(" ");
+        return <path key={i} d={path} fill={d.color} className="transition-opacity hover:opacity-80" />;
+      })}
+      <text x={cx} y={cy - 4} textAnchor="middle" className="fill-slate-900 text-sm font-bold font-mono">{total.toLocaleString()}</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" className="fill-slate-500 text-[8px] font-medium uppercase tracking-wide">Total</text>
+    </svg>
+  );
+}
 
 export default function DashboardPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [copied, setCopied] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -154,438 +194,498 @@ export default function DashboardPage() {
 
   const followersCount = network?.followed_by?.length ?? 0;
   const followingCount = network?.following?.length ?? 0;
+  const mutedByCount = network?.muted_by?.length ?? 0;
+  const mutingCount = network?.muting?.length ?? 0;
+  const reportedByCount = network?.reported_by?.length ?? 0;
+  const reportingCount = network?.reporting?.length ?? 0;
   const influence = network?.influence ?? 0;
 
+  const donutData = [
+    { label: "Followers", value: followersCount, color: "#10b981" },
+    { label: "Following", value: followingCount, color: "#6366f1" },
+    { label: "Muted By", value: mutedByCount, color: "#f59e0b" },
+    { label: "Muting", value: mutingCount, color: "#94a3b8" },
+    { label: "Reported By", value: reportedByCount, color: "#ef4444" },
+    { label: "Reporting", value: reportingCount, color: "#f97316" },
+  ];
+
+  const grapeRankStatus = grapeRank
+    ? (grapeRank as any).status || "complete"
+    : triggerGrapeRankMutation.isPending
+    ? "calculating"
+    : "idle";
+
+  const grapeRankScore = grapeRank
+    ? typeof (grapeRank as any).average === "number"
+      ? ((grapeRank as any).average as number).toFixed(4)
+      : typeof (grapeRank as any).score === "number"
+      ? ((grapeRank as any).score as number).toFixed(4)
+      : null
+    : null;
+
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative" data-testid="page-dashboard">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative" data-testid="page-dashboard">
 
-        <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4 sm:gap-6">
-                <div className="lg:hidden">
-                  <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <BrainIcon size={28} className="text-indigo-500" />
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">
-                    Brainstorm
-                  </h1>
-                </div>
-                <div className="hidden lg:flex gap-2">
-                  <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/10 no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
-                    <Home className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/settings")} data-testid="button-nav-settings">
-                    <SettingsIcon className="h-4 w-4" />
-                    Settings
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/what-is-wot")} data-testid="button-nav-wot">
-                    <BookOpen className="h-4 w-4" />
-                    What is WoT?
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 sm:gap-4">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                        {user.picture ? (
-                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                          {user.displayName?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="hidden md:flex flex-col items-start mr-2">
-                        <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                        <span className="text-[10px] text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                      </div>
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                        <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-indigo-100" />
-                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        {mobileMenuOpen && (
-          <>
-            <div className="fixed inset-0 bg-black/60 z-50 lg:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} data-testid="overlay-mobile-menu" />
-            <div className="fixed top-0 left-0 bottom-0 w-[84%] max-w-sm z-50 lg:hidden shadow-xl flex flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950" data-testid="panel-mobile-menu">
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-indigo-500/20 blur-[90px]" />
-                <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-indigo-900/18 blur-[110px]" />
-              </div>
-
-              <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center">
-                    <BrainIcon size={22} className="text-indigo-200" />
-                  </div>
-                  <div className="leading-tight">
-                    <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
-                    <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-mobile-menu-title">Menu</h2>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-slate-200/80 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-close-mobile-menu">
-                  <X className="h-5 w-5" />
+      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
                 </Button>
               </div>
-
-              <div className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
-                <div className="space-y-2">
-                  <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
-                    <Home className="h-5 w-5 text-indigo-200" />
-                    Dashboard
-                  </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
-                    <Search className="h-5 w-5 text-slate-200/80" />
-                    Search
-                  </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
-                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
-                    Settings
-                  </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
-                    <BookOpen className="h-5 w-5 text-slate-200/80" />
-                    What is WoT?
-                  </Button>
-                </div>
-              </div>
-
-              <div className="relative p-4 border-t border-white/10 bg-white/[0.04]">
-                <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
-                  <Avatar className="h-10 w-10 border border-white/10">
-                    {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
-                    <AvatarFallback className="bg-indigo-900 text-white font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate" data-testid="text-mobile-menu-user-label">{user.displayName || "Anonymous"}</p>
-                    <p className="text-xs text-slate-300/70 font-mono truncate" data-testid="text-mobile-menu-user-npub">{truncatedNpub}</p>
-                  </div>
-                </div>
-                <Button variant="outline" className="w-full justify-center gap-2 text-red-200 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-red-500/10 border-red-500/30 bg-transparent rounded-2xl" onClick={() => { setMobileMenuOpen(false); handleLogout(); }} data-testid="button-mobile-sign-out">
-                  <LogOut className="h-4 w-4" />
-                  Sign Out
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full">
-
-          <div className="flex flex-col gap-6 mb-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-2" data-testid="section-dashboard-header">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-indigo-500/12 shadow-sm backdrop-blur-sm w-fit" data-testid="pill-dashboard-kicker">
-                  <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1]" />
-                  <p className="text-[9px] font-bold tracking-[0.15em] text-indigo-900 uppercase" data-testid="text-dashboard-header-kicker">Brainstorm Dashboard</p>
-                </div>
-                <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-dashboard-title">
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                    Welcome back, {user.displayName || "Traveler"}
-                  </span>
+              <div className="flex items-center gap-2">
+                <BrainIcon size={28} className="text-indigo-500" />
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">
+                  Brainstorm
                 </h1>
-                <p className="text-slate-600 font-medium" data-testid="text-dashboard-subtitle">
-                  Your trust network overview.
-                </p>
               </div>
+              <div className="hidden lg:flex gap-2">
+                <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/10 no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                  <Search className="h-4 w-4" />
+                  Search
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/settings")} data-testid="button-nav-settings">
+                  <SettingsIcon className="h-4 w-4" />
+                  Settings
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/what-is-wot")} data-testid="button-nav-wot">
+                  <BookOpen className="h-4 w-4" />
+                  What is WoT?
+                </Button>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-3 self-end md:self-auto">
-                <div className="hidden sm:flex items-center gap-3 rounded-2xl bg-white/80 backdrop-blur-2xl border border-slate-300/80 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.9)] px-3 py-2 min-w-[170px] justify-between transition-all duration-200" data-testid="card-overall-trust-score">
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-400">Trust signals</span>
-                    <span className="text-[10px] text-slate-500" data-testid="text-overall-trust-score-sub">
-                      {selfQuery.isLoading ? "Loading..." : "From your network graph"}
-                    </span>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
+                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                      {user.picture ? (
+                        <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                        {user.displayName?.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden md:flex flex-col items-start mr-2">
+                      <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
+                      <span className="text-[10px] text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                    </div>
                   </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
+                      <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {mobileMenuOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/60 z-50 lg:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} data-testid="overlay-mobile-menu" />
+          <div className="fixed top-0 left-0 bottom-0 w-[84%] max-w-sm z-50 lg:hidden shadow-xl flex flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950" data-testid="panel-mobile-menu">
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-indigo-500/20 blur-[90px]" />
+              <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-indigo-900/18 blur-[110px]" />
+            </div>
+
+            <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center">
+                  <BrainIcon size={22} className="text-indigo-200" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
+                  <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-mobile-menu-title">Menu</h2>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-slate-200/80 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-close-mobile-menu">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
+              <div className="space-y-2">
+                <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
+                  <Home className="h-5 w-5 text-indigo-200" />
+                  Dashboard
+                </Button>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
+                  <Search className="h-5 w-5 text-slate-200/80" />
+                  Search
+                </Button>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
+                  <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                  Settings
+                </Button>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
+                  <BookOpen className="h-5 w-5 text-slate-200/80" />
+                  What is WoT?
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative p-4 border-t border-white/10 bg-white/[0.04]">
+              <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
+                <Avatar className="h-10 w-10 border border-white/10">
+                  {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
+                  <AvatarFallback className="bg-indigo-900 text-white font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white truncate" data-testid="text-mobile-menu-user-label">{user.displayName || "Anonymous"}</p>
+                  <p className="text-xs text-slate-300/70 font-mono truncate" data-testid="text-mobile-menu-user-npub">{truncatedNpub}</p>
+                </div>
+              </div>
+              <Button variant="outline" className="w-full justify-center gap-2 text-red-200 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-red-500/10 border-red-500/30 bg-transparent rounded-2xl" onClick={() => { setMobileMenuOpen(false); handleLogout(); }} data-testid="button-mobile-sign-out">
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 p-6 sm:p-8 mb-8 shadow-xl" data-testid="card-hero">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
+            <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
+          </div>
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <Avatar className="h-14 w-14 border-2 border-indigo-400/40 ring-2 ring-indigo-500/20 shadow-lg shrink-0" data-testid="img-user-avatar">
+                {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
+                <AvatarFallback className="bg-indigo-800 text-white font-bold text-lg">
+                  <UserIcon className="w-6 h-6" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 border border-white/10 w-fit mb-2">
+                  <div className="w-1 h-1 rounded-full bg-indigo-400 shadow-[0_0_4px_#818cf8]" />
+                  <p className="text-[9px] font-bold tracking-[0.15em] text-indigo-200 uppercase" data-testid="text-hero-kicker">Clarity in a fragmented world</p>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1" style={{ fontFamily: "var(--font-display)" }} data-testid="text-dashboard-title">
+                  Welcome back, {user.displayName || "Traveler"}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <code className="text-xs text-indigo-300/70 font-mono" data-testid="text-npub">{truncatedNpub}</code>
+                  <button onClick={handleCopyNpub} className="p-0.5 text-indigo-300/50 hover:text-indigo-200 transition-colors" data-testid="button-copy-npub">
+                    {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                  {user.nip05 && (
+                    <span className="text-xs text-indigo-300/60" data-testid="text-nip05">{user.nip05}</span>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col" data-testid="card-user-profile">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x absolute top-0 left-0" />
-              <CardContent className="pt-5 pb-4 px-4 flex flex-col h-full">
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-12 w-12 border-2 border-indigo-200 shadow-sm" data-testid="img-user-avatar">
-                    {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
-                    <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold text-lg">
-                      <UserIcon className="w-5 h-5" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                    <h2 className="text-sm font-bold text-slate-900 truncate" data-testid="text-display-name">{user.displayName || "Anonymous"}</h2>
-                    {user.nip05 && (
-                      <p className="text-[10px] text-indigo-600 truncate" data-testid="text-nip05">{user.nip05}</p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                      <code className="text-[10px] text-slate-400 font-mono" data-testid="text-npub">{truncatedNpub}</code>
-                      <button onClick={handleCopyNpub} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors" data-testid="button-copy-npub">
-                        {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                {user.about && (
-                  <p className="text-[11px] text-slate-500 mt-3 leading-relaxed line-clamp-2" data-testid="text-about">{user.about}</p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-4 shrink-0">
+              <div className="flex flex-col items-center justify-center px-5 py-3 rounded-xl bg-white/5 border border-white/10 min-w-[140px]">
+                <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-indigo-300/70 mb-1" data-testid="text-graperank-label">GrapeRank</span>
+                {grapeRankQuery.isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-300" />
+                ) : grapeRankScore ? (
+                  <span className="text-xl font-bold font-mono text-white" data-testid="text-graperank-score">{grapeRankScore}</span>
+                ) : (
+                  <span className="text-sm text-indigo-300/50" data-testid="text-graperank-score">—</span>
                 )}
-                <div className="mt-auto flex items-center justify-between pt-3">
-                  <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
-                    Connected
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-white/95 via-white/80 to-emerald-50/40 backdrop-blur-xl border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col" data-testid="card-followers">
-              <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-500 animate-gradient-x absolute top-0 left-0" />
-              <CardContent className="pt-5 pb-4 px-4 flex flex-col h-full">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1.5 rounded-lg bg-white border border-emerald-100 shadow-sm text-emerald-600 ring-1 ring-emerald-100">
-                    <Award className="h-3.5 w-3.5" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Followers</span>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    {selfQuery.isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                    ) : (
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="stat-followers">{followersCount.toLocaleString()}</div>
-                    )}
-                    <p className="text-[10px] text-slate-400 mt-1">People following you</p>
-                  </div>
-                </div>
-                <div className="mt-auto flex items-center justify-between pt-3">
-                  <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/60" />
-                    {selfQuery.isLoading ? "Loading..." : "Live from network"}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-white/95 via-white/80 to-blue-50/40 backdrop-blur-xl border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col" data-testid="card-following">
-              <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-600 to-blue-500 animate-gradient-x absolute top-0 left-0" />
-              <CardContent className="pt-5 pb-4 px-4 flex flex-col h-full">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1.5 rounded-lg bg-white border border-blue-100 shadow-sm text-blue-600 ring-1 ring-blue-100">
-                    <Users className="h-3.5 w-3.5" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Following</span>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    {selfQuery.isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                    ) : (
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="stat-following">{followingCount.toLocaleString()}</div>
-                    )}
-                    <p className="text-[10px] text-slate-400 mt-1">Accounts you follow</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {selfQuery.isLoading ? null : (
-                      <div className="text-lg font-bold text-slate-900 font-mono" data-testid="stat-influence">{influence}</div>
-                    )}
-                    <p className="text-[10px] text-slate-400">Influence</p>
-                  </div>
-                </div>
-                <div className="mt-auto flex items-center justify-between pt-3">
-                  <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500/60" />
-                    {selfQuery.isLoading ? "Loading..." : "Live from network"}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                <span className="text-[10px] text-indigo-300/50 mt-0.5" data-testid="text-graperank-status">
+                  {grapeRankStatus === "calculating" ? "Calculating..." : grapeRankStatus === "complete" ? "Complete" : "Not calculated"}
+                </span>
+              </div>
+              <Button
+                variant="primary"
+                onClick={() => triggerGrapeRankMutation.mutate()}
+                disabled={triggerGrapeRankMutation.isPending}
+                className="gap-2"
+                data-testid="button-trigger-graperank"
+              >
+                {triggerGrapeRankMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Calculating...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    Calculate GrapeRank
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative" data-testid="card-network">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x absolute top-0 left-0" />
-              <CardHeader className="pb-3">
-                <div className="flex flex-row flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-indigo-100 shadow-sm text-indigo-600 ring-1 ring-indigo-100">
-                      <Network className="h-3.5 w-3.5" />
-                    </div>
-                    <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      Social Graph
-                    </CardTitle>
+          {triggerGrapeRankMutation.isSuccess && (
+            <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20" data-testid="graperank-success">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <p className="text-xs text-emerald-300 font-medium">Calculation triggered successfully. Results will update shortly.</p>
+            </div>
+          )}
+          {triggerGrapeRankMutation.isError && (
+            <div className="relative z-10 flex items-center gap-2 mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20" data-testid="graperank-error">
+              <ShieldAlert className="w-4 h-4 text-red-400" />
+              <p className="text-xs text-red-300 font-medium">
+                {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+          <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative" data-testid="card-network-composition">
+            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 absolute top-0 left-0" />
+            <CardHeader className="pb-3">
+              <div className="flex flex-row flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-white border border-indigo-100 shadow-sm text-indigo-600 ring-1 ring-indigo-100">
+                    <Network className="h-3.5 w-3.5" />
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => selfQuery.refetch()}
-                    disabled={selfQuery.isFetching}
-                    data-testid="button-refresh-network"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${selfQuery.isFetching ? "animate-spin" : ""}`} />
-                  </Button>
+                  <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                    Network Composition
+                  </CardTitle>
                 </div>
-                <CardDescription className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
-                  Your Nostr network connections
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {selfQuery.isLoading ? (
-                  <div className="flex items-center gap-2 py-6" data-testid="network-loading">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-                    <p className="text-sm text-slate-500">Loading network data...</p>
-                  </div>
-                ) : network ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="network-data">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => selfQuery.refetch()}
+                  disabled={selfQuery.isFetching}
+                  data-testid="button-refresh-network"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${selfQuery.isFetching ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+              <CardDescription className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
+                Your Nostr social graph breakdown
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {selfQuery.isLoading ? (
+                <div className="flex items-center gap-2 py-6" data-testid="network-loading">
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                  <p className="text-sm text-slate-500">Loading network data...</p>
+                </div>
+              ) : network ? (
+                <div className="flex flex-col sm:flex-row items-center gap-6" data-testid="network-data">
+                  <DonutChart data={donutData} />
+                  <div className="flex-1 grid grid-cols-2 gap-2 w-full">
                     {NETWORK_METRICS.map((metric) => {
                       const value = (network as any)[metric.key];
                       const count = Array.isArray(value) ? value.length : (value ?? 0);
                       return (
-                        <div key={metric.key} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
-                          <metric.icon className={`w-4 h-4 ${metric.color} shrink-0`} />
-                          <div>
-                            <p className="text-lg font-bold text-slate-900 leading-none font-mono" data-testid={`network-${metric.key}`}>{count}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{metric.label}</p>
+                        <div key={metric.key} className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50/80 border border-slate-100">
+                          <div className={`w-2.5 h-2.5 rounded-full ${metric.bgColor} shrink-0`} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900 leading-none font-mono" data-testid={`network-${metric.key}`}>{count}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{metric.label}</p>
                           </div>
                         </div>
                       );
                     })}
-                    <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-50/80 border border-slate-100 col-span-2">
                       <Star className="w-4 h-4 text-amber-500 shrink-0" />
                       <div>
-                        <p className="text-lg font-bold text-slate-900 leading-none font-mono" data-testid="network-influence">{influence}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Influence</p>
+                        <p className="text-sm font-bold text-slate-900 leading-none font-mono" data-testid="network-influence">{influence}</p>
+                        <p className="text-[10px] text-slate-500">Influence Score</p>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-500 py-4" data-testid="network-empty">
-                    No network data available yet.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-white/95 via-white/80 to-violet-50/40 backdrop-blur-xl border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.07)] overflow-hidden rounded-xl relative" data-testid="card-graperank">
-              <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-600 to-violet-500 animate-gradient-x absolute top-0 left-0" />
-              <CardHeader className="pb-3">
-                <div className="flex flex-row flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-violet-100 shadow-sm text-violet-600 ring-1 ring-violet-100">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                    </div>
-                    <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      GrapeRank
-                    </CardTitle>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => triggerGrapeRankMutation.mutate()}
-                    disabled={triggerGrapeRankMutation.isPending}
-                    data-testid="button-trigger-graperank"
-                  >
-                    {triggerGrapeRankMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                        Calculating...
-                      </>
-                    ) : "Calculate"}
-                  </Button>
                 </div>
-                <CardDescription className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
-                  Reputation score computation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {triggerGrapeRankMutation.isSuccess && (
-                  <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200" data-testid="graperank-success">
-                    <Check className="w-4 h-4 text-emerald-600" />
-                    <p className="text-xs text-emerald-700 font-medium">Calculation triggered successfully</p>
-                  </div>
-                )}
-                {triggerGrapeRankMutation.isError && (
-                  <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-red-50 border border-red-200" data-testid="graperank-error">
-                    <ShieldAlert className="w-4 h-4 text-red-600" />
-                    <p className="text-xs text-red-700 font-medium">
-                      {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
-                    </p>
-                  </div>
-                )}
+              ) : (
+                <p className="text-sm text-slate-500 py-4" data-testid="network-empty">
+                  No network data available yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-                {grapeRankQuery.isLoading ? (
-                  <div className="flex items-center gap-2 py-6" data-testid="graperank-loading">
-                    <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
-                    <p className="text-sm text-slate-500">Loading GrapeRank data...</p>
-                  </div>
-                ) : grapeRank ? (
-                  <div className="space-y-3" data-testid="graperank-data">
-                    <div className="grid grid-cols-2 gap-3">
-                      {Object.entries(grapeRank)
-                        .filter(([k]) => !["success", "message"].includes(k))
-                        .slice(0, 6)
-                        .map(([key, value]) => (
-                          <div key={key} className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{key.replace(/_/g, " ")}</p>
-                            <p className="text-sm font-bold text-slate-900 font-mono mt-0.5" data-testid={`graperank-${key}`}>
-                              {typeof value === "number" ? value.toFixed(4) : String(value ?? "—")}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-6 text-center" data-testid="graperank-empty">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-slate-200 px-3 py-1.5 text-[11px] text-slate-500 mb-3">
-                      <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
-                      Awaiting calculation
-                    </div>
-                    <p className="text-sm text-slate-500">Click "Calculate" to compute your GrapeRank score.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="bg-gradient-to-br from-white/95 via-white/80 to-slate-50/40 backdrop-blur-xl border-slate-200/60 shadow-sm overflow-hidden rounded-xl relative mb-8" data-testid="card-raw-data">
-            <div className="h-1 w-full bg-gradient-to-r from-slate-400 via-slate-500 to-slate-400 absolute top-0 left-0" />
+          <Card className="bg-gradient-to-br from-white/95 via-white/80 to-violet-50/40 backdrop-blur-xl border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.07)] overflow-hidden rounded-xl relative" data-testid="card-graperank">
+            <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-600 to-violet-500 absolute top-0 left-0" />
             <CardHeader className="pb-3">
               <div className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-slate-600 ring-1 ring-slate-100">
-                    <Info className="h-3.5 w-3.5" />
+                  <div className="p-1.5 rounded-lg bg-white border border-violet-100 shadow-sm text-violet-600 ring-1 ring-violet-100">
+                    <TrendingUp className="h-3.5 w-3.5" />
                   </div>
                   <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                    Raw API Data
+                    GrapeRank Details
                   </CardTitle>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => grapeRankQuery.refetch()}
+                  disabled={grapeRankQuery.isFetching}
+                  data-testid="button-refresh-graperank"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${grapeRankQuery.isFetching ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+              <CardDescription className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
+                Reputation score breakdown
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {grapeRankQuery.isLoading ? (
+                <div className="flex items-center gap-2 py-6" data-testid="graperank-loading">
+                  <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                  <p className="text-sm text-slate-500">Loading GrapeRank data...</p>
+                </div>
+              ) : grapeRank ? (
+                <div className="space-y-3" data-testid="graperank-data">
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(grapeRank)
+                      .filter(([k]) => !["success", "message"].includes(k))
+                      .slice(0, 6)
+                      .map(([key, value]) => (
+                        <div key={key} className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
+                          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{key.replace(/_/g, " ")}</p>
+                          <p className="text-sm font-bold text-slate-900 font-mono mt-0.5" data-testid={`graperank-${key}`}>
+                            {typeof value === "number" ? value.toFixed(4) : String(value ?? "—")}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-6 text-center" data-testid="graperank-empty">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-slate-200 px-3 py-1.5 text-[11px] text-slate-500 mb-3">
+                    <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+                    Awaiting calculation
+                  </div>
+                  <p className="text-sm text-slate-500">Click "Calculate GrapeRank" above to compute your score.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 p-6 sm:p-8 mb-8 shadow-lg cursor-pointer group" onClick={() => navigate("/what-is-wot")} data-testid="card-transitive-trust">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+          <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-1" style={{ fontFamily: "var(--font-display)" }}>
+                The Power of Transitive Trust
+              </h3>
+              <p className="text-sm text-indigo-100/80 max-w-lg">
+                Discover how Web of Trust uses your connections to build personalized reputation scores. Learn why trust flows through networks like electricity through wires.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 border border-white/20 text-white text-sm font-medium shrink-0 group-hover:bg-white/25 transition-colors">
+              <BookOpen className="w-4 h-4" />
+              <span>Learn More</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card className="bg-gradient-to-br from-white/95 via-white/80 to-purple-50/40 backdrop-blur-xl border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.07)] overflow-hidden rounded-xl relative" data-testid="card-supported-clients">
+            <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-violet-600 to-purple-500 absolute top-0 left-0" />
+            <CardContent className="pt-6 pb-5 px-5">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/10 to-violet-500/10 border border-purple-200/50 shrink-0">
+                  <Smartphone className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Amethyst</h3>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-700">Android</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                    The most feature-rich Nostr client for Android. Supports Web of Trust integration for enhanced content filtering and trust-based discovery.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors"
+                      data-testid="link-amethyst-download"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Download for Android
+                    </a>
+                    <a
+                      href="https://github.com/vitorpamplona/amethyst"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-colors"
+                      data-testid="link-amethyst-learn-more"
+                    >
+                      Learn more
+                      <ChevronRight className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-white/95 via-white/80 to-slate-50/40 backdrop-blur-xl border-slate-200/60 shadow-sm overflow-hidden rounded-xl relative" data-testid="card-quick-stats">
+            <div className="h-1 w-full bg-gradient-to-r from-slate-400 via-indigo-500 to-slate-400 absolute top-0 left-0" />
+            <CardContent className="pt-6 pb-5 px-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 rounded-lg bg-white border border-indigo-100 shadow-sm text-indigo-600 ring-1 ring-indigo-100">
+                  <Award className="h-3.5 w-3.5" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Quick Stats</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                  <p className="text-xl font-bold text-slate-900 font-mono" data-testid="stat-followers">{selfQuery.isLoading ? "..." : followersCount.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Followers</p>
+                </div>
+                <div className="text-center p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                  <p className="text-xl font-bold text-slate-900 font-mono" data-testid="stat-following">{selfQuery.isLoading ? "..." : followingCount.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Following</p>
+                </div>
+                <div className="text-center p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                  <p className="text-xl font-bold text-slate-900 font-mono" data-testid="stat-influence">{selfQuery.isLoading ? "..." : influence}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Influence</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mb-8">
+          <button
+            className="w-full flex items-center justify-between gap-2 p-4 rounded-xl bg-white/80 border border-slate-200/60 text-left cursor-pointer hover:bg-white transition-colors"
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+            data-testid="button-toggle-advanced"
+          >
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-slate-400" />
+              <span className="text-sm font-medium text-slate-600">Advanced: Raw API Data</span>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${advancedOpen ? "rotate-180" : ""}`} />
+          </button>
+          {advancedOpen && (
+            <div className="mt-2 p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="panel-advanced">
+              <div className="flex flex-row flex-wrap items-center justify-between gap-2 mb-3">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Debug Inspector</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -599,8 +699,6 @@ export default function DashboardPage() {
                   <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${selfQuery.isFetching || grapeRankQuery.isFetching ? "animate-spin" : ""}`} />
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">User Self Data</p>
@@ -615,10 +713,13 @@ export default function DashboardPage() {
                   </pre>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
         </div>
+
       </div>
-    </TooltipProvider>
+
+      <Footer />
+    </div>
   );
 }

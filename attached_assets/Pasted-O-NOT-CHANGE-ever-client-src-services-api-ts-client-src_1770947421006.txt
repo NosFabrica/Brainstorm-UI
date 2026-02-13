@@ -1,0 +1,54 @@
+O NOT CHANGE (ever):
+
+client/src/services/api.ts
+client/src/services/nostr.ts
+anything in server/
+anything in shared/ that affects backend contracts
+Goal:
+Make /dashboard match the good UI dashboard layout/sections while preserving the existing real Nostr + API wiring.
+
+Tasks:
+
+Ensure client/src/components/Footer.tsx exists (copy from good UI if needed) and render it at the bottom of the Dashboard so the page includes the missing footer/links.
+
+Refactor client/src/pages/DashboardPage.tsx to match the good UI dashboard structure:
+
+Add the top “Clarity in a fragmented world” hero card section.
+Present the GrapeRank queue/status/progress in that hero using the existing real API calls:
+apiClient.triggerGrapeRank()
+apiClient.getGrapeRankResult()
+Add the “Network Composition” section (donut + legend layout). Use values derived from existing real API responses (no random/fake numbers). If a value isn’t available, show “—” or “Not available” rather than inventing data.
+Add the “Power of Transitive Trust” CTA band linking to /what-is-wot.
+Add the “Supported Clients” promo card (Amethyst).
+External links requirement (Supported Clients / Amethyst card):
+
+“Download for Android” → https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst
+“Learn more” → https://github.com/vitorpamplona/amethyst
+Open both in a new tab (target="_blank" rel="noreferrer").
+Add data-testid to both links: link-amethyst-download, link-amethyst-learn-more.
+Preserve auth/session behavior:
+
+Must continue to use getCurrentUser() and logout() from client/src/services/nostr.ts.
+Unauthenticated users must be redirected to /.
+Logout must still work and return to /.
+Do NOT reintroduce:
+
+@/lib/store
+framer-motion
+Keep existing dashboard functionality working:
+
+The “Calculate” action still triggers computation and updates the displayed status/results.
+Any existing “raw API data” / debug inspector should be moved into a collapsed “Advanced” accordion or similar so the default view matches the good UI.
+Add data-testid to:
+
+all interactive elements (buttons, links, menu items)
+key displayed values (status text, score, counts)
+Error-driven copying rule:
+
+If the build fails with “Cannot find module …”, copy ONLY the referenced missing file(s) from the good UI project and retry. Do not pre-copy extra UI components.
+Restart and verify:
+
+/dashboard renders with the new sections and footer
+GrapeRank calculate flow still works with real API
+/what-is-wot link works
+external links open correctly
