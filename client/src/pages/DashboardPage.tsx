@@ -632,7 +632,7 @@ export default function DashboardPage() {
                   )}
                   {(grapeRankScore || publishDone) && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
                     <span className="text-[9px] text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
-                      {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                      Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
                   )}
                 </div>
