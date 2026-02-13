@@ -14,6 +14,7 @@ import {
   Check,
   Settings as SettingsIcon,
   BookOpen,
+  ArrowLeft,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -201,6 +202,7 @@ export default function SearchPage() {
   const processingPanelRef = useRef<HTMLDivElement>(null);
   const autoSearchTriggered = useRef(false);
   const pendingAutoSearch = useRef<string | null>(null);
+  const [cameFromNetwork, setCameFromNetwork] = useState(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -216,6 +218,7 @@ export default function SearchPage() {
       setNpub(prefill);
       setActiveTab("npub");
       pendingAutoSearch.current = prefill;
+      setCameFromNetwork(true);
     }
   }, [navigate]);
 
@@ -716,6 +719,18 @@ export default function SearchPage() {
       )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
+        {cameFromNetwork && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 mb-4 -ml-1 no-default-hover-elevate no-default-active-elevate"
+            onClick={() => window.history.back()}
+            data-testid="button-back-to-network"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Network
+          </Button>
+        )}
         <div className="space-y-8 animate-fade-up">
           <div className="text-left relative z-10 mb-8 pt-2" data-testid="section-search-header">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
