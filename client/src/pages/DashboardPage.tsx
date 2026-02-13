@@ -1706,6 +1706,33 @@ export default function DashboardPage() {
             </Carousel>
           </motion.div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-network-api">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-4 w-4 text-indigo-500" />
+                <span className="text-sm font-semibold text-slate-800">Network</span>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed mb-2">
+                Data from <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">GET /api/auth/self</span> which proxies to the Brainstorm backend's <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">/user/self</span>.
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Shows the <span className="font-medium text-slate-600">graph</span> object fields: followed_by, following, muted_by, muting, reported_by, reporting, and influence. Each array's length is counted to display the totals.
+              </p>
+            </div>
+            <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-graperank-api">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="h-4 w-4 text-purple-500" />
+                <span className="text-sm font-semibold text-slate-800">GrapeRank</span>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed mb-2">
+                Data from <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">GET /api/auth/graperankResult</span> which proxies to <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">/user/graperank</span>.
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Shows status fields (status, ta_status, internal_publication_status) and result data. The Calculate button triggers <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">POST /api/auth/graperank</span> to request a new calculation.
+              </p>
+            </div>
+          </div>
+
           <div className="mb-8">
             <button
               className="w-full flex items-center justify-between gap-2 p-4 rounded-xl bg-white/80 border border-slate-200/60 text-left cursor-pointer hover:bg-white transition-colors"
