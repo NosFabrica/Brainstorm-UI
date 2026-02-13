@@ -180,8 +180,6 @@ export default function DashboardPage() {
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [onboardingProgress, setOnboardingProgress] = useState(0);
-  const [queuePosition, setQueuePosition] = useState<number | null>(null);
-  const [queueTotal, setQueueTotal] = useState<number | null>(null);
   const [scoresCalculatedAt, setScoresCalculatedAt] = useState<string | null>(null);
   const [trustScore, setTrustScore] = useState<number | null>(null);
 
@@ -264,6 +262,12 @@ export default function DashboardPage() {
       : null
     : null;
 
+  const queuePosition = grapeRank
+    ? typeof (grapeRank as any).how_many_others_with_priority === "number"
+      ? (grapeRank as any).how_many_others_with_priority
+      : null
+    : null;
+
   const trustDistribution = [
     { label: "Highly Trusted", count: followersCount, color: "#22c55e" },
     { label: "Trusted", count: followingCount, color: "#4ade80" },
@@ -280,24 +284,11 @@ export default function DashboardPage() {
   useEffect(() => {
     if (grapeRankScore) return;
     const startTime = Date.now();
-    const initialTotal = Math.random() < 0.35 ? 1 : Math.floor(18 + Math.random() * 70);
-    const initialPosition = initialTotal === 1 ? 1 : Math.floor(2 + Math.random() * Math.min(18, initialTotal - 1));
-    setQueueTotal(initialTotal);
-    setQueuePosition(initialPosition);
 
     const tick = () => {
       const elapsed = Date.now() - startTime;
       const nextProgress = Math.min((elapsed / ONBOARDING_DURATION_MS) * 100, 100);
       setOnboardingProgress(nextProgress);
-
-      setQueuePosition((pos) => {
-        if (!pos) return pos;
-        if (nextProgress >= 98) return 1;
-        if (nextProgress >= 85) return Math.min(pos, 2);
-        if (nextProgress >= 60) return Math.min(pos, 4);
-        if (nextProgress >= 35) return Math.min(pos, 7);
-        return pos;
-      });
 
       if (nextProgress < 100) requestAnimationFrame(tick);
     };
@@ -737,13 +728,13 @@ export default function DashboardPage() {
                       <div
                         className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] text-slate-200/90"
                         data-testid="badge-queue-position"
-                        aria-label={queuePosition && queueTotal ? `You are number ${queuePosition} of ${queueTotal} in line` : "Queue position"}
+                        aria-label={queuePosition !== null ? `${queuePosition} people ahead of you in queue` : "Queue position loading"}
                       >
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90" data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">Queue</span>
                         <span className="text-slate-300/70" data-testid="text-queue-sep">\u00b7</span>
                         <span className="font-mono" data-testid="text-queue-value">
-                          {queuePosition && queueTotal ? `#${queuePosition} of ${queueTotal}` : "\u2014"}
+                          {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
                         </span>
                       </div>
                       <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] text-slate-200" data-testid="badge-local-computation">
