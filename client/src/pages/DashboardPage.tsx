@@ -1708,27 +1708,85 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-network-api">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Users className="h-4 w-4 text-indigo-500" />
                 <span className="text-sm font-semibold text-slate-800">Network</span>
+                <span className="ml-auto font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">GET /api/auth/self</span>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed mb-2">
-                Data from <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">GET /api/auth/self</span> which proxies to the Brainstorm backend's <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">/user/self</span>.
-              </p>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Shows the <span className="font-medium text-slate-600">graph</span> object fields: followed_by, following, muted_by, muting, reported_by, reporting, and influence. Each array's length is counted to display the totals.
+              {selfQuery.isLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                  <span className="text-xs text-slate-400">Loading...</span>
+                </div>
+              ) : network ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {[
+                      { label: "Followers", value: network.followed_by?.length ?? 0 },
+                      { label: "Following", value: network.following?.length ?? 0 },
+                      { label: "Muted By", value: network.muted_by?.length ?? 0 },
+                      { label: "Muting", value: network.muting?.length ?? 0 },
+                      { label: "Reported By", value: network.reported_by?.length ?? 0 },
+                      { label: "Reporting", value: network.reporting?.length ?? 0 },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">{label}</span>
+                        <span className="text-xs font-semibold text-slate-700">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Influence</span>
+                    <span className="text-xs font-semibold text-indigo-600">{network.influence ?? 0}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">No network data available.</p>
+              )}
+              <p className="text-[10px] text-slate-400 leading-relaxed mt-3 pt-2 border-t border-slate-100">
+                Proxies to <span className="font-mono bg-slate-50 px-1 rounded">/user/self</span> &mdash; graph object fields: followed_by, following, muted_by, muting, reported_by, reporting, influence.
               </p>
             </div>
             <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-graperank-api">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-4 w-4 text-purple-500" />
                 <span className="text-sm font-semibold text-slate-800">GrapeRank</span>
+                <span className="ml-auto font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">GET /api/auth/graperankResult</span>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed mb-2">
-                Data from <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">GET /api/auth/graperankResult</span> which proxies to <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">/user/graperank</span>.
-              </p>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Shows status fields (status, ta_status, internal_publication_status) and result data. The Calculate button triggers <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">POST /api/auth/graperank</span> to request a new calculation.
+              {grapeRankQuery.isLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                  <span className="text-xs text-slate-400">Loading...</span>
+                </div>
+              ) : grapeRank ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {[
+                      { label: "Status", value: (grapeRank as any).status },
+                      { label: "TA Status", value: (grapeRank as any).ta_status },
+                      { label: "Publication", value: (grapeRank as any).internal_publication_status },
+                      { label: "Queue Position", value: typeof (grapeRank as any).how_many_others_with_priority === "number" ? (grapeRank as any).how_many_others_with_priority : undefined },
+                    ].filter(({ value }) => value !== undefined && value !== null).map(({ label, value }) => (
+                      <div key={label} className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">{label}</span>
+                        <span className="text-xs font-semibold text-slate-700">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {(grapeRank as any).result && (
+                    <div className="pt-1.5 border-t border-slate-100">
+                      <p className="text-[10px] text-slate-500 mb-1">Result</p>
+                      <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-auto max-h-32 font-mono">
+                        {typeof (grapeRank as any).result === "string" ? (grapeRank as any).result : JSON.stringify((grapeRank as any).result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">No GrapeRank data available.</p>
+              )}
+              <p className="text-[10px] text-slate-400 leading-relaxed mt-3 pt-2 border-t border-slate-100">
+                Proxies to <span className="font-mono bg-slate-50 px-1 rounded">/user/graperank</span> &mdash; Calculate triggers <span className="font-mono bg-slate-50 px-1 rounded">POST /api/auth/graperank</span>.
               </p>
             </div>
           </div>
