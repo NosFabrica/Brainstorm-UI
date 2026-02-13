@@ -1176,7 +1176,7 @@ export default function SearchPage() {
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                                    <InfluenceIcon className="h-4 w-4 text-indigo-500" />
+                                    <BrainLogo size={16} className="text-indigo-500" />
                                   </div>
                                   <div>
                                     <p className="text-[12px] font-semibold text-slate-700">Influence Score</p>
