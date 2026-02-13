@@ -148,6 +148,8 @@ export default function NetworkPage() {
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>("all");
   const [searchFilter, setSearchFilter] = useState("");
+  type TrustTier = "all" | "high" | "medium" | "low" | "minimal";
+  const [trustFilter, setTrustFilter] = useState<TrustTier>("all");
   const [networkData, setNetworkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
@@ -260,21 +262,36 @@ export default function NetworkPage() {
   }, [getGroupPubkeys]);
 
   const filteredPubkeys = useCallback(() => {
-    const pubkeys = getGroupPubkeys(activeGroup);
-    if (!searchFilter.trim()) return pubkeys;
-    const query = searchFilter.trim().toLowerCase();
-    return pubkeys.filter(pk => {
-      const profile = profileCache.current.get(pk);
-      const npub = nip19.npubEncode(pk);
-      if (npub.toLowerCase().includes(query)) return true;
-      if (profile) {
-        if (profile.name?.toLowerCase().includes(query)) return true;
-        if (profile.display_name?.toLowerCase().includes(query)) return true;
-        if (profile.nip05?.toLowerCase().includes(query)) return true;
-      }
-      return false;
-    });
-  }, [activeGroup, searchFilter, getGroupPubkeys, loadedCount]);
+    let pubkeys = getGroupPubkeys(activeGroup);
+    if (searchFilter.trim()) {
+      const query = searchFilter.trim().toLowerCase();
+      pubkeys = pubkeys.filter(pk => {
+        const profile = profileCache.current.get(pk);
+        const npub = nip19.npubEncode(pk);
+        if (npub.toLowerCase().includes(query)) return true;
+        if (profile) {
+          if (profile.name?.toLowerCase().includes(query)) return true;
+          if (profile.display_name?.toLowerCase().includes(query)) return true;
+          if (profile.nip05?.toLowerCase().includes(query)) return true;
+        }
+        return false;
+      });
+    }
+    if (trustFilter !== "all") {
+      pubkeys = pubkeys.filter(pk => {
+        const influence = trustCache.current.get(pk);
+        if (influence === undefined) return true;
+        if (influence === null) return false;
+        const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
+        if (trustFilter === "high") return pct >= 80;
+        if (trustFilter === "medium") return pct >= 50 && pct < 80;
+        if (trustFilter === "low") return pct >= 25 && pct < 50;
+        if (trustFilter === "minimal") return pct < 25;
+        return true;
+      });
+    }
+    return pubkeys;
+  }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, loadedCount, trustLoadedCount]);
 
   useEffect(() => {
     const pubkeys = getGroupPubkeys(activeGroup);
@@ -284,16 +301,23 @@ export default function NetworkPage() {
   }, [activeGroup, networkData, fetchProfiles, getGroupPubkeys]);
 
   useEffect(() => {
-    const visible = filteredPubkeys();
-    if (visible.length === 0) return;
-    const totalPages = Math.ceil(visible.length / PAGE_SIZE);
-    const safePage = Math.min(currentPage, totalPages || 1);
-    const startIdx = (safePage - 1) * PAGE_SIZE;
-    const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
-    if (pageItems.length > 0) {
-      fetchTrustScores(pageItems);
+    if (trustFilter !== "all") {
+      const allGroupPubkeys = getGroupPubkeys(activeGroup);
+      if (allGroupPubkeys.length > 0) {
+        fetchTrustScores(allGroupPubkeys);
+      }
+    } else {
+      const visible = filteredPubkeys();
+      if (visible.length === 0) return;
+      const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+      const safePage = Math.min(currentPage, totalPages || 1);
+      const startIdx = (safePage - 1) * PAGE_SIZE;
+      const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
+      if (pageItems.length > 0) {
+        fetchTrustScores(pageItems);
+      }
     }
-  }, [filteredPubkeys, currentPage, fetchTrustScores]);
+  }, [filteredPubkeys, currentPage, fetchTrustScores, trustFilter, activeGroup, getGroupPubkeys]);
 
   const handleLogout = () => {
     logout();
@@ -711,6 +735,41 @@ export default function NetworkPage() {
                 })}
               </div>
 
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
+                {([
+                  { key: "all" as TrustTier, label: "All Scores", icon: null },
+                  { key: "high" as TrustTier, label: "High 80+", icon: "text-indigo-500" },
+                  { key: "medium" as TrustTier, label: "Mid 50-79", icon: "text-indigo-400" },
+                  { key: "low" as TrustTier, label: "Low 25-49", icon: "text-indigo-300" },
+                  { key: "minimal" as TrustTier, label: "Minimal <25", icon: "text-slate-400" },
+                ] as const).map((tier) => {
+                  const isActive = trustFilter === tier.key;
+                  return (
+                    <button
+                      key={tier.key}
+                      type="button"
+                      onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 ${
+                        isActive
+                          ? "bg-indigo-800 text-white border border-indigo-800"
+                          : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
+                      }`}
+                      data-testid={`button-trust-filter-${tier.key}`}
+                    >
+                      {tier.icon && (
+                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`} viewBox="0 0 44 44">
+                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.3" />
+                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+                            style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - (tier.key === "high" ? 0.9 : tier.key === "medium" ? 0.65 : tier.key === "low" ? 0.37 : 0.12))}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
+                        </svg>
+                      )}
+                      <span>{tier.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="flex items-center gap-3">
                 <div className="relative group/input flex-1">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
@@ -776,11 +835,11 @@ export default function NetworkPage() {
                   <Users className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-empty-title">
-                  {searchFilter ? "No matches found" : "No contacts yet"}
+                  {searchFilter || trustFilter !== "all" ? "No matches found" : "No contacts yet"}
                 </h3>
                 <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md" data-testid="text-network-empty-body">
-                  {searchFilter
-                    ? "Try a different search term or select a different group filter."
+                  {searchFilter || trustFilter !== "all"
+                    ? "Try a different search term, trust score range, or group filter."
                     : "Your network data will appear here once your social graph is populated."}
                 </p>
               </div>
