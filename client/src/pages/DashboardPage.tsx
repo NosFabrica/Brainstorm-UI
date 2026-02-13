@@ -38,6 +38,8 @@ import {
   ChevronRight,
   Award,
   ExternalLink,
+  Search,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -177,6 +179,14 @@ export default function DashboardPage() {
                     <Home className="h-4 w-4" />
                     Dashboard
                   </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/settings")} data-testid="button-nav-settings">
+                    <SettingsIcon className="h-4 w-4" />
+                    Settings
+                  </Button>
                 </div>
               </div>
 
@@ -247,6 +257,14 @@ export default function DashboardPage() {
                   <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
                     <Home className="h-5 w-5 text-indigo-200" />
                     Dashboard
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
+                    <Search className="h-5 w-5 text-slate-200/80" />
+                    Search
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
+                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                    Settings
                   </Button>
                 </div>
               </div>

@@ -11,6 +11,7 @@ import {
   Loader2,
   Copy,
   Check,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -339,6 +340,16 @@ export default function SearchPage() {
                   <SearchIcon className="h-4 w-4" />
                   Search
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  onClick={() => navigate("/settings")}
+                  data-testid="button-nav-settings"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  Settings
+                </Button>
               </div>
             </div>
 
@@ -447,6 +458,15 @@ export default function SearchPage() {
                 >
                   <SearchIcon className="h-5 w-5 text-indigo-200" />
                   Search
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
+                  data-testid="button-mobile-nav-settings"
+                >
+                  <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                  Settings
                 </Button>
               </div>
             </div>

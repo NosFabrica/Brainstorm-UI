@@ -17,7 +17,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard, `/search` = Search)
+- **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
 - **Auth**: Challenge-response via brainstormserver API, token in localStorage
@@ -28,7 +28,8 @@ client/src/
 ├── pages/
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
-│   └── SearchPage.tsx        # Npub lookup with real API, validation, results display
+│   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
+│   └── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
 ├── services/
 │   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt
 │   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf, getGrapeRankResult)
