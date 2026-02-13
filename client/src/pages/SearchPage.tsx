@@ -62,17 +62,17 @@ const EnterpriseUserIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const floatingNodes = Array.from({ length: 6 }, (_, i) => ({
+const floatingNodes = Array.from({ length: 8 }, (_, i) => ({
   id: i,
   x: 10 + Math.random() * 80,
   y: 10 + Math.random() * 80,
-  size: Math.random() * 2 + 1.5,
-  duration: Math.random() * 30 + 25,
-  delay: Math.random() * 8,
+  size: Math.random() * 2.5 + 1.5,
+  duration: Math.random() * 25 + 20,
+  delay: Math.random() * 6,
 }));
 
 const connectionPairs = [
-  [0, 2], [1, 3], [2, 4], [3, 5], [0, 4],
+  [0, 2], [1, 3], [2, 5], [3, 6], [4, 7], [0, 5], [1, 6],
 ];
 
 const decorativeText = [
@@ -80,6 +80,7 @@ const decorativeText = [
   "G = (V, E)",
   "score = f(hops)",
   "compute(trust)",
+  "verify(sig)",
 ];
 
 type SearchError = {
@@ -195,20 +196,20 @@ export default function SearchPage() {
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-search"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.18] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
-          className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/25 blur-[150px]"
-          style={{ animation: "searchBlobA 35s ease-in-out infinite" }}
+          className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]"
+          style={{ animation: "searchBlobA 28s ease-in-out infinite" }}
         />
         <div
-          className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/15 blur-[160px]"
-          style={{ animation: "searchBlobB 40s ease-in-out infinite 3s" }}
+          className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]"
+          style={{ animation: "searchBlobB 32s ease-in-out infinite 2s" }}
         />
         <div
-          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/10 blur-[120px]"
-          style={{ animation: "searchBlobC 30s ease-in-out infinite 6s" }}
+          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/15 blur-[110px]"
+          style={{ animation: "searchBlobC 24s ease-in-out infinite 5s" }}
         />
       </div>
 
@@ -222,15 +223,15 @@ export default function SearchPage() {
               x2={`${floatingNodes[b].x}%`}
               y2={`${floatingNodes[b].y}%`}
               stroke="url(#searchLineGrad)"
-              strokeWidth="0.75"
+              strokeWidth="1"
               className="opacity-0"
-              style={{ animation: `searchLineFlash 14s ease-in-out infinite ${i * 2}s` }}
+              style={{ animation: `searchLineFlash 10s ease-in-out infinite ${i * 1.5}s` }}
             />
           ))}
           <defs>
             <linearGradient id="searchLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.25" />
             </linearGradient>
           </defs>
         </svg>
@@ -238,12 +239,12 @@ export default function SearchPage() {
         {floatingNodes.map((node) => (
           <div
             key={node.id}
-            className="absolute rounded-full bg-white/60 border border-indigo-100/40"
+            className="absolute rounded-full bg-white/70 border border-indigo-100/50 shadow-sm"
             style={{
               left: `${node.x}%`,
               top: `${node.y}%`,
-              width: node.size + 4,
-              height: node.size + 4,
+              width: node.size + 5,
+              height: node.size + 5,
               animation: `searchNodeFloat ${node.duration}s ease-in-out infinite ${node.delay}s`,
             }}
           />
@@ -252,11 +253,11 @@ export default function SearchPage() {
         {decorativeText.map((calc, i) => (
           <div
             key={i}
-            className="absolute text-xs font-mono text-indigo-300/15 select-none hidden md:block"
+            className="absolute text-xs font-mono text-indigo-400/25 select-none hidden md:block"
             style={{
-              left: `${10 + (i % 2) * 40}%`,
-              top: `${25 + Math.floor(i / 2) * 35}%`,
-              animation: `searchCalcFloat 12s ease-in-out infinite ${i * 2.5}s`,
+              left: `${8 + (i % 3) * 30}%`,
+              top: `${22 + Math.floor(i / 3) * 35}%`,
+              animation: `searchCalcFloat 9s ease-in-out infinite ${i * 1.8}s`,
             }}
           >
             {calc}
@@ -856,27 +857,27 @@ export default function SearchPage() {
       <style>{`
         @keyframes searchBlobA {
           0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(12px) scale(1.02); }
+          50% { transform: translateX(15px) scale(1.03); }
         }
         @keyframes searchBlobB {
           0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-15px) scale(1.03); }
+          50% { transform: translateX(-20px) scale(1.05); }
         }
         @keyframes searchBlobC {
-          0%, 100% { transform: translateY(0); opacity: 0.1; }
-          50% { transform: translateY(-20px); opacity: 0.2; }
+          0%, 100% { transform: translateY(0); opacity: 0.15; }
+          50% { transform: translateY(-25px); opacity: 0.35; }
         }
         @keyframes searchLineFlash {
           0%, 100% { opacity: 0; }
-          40%, 60% { opacity: 0.12; }
+          40%, 60% { opacity: 0.2; }
         }
         @keyframes searchNodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.06; }
-          50% { transform: translateY(-20px); opacity: 0.18; }
+          0%, 100% { transform: translateY(0); opacity: 0.1; }
+          50% { transform: translateY(-25px); opacity: 0.3; }
         }
         @keyframes searchCalcFloat {
           0%, 100% { opacity: 0; transform: translateY(0); }
-          40%, 60% { opacity: 0.15; transform: translateY(-8px); }
+          40%, 60% { opacity: 0.25; transform: translateY(-10px); }
         }
         @keyframes searchScanLine {
           0% { left: 0%; }
