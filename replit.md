@@ -15,10 +15,11 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-12: Replaced DashboardPage with polished prototype-inspired design (dark nav bar, avatar dropdown, gradient stat cards, social graph grid, GrapeRank panel with status fields)
 - 2026-02-13: Added SearchPage with npub lookup, real API integration (getUserByPubkey), input validation, loading/error/result states, mobile nav drawer, CSS-only animations
 - 2026-02-13: Added What is WoT? educational page with dark theme, mode toggle (Why/How), trust node visualization, interactive parameter tuning, Show vs Tell scenarios, use cases, FAQ accordion, and CTA section
+- 2026-02-13: Added Landing page at / with hero section, Footer component, CSS-only animations (no framer-motion), moved LoginPage to /login
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Routing**: wouter (`/` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
+- **Routing**: wouter (`/` = Landing, `/login` = Login, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
 - **Auth**: Challenge-response via brainstormserver API, token in localStorage
@@ -26,7 +27,10 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 ### Structure
 ```
 client/src/
+├── components/
+│   └── Footer.tsx            # Dark footer with partner logos, WoT link, version (CSS-only)
 ├── pages/
+│   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, Footer
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
 │   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
