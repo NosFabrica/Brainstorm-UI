@@ -275,16 +275,6 @@ export default function SettingsPage() {
                   <Search className="h-4 w-4" />
                   Search
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                  onClick={() => navigate("/what-is-wot")}
-                  data-testid="button-nav-wot"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  What is WoT?
-                </Button>
               </div>
             </div>
 
