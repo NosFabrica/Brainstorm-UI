@@ -857,7 +857,7 @@ export default function SearchPage() {
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-result">
                   <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
-                  <div className="p-5 sm:p-6 relative"
+                  <div className="p-5 sm:p-6 relative overflow-hidden"
                     style={{
                       backgroundImage: [
                         'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.12) 0%, transparent 50%)',
@@ -868,6 +868,59 @@ export default function SearchPage() {
                       boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.12), inset 0 -1px 0 0 rgba(99,102,241,0.04)',
                     }}
                   >
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" data-testid="svg-network-bg">
+                      {[
+                        { x1: 12, y1: 8, x2: 30, y2: 20 },
+                        { x1: 12, y1: 8, x2: 5, y2: 30 },
+                        { x1: 12, y1: 8, x2: 25, y2: 45 },
+                        { x1: 12, y1: 8, x2: 42, y2: 12 },
+                        { x1: 30, y1: 20, x2: 42, y2: 12 },
+                        { x1: 30, y1: 20, x2: 50, y2: 35 },
+                        { x1: 5, y1: 30, x2: 15, y2: 55 },
+                        { x1: 25, y1: 45, x2: 15, y2: 55 },
+                        { x1: 70, y1: 15, x2: 85, y2: 25 },
+                        { x1: 70, y1: 15, x2: 60, y2: 30 },
+                        { x1: 85, y1: 25, x2: 92, y2: 45 },
+                        { x1: 60, y1: 30, x2: 50, y2: 35 },
+                        { x1: 85, y1: 25, x2: 95, y2: 10 },
+                        { x1: 70, y1: 15, x2: 55, y2: 8 },
+                        { x1: 75, y1: 60, x2: 92, y2: 45 },
+                        { x1: 75, y1: 60, x2: 60, y2: 70 },
+                        { x1: 50, y1: 35, x2: 42, y2: 12 },
+                        { x1: 25, y1: 45, x2: 40, y2: 65 },
+                        { x1: 40, y1: 65, x2: 60, y2: 70 },
+                      ].map((l, i) => {
+                        const len = Math.sqrt(Math.pow(l.x2 - l.x1, 2) + Math.pow(l.y2 - l.y1, 2)) * 5;
+                        return (
+                          <line key={`cl-${i}`} x1={`${l.x1}%`} y1={`${l.y1}%`} x2={`${l.x2}%`} y2={`${l.y2}%`}
+                            stroke="rgb(99,102,241)" strokeWidth="0.5" opacity="0"
+                            style={{ strokeDasharray: len, strokeDashoffset: len, ['--dash' as string]: len, animation: `searchLineDraw 1.8s ${0.3 + i * 0.12}s ease-out forwards, searchLinePulse 6s ${2.5 + i * 0.3}s ease-in-out infinite` }} />
+                        );
+                      })}
+                      {[
+                        { cx: 12, cy: 8, r: 3.5, delay: 0.2 },
+                        { cx: 30, cy: 20, r: 2.5, delay: 0.5 },
+                        { cx: 5, cy: 30, r: 2, delay: 0.7 },
+                        { cx: 25, cy: 45, r: 2, delay: 0.9 },
+                        { cx: 42, cy: 12, r: 2, delay: 0.6 },
+                        { cx: 50, cy: 35, r: 2.5, delay: 1.0 },
+                        { cx: 15, cy: 55, r: 1.5, delay: 1.1 },
+                        { cx: 70, cy: 15, r: 3, delay: 0.4 },
+                        { cx: 85, cy: 25, r: 2.5, delay: 0.8 },
+                        { cx: 60, cy: 30, r: 2, delay: 0.9 },
+                        { cx: 92, cy: 45, r: 2, delay: 1.2 },
+                        { cx: 95, cy: 10, r: 1.5, delay: 0.7 },
+                        { cx: 55, cy: 8, r: 1.5, delay: 0.6 },
+                        { cx: 75, cy: 60, r: 2, delay: 1.3 },
+                        { cx: 60, cy: 70, r: 1.5, delay: 1.4 },
+                        { cx: 40, cy: 65, r: 1.5, delay: 1.2 },
+                      ].map((n, i) => (
+                        <circle key={`cn-${i}`} cx={`${n.cx}%`} cy={`${n.cy}%`} r={n.r} fill="rgb(99,102,241)" opacity="0"
+                          style={{ animation: `searchNodePop 0.6s ${n.delay}s ease-out forwards, searchNodeFloat ${5 + (i % 3) * 2}s ${2 + n.delay}s ease-in-out infinite` }} />
+                      ))}
+                    </svg>
+
+                    <div className="relative z-10">
                     <div className="flex items-start gap-4 mb-5">
                       <Avatar className="h-16 w-16 border-2 border-indigo-100 shadow-md shrink-0">
                         {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
@@ -1055,6 +1108,7 @@ export default function SearchPage() {
                       >
                         New Search
                       </Button>
+                    </div>
                     </div>
                   </div>
                 </Card>
