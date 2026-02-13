@@ -516,6 +516,16 @@ export default function SearchPage() {
                   <SearchIcon className="h-4 w-4" />
                   Search
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  onClick={() => navigate("/network")}
+                  data-testid="button-nav-network"
+                >
+                  <User className="h-4 w-4" />
+                  Network
+                </Button>
               </div>
             </div>
 
@@ -629,6 +639,15 @@ export default function SearchPage() {
                 >
                   <SearchIcon className="h-5 w-5 text-indigo-200" />
                   Search
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => { setMobileMenuOpen(false); navigate("/network"); }}
+                  data-testid="button-mobile-nav-network"
+                >
+                  <User className="h-5 w-5 text-slate-200/80" />
+                  Network
                 </Button>
                 <Button
                   variant="ghost"

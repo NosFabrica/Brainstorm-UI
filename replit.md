@@ -21,10 +21,12 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Upgraded WhatIsWotPage with framer-motion animations, real avatar images (generated + stock), interactive Show vs Tell scenarios with 5 trust contexts, FAQ accordion, CTA section
 - 2026-02-13: Merged comprehensive Good UI dashboard: onboarding panel (flashlight effect, 8-slide carousel, progress tracker, queue position), GrapeRank hero card, key metrics grid (trusted followers, network alerts, extended reach with hops slider), recharts PieChart network health, educational strip, supported clients carousel (Amethyst + Nostria), keyboard shortcuts modal (E/H/?), JSON export
 - 2026-02-13: Enhanced SearchPage: npub→hex decoding via nip19, parallel profile+graph fetch, trust profile card with avatar/name/NIP-05/about, all 7 social metrics (followers, following, influence, muted_by, reported_by, muting, reporting) with color-coded tiles, trust warning banner
+- 2026-02-13: Added NetworkPage at /network: CRM-style social graph explorer with profile cards by group (Followers, Following, Muted By, Muting, Reported By, Reporting), filter chips with counts, search, batch profile fetching (concurrency 5), skeleton loading, click-to-search navigation
+- 2026-02-13: Integrated Network nav links across Dashboard (desktop + mobile + View All button), SearchPage (desktop + mobile), standardized mobile drawer layout (Settings at bottom via mt-auto)
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Routing**: wouter (`/` = Landing, `/login` = Login, `/onboarding` = Onboarding, `/dashboard` = Dashboard, `/search` = Search, `/settings` = Settings, `/what-is-wot` = What is WoT?)
+- **Routing**: wouter (`/` = Landing, `/login` = Login, `/onboarding` = Onboarding, `/dashboard` = Dashboard, `/search` = Search, `/network` = Network, `/settings` = Settings, `/what-is-wot` = What is WoT?)
 - **Backend**: Express (profile proxy via WebSocket relays + HTTP APIs)
 - **Nostr**: applesauce-core (EventStore, profile helpers) + nostr-tools (nip19 encoding)
 - **Auth**: Challenge-response via brainstormserver API, token in localStorage
@@ -43,6 +45,7 @@ client/src/
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
 │   ├── DashboardPage.tsx     # Full dashboard: onboarding panel, GrapeRank hero, metrics grid, PieChart, educational strip, clients carousel, keyboard shortcuts
 │   ├── SearchPage.tsx        # Npub lookup with npub→hex decode, parallel profile+graph fetch, trust profile card, all 7 metrics, warning banner
+│   ├── NetworkPage.tsx       # CRM-style social graph explorer: profile cards by group, filter chips, search, batch profile fetch, skeleton loading
 │   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
 │   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
 ├── services/

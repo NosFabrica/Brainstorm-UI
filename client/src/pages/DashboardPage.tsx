@@ -470,6 +470,10 @@ export default function DashboardPage() {
                     <Search className="h-4 w-4" />
                     Search
                   </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/network")} data-testid="button-nav-network">
+                    <Users className="h-4 w-4" />
+                    Network
+                  </Button>
                 </div>
               </div>
 
@@ -539,7 +543,7 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
-              <div className="relative flex-1 overflow-y-auto py-4 px-3 space-y-6">
+              <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
                 <div className="space-y-2">
                   <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
                   <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
@@ -550,13 +554,19 @@ export default function DashboardPage() {
                     <Search className="h-5 w-5 text-slate-200/80" />
                     Search
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
-                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
-                    Settings
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
+                    <Users className="h-5 w-5 text-slate-200/80" />
+                    Network
                   </Button>
                   <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
                     <BookOpen className="h-5 w-5 text-slate-200/80" />
                     What is WoT?
+                  </Button>
+                </div>
+                <div className="mt-auto pt-4 px-0">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
+                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                    Settings
                   </Button>
                 </div>
               </div>
@@ -1703,9 +1713,14 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="p-4 rounded-xl bg-white/80 border border-slate-200/60" data-testid="info-network-api">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-semibold text-slate-800">Network</span>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-indigo-500" />
+                  <span className="text-sm font-semibold text-slate-800">Network</span>
+                </div>
+                <Button variant="ghost" size="sm" className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide px-2 h-7 no-default-hover-elevate no-default-active-elevate hover:bg-indigo-50" onClick={() => navigate("/network")} data-testid="button-view-network">
+                  View All
+                </Button>
               </div>
               {selfQuery.isLoading ? (
                 <div className="flex items-center gap-2">
