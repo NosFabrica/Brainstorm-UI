@@ -120,8 +120,8 @@ export default function Landing() {
     <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
       <style>{`
         @keyframes floatNode {
-          0%, 100% { transform: translateY(0); opacity: 0.1; }
-          50% { transform: translateY(-40px); opacity: 0.35; }
+          0%, 100% { transform: translateY(0); opacity: 0.06; }
+          50% { transform: translateY(-40px); opacity: 0.2; }
         }
         @keyframes glowOrb1 {
           0%, 100% { opacity: 0.15; transform: scale(1) translateX(0); }
@@ -137,11 +137,11 @@ export default function Landing() {
         }
         @keyframes calcFade {
           0%, 100% { opacity: 0; transform: translateY(0); }
-          50% { opacity: 0.2; transform: translateY(-15px); }
+          50% { opacity: 0.1; transform: translateY(-15px); }
         }
         @keyframes lineDraw {
           0%, 100% { opacity: 0; }
-          50% { opacity: 0.15; }
+          50% { opacity: 0.08; }
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }
@@ -198,7 +198,7 @@ export default function Landing() {
         {floatingNodes.map((node) => (
           <div
             key={node.id}
-            className="absolute rounded-full bg-indigo-300/40"
+            className="absolute rounded-full bg-indigo-300/20"
             style={{
               left: `${node.x}%`,
               top: `${node.y}%`,
@@ -212,7 +212,7 @@ export default function Landing() {
         {calculations.map((calc, i) => (
           <div
             key={i}
-            className="absolute text-xs font-mono text-indigo-300/50 pointer-events-none select-none hidden md:block"
+            className="absolute text-xs font-mono text-slate-500/25 pointer-events-none select-none hidden md:block"
             style={{
               left: `${5 + (i % 4) * 25}%`,
               top: `${10 + Math.floor(i / 4) * 70}%`,
