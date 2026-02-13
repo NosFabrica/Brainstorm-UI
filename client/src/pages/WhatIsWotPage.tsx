@@ -2020,7 +2020,7 @@ export default function WhatIsWoT() {
                       {scenario.id === 'wellness' && "Healing happens outside the system. When insurance gatekeepers said no, Marcus found Dr. Chen through someone who'd walked the same path — and got his life back."}
                     </p>
                     <div className="flex justify-center mt-4">
-                      <img src="/nostr-ostrich.gif" alt="Ostrich running" className="w-10 h-10 object-contain" />
+                      <img src="/nostr-ostrich.gif" alt="Ostrich running" className="w-7 h-7 object-contain" />
                     </div>
                   </motion.div>
                 </motion.div>
