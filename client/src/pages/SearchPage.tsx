@@ -838,7 +838,17 @@ export default function SearchPage() {
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-result">
                   <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
-                  <div className="p-5 sm:p-6">
+                  <div className="p-5 sm:p-6 relative"
+                    style={{
+                      backgroundImage: [
+                        'radial-gradient(circle at 85% 15%, rgba(99,102,241,0.045) 0%, transparent 55%)',
+                        'radial-gradient(circle at 10% 90%, rgba(99,102,241,0.025) 0%, transparent 45%)',
+                        'radial-gradient(circle, rgba(99,102,241,0.04) 1px, transparent 1px)',
+                      ].join(', '),
+                      backgroundSize: '100% 100%, 100% 100%, 18px 18px',
+                      boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.06)',
+                    }}
+                  >
                     <div className="flex items-start gap-4 mb-5">
                       <Avatar className="h-16 w-16 border-2 border-indigo-100 shadow-md shrink-0">
                         {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
