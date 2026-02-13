@@ -5,7 +5,7 @@ const clusters = [
       { label: "trust_score: 0.94", x: 38, y: 22 },
       { label: "follows: 847", x: 24, y: 38 },
     ],
-    lines: [[0, 1], [1, 2], [0, 2]],
+    lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
   },
   {
     nodes: [
@@ -13,7 +13,7 @@ const clusters = [
       { label: "relay: wss://nos.lol", x: 88, y: 28 },
       { label: "kind:3 → follows", x: 72, y: 42 },
     ],
-    lines: [[0, 1], [1, 2], [0, 2]],
+    lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
   },
   {
     nodes: [
@@ -21,7 +21,7 @@ const clusters = [
       { label: "confidence: 0.87", x: 42, y: 72 },
       { label: "hops: 2 → 0.73", x: 28, y: 86 },
     ],
-    lines: [[0, 1], [1, 2], [0, 2]],
+    lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
   },
   {
     nodes: [
@@ -29,7 +29,7 @@ const clusters = [
       { label: "mutes: 12", x: 85, y: 68 },
       { label: "depth: 3", x: 72, y: 82 },
     ],
-    lines: [[0, 1], [1, 2], [0, 2]],
+    lines: [[0, 1], [1, 2], [0, 2]] as [number, number][],
   },
 ];
 
@@ -71,22 +71,21 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       `);
     });
 
-    cluster.lines.forEach(([a, b], li) => {
+    cluster.lines.forEach((_, li) => {
       const name = `cbL${ci}_${li}`;
       const lineStart = 1.0 + li * 1.2;
       allKeyframes.push(`
         @keyframes ${name} {
-          0% { stroke-dashoffset: 2000; opacity: 0; }
-          ${pct(ci, lineStart)}% { stroke-dashoffset: 2000; opacity: 0; }
-          ${pct(ci, lineStart + 0.3)}% { stroke-dashoffset: 1500; opacity: 0.15; }
-          ${pct(ci, lineStart + 1.0)}% { stroke-dashoffset: 800; opacity: 0.25; }
-          ${pct(ci, lineStart + 1.8)}% { stroke-dashoffset: 0; opacity: 0.2; }
+          0% { stroke-dashoffset: 1; opacity: 0; }
+          ${pct(ci, lineStart)}% { stroke-dashoffset: 1; opacity: 0; }
+          ${pct(ci, lineStart + 0.15)}% { stroke-dashoffset: 0.95; opacity: 0.25; }
+          ${pct(ci, lineStart + 0.8)}% { stroke-dashoffset: 0.4; opacity: 0.25; }
+          ${pct(ci, lineStart + 1.6)}% { stroke-dashoffset: 0; opacity: 0.2; }
           ${pct(ci, 5.5)}% { stroke-dashoffset: 0; opacity: 0.15; }
           ${pct(ci, 7.0)}% { stroke-dashoffset: 0; opacity: 0; }
           100% { stroke-dashoffset: 0; opacity: 0; }
         }
       `);
-      void b; void a;
     });
 
     cluster.nodes.forEach((_, ni) => {
@@ -169,38 +168,41 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
         }}
       />
 
-      <svg className="absolute inset-0 w-full h-full">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
         {clusters.map((cluster, ci) =>
-          cluster.lines.map(([a, b], li) => (
-            <line
-              key={`l-${ci}-${li}`}
-              x1={`${cluster.nodes[a].x}%`}
-              y1={`${cluster.nodes[a].y}%`}
-              x2={`${cluster.nodes[b].x}%`}
-              y2={`${cluster.nodes[b].y}%`}
-              stroke={isDark ? 'url(#cbLineGrad)' : 'url(#cbLineGradLight)'}
-              strokeWidth={isDark ? "0.8" : "1"}
-              strokeLinecap="round"
-              strokeDasharray="2000"
-              strokeDashoffset="2000"
-              style={{
-                opacity: 0,
-                animation: `cbL${ci}_${li} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
-              }}
-            />
-          ))
+          cluster.lines.map(([a, b], li) => {
+            const n1 = cluster.nodes[a];
+            const n2 = cluster.nodes[b];
+            return (
+              <path
+                key={`l-${ci}-${li}`}
+                d={`M ${n1.x} ${n1.y} L ${n2.x} ${n2.y}`}
+                pathLength={1}
+                fill="none"
+                stroke={isDark ? 'url(#cbLineGrad)' : 'url(#cbLineGradLight)'}
+                strokeWidth={isDark ? "0.15" : "0.2"}
+                strokeLinecap="round"
+                strokeDasharray="1"
+                strokeDashoffset="1"
+                style={{
+                  opacity: 0,
+                  animation: `cbL${ci}_${li} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
+                }}
+              />
+            );
+          })
         )}
 
         {clusters.map((cluster, ci) =>
           cluster.nodes.map((node, ni) => (
             <circle
               key={`d-${ci}-${ni}`}
-              cx={`${node.x}%`}
-              cy={`${node.y}%`}
-              r="2"
-              fill={isDark ? 'rgba(96,165,250,0.2)' : 'rgba(99,102,241,0.15)'}
+              cx={node.x}
+              cy={node.y}
+              r="0.5"
+              fill={isDark ? 'rgba(96,165,250,0.5)' : 'rgba(99,102,241,0.4)'}
               style={{
-                transformOrigin: `${node.x}% ${node.y}%`,
+                transformOrigin: `${node.x}px ${node.y}px`,
                 opacity: 0,
                 animation: `cbD${ci}_${ni} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
               }}
@@ -210,13 +212,13 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
 
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.4" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.7" />
+            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.5" />
           </linearGradient>
           <linearGradient id="cbLineGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.35" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.4" />
           </linearGradient>
         </defs>
       </svg>
