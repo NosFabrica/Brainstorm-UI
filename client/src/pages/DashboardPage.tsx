@@ -5,6 +5,9 @@ import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
+import riskAvatar1 from "../assets/images/risk-avatar-1.png";
+import riskAvatar2 from "../assets/images/risk-avatar-2.png";
+import riskAvatar3 from "../assets/images/risk-avatar-3.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -150,9 +153,9 @@ const INTEREST_CLUSTERS = [
 ];
 
 const RISKY_FOLLOWS = [
-  { id: 1, name: "Alex Morgan", handle: "@alexmorgan", reason: "High Spam Reports", risk: "high", avatar: "/avatars/risk-1.png" },
-  { id: 2, name: "Sarah Bennett", handle: "@sarahbennett", reason: "Phishing Reports", risk: "medium", avatar: "/avatars/risk-2.png" },
-  { id: 3, name: "Michael Reed", handle: "@michaelreed", reason: "Identity Spoofing", risk: "high", avatar: "/avatars/risk-3.png" },
+  { id: 1, name: "Alex Morgan", handle: "@alexmorgan", reason: "High Spam Reports", risk: "high", avatar: riskAvatar1 },
+  { id: 2, name: "Sarah Bennett", handle: "@sarahbennett", reason: "Phishing Reports", risk: "medium", avatar: riskAvatar2 },
+  { id: 3, name: "Michael Reed", handle: "@michaelreed", reason: "Identity Spoofing", risk: "high", avatar: riskAvatar3 },
 ];
 
 const NETWORK_METRICS = [
