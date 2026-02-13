@@ -157,6 +157,8 @@ export default function NetworkPage() {
   const PAGE_SIZE = 24;
 
   const profileCache = useRef<Map<string, any>>(new Map());
+  const trustCache = useRef<Map<string, number | null>>(new Map());
+  const [trustLoadedCount, setTrustLoadedCount] = useState(0);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -205,6 +207,28 @@ export default function NetworkPage() {
         }
       });
       setLoadedCount(prev => prev + batch.length);
+    }
+  }, []);
+
+  const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
+    const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
+    if (unfetched.length === 0) return;
+    const batchSize = 3;
+    for (let i = 0; i < unfetched.length; i += batchSize) {
+      const batch = unfetched.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(pk => apiClient.getUserByPubkey(pk))
+      );
+      results.forEach((res, idx) => {
+        if (res.status === "fulfilled") {
+          const graph = res.value?.data?.graph || res.value?.data || res.value;
+          const influence = graph?.influence;
+          trustCache.current.set(batch[idx], typeof influence === "number" ? influence : null);
+        } else {
+          trustCache.current.set(batch[idx], null);
+        }
+      });
+      setTrustLoadedCount(prev => prev + batch.length);
     }
   }, []);
 
@@ -258,6 +282,18 @@ export default function NetworkPage() {
       fetchProfiles(pubkeys);
     }
   }, [activeGroup, networkData, fetchProfiles, getGroupPubkeys]);
+
+  useEffect(() => {
+    const visible = filteredPubkeys();
+    if (visible.length === 0) return;
+    const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+    const safePage = Math.min(currentPage, totalPages || 1);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
+    if (pageItems.length > 0) {
+      fetchTrustScores(pageItems);
+    }
+  }, [filteredPubkeys, currentPage, fetchTrustScores]);
 
   const handleLogout = () => {
     logout();
@@ -757,6 +793,39 @@ export default function NetworkPage() {
                 const startIdx = (safePage - 1) * PAGE_SIZE;
                 const pageItems = visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE);
 
+                const renderTrustBadge = (pk: string, compact: boolean = false) => {
+                  const rawInfluence = trustCache.current.get(pk);
+                  if (rawInfluence === undefined) {
+                    return (
+                      <div className="flex items-center gap-1" data-testid={`trust-loading-${pk.slice(0, 8)}`}>
+                        <div className={`rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}>
+                          <Loader2 className={`text-indigo-300 animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`} />
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (rawInfluence === null) return null;
+                  const score = Math.min(1, Math.max(0, rawInfluence));
+                  const pct = Math.round(score * 100);
+                  const ringColor = pct >= 80 ? "stroke-indigo-500" : pct >= 50 ? "stroke-indigo-400" : pct >= 25 ? "stroke-indigo-300" : "stroke-indigo-200";
+                  const circumference = 2 * Math.PI * 18;
+                  const offset = circumference - (score * circumference);
+                  const size = compact ? "w-7 h-7" : "w-9 h-9";
+                  const textSize = compact ? "text-[8px]" : "text-[10px]";
+                  return (
+                    <div className="flex flex-col items-center shrink-0" data-testid={`badge-trust-${pk.slice(0, 8)}`}>
+                      <div className={`relative ${size} flex items-center justify-center`}>
+                        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="3" className="text-indigo-100" />
+                          <circle cx="22" cy="22" r="18" fill="none" strokeWidth="3" strokeLinecap="round"
+                            className={ringColor} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 0.8s ease-out" }} />
+                        </svg>
+                        <span className={`${textSize} font-bold font-mono tabular-nums text-indigo-700`}>{pct}</span>
+                      </div>
+                    </div>
+                  );
+                };
+
                 const renderProfileCard = (pk: string) => {
                   const profile = profileCache.current.get(pk);
                   const npub = nip19.npubEncode(pk);
@@ -830,6 +899,7 @@ export default function NetworkPage() {
                             })}
                           </div>
                         )}
+                        {renderTrustBadge(pk, true)}
                         <button
                           type="button"
                           className="p-1 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
@@ -868,6 +938,7 @@ export default function NetworkPage() {
                             </p>
                           )}
                         </div>
+                        {renderTrustBadge(pk, false)}
                       </div>
                       <div className="mt-2 flex items-center gap-1.5">
                         <span className="text-[10px] font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>

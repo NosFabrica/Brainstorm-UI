@@ -23,6 +23,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Enhanced SearchPage: npub→hex decoding via nip19, parallel profile+graph fetch, trust profile card with avatar/name/NIP-05/about, all 7 social metrics (followers, following, influence, muted_by, reported_by, muting, reporting) with color-coded tiles, trust warning banner
 - 2026-02-13: Added NetworkPage at /network: CRM-style social graph explorer with profile cards by group (Followers, Following, Muted By, Muting, Reported By, Reporting), filter chips with counts, search, batch profile fetching (concurrency 5), skeleton loading, click-to-search navigation
 - 2026-02-13: Integrated Network nav links across Dashboard (desktop + mobile + View All button), SearchPage (desktop + mobile), standardized mobile drawer layout (Settings at bottom via mt-auto)
+- 2026-02-13: Added trust score badges to NetworkPage profile cards (grid + list): batch-fetches influence via getUserByPubkey for visible page items, renders compact SVG ring with percentage, loading spinner while fetching
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
