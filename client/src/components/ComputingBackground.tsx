@@ -1,17 +1,40 @@
-const trustData = [
-  { label: "npub1qx3f...verified", x: 12, y: 14 },
-  { label: "trust_score: 0.94", x: 72, y: 8 },
-  { label: "follows: 847", x: 35, y: 32 },
-  { label: "wot_rank: #127", x: 78, y: 28 },
-  { label: "relay: wss://nos.lol", x: 55, y: 52 },
-  { label: "kind:3 → follows", x: 15, y: 58 },
-  { label: "sig: schnorr✓", x: 82, y: 62 },
-  { label: "confidence: 0.87", x: 28, y: 78 },
-  { label: "hops: 2 → 0.73", x: 65, y: 82 },
+const clusters = [
+  {
+    nodes: [
+      { label: "npub1qx3f...verified", x: 10, y: 12 },
+      { label: "trust_score: 0.94", x: 38, y: 22 },
+      { label: "follows: 847", x: 24, y: 38 },
+    ],
+    lines: [[0, 1], [1, 2], [0, 2]],
+  },
+  {
+    nodes: [
+      { label: "wot_rank: #127", x: 68, y: 10 },
+      { label: "relay: wss://nos.lol", x: 88, y: 28 },
+      { label: "kind:3 → follows", x: 72, y: 42 },
+    ],
+    lines: [[0, 1], [1, 2], [0, 2]],
+  },
+  {
+    nodes: [
+      { label: "sig: schnorr✓", x: 14, y: 62 },
+      { label: "confidence: 0.87", x: 42, y: 72 },
+      { label: "hops: 2 → 0.73", x: 28, y: 86 },
+    ],
+    lines: [[0, 1], [1, 2], [0, 2]],
+  },
+  {
+    nodes: [
+      { label: "influence: 0.61", x: 62, y: 58 },
+      { label: "mutes: 12", x: 85, y: 68 },
+      { label: "depth: 3", x: 72, y: 82 },
+    ],
+    lines: [[0, 1], [1, 2], [0, 2]],
+  },
 ];
 
-const STEP_DURATION = 4;
-const TOTAL_CYCLE = trustData.length * STEP_DURATION;
+const CLUSTER_DURATION = 8;
+const TOTAL_CYCLE = clusters.length * CLUSTER_DURATION;
 const INITIAL_WAIT = 3;
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
@@ -23,47 +46,64 @@ const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   delay: 4 + i * 2,
 }));
 
+function pct(clusterIdx: number, offsetSec: number) {
+  return (((clusterIdx * CLUSTER_DURATION + offsetSec) / TOTAL_CYCLE) * 100).toFixed(1);
+}
+
 export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "light" }) {
   const isDark = variant === "dark";
 
-  const textKeyframes = trustData.map((_, i) => {
-    const startPct = ((i * STEP_DURATION) / TOTAL_CYCLE) * 100;
-    const fadeInPct = ((i * STEP_DURATION + STEP_DURATION * 0.15) / TOTAL_CYCLE) * 100;
-    const holdPct = ((i * STEP_DURATION + STEP_DURATION * 0.6) / TOTAL_CYCLE) * 100;
-    const fadeOutPct = ((i * STEP_DURATION + STEP_DURATION * 0.9) / TOTAL_CYCLE) * 100;
+  const allKeyframes: string[] = [];
 
-    return `
-      @keyframes cbText${i} {
-        0% { opacity: 0; }
-        ${startPct.toFixed(1)}% { opacity: 0; }
-        ${fadeInPct.toFixed(1)}% { opacity: 0.35; }
-        ${holdPct.toFixed(1)}% { opacity: 0.3; }
-        ${fadeOutPct.toFixed(1)}% { opacity: 0; }
-        100% { opacity: 0; }
-      }
-    `;
-  }).join('\n');
+  clusters.forEach((cluster, ci) => {
+    cluster.nodes.forEach((_, ni) => {
+      const name = `cbT${ci}_${ni}`;
+      const stagger = ni * 0.6;
+      allKeyframes.push(`
+        @keyframes ${name} {
+          0% { opacity: 0; }
+          ${pct(ci, 0.3 + stagger)}% { opacity: 0; }
+          ${pct(ci, 0.8 + stagger)}% { opacity: 0.35; }
+          ${pct(ci, 5.5)}% { opacity: 0.3; }
+          ${pct(ci, 7.0)}% { opacity: 0; }
+          100% { opacity: 0; }
+        }
+      `);
+    });
 
-  const lineKeyframes = trustData.map((_, i) => {
-    const next = (i + 1) % trustData.length;
-    const startPct = ((i * STEP_DURATION + STEP_DURATION * 0.1) / TOTAL_CYCLE) * 100;
-    const drawnPct = ((i * STEP_DURATION + STEP_DURATION * 0.5) / TOTAL_CYCLE) * 100;
-    const holdPct = ((i * STEP_DURATION + STEP_DURATION * 0.7) / TOTAL_CYCLE) * 100;
-    const fadePct = ((i * STEP_DURATION + STEP_DURATION * 0.95) / TOTAL_CYCLE) * 100;
-    void next;
+    cluster.lines.forEach(([a, b], li) => {
+      const name = `cbL${ci}_${li}`;
+      const lineDelay = 0.8 + li * 0.8;
+      allKeyframes.push(`
+        @keyframes ${name} {
+          0% { stroke-dashoffset: 2000; opacity: 0; }
+          ${pct(ci, lineDelay)}% { stroke-dashoffset: 2000; opacity: 0; }
+          ${pct(ci, lineDelay + 0.6)}% { stroke-dashoffset: 1000; opacity: 0.04; }
+          ${pct(ci, lineDelay + 1.4)}% { stroke-dashoffset: 0; opacity: 0.07; }
+          ${pct(ci, 5.5)}% { stroke-dashoffset: 0; opacity: 0.05; }
+          ${pct(ci, 7.0)}% { stroke-dashoffset: 0; opacity: 0; }
+          100% { stroke-dashoffset: 0; opacity: 0; }
+        }
+      `);
+      void b; void a;
+    });
 
-    return `
-      @keyframes cbConn${i} {
-        0% { stroke-dashoffset: 2000; opacity: 0; }
-        ${startPct.toFixed(1)}% { stroke-dashoffset: 2000; opacity: 0; }
-        ${((startPct + drawnPct) / 2).toFixed(1)}% { stroke-dashoffset: 1000; opacity: 0.04; }
-        ${drawnPct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0.07; }
-        ${holdPct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0.05; }
-        ${fadePct.toFixed(1)}% { stroke-dashoffset: 0; opacity: 0; }
-        100% { stroke-dashoffset: 0; opacity: 0; }
-      }
-    `;
-  }).join('\n');
+    cluster.nodes.forEach((_, ni) => {
+      const name = `cbD${ci}_${ni}`;
+      const stagger = ni * 0.5;
+      allKeyframes.push(`
+        @keyframes ${name} {
+          0% { opacity: 0; transform: scale(0); }
+          ${pct(ci, 0.2 + stagger)}% { opacity: 0; transform: scale(0); }
+          ${pct(ci, 0.6 + stagger)}% { opacity: 0.4; transform: scale(1.2); }
+          ${pct(ci, 1.2 + stagger)}% { opacity: 0.3; transform: scale(1); }
+          ${pct(ci, 5.5)}% { opacity: 0.2; transform: scale(1); }
+          ${pct(ci, 7.0)}% { opacity: 0; transform: scale(0.5); }
+          100% { opacity: 0; transform: scale(0); }
+        }
+      `);
+    });
+  });
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -88,15 +128,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           0%, 100% { opacity: 0.03; transform: scale(1); }
           50% { opacity: 0.1; transform: scale(1.4); }
         }
-        @keyframes cbNodePulse {
-          0% { transform: scale(0); opacity: 0; }
-          20% { transform: scale(1.3); opacity: 0.5; }
-          50% { transform: scale(1); opacity: 0.35; }
-          80% { transform: scale(0.8); opacity: 0.1; }
-          100% { transform: scale(0); opacity: 0; }
-        }
-        ${textKeyframes}
-        ${lineKeyframes}
+        ${allKeyframes.join('\n')}
       `}</style>
 
       {isDark ? (
@@ -137,15 +169,14 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       />
 
       <svg className="absolute inset-0 w-full h-full">
-        {trustData.map((item, i) => {
-          const next = trustData[(i + 1) % trustData.length];
-          return (
+        {clusters.map((cluster, ci) =>
+          cluster.lines.map(([a, b], li) => (
             <line
-              key={`conn-${i}`}
-              x1={`${item.x}%`}
-              y1={`${item.y}%`}
-              x2={`${next.x}%`}
-              y2={`${next.y}%`}
+              key={`l-${ci}-${li}`}
+              x1={`${cluster.nodes[a].x}%`}
+              y1={`${cluster.nodes[a].y}%`}
+              x2={`${cluster.nodes[b].x}%`}
+              y2={`${cluster.nodes[b].y}%`}
               stroke={isDark ? 'url(#cbLineGrad)' : 'url(#cbLineGradLight)'}
               strokeWidth={isDark ? "0.3" : "0.7"}
               strokeLinecap="round"
@@ -153,26 +184,28 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
               strokeDashoffset="2000"
               style={{
                 opacity: 0,
-                animation: `cbConn${i} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
+                animation: `cbL${ci}_${li} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
               }}
             />
-          );
-        })}
+          ))
+        )}
 
-        {trustData.map((item, i) => (
-          <circle
-            key={`dot-${i}`}
-            cx={`${item.x}%`}
-            cy={`${item.y}%`}
-            r="2"
-            fill={isDark ? 'rgba(96,165,250,0.25)' : 'rgba(99,102,241,0.2)'}
-            style={{
-              transformOrigin: `${item.x}% ${item.y}%`,
-              opacity: 0,
-              animation: `cbNodePulse ${STEP_DURATION}s ease-in-out infinite ${INITIAL_WAIT + i * STEP_DURATION}s`,
-            }}
-          />
-        ))}
+        {clusters.map((cluster, ci) =>
+          cluster.nodes.map((node, ni) => (
+            <circle
+              key={`d-${ci}-${ni}`}
+              cx={`${node.x}%`}
+              cy={`${node.y}%`}
+              r="2"
+              fill={isDark ? 'rgba(96,165,250,0.2)' : 'rgba(99,102,241,0.15)'}
+              style={{
+                transformOrigin: `${node.x}% ${node.y}%`,
+                opacity: 0,
+                animation: `cbD${ci}_${ni} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
+              }}
+            />
+          ))
+        )}
 
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -207,22 +240,24 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
         />
       ))}
 
-      {trustData.map((item, i) => (
-        <div
-          key={`text-${i}`}
-          className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-            isDark ? 'text-blue-300/50' : 'text-indigo-900/30'
-          }`}
-          style={{
-            left: `${item.x}%`,
-            top: `${item.y + 1.5}%`,
-            opacity: 0,
-            animation: `cbText${i} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
-          }}
-        >
-          {item.label}
-        </div>
-      ))}
+      {clusters.map((cluster, ci) =>
+        cluster.nodes.map((node, ni) => (
+          <div
+            key={`t-${ci}-${ni}`}
+            className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
+              isDark ? 'text-blue-300/50' : 'text-indigo-900/30'
+            }`}
+            style={{
+              left: `${node.x}%`,
+              top: `${node.y + 1.8}%`,
+              opacity: 0,
+              animation: `cbT${ci}_${ni} ${TOTAL_CYCLE}s ease-in-out infinite ${INITIAL_WAIT}s`,
+            }}
+          >
+            {node.label}
+          </div>
+        ))
+      )}
     </div>
   );
 }
