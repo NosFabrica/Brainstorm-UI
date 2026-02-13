@@ -986,6 +986,34 @@ export default function SearchPage() {
                     </svg>
 
                     <div className="relative z-10">
+                    {profileResult.influence !== undefined && (() => {
+                      const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+                      const score = Math.min(1, Math.max(0, rawScore));
+                      const pct = Math.round(score * 100);
+                      const tier = pct >= 80 ? { label: "Excellent", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", ring: "stroke-emerald-500", dot: "bg-emerald-500" }
+                        : pct >= 50 ? { label: "Good", color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", ring: "stroke-blue-500", dot: "bg-blue-500" }
+                        : pct >= 25 ? { label: "Fair", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", ring: "stroke-amber-500", dot: "bg-amber-500" }
+                        : { label: "Low", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200", ring: "stroke-slate-400", dot: "bg-slate-400" };
+                      const circumference = 2 * Math.PI * 18;
+                      const offset = circumference - (score * circumference);
+                      return (
+                        <div className={`absolute top-0 right-0 flex flex-col items-center gap-0.5 ${tier.bg} ${tier.border} border rounded-xl px-3 py-2`} data-testid="badge-trust-score">
+                          <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-slate-400">Trust Score</span>
+                          <div className="relative w-11 h-11 flex items-center justify-center">
+                            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-200/60" />
+                              <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
+                                className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
+                            </svg>
+                            <span className={`text-sm font-bold font-mono tabular-nums ${tier.color}`}>{pct}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-1 h-1 rounded-full ${tier.dot}`} />
+                            <span className={`text-[9px] font-semibold ${tier.color}`}>{tier.label}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex items-start gap-4 mb-5">
                       <Avatar className="h-16 w-16 border-2 border-indigo-100 shadow-md shrink-0">
                         {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
@@ -993,7 +1021,7 @@ export default function SearchPage() {
                           {(nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 pr-20">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
                             {nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 18) + "..."}
