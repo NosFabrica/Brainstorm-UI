@@ -1612,7 +1612,7 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
                           <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto bg-white text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-android">
+                            <Button className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
@@ -1705,7 +1705,7 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
                           <a href="https://play.google.com/store/apps/details?id=app.nostria.twa" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-android" onClick={(e) => e.stopPropagation()}>
-                            <Button className="w-full sm:w-auto bg-white text-[#3a1606] hover:bg-orange-50 font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-android">
+                            <Button className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
