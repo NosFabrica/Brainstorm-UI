@@ -74,6 +74,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 
@@ -170,6 +181,7 @@ export default function DashboardPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([2, 4]);
@@ -625,27 +637,69 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="w-px h-6 bg-slate-200 shrink-0" />
-                <button
-                  onClick={() => triggerGrapeRankMutation.mutate()}
-                  disabled={triggerGrapeRankMutation.isPending}
-                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
-                  data-testid="button-trigger-graperank"
-                  title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
-                >
-                  {triggerGrapeRankMutation.isPending ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                      <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </button>
+                <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      disabled={triggerGrapeRankMutation.isPending}
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+                      data-testid="button-trigger-graperank"
+                      title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
+                    >
+                      {triggerGrapeRankMutation.isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                          <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent
+                    className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
+                    data-testid="dialog-confirm-recalculate-dashboard"
+                  >
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+                      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
+                    </div>
+                    <div className="relative p-4 sm:p-5">
+                      <AlertDialogHeader className="space-y-2">
+                        <div className="flex items-start gap-3">
+                          <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
+                            <BrainLogo size={18} className="text-indigo-800" />
+                          </div>
+                          <div className="min-w-0">
+                            <AlertDialogTitle className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                              Recalculate GrapeRank?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-[12px] sm:text-[13px] text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
+                              This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
+                            </AlertDialogDescription>
+                          </div>
+                        </div>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                        <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="rounded-xl bg-indigo-800 hover:bg-indigo-900"
+                          onClick={() => {
+                            setRecalcConfirmOpen(false);
+                            triggerGrapeRankMutation.mutate();
+                          }}
+                          data-testid="button-confirm-recalculate-dashboard-continue"
+                        >
+                          Recalculate
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </div>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
 
             </div>
