@@ -439,7 +439,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   const isCalculationComplete = !!grapeRankScore || publishDone;
-  const showOnboarding = !isCalculationComplete && onboardingProgress < 100;
+  const showOnboarding = !grapeRankQuery.isLoading && !isCalculationComplete && onboardingProgress < 100;
 
   return (
     <TooltipProvider>
