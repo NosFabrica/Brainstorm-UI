@@ -614,7 +614,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-end md:self-auto transition-all duration-200"
+                className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-start transition-all duration-200"
                 data-testid="card-overall-trust-score"
               >
                 <div className="flex flex-col leading-tight min-w-0">
