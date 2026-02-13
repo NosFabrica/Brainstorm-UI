@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import PageBackground from "@/components/PageBackground";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -184,10 +185,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-settings">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-48 -right-52 h-[560px] w-[560px] rounded-full bg-indigo-500/12 blur-[120px]" />
-        <div className="absolute -bottom-56 -left-56 h-[620px] w-[620px] rounded-full bg-indigo-800/10 blur-[130px]" />
-      </div>
+      <PageBackground />
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-settings">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">

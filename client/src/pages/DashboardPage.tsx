@@ -61,7 +61,7 @@ import {
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ComputingBackground } from "@/components/ComputingBackground";
+import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
@@ -444,7 +444,7 @@ export default function DashboardPage() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
-        <ComputingBackground variant="light" />
+        <PageBackground />
 
         <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
