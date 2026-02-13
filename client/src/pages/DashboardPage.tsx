@@ -1084,35 +1084,6 @@ export default function DashboardPage() {
                       <p className="text-[10px] text-slate-400 mt-1 line-clamp-1" data-testid="text-direct-follows-label">Mutual follows in your web</p>
                     </div>
 
-                    <div className="flex -space-x-2" data-testid="row-trusted-followers-avatars">
-                      {selfQuery.isLoading ? (
-                        <>
-                          {[0, 1, 2].map((i) => (
-                            <div key={i} className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-100 border border-slate-200 shadow-sm" data-testid={`avatar-trusted-placeholder-${i}`} aria-hidden="true">
-                              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-200/70 to-white/20" />
-                            </div>
-                          ))}
-                          <div className="relative inline-flex items-center justify-center h-6 w-6 rounded-full ring-2 ring-white bg-slate-900 text-white text-[8px] font-bold shadow-sm" data-testid="avatar-trusted-more-placeholder" aria-label="More profiles hidden until computation completes">
-                            +\u2014
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          {[0, 1, 2].map((i) => (
-                            <div key={i} className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white bg-indigo-50 border border-indigo-100 shadow-sm" data-testid={`avatar-trusted-profile-${i}`} aria-hidden="true">
-                              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-200/50 to-white/20" />
-                            </div>
-                          ))}
-                          <div className="relative inline-block h-6 w-6 rounded-full ring-2 ring-white hover:scale-110 hover:z-20 transition-all duration-300 ease-out cursor-pointer shadow-sm" data-testid="avatar-trusted-more">
-                            <Avatar className="h-full w-full">
-                              <AvatarFallback className="bg-slate-900 text-white text-[8px]">
-                                +{Math.max(0, followersCount - 3)}
-                              </AvatarFallback>
-                            </Avatar>
-                          </div>
-                        </>
-                      )}
-                    </div>
                   </div>
 
                   <div className="mt-auto flex items-center justify-between pt-2">
