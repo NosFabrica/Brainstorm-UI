@@ -19,6 +19,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-13: Created ComputingBackground component (dark/light variants, CSS-only) with animated graph nodes, connection lines, floating calculation text
 - 2026-02-13: Added OnboardingPage at /onboarding with 3-step guide, ComputingBackground dark variant, sign-in and learn CTA buttons
 - 2026-02-13: Upgraded WhatIsWotPage with framer-motion animations, real avatar images (generated + stock), interactive Show vs Tell scenarios with 5 trust contexts, FAQ accordion, CTA section
+- 2026-02-13: Merged comprehensive Good UI dashboard: onboarding panel (flashlight effect, 8-slide carousel, progress tracker, queue position), GrapeRank hero card, key metrics grid (trusted followers, network alerts, extended reach with hops slider), recharts PieChart network health, educational strip, supported clients carousel (Amethyst + Nostria), keyboard shortcuts modal (E/H/?), JSON export
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -39,7 +40,7 @@ client/src/
 │   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, ComputingBackground, Footer
 │   ├── OnboardingPage.tsx    # 3-step getting started guide with ComputingBackground dark variant
 │   ├── LoginPage.tsx         # NIP-07 Nostr login with Brainstorm backend auth
-│   ├── DashboardPage.tsx     # User profile card + user data + GrapeRank result
+│   ├── DashboardPage.tsx     # Full dashboard: onboarding panel, GrapeRank hero, metrics grid, PieChart, educational strip, clients carousel, keyboard shortcuts
 │   ├── SearchPage.tsx        # Npub lookup with real API, validation, results display
 │   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
 │   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
