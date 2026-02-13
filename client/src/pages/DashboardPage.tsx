@@ -613,53 +613,68 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 self-end md:self-auto">
-                <div
-                  className="hidden sm:flex items-center gap-3 rounded-2xl bg-white/80 backdrop-blur-2xl border border-slate-300/80 shadow-[0_12px_30px_-18px_rgba(15,23,42,0.9)] px-3 py-2 min-w-[170px] justify-between transition-all duration-200"
-                  data-testid="card-overall-trust-score"
-                >
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-slate-400">Trust signals</span>
-                    {!grapeRankScore ? (
-                      <span className="text-[10px] text-slate-400" data-testid="text-overall-trust-score-sub">
-                        Calculating from your graph
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-500" data-testid="text-overall-trust-score-sub">
-                        Score: {grapeRankScore}
-                      </span>
-                    )}
-                    {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                      <span className="text-[9px] text-slate-400/80 mt-0.5" data-testid="text-trust-signals-updated">
-                        Last calculated {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
-                      </span>
-                    )}
-                  </div>
+              <button
+                onClick={() => triggerGrapeRankMutation.mutate()}
+                disabled={triggerGrapeRankMutation.isPending}
+                className="sm:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:pointer-events-none self-end"
+                data-testid="button-trigger-graperank-mobile"
+                title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
+              >
+                {triggerGrapeRankMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                    <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <div
+                className="hidden sm:flex items-center gap-3 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-end md:self-auto transition-all duration-200"
+                data-testid="card-overall-trust-score"
+              >
+                <div className="flex flex-col leading-tight min-w-0">
+                  <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
+                  {!grapeRankScore ? (
+                    <span className="text-[11px] text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
+                      Awaiting calculation
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
+                      Score: {grapeRankScore}
+                    </span>
+                  )}
+                  {grapeRankScore && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                    <span className="text-[9px] text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
+                      {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
+                    </span>
+                  )}
                 </div>
+                <div className="w-px h-6 bg-slate-200 shrink-0" />
                 <button
                   onClick={() => triggerGrapeRankMutation.mutate()}
                   disabled={triggerGrapeRankMutation.isPending}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-[#0c0e29] bg-white border border-[#0c0e29]/15 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
                   data-testid="button-trigger-graperank"
+                  title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
                 >
                   {triggerGrapeRankMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span className="hidden sm:inline">Calculating...</span>
-                    </>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                        <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span className="hidden sm:inline">Calculate</span>
-                    </>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                      <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   )}
                 </button>
               </div>
