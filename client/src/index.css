@@ -324,14 +324,59 @@
   }
 }
 
-@keyframes animate-in {
+@keyframes dialog-enter {
   from {
-    opacity: var(--tw-enter-opacity, 1);
-    transform: translateY(var(--tw-enter-translate-y, 0));
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes dialog-exit {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+}
+
+@keyframes overlay-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes overlay-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+[data-dialog-overlay][data-state="open"] {
+  animation: overlay-enter 200ms ease-out forwards;
+}
+[data-dialog-overlay][data-state="closed"] {
+  animation: overlay-exit 150ms ease-in forwards;
+}
+[data-dialog-content][data-state="open"] {
+  animation: dialog-enter 200ms ease-out forwards;
+}
+[data-dialog-content][data-state="closed"] {
+  animation: dialog-exit 150ms ease-in forwards;
+}
+
+@keyframes animate-in {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: scale(var(--tw-enter-scale, 1));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
