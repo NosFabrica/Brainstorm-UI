@@ -3,8 +3,8 @@ const floatingNodes = Array.from({ length: 14 }, (_, i) => ({
   x: 8 + Math.random() * 84,
   y: 8 + Math.random() * 84,
   size: Math.random() * 3 + 2,
-  duration: 10 + Math.random() * 8,
-  delay: i * 1.2,
+  duration: 12 + Math.random() * 10,
+  delay: 3 + i * 1.5,
 }));
 
 const connectionPairs = [
@@ -32,49 +32,49 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <style>{`
         @keyframes cbFloatNode {
           0% { transform: translateY(0) scale(0.5); opacity: 0; }
-          15% { transform: translateY(-8px) scale(1); opacity: 0.35; }
-          35% { transform: translateY(-20px) scale(1.15); opacity: 0.45; }
-          50% { transform: translateY(-28px) scale(1.2); opacity: 0.4; }
-          70% { transform: translateY(-18px) scale(1); opacity: 0.28; }
-          85% { transform: translateY(-6px) scale(0.8); opacity: 0.12; }
+          20% { transform: translateY(-8px) scale(1); opacity: 0.25; }
+          40% { transform: translateY(-18px) scale(1.1); opacity: 0.35; }
+          60% { transform: translateY(-22px) scale(1.05); opacity: 0.3; }
+          80% { transform: translateY(-10px) scale(0.9); opacity: 0.12; }
           100% { transform: translateY(0) scale(0.5); opacity: 0; }
         }
-        @keyframes cbLineDraw {
+        @keyframes cbLineFade {
           0% { stroke-dashoffset: 100%; opacity: 0; }
-          10% { opacity: 0; }
-          25% { opacity: 0.22; }
-          40% { stroke-dashoffset: 0%; opacity: 0.28; }
-          60% { stroke-dashoffset: 0%; opacity: 0.25; }
-          80% { opacity: 0.1; }
-          100% { stroke-dashoffset: -100%; opacity: 0; }
+          15% { stroke-dashoffset: 80%; opacity: 0; }
+          30% { stroke-dashoffset: 40%; opacity: 0.08; }
+          50% { stroke-dashoffset: 0%; opacity: 0.14; }
+          65% { stroke-dashoffset: 0%; opacity: 0.1; }
+          80% { stroke-dashoffset: 0%; opacity: 0.04; }
+          100% { stroke-dashoffset: 0%; opacity: 0; }
         }
         @keyframes cbCalcFade {
           0% { opacity: 0; transform: translateY(4px); }
-          20% { opacity: 0.35; transform: translateY(0); }
-          40% { opacity: 0.42; transform: translateY(-6px); }
-          60% { opacity: 0.35; transform: translateY(-10px); }
-          80% { opacity: 0.15; transform: translateY(-14px); }
-          100% { opacity: 0; transform: translateY(-18px); }
+          15% { opacity: 0; transform: translateY(3px); }
+          30% { opacity: 0.25; transform: translateY(0); }
+          50% { opacity: 0.32; transform: translateY(-5px); }
+          70% { opacity: 0.22; transform: translateY(-9px); }
+          85% { opacity: 0.08; transform: translateY(-13px); }
+          100% { opacity: 0; transform: translateY(-16px); }
         }
         @keyframes cbGlowOrb1 {
-          0%, 100% { opacity: 0.08; transform: scale(1) translateX(0); }
-          50% { opacity: 0.18; transform: scale(1.2) translateX(20px); }
+          0%, 100% { opacity: 0.06; transform: scale(1) translateX(0); }
+          50% { opacity: 0.15; transform: scale(1.2) translateX(20px); }
         }
         @keyframes cbGlowOrb2 {
-          0%, 100% { opacity: 0.06; transform: scale(1) translateY(0); }
-          50% { opacity: 0.15; transform: scale(1.3) translateY(-15px); }
+          0%, 100% { opacity: 0.05; transform: scale(1) translateY(0); }
+          50% { opacity: 0.12; transform: scale(1.3) translateY(-15px); }
         }
         @keyframes cbGlowOrb3 {
-          0%, 100% { opacity: 0.04; transform: scale(1); }
-          50% { opacity: 0.12; transform: scale(1.4); }
+          0%, 100% { opacity: 0.03; transform: scale(1); }
+          50% { opacity: 0.1; transform: scale(1.4); }
         }
       `}</style>
 
       {isDark ? (
         <>
           <div className="absolute inset-0 bg-slate-950" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/15 via-slate-950 to-slate-950" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff06_1px,transparent_1px),linear-gradient(to_bottom,#ffffff06_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
         </>
       ) : (
         <>
@@ -88,22 +88,22 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full blur-3xl"
         style={{
-          background: isDark ? 'rgba(79,70,229,0.05)' : 'rgba(79,70,229,0.03)',
-          animation: 'cbGlowOrb1 12s ease-in-out infinite',
+          background: isDark ? 'rgba(37,99,235,0.04)' : 'rgba(79,70,229,0.03)',
+          animation: 'cbGlowOrb1 14s ease-in-out infinite 2s',
         }}
       />
       <div
         className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full blur-3xl"
         style={{
-          background: isDark ? 'rgba(124,58,237,0.05)' : 'rgba(124,58,237,0.03)',
-          animation: 'cbGlowOrb2 15s ease-in-out infinite 3s',
+          background: isDark ? 'rgba(59,130,246,0.04)' : 'rgba(124,58,237,0.03)',
+          animation: 'cbGlowOrb2 18s ease-in-out infinite 5s',
         }}
       />
       <div
         className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full blur-2xl"
         style={{
-          background: isDark ? 'rgba(59,130,246,0.05)' : 'rgba(59,130,246,0.03)',
-          animation: 'cbGlowOrb3 10s ease-in-out infinite 5s',
+          background: isDark ? 'rgba(96,165,250,0.03)' : 'rgba(59,130,246,0.03)',
+          animation: 'cbGlowOrb3 12s ease-in-out infinite 8s',
         }}
       />
 
@@ -116,21 +116,23 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
             x2={`${floatingNodes[b].x}%`}
             y2={`${floatingNodes[b].y}%`}
             stroke={isDark ? `url(#cbLineGrad)` : `url(#cbLineGradLight)`}
-            strokeWidth={isDark ? "0.5" : "1.2"}
-            strokeDasharray="6 4"
+            strokeWidth={isDark ? "0.4" : "1"}
+            strokeLinecap="round"
+            strokeDasharray="1000"
             style={{
-              animation: `cbLineDraw ${10 + (i % 4) * 2}s ease-in-out infinite ${i * 1.1}s`,
+              animation: `cbLineFade ${14 + (i % 5) * 3}s ease-in-out infinite ${4 + i * 1.4}s`,
             }}
           />
         ))}
         <defs>
           <linearGradient id="cbLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#818cf8" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.55" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
+            <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.2" />
           </linearGradient>
           <linearGradient id="cbLineGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.4" />
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
           </linearGradient>
         </defs>
       </svg>
@@ -142,14 +144,14 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           style={{
             left: `${node.x}%`,
             top: `${node.y}%`,
-            width: node.size + 3,
-            height: node.size + 3,
+            width: node.size + 2,
+            height: node.size + 2,
             background: isDark
-              ? 'radial-gradient(circle, rgba(129,140,248,0.45) 0%, rgba(129,140,248,0.1) 60%, transparent 100%)'
-              : 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, rgba(99,102,241,0.08) 60%, transparent 100%)',
+              ? 'radial-gradient(circle, rgba(96,165,250,0.3) 0%, rgba(96,165,250,0.06) 60%, transparent 100%)'
+              : 'radial-gradient(circle, rgba(99,102,241,0.25) 0%, rgba(99,102,241,0.06) 60%, transparent 100%)',
             boxShadow: isDark
-              ? '0 0 5px 1px rgba(129,140,248,0.15)'
-              : '0 0 4px 1px rgba(99,102,241,0.1)',
+              ? '0 0 4px 1px rgba(96,165,250,0.08)'
+              : '0 0 4px 1px rgba(99,102,241,0.08)',
             animation: `cbFloatNode ${node.duration}s ease-in-out infinite ${node.delay}s`,
           }}
         />
@@ -159,12 +161,12 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
         <div
           key={i}
           className={`absolute text-[11px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-            isDark ? 'text-indigo-200/45' : 'text-indigo-900/30'
+            isDark ? 'text-blue-300/40' : 'text-indigo-900/25'
           }`}
           style={{
             left: `${4 + (i % 5) * 20}%`,
             top: `${8 + Math.floor(i / 5) * 45 + (i % 3) * 12}%`,
-            animation: `cbCalcFade ${8 + (i % 3) * 2}s ease-in-out infinite ${i * 1.8}s`,
+            animation: `cbCalcFade ${10 + (i % 3) * 3}s ease-in-out infinite ${5 + i * 2}s`,
           }}
         >
           {calc}
