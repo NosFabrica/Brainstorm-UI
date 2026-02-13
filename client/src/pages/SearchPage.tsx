@@ -78,12 +78,24 @@ const connectionPairs = [
 ];
 
 const decorativeText = [
-  "WOT(u) = f(G, seeds)",
-  "G = (V, E)",
-  "score = f(hops)",
-  "compute(trust)",
+  "trust_score: 0.847",
+  "npub1qd9...k7a2",
+  "hops: 3",
+  "relay: wss://nos.lol",
   "verify(sig)",
-  "relay: wss://...",
+  "WOT(u) = f(G, seeds)",
+  "muted_by: 0",
+  "followers: 142",
+  "influence: 1.0",
+  "kind: 22242",
+  "relay: wss://damus.io",
+  "G = (V, E, W)",
+  "score = f(hops)",
+  "compute(graperank)",
+  "npub1z8f...m4c9",
+  "following: 87",
+  "attenuation: 0.5",
+  "rigor: 0.25",
 ];
 
 function estimateSearchLineLength(a: number, b: number): number {
@@ -269,20 +281,30 @@ export default function SearchPage() {
           />
         ))}
 
-        {decorativeText.map((calc, i) => (
-          <div
-            key={i}
-            className="absolute text-xs font-mono text-indigo-400/30 select-none hidden md:block"
-            style={{
-              left: `${6 + (i % 3) * 32}%`,
-              top: `${18 + Math.floor(i / 3) * 40}%`,
-              opacity: 0,
-              animation: `searchCalcFloat 8s ease-in-out ${i * 2.5 + 3}s infinite`,
-            }}
-          >
-            {calc}
-          </div>
-        ))}
+      </div>
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[5]">
+        {decorativeText.map((text, i) => {
+          const col = i % 4;
+          const row = Math.floor(i / 4);
+          const left = 3 + col * 24 + ((row % 2) * 10);
+          const top = 80 + row * 220;
+          return (
+            <div
+              key={i}
+              className="absolute text-[11px] font-mono text-indigo-400/50 select-none whitespace-nowrap"
+              style={{
+                left: `${left}%`,
+                top: `${top}px`,
+                opacity: 0,
+                animation: `searchCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
+              }}
+              data-testid={`text-search-bg-decorative-${i}`}
+            >
+              {text}
+            </div>
+          );
+        })}
       </div>
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
@@ -907,7 +929,7 @@ export default function SearchPage() {
         }
         @keyframes searchCalcFloat {
           0%, 100% { opacity: 0; transform: translateY(0); }
-          30%, 70% { opacity: 0.25; transform: translateY(-8px); }
+          20%, 80% { opacity: 0.45; transform: translateY(-6px); }
         }
         @keyframes searchScanLine {
           0% { left: 0%; }
