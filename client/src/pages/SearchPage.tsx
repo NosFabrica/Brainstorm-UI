@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -92,6 +92,34 @@ const ReportingIcon = ({ className }: { className?: string }) => (
     <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M12 11v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
+  </svg>
+);
+
+const MutualIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="16" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M2 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M10 19c0-3 2.5-5.5 6-5.5s6 2.5 6 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
+    <path d="M10 14l2-1.5 2 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.5" />
+  </svg>
+);
+
+const SharedConnectionIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <circle cx="6" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+    <circle cx="18" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M8.5 12h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="12" cy="12" r="1" fill="currentColor" fillOpacity="0.4" />
+    <path d="M6 9.5V6a2 2 0 012-2h8a2 2 0 012 2v3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4" />
+    <path d="M6 14.5V18a2 2 0 002 2h8a2 2 0 002-2v-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.4" />
+  </svg>
+);
+
+const TrustShieldIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08" />
+    <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -199,6 +227,8 @@ export default function SearchPage() {
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
+  const [selfData, setSelfData] = useState<any>(null);
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
   const expandProfileCache = useRef<Map<string, any>>(new Map());
@@ -228,6 +258,14 @@ export default function SearchPage() {
       setCameFromNetwork(true);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (user) {
+      apiClient.getSelf().then(res => {
+        if (res?.data) setSelfData(res.data);
+      }).catch(() => {});
+    }
+  }, [user]);
 
   const smoothScrollTo = useCallback((el: HTMLElement, duration = 600, offset = -16) => {
     const targetY = el.getBoundingClientRect().top + window.scrollY + offset;
@@ -327,12 +365,20 @@ export default function SearchPage() {
     }
   };
 
+  const mutualPubkeys = useMemo(() => {
+    if (!profileResult) return [];
+    const followedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
+    const following = Array.isArray(profileResult.following) ? profileResult.following : [];
+    const followingSet = new Set(following);
+    return followedBy.filter((pk: string) => followingSet.has(pk));
+  }, [profileResult]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
       if (!prev[key]) {
         setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-        const pubkeys = Array.isArray(profileResult?.[key]) ? profileResult[key] : [];
+        const pubkeys = key === "mutual" ? mutualPubkeys : (Array.isArray(profileResult?.[key]) ? profileResult[key] : []);
         if (pubkeys.length > 0) {
           fetchSectionProfiles(key, pubkeys);
         }
@@ -351,13 +397,21 @@ export default function SearchPage() {
     const groupDefs: { key: string; label: string; colors: string }[] = [
       { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
       { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
+      { key: "mutual", label: "Mutual", colors: "bg-teal-50 text-teal-500 border-teal-100" },
       { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
       { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
     ];
     if (!profileResult) return [];
-    return groupDefs.filter(g => Array.isArray(profileResult[g.key]) && profileResult[g.key].includes(pk));
+    return groupDefs.filter(g => {
+      if (g.key === "mutual") {
+        const fb = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
+        const fg = Array.isArray(profileResult.following) ? profileResult.following : [];
+        return fb.includes(pk) && fg.includes(pk);
+      }
+      return Array.isArray(profileResult[g.key]) && profileResult[g.key].includes(pk);
+    });
   };
 
   const drillDownRef = useRef<string | null>(null);
@@ -388,6 +442,7 @@ export default function SearchPage() {
   const sectionBorderColors: Record<string, string> = {
     followed_by: "border-blue-300",
     following: "border-blue-300",
+    mutual: "border-teal-300",
     muted_by: "border-amber-300",
     reported_by: "border-red-300",
     muting: "border-amber-200",
@@ -1397,6 +1452,20 @@ export default function SearchPage() {
                                 {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                               </button>
                             </div>
+                            {(() => {
+                              const followers = Array.isArray(profileResult.followed_by) ? profileResult.followed_by.length : (profileResult.followed_by || 0);
+                              const mutedBy = Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : (profileResult.muted_by || 0);
+                              const denom = followers + mutedBy;
+                              const trustRatio = denom > 0 ? (followers / denom) * 100 : 100;
+                              const trustColor = trustRatio > 90 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : trustRatio >= 50 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-red-700 bg-red-50 border-red-200";
+                              const iconColor = trustRatio > 90 ? "text-emerald-500" : trustRatio >= 50 ? "text-amber-500" : "text-red-500";
+                              return (
+                                <Badge variant="outline" className={`mt-2 text-[10px] font-semibold no-default-hover-elevate no-default-active-elevate ${trustColor}`} data-testid="badge-trust-ratio">
+                                  <TrustShieldIcon className={`h-3 w-3 mr-1 ${iconColor}`} />
+                                  Trust Ratio: {trustRatio.toFixed(1)}%
+                                </Badge>
+                              );
+                            })()}
                           </div>
                           {profileResult.influence !== undefined && (() => {
                             const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
@@ -1446,6 +1515,44 @@ export default function SearchPage() {
                         )}
                       </div>
                     )}
+
+                    {(() => {
+                      if (!selfData || !profileResult) return null;
+                      const selfFollowedBy = Array.isArray(selfData.followed_by) ? selfData.followed_by : [];
+                      const selfFollowing = Array.isArray(selfData.following) ? selfData.following : [];
+                      const selfNetwork = new Set([...selfFollowedBy, ...selfFollowing]);
+                      const searchedFollowedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
+                      const searchedFollowing = Array.isArray(profileResult.following) ? profileResult.following : [];
+                      const searchedNetwork = new Set([...searchedFollowedBy, ...searchedFollowing]);
+                      const sharedAll = Array.from(searchedNetwork).filter(pk => selfNetwork.has(pk));
+                      const sharedCount = sharedAll.length;
+                      const selfFollowedBySet = new Set(selfFollowedBy);
+                      const selfFollowingSet = new Set(selfFollowing);
+                      const mutualFollowers = searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk)).length;
+                      const mutualFollowing = searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk)).length;
+
+                      return (
+                        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3" data-testid="banner-shared-connections">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 mt-0.5">
+                            <SharedConnectionIcon className="h-4 w-4 text-indigo-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {sharedCount > 0 ? (
+                              <>
+                                <p className="text-[12px] font-semibold text-indigo-900">
+                                  You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
+                                </p>
+                                <p className="text-[10px] text-indigo-600/70 mt-0.5">
+                                  {mutualFollowers.toLocaleString()} mutual follower{mutualFollowers !== 1 ? "s" : ""} · {mutualFollowing.toLocaleString()} mutual following
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-[12px] text-slate-400 font-medium">No shared connections</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
                       const mutedByCount = Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : (profileResult.muted_by || 0);
@@ -1527,6 +1634,37 @@ export default function SearchPage() {
                                   </div>
                                 </div>
                                 {fgExpandable && renderExpandedPanel("following", profileResult.following)}
+                              </div>
+                              );
+                            })()}
+                            {(() => {
+                              const mtCount = mutualPubkeys.length;
+                              const mtExpandable = mtCount > 0;
+                              if (!Array.isArray(profileResult.followed_by) || !Array.isArray(profileResult.following)) return null;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
+                                  data-testid="metric-search-mutual"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
+                                      <MutualIcon className="h-4 w-4 text-teal-500" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Mutual</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Follow each other mutually</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-mutual">
+                                      {mtCount.toLocaleString()}
+                                    </p>
+                                    {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["mutual"] ? "rotate-180" : ""}`} />}
+                                  </div>
+                                </div>
+                                {mtExpandable && renderExpandedPanel("mutual", mutualPubkeys)}
                               </div>
                               );
                             })()}
