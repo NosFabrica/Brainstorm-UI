@@ -31,6 +31,7 @@ import {
   X,
   Info,
   BookOpen,
+  Users,
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { Footer } from "@/components/Footer";
@@ -249,6 +250,16 @@ export default function SettingsPage() {
                   <Search className="h-4 w-4" />
                   Search
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  onClick={() => navigate("/network")}
+                  data-testid="button-nav-network"
+                >
+                  <Users className="h-4 w-4" />
+                  Network
+                </Button>
               </div>
             </div>
 
@@ -337,6 +348,7 @@ export default function SettingsPage() {
                 {[
                   { path: "/dashboard", label: "Dashboard", icon: Home },
                   { path: "/search", label: "Search", icon: Search },
+                  { path: "/network", label: "Network", icon: Users },
                   { path: "/settings", label: "Settings", icon: SettingsIcon },
                   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
                 ].map((item) => {
