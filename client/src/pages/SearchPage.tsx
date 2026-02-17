@@ -15,6 +15,7 @@ import {
   Settings as SettingsIcon,
   BookOpen,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -198,6 +199,12 @@ export default function SearchPage() {
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
+  const expandProfileCache = useRef<Map<string, any>>(new Map());
+  const expandTrustCache = useRef<Map<string, number | null>>(new Map());
+  const [forceRender, setForceRender] = useState(0);
+
   const resultPanelRef = useRef<HTMLDivElement>(null);
   const processingPanelRef = useRef<HTMLDivElement>(null);
   const autoSearchTriggered = useRef(false);
@@ -281,6 +288,206 @@ export default function SearchPage() {
     });
   };
 
+  const fetchAbortRef = useRef<number>(0);
+
+  const fetchSectionProfiles = async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
+    const fetchId = ++fetchAbortRef.current;
+    const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
+      pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk)
+    );
+    const concurrency = 5;
+    for (let i = 0; i < toFetch.length; i += concurrency) {
+      if (fetchAbortRef.current !== fetchId) return;
+      const batch = toFetch.slice(i, i + concurrency);
+      await Promise.allSettled(batch.map(async (pk) => {
+        if (!expandProfileCache.current.has(pk)) {
+          try {
+            const resp = await fetch(`/api/profile/${pk}`);
+            const data = await resp.json();
+            if (data?.event?.content) {
+              expandProfileCache.current.set(pk, JSON.parse(data.event.content));
+            } else {
+              expandProfileCache.current.set(pk, {});
+            }
+          } catch {
+            expandProfileCache.current.set(pk, {});
+          }
+        }
+        if (!expandTrustCache.current.has(pk)) {
+          try {
+            const resp = await apiClient.getUserByPubkey(pk);
+            expandTrustCache.current.set(pk, resp?.data?.influence ?? null);
+          } catch {
+            expandTrustCache.current.set(pk, null);
+          }
+        }
+      }));
+      if (fetchAbortRef.current !== fetchId) return;
+      setForceRender(c => c + 1);
+    }
+  };
+
+  const toggleSection = (key: string) => {
+    setExpandedSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (!prev[key]) {
+        setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
+        const pubkeys = Array.isArray(profileResult?.[key]) ? profileResult[key] : [];
+        if (pubkeys.length > 0) {
+          fetchSectionProfiles(key, pubkeys);
+        }
+      } else {
+        setSectionVisibleCount(vc => {
+          const copy = { ...vc };
+          delete copy[key];
+          return copy;
+        });
+      }
+      return next;
+    });
+  };
+
+  const getGroupsForPubkey = (pk: string): { key: string; label: string; colors: string }[] => {
+    const groupDefs: { key: string; label: string; colors: string }[] = [
+      { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
+      { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
+      { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
+      { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
+      { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
+      { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
+    ];
+    if (!profileResult) return [];
+    return groupDefs.filter(g => Array.isArray(profileResult[g.key]) && profileResult[g.key].includes(pk));
+  };
+
+  const drillDownRef = useRef<string | null>(null);
+
+  const drillDown = (pk: string) => {
+    const targetNpub = nip19.npubEncode(pk);
+    fetchAbortRef.current++;
+    setExpandedSections({});
+    setSectionVisibleCount({});
+    setProfileResult(null);
+    setNostrProfile(null);
+    setHasSearched(false);
+    setSearchError(null);
+    expandProfileCache.current.clear();
+    expandTrustCache.current.clear();
+    setActiveTab("npub");
+    setNpub(targetNpub);
+    drillDownRef.current = targetNpub;
+  };
+
+  useEffect(() => {
+    if (drillDownRef.current && npub === drillDownRef.current) {
+      drillDownRef.current = null;
+      handleSearch();
+    }
+  }, [npub]);
+
+  const sectionBorderColors: Record<string, string> = {
+    followed_by: "border-blue-300",
+    following: "border-blue-300",
+    muted_by: "border-amber-300",
+    reported_by: "border-red-300",
+    muting: "border-amber-200",
+    reporting: "border-slate-300",
+  };
+
+  const renderExpandedPanel = (key: string, pubkeys: string[]) => {
+    const isExpanded = expandedSections[key];
+    if (!isExpanded || pubkeys.length === 0) return null;
+    const visibleCount = sectionVisibleCount[key] || 10;
+    const visiblePubkeys = pubkeys.slice(0, visibleCount);
+    const borderColor = sectionBorderColors[key] || "border-slate-300";
+
+    return (
+      <div className="border-t border-slate-100 bg-slate-50/50">
+        <div className={`border-l-2 ${borderColor} ml-4`}>
+          {visiblePubkeys.map(pk => {
+            const profile = expandProfileCache.current.get(pk);
+            const trustScore = expandTrustCache.current.get(pk);
+            const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
+            const overlappingGroups = getGroupsForPubkey(pk).filter(g => g.key !== key);
+
+            const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
+            const circ = 2 * Math.PI * 18;
+            const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
+            const ringColor = trustPct !== null ? (trustPct >= 80 ? "text-indigo-500" : trustPct >= 50 ? "text-indigo-400" : trustPct >= 25 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
+
+            if (profile === undefined) {
+              return (
+                <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
+                  <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-2 w-16 bg-slate-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={pk}
+                className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 cursor-pointer transition-colors"
+                onClick={() => drillDown(pk)}
+                data-testid={`expand-profile-${pk.slice(0,8)}`}
+              >
+                <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
+                  {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
+                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                    {displayName.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
+                  {profile?.nip05 && <p className="text-[10px] text-indigo-500 truncate">{profile.nip05}</p>}
+                </div>
+                {overlappingGroups.length > 0 && (
+                  <div className="flex gap-1 flex-wrap">
+                    {overlappingGroups.map(g => (
+                      <Badge key={g.key} variant="outline" className={`text-[8px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
+                    ))}
+                  </div>
+                )}
+                {trustScore !== undefined && trustScore !== null && (
+                  <div className="w-6 h-6 relative shrink-0">
+                    <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
+                      <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100" />
+                      <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
+                        className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-indigo-700">{trustPct}</span>
+                  </div>
+                )}
+                {trustScore === undefined && (
+                  <Loader2 className="h-3 w-3 text-indigo-300 animate-spin shrink-0" />
+                )}
+              </div>
+            );
+          })}
+          {pubkeys.length > visibleCount && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                const newCount = (sectionVisibleCount[key] || 10) + 10;
+                setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
+                fetchSectionProfiles(key, pubkeys, visibleCount, 10);
+              }}
+              className="w-full text-[11px] font-medium text-indigo-600"
+              data-testid={`button-show-more-${key}`}
+            >
+              Show {Math.min(10, pubkeys.length - visibleCount)} more ({pubkeys.length - visibleCount} remaining)
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const isLikelyNpub = (value: string) =>
     /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());
 
@@ -323,6 +530,11 @@ export default function SearchPage() {
     setProfileResult(null);
     setNostrProfile(null);
     setAboutExpanded(false);
+    setExpandedSections({});
+    setSectionVisibleCount({});
+    fetchAbortRef.current++;
+    expandProfileCache.current.clear();
+    expandTrustCache.current.clear();
 
     if (!q) {
       setSearchError({
@@ -1256,38 +1468,68 @@ export default function SearchPage() {
                             <span className="text-[10px] text-slate-400 font-mono">Network Position</span>
                           </div>
                           <div className="divide-y divide-slate-100">
-                            {profileResult.followed_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-followers">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                    <FollowersIcon className="h-4 w-4 text-blue-500" />
+                            {profileResult.followed_by !== undefined && (() => {
+                              const fbIsArray = Array.isArray(profileResult.followed_by);
+                              const fbCount = fbIsArray ? profileResult.followed_by.length : (profileResult.followed_by || 0);
+                              const fbExpandable = fbIsArray && fbCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${fbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
+                                  data-testid="metric-search-followers"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                      <FollowersIcon className="h-4 w-4 text-blue-500" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Followers</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">People following this account</p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Followers</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">People following this account</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-followers">
+                                      {fbCount.toLocaleString()}
+                                    </p>
+                                    {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-followers">
-                                  {Array.isArray(profileResult.followed_by) ? profileResult.followed_by.length.toLocaleString() : profileResult.followed_by}
-                                </p>
+                                {fbExpandable && renderExpandedPanel("followed_by", profileResult.followed_by)}
                               </div>
-                            )}
-                            {profileResult.following !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group" data-testid="metric-search-following">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                    <FollowingIcon className="h-4 w-4 text-blue-500" />
+                              );
+                            })()}
+                            {profileResult.following !== undefined && (() => {
+                              const fgIsArray = Array.isArray(profileResult.following);
+                              const fgCount = fgIsArray ? profileResult.following.length : (profileResult.following || 0);
+                              const fgExpandable = fgIsArray && fgCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${fgExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  onClick={fgExpandable ? () => toggleSection("following") : undefined}
+                                  data-testid="metric-search-following"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                      <FollowingIcon className="h-4 w-4 text-blue-500" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Following</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Accounts this person follows</p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Following</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Accounts this person follows</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-following">
+                                      {fgCount.toLocaleString()}
+                                    </p>
+                                    {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-following">
-                                  {Array.isArray(profileResult.following) ? profileResult.following.length.toLocaleString() : profileResult.following}
-                                </p>
+                                {fgExpandable && renderExpandedPanel("following", profileResult.following)}
                               </div>
-                            )}
+                              );
+                            })()}
                             {profileResult.influence !== undefined && (
                               <div className="flex items-center justify-between px-4 py-3.5 max-w-md group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
                                 <div className="flex items-center gap-3">
@@ -1321,70 +1563,128 @@ export default function SearchPage() {
                             <span className={`text-[10px] font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
                           </div>
                           <div className="divide-y divide-slate-100">
-                            {profileResult.muted_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A soft negative signal. Muting means someone chose to hide this account's content from their feed." data-testid="metric-search-muted-by">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
-                                    <MutedByIcon className={`h-4 w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                            {profileResult.muted_by !== undefined && (() => {
+                              const mbIsArray = Array.isArray(profileResult.muted_by);
+                              const mbExpandable = mbIsArray && mutedByCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${mbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                                  title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
+                                  onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
+                                  data-testid="metric-search-muted-by"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
+                                      <MutedByIcon className={`h-4 w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Muted By</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Others who muted this account</p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Muted By</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Others who muted this account</p>
-                                  </div>
-                                </div>
-                                <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-search-result-muted-by">
-                                  {mutedByCount.toLocaleString()}
-                                </p>
-                              </div>
-                            )}
-                            {profileResult.reported_by !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md cursor-help" title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior." data-testid="metric-search-reported-by">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
-                                    <ReportedByIcon className={`h-4 w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
-                                  </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Reported By</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Reports filed against this account</p>
-                                  </div>
-                                </div>
-                                <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-search-result-reported-by">
-                                  {reportedByCount.toLocaleString()}
-                                </p>
-                              </div>
-                            )}
-                            {profileResult.muting !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-muting">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                    <MutingIcon className="h-4 w-4 text-slate-400" />
-                                  </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Muting</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Accounts this person has muted</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-search-result-muted-by">
+                                      {mutedByCount.toLocaleString()}
+                                    </p>
+                                    {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-muting">
-                                  {mutingCount.toLocaleString()}
-                                </p>
+                                {mbExpandable && renderExpandedPanel("muted_by", profileResult.muted_by)}
                               </div>
-                            )}
-                            {profileResult.reporting !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md" data-testid="metric-search-reporting">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                    <ReportingIcon className="h-4 w-4 text-slate-400" />
+                              );
+                            })()}
+                            {profileResult.reported_by !== undefined && (() => {
+                              const rbIsArray = Array.isArray(profileResult.reported_by);
+                              const rbExpandable = rbIsArray && reportedByCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${rbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                                  title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
+                                  onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
+                                  data-testid="metric-search-reported-by"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
+                                      <ReportedByIcon className={`h-4 w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Reported By</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Reports filed against this account</p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Reporting</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Reports filed by this person</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-search-result-reported-by">
+                                      {reportedByCount.toLocaleString()}
+                                    </p>
+                                    {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-reporting">
-                                  {reportingCount.toLocaleString()}
-                                </p>
+                                {rbExpandable && renderExpandedPanel("reported_by", profileResult.reported_by)}
                               </div>
-                            )}
+                              );
+                            })()}
+                            {profileResult.muting !== undefined && (() => {
+                              const mtIsArray = Array.isArray(profileResult.muting);
+                              const mtExpandable = mtIsArray && mutingCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  onClick={mtExpandable ? () => toggleSection("muting") : undefined}
+                                  data-testid="metric-search-muting"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                      <MutingIcon className="h-4 w-4 text-slate-400" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Muting</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Accounts this person has muted</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-muting">
+                                      {mutingCount.toLocaleString()}
+                                    </p>
+                                    {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
+                                  </div>
+                                </div>
+                                {mtExpandable && renderExpandedPanel("muting", profileResult.muting)}
+                              </div>
+                              );
+                            })()}
+                            {profileResult.reporting !== undefined && (() => {
+                              const rpIsArray = Array.isArray(profileResult.reporting);
+                              const rpExpandable = rpIsArray && reportingCount > 0;
+                              return (
+                              <div>
+                                <div
+                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${rpExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
+                                  data-testid="metric-search-reporting"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                      <ReportingIcon className="h-4 w-4 text-slate-400" />
+                                    </div>
+                                    <div>
+                                      <p className="text-[12px] font-semibold text-slate-700">Reporting</p>
+                                      <p className="text-[10px] text-slate-400 leading-tight">Reports filed by this person</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-reporting">
+                                      {reportingCount.toLocaleString()}
+                                    </p>
+                                    {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
+                                  </div>
+                                </div>
+                                {rpExpandable && renderExpandedPanel("reporting", profileResult.reporting)}
+                              </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
