@@ -888,7 +888,7 @@ export default function NetworkPage() {
                     return {
                       label: "Low confidence",
                       color: "text-slate-500",
-                      message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals — approach with caution.`,
+                      message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.`,
                     };
                   }
                   return {
