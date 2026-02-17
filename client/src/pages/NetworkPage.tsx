@@ -874,27 +874,27 @@ export default function NetworkPage() {
                     return {
                       label: "High confidence",
                       color: "text-emerald-600",
-                      message: `Your trusted community indicates with ${pct}% confidence that ${name} is likely a genuine participant, based on follows, mutes, and reports.`,
+                      message: `${pct}% confidence that ${name} is a genuine participant, based on your trusted community's follows, mutes, and reports.`,
                     };
                   }
                   if (pct >= 50) {
                     return {
                       label: "Moderate confidence",
                       color: "text-indigo-600",
-                      message: `${pct}% verification confidence. Your network has limited signals about ${name}. Consider reviewing their activity before engaging closely.`,
+                      message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.`,
                     };
                   }
                   if (pct >= 25) {
                     return {
                       label: "Low confidence",
                       color: "text-slate-500",
-                      message: `Only ${pct}% confidence. Your trusted community has weak or mixed signals about ${name}. Approach interactions with caution.`,
+                      message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals — approach with caution.`,
                     };
                   }
                   return {
                     label: "Very low confidence",
                     color: "text-amber-600",
-                    message: `${pct}% confidence. Your network's follows, mutes, and reports suggest ${name} may warrant careful scrutiny before trusting.`,
+                    message: `${pct}% confidence that ${name} is a genuine participant. Your community's signals suggest careful scrutiny before trusting.`,
                   };
                 };
 
@@ -941,7 +941,6 @@ export default function NetworkPage() {
                             <span className={`text-[10px] font-semibold ${guidance.color}`}>{guidance.label}</span>
                           </div>
                           <p className="text-[10px] leading-relaxed text-slate-600">{guidance.message}</p>
-                          <p className="text-[9px] text-slate-400 border-t border-slate-100 pt-1">A score above 2 indicates a verified user. Based on your extended trusted community's follows, mutes, and reports.</p>
                         </div>
                       </TooltipContent>
                     </UITooltip>
