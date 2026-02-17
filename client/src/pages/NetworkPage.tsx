@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { Footer } from "@/components/Footer";
@@ -164,6 +165,7 @@ export default function NetworkPage() {
     return params.get("view") === "list" ? "list" : "grid";
   });
   const [currentPage, setCurrentPage] = useState(1);
+  const [verifiedOnly, setVerifiedOnly] = useState(true);
   const PAGE_SIZE = 24;
 
   const profileCache = useRef<Map<string, any>>(new Map());
@@ -263,12 +265,29 @@ export default function NetworkPage() {
     return memberOf;
   }, [networkData]);
 
+  const isVerifiableGroup = (key: GroupKey) => key === "muted_by" || key === "reported_by";
+
+  const getVerifiedPubkeys = useCallback((key: GroupKey): string[] => {
+    const all = getGroupPubkeys(key);
+    if (!isVerifiableGroup(key)) return all;
+    const TA_THRESHOLD = 0.01;
+    return all.filter(pk => {
+      const score = trustCache.current.get(pk);
+      return typeof score === "number" && score >= TA_THRESHOLD;
+    });
+  }, [getGroupPubkeys, trustLoadedCount]);
+
   const getGroupCount = useCallback((key: GroupKey): number => {
+    if (verifiedOnly && isVerifiableGroup(key)) {
+      return getVerifiedPubkeys(key).length;
+    }
     return getGroupPubkeys(key).length;
-  }, [getGroupPubkeys]);
+  }, [getGroupPubkeys, getVerifiedPubkeys, verifiedOnly]);
 
   const filteredPubkeys = useCallback(() => {
-    let pubkeys = getGroupPubkeys(activeGroup);
+    let pubkeys = verifiedOnly && isVerifiableGroup(activeGroup)
+      ? getVerifiedPubkeys(activeGroup)
+      : getGroupPubkeys(activeGroup);
     if (searchFilter.trim()) {
       const query = searchFilter.trim().toLowerCase();
       pubkeys = pubkeys.filter(pk => {
@@ -308,7 +327,20 @@ export default function NetworkPage() {
       }
     }
     return pubkeys;
-  }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, loadedCount, trustLoadedCount]);
+  }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, getVerifiedPubkeys, verifiedOnly, loadedCount, trustLoadedCount]);
+
+  useEffect(() => {
+    if (!verifiedOnly) return;
+    const mutedBy = getGroupPubkeys("muted_by");
+    const reportedBy = getGroupPubkeys("reported_by");
+    const allPksSet = new Set<string>();
+    mutedBy.forEach(pk => allPksSet.add(pk));
+    reportedBy.forEach(pk => allPksSet.add(pk));
+    const allPks = Array.from(allPksSet);
+    if (allPks.length > 0) {
+      fetchTrustScores(allPks);
+    }
+  }, [networkData, verifiedOnly, getGroupPubkeys, fetchTrustScores]);
 
   useEffect(() => {
     const pubkeys = getGroupPubkeys(activeGroup);
@@ -737,9 +769,22 @@ export default function NetworkPage() {
                     <CardDescription className="text-slate-500 text-[10px] font-medium uppercase tracking-wide">Social Graph</CardDescription>
                   </div>
                 </div>
-                <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
-                  <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
-                  <span>NOSTR</span>
+                <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                  <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="toggle-verified-only">
+                    <Switch
+                      checked={verifiedOnly}
+                      onCheckedChange={(checked) => { setVerifiedOnly(checked); setCurrentPage(1); }}
+                      className="data-[state=checked]:bg-indigo-600"
+                      data-testid="switch-verified-only"
+                    />
+                    <span className={`text-[11px] font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
+                      Verified
+                    </span>
+                  </label>
+                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
+                    <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                    <span>NOSTR</span>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -748,7 +793,9 @@ export default function NetworkPage() {
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin" data-testid="row-group-filters">
                 {groups.map((group) => {
                   const count = getGroupCount(group.key);
+                  const totalCount = getGroupPubkeys(group.key).length;
                   const isActive = activeGroup === group.key;
+                  const showVerifiedLabel = verifiedOnly && isVerifiableGroup(group.key);
                   return (
                     <button
                       key={group.key}
@@ -768,7 +815,7 @@ export default function NetworkPage() {
                           ? "bg-white/20 text-white"
                           : `${group.bgColor} ${group.color} ${group.borderColor} border`
                       }`}>
-                        {count}
+                        {showVerifiedLabel ? `${count} / ${totalCount}` : count}
                       </span>
                     </button>
                   );
