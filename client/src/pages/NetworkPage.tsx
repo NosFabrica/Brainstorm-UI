@@ -32,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { Footer } from "@/components/Footer";
@@ -868,6 +869,35 @@ export default function NetworkPage() {
                 const startIdx = (safePage - 1) * PAGE_SIZE;
                 const pageItems = visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE);
 
+                const getVerificationGuidance = (pct: number, name: string) => {
+                  if (pct >= 80) {
+                    return {
+                      label: "High confidence",
+                      color: "text-emerald-600",
+                      message: `Your trusted community indicates with ${pct}% confidence that ${name} is likely a genuine participant, based on follows, mutes, and reports.`,
+                    };
+                  }
+                  if (pct >= 50) {
+                    return {
+                      label: "Moderate confidence",
+                      color: "text-indigo-600",
+                      message: `${pct}% verification confidence. Your network has limited signals about ${name}. Consider reviewing their activity before engaging closely.`,
+                    };
+                  }
+                  if (pct >= 25) {
+                    return {
+                      label: "Low confidence",
+                      color: "text-slate-500",
+                      message: `Only ${pct}% confidence. Your trusted community has weak or mixed signals about ${name}. Approach interactions with caution.`,
+                    };
+                  }
+                  return {
+                    label: "Very low confidence",
+                    color: "text-amber-600",
+                    message: `${pct}% confidence. Your network's follows, mutes, and reports suggest ${name} may warrant careful scrutiny before trusting.`,
+                  };
+                };
+
                 const renderTrustBadge = (pk: string, compact: boolean = false) => {
                   const rawInfluence = trustCache.current.get(pk);
                   if (rawInfluence === undefined) {
@@ -887,17 +917,34 @@ export default function NetworkPage() {
                   const offset = circumference - (score * circumference);
                   const size = compact ? "w-7 h-7" : "w-9 h-9";
                   const textSize = compact ? "text-[8px]" : "text-[10px]";
+                  const profile = profileCache.current.get(pk);
+                  const displayName = profile?.display_name || profile?.name || "this user";
+                  const guidance = getVerificationGuidance(pct, displayName);
                   return (
-                    <div className="flex flex-col items-center shrink-0" data-testid={`badge-trust-${pk.slice(0, 8)}`}>
-                      <div className={`relative ${size} flex items-center justify-center`}>
-                        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="3" className="text-indigo-100" />
-                          <circle cx="22" cy="22" r="18" fill="none" strokeWidth="3" strokeLinecap="round"
-                            className={ringColor} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 0.8s ease-out" }} />
-                        </svg>
-                        <span className={`${textSize} font-bold font-mono tabular-nums text-indigo-700`}>{pct}</span>
-                      </div>
-                    </div>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex flex-col items-center shrink-0 cursor-help" data-testid={`badge-trust-${pk.slice(0, 8)}`}>
+                          <div className={`relative ${size} flex items-center justify-center`}>
+                            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="3" className="text-indigo-100" />
+                              <circle cx="22" cy="22" r="18" fill="none" strokeWidth="3" strokeLinecap="round"
+                                className={ringColor} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 0.8s ease-out" }} />
+                            </svg>
+                            <span className={`${textSize} font-bold font-mono tabular-nums text-indigo-700`}>{pct}</span>
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-3 max-w-[260px]" data-testid={`tooltip-trust-${pk.slice(0, 8)}`}>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-xs text-slate-900">Verification Score</p>
+                            <span className={`text-[10px] font-semibold ${guidance.color}`}>{guidance.label}</span>
+                          </div>
+                          <p className="text-[10px] leading-relaxed text-slate-600">{guidance.message}</p>
+                          <p className="text-[9px] text-slate-400 border-t border-slate-100 pt-1">A score above 2 indicates a verified user. Based on your extended trusted community's follows, mutes, and reports.</p>
+                        </div>
+                      </TooltipContent>
+                    </UITooltip>
                   );
                 };
 
