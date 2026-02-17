@@ -14,6 +14,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-12: Replaced LoginPage with polished dark-theme glass-card design (brain SVG logo, gradient text, CSS animations, no framer-motion)
 - 2026-02-12: Replaced DashboardPage with polished prototype-inspired design (dark nav bar, avatar dropdown, gradient stat cards, social graph grid, GrapeRank panel with status fields)
 - 2026-02-13: Added SearchPage with npub lookup, real API integration (getUserByPubkey), input validation, loading/error/result states, mobile nav drawer, CSS-only animations
+- 2026-02-17: Enhanced SearchPage to accept hex pubkeys (64-char hex) and NIP-05 handles (name@domain.com or domain.com) in addition to npub. Added /api/nip05 proxy route for CORS-safe NIP-05 resolution
 - 2026-02-13: Added What is WoT? educational page with dark theme, mode toggle (Why/How), trust node visualization, interactive parameter tuning, Show vs Tell scenarios, use cases, FAQ accordion, and CTA section
 - 2026-02-13: Added Landing page at / with hero section, Footer component, CSS-only animations (no framer-motion), moved LoginPage to /login
 - 2026-02-13: Created ComputingBackground component (dark/light variants, CSS-only) with animated graph nodes, connection lines, floating calculation text

@@ -139,6 +139,31 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/nip05", async (req, res) => {
+    const { name, domain } = req.query;
+    if (!name || !domain || typeof name !== "string" || typeof domain !== "string") {
+      return res.status(400).json({ error: "Missing name or domain" });
+    }
+    if (!/^[a-zA-Z0-9._-]+$/.test(name) || !/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
+      return res.status(400).json({ error: "Invalid name or domain format" });
+    }
+    try {
+      const url = `https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) {
+        return res.status(404).json({ error: "NIP-05 lookup failed" });
+      }
+      const data = await resp.json();
+      const pubkey = data?.names?.[name] || data?.names?.[name.toLowerCase()];
+      if (!pubkey || !/^[0-9a-f]{64}$/i.test(pubkey)) {
+        return res.status(404).json({ error: "Handle not found" });
+      }
+      return res.json({ pubkey });
+    } catch {
+      return res.status(502).json({ error: "Could not resolve NIP-05 handle" });
+    }
+  });
+
   const BRAINSTORM_API = 'https://brainstormserver.nosfabrica.com';
 
   app.get("/api/auth/challenge/:pubkey", async (req, res) => {

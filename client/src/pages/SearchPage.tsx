@@ -284,6 +284,37 @@ export default function SearchPage() {
   const isLikelyNpub = (value: string) =>
     /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());
 
+  const isHexPubkey = (value: string) =>
+    /^[0-9a-f]{64}$/i.test(value.trim());
+
+  const isNip05Handle = (value: string) => {
+    const v = value.trim();
+    if (v.includes("@")) {
+      const parts = v.split("@");
+      return parts.length === 2 && parts[0].length > 0 && /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(parts[1]);
+    }
+    return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(v);
+  };
+
+  const resolveNip05 = async (handle: string): Promise<string> => {
+    const trimmed = handle.trim();
+    let name: string;
+    let domain: string;
+    if (trimmed.includes("@")) {
+      [name, domain] = trimmed.split("@");
+    } else {
+      name = "_";
+      domain = trimmed;
+    }
+    const resp = await fetch(`/api/nip05?name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}`);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.error || "Could not resolve handle");
+    }
+    const data = await resp.json();
+    return data.pubkey;
+  };
+
   const handleSearch = async () => {
     const q = (npub || keyword || "").trim();
 
@@ -299,35 +330,61 @@ export default function SearchPage() {
         title: "Enter a search value",
         message:
           activeTab === "npub"
-            ? "Paste an npub to look up a profile."
+            ? "Enter an npub, hex pubkey, or NIP-05 handle (e.g. name@domain.com)."
             : "Type a keyword to search identities.",
       });
       return;
     }
 
-    if (activeTab === "npub" && !isLikelyNpub(q)) {
-      setSearchError({
-        code: "INVALID_NPUB",
-        title: "That doesn\u2019t look like a valid npub",
-        message: 'Npubs start with "npub1\u2026" and are Bech32-encoded.',
-      });
-      return;
-    }
-
     let hexPubkey: string;
-    try {
-      const decoded = nip19.decode(q);
-      if (decoded.type !== "npub" || typeof decoded.data !== "string") {
-        setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+    let displayQuery: string = q;
+
+    if (activeTab === "npub") {
+      if (isLikelyNpub(q)) {
+        try {
+          const decoded = nip19.decode(q);
+          if (decoded.type !== "npub" || typeof decoded.data !== "string") {
+            setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+            return;
+          }
+          hexPubkey = decoded.data;
+        } catch {
+          setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+          return;
+        }
+      } else if (isHexPubkey(q)) {
+        hexPubkey = q.toLowerCase();
+        displayQuery = nip19.npubEncode(hexPubkey);
+      } else if (isNip05Handle(q)) {
+        setSearchQuery(q);
+        setIsSearching(true);
+        try {
+          hexPubkey = await resolveNip05(q);
+          displayQuery = nip19.npubEncode(hexPubkey);
+        } catch (err) {
+          setIsSearching(false);
+          setHasSearched(true);
+          setSearchError({
+            code: "INVALID_NPUB",
+            title: "Handle not found",
+            message: err instanceof Error ? err.message : "Could not resolve that NIP-05 handle. Check the format and try again.",
+          });
+          return;
+        }
+      } else {
+        setSearchError({
+          code: "INVALID_NPUB",
+          title: "Unrecognized format",
+          message: 'Enter an npub (npub1...), a 64-character hex pubkey, or a NIP-05 handle (name@domain.com).',
+        });
         return;
       }
-      hexPubkey = decoded.data;
-    } catch {
-      setSearchError({ code: "INVALID_NPUB", title: "Invalid npub format", message: "Could not decode this npub. Make sure it's a valid Bech32-encoded public key." });
+    } else {
+      setSearchError({ code: "MISSING_QUERY", title: "Not yet available", message: "Keyword search is coming soon." });
       return;
     }
 
-    setSearchQuery(q);
+    setSearchQuery(displayQuery);
     setIsSearching(true);
     setNostrProfile(null);
 
@@ -354,7 +411,7 @@ export default function SearchPage() {
         setSearchError({
           code: "NOT_FOUND",
           title: "No profile found",
-          message: "We couldn\u2019t find data for that npub on the Brainstorm backend.",
+          message: "We couldn\u2019t find data for this identity on the Brainstorm backend.",
         });
       }
     } catch (err) {
@@ -811,8 +868,8 @@ export default function SearchPage() {
                         <EnterpriseUserIcon className="h-4 w-4" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-700" data-testid="text-npub-section-title">Npub Lookup</h4>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Enter a Bech32-encoded public key</p>
+                        <h4 className="text-sm font-bold text-slate-700" data-testid="text-npub-section-title">Identity Lookup</h4>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">npub, hex pubkey, or NIP-05 handle</p>
                       </div>
                     </div>
 
@@ -820,7 +877,7 @@ export default function SearchPage() {
                       <div className="relative flex-1 group/input">
                         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                         <Input
-                          placeholder="npub1..."
+                          placeholder="npub1..., hex pubkey, or name@domain.com"
                           className={
                             "relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 h-11 rounded-lg transition-all font-mono text-sm shadow-sm focus:shadow-[0_0_20px_rgba(99,102,241,0.2)]" +
                             (searchError?.code === "INVALID_NPUB"
