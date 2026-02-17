@@ -373,12 +373,33 @@ export default function SearchPage() {
     return followedBy.filter((pk: string) => followingSet.has(pk));
   }, [profileResult]);
 
+  const sharedFollowerPubkeys = useMemo(() => {
+    if (!selfData || !profileResult) return [];
+    const selfGraph = selfData?.graph || selfData;
+    const selfFollowedBy = Array.isArray(selfGraph?.followed_by) ? selfGraph.followed_by : [];
+    const selfFollowedBySet = new Set(selfFollowedBy);
+    const searchedFollowedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
+    return searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk));
+  }, [selfData, profileResult]);
+
+  const sharedFollowingPubkeys = useMemo(() => {
+    if (!selfData || !profileResult) return [];
+    const selfGraph = selfData?.graph || selfData;
+    const selfFollowing = Array.isArray(selfGraph?.following) ? selfGraph.following : [];
+    const selfFollowingSet = new Set(selfFollowing);
+    const searchedFollowing = Array.isArray(profileResult.following) ? profileResult.following : [];
+    return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
+  }, [selfData, profileResult]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
       if (!prev[key]) {
         setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-        const pubkeys = key === "mutual" ? mutualPubkeys : (Array.isArray(profileResult?.[key]) ? profileResult[key] : []);
+        const pubkeys = key === "mutual" ? mutualPubkeys
+          : key === "shared_followers" ? sharedFollowerPubkeys
+          : key === "shared_following" ? sharedFollowingPubkeys
+          : (Array.isArray(profileResult?.[key]) ? profileResult[key] : []);
         if (pubkeys.length > 0) {
           fetchSectionProfiles(key, pubkeys);
         }
@@ -398,6 +419,8 @@ export default function SearchPage() {
       { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
       { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
       { key: "mutual", label: "Mutual", colors: "bg-teal-50 text-teal-500 border-teal-100" },
+      { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
+      { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
       { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
@@ -410,6 +433,8 @@ export default function SearchPage() {
         const fg = Array.isArray(profileResult.following) ? profileResult.following : [];
         return fb.includes(pk) && fg.includes(pk);
       }
+      if (g.key === "shared_followers") return sharedFollowerPubkeys.includes(pk);
+      if (g.key === "shared_following") return sharedFollowingPubkeys.includes(pk);
       return Array.isArray(profileResult[g.key]) && profileResult[g.key].includes(pk);
     });
   };
@@ -443,6 +468,8 @@ export default function SearchPage() {
     followed_by: "border-blue-300",
     following: "border-blue-300",
     mutual: "border-teal-300",
+    shared_followers: "border-indigo-300",
+    shared_following: "border-indigo-300",
     muted_by: "border-amber-300",
     reported_by: "border-red-300",
     muting: "border-amber-200",
@@ -1518,39 +1545,89 @@ export default function SearchPage() {
 
                     {(() => {
                       if (!selfData || !profileResult) return null;
-                      const selfGraph = selfData?.graph || selfData;
-                      const selfFollowedBy = Array.isArray(selfGraph?.followed_by) ? selfGraph.followed_by : [];
-                      const selfFollowing = Array.isArray(selfGraph?.following) ? selfGraph.following : [];
-                      const selfNetwork = new Set([...selfFollowedBy, ...selfFollowing]);
-                      const searchedFollowedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
-                      const searchedFollowing = Array.isArray(profileResult.following) ? profileResult.following : [];
-                      const searchedNetwork = new Set([...searchedFollowedBy, ...searchedFollowing]);
-                      const sharedAll = Array.from(searchedNetwork).filter(pk => selfNetwork.has(pk));
-                      const sharedCount = sharedAll.length;
-                      const selfFollowedBySet = new Set(selfFollowedBy);
-                      const selfFollowingSet = new Set(selfFollowing);
-                      const mutualFollowers = searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk)).length;
-                      const mutualFollowing = searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk)).length;
+                      const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
+                      const sharedCount = sharedUnique.size;
+                      const mutualFollowersCount = sharedFollowerPubkeys.length;
+                      const mutualFollowingCount = sharedFollowingPubkeys.length;
+                      const isExpandable = sharedCount > 0;
+                      const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
 
                       return (
-                        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3" data-testid="banner-shared-connections">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 mt-0.5">
-                            <SharedConnectionIcon className="h-4 w-4 text-indigo-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {sharedCount > 0 ? (
-                              <>
-                                <p className="text-[12px] font-semibold text-indigo-900">
-                                  You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
-                                </p>
-                                <p className="text-[10px] text-indigo-600/70 mt-0.5">
-                                  {mutualFollowers.toLocaleString()} mutual follower{mutualFollowers !== 1 ? "s" : ""} · {mutualFollowing.toLocaleString()} mutual following
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-[12px] text-slate-400 font-medium">No shared connections</p>
+                        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 overflow-hidden" data-testid="banner-shared-connections">
+                          <div
+                            className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-indigo-50/80 transition-colors" : ""}`}
+                            onClick={isExpandable ? () => {
+                              if (isAnyExpanded) {
+                                setExpandedSections(prev => ({ ...prev, shared_followers: false, shared_following: false }));
+                              } else {
+                                toggleSection("shared_followers");
+                                if (mutualFollowingCount > 0) {
+                                  setTimeout(() => toggleSection("shared_following"), 0);
+                                }
+                              }
+                            } : undefined}
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 mt-0.5">
+                              <SharedConnectionIcon className="h-4 w-4 text-indigo-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {sharedCount > 0 ? (
+                                <>
+                                  <p className="text-[12px] font-semibold text-indigo-900">
+                                    You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
+                                  </p>
+                                  <p className="text-[10px] text-indigo-600/70 mt-0.5">
+                                    {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-[12px] text-slate-400 font-medium">No shared connections</p>
+                              )}
+                            </div>
+                            {isExpandable && (
+                              <ChevronDown className={`h-4 w-4 text-indigo-400 shrink-0 mt-1 transition-transform ${isAnyExpanded ? "rotate-180" : ""}`} />
                             )}
                           </div>
+                          {isAnyExpanded && (
+                            <div className="border-t border-indigo-100">
+                              {mutualFollowersCount > 0 && (
+                                <div>
+                                  <div
+                                    className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 cursor-pointer hover:bg-indigo-50/70 transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); toggleSection("shared_followers"); }}
+                                    data-testid="toggle-shared-followers"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <FollowersIcon className="h-3.5 w-3.5 text-indigo-400" />
+                                      <span className="text-[11px] font-semibold text-indigo-700">
+                                        Mutual Followers ({mutualFollowersCount.toLocaleString()})
+                                      </span>
+                                    </div>
+                                    <ChevronDown className={`h-3.5 w-3.5 text-indigo-400 transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`} />
+                                  </div>
+                                  {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
+                                </div>
+                              )}
+                              {mutualFollowingCount > 0 && (
+                                <div>
+                                  <div
+                                    className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 cursor-pointer hover:bg-indigo-50/70 transition-colors border-t border-indigo-100/60"
+                                    onClick={(e) => { e.stopPropagation(); toggleSection("shared_following"); }}
+                                    data-testid="toggle-shared-following"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <FollowingIcon className="h-3.5 w-3.5 text-indigo-400" />
+                                      <span className="text-[11px] font-semibold text-indigo-700">
+                                        Mutual Following ({mutualFollowingCount.toLocaleString()})
+                                      </span>
+                                    </div>
+                                    <ChevronDown className={`h-3.5 w-3.5 text-indigo-400 transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`} />
+                                  </div>
+                                  {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
