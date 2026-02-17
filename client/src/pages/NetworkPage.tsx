@@ -158,7 +158,10 @@ export default function NetworkPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("view") === "list" ? "list" : "grid";
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 24;
 

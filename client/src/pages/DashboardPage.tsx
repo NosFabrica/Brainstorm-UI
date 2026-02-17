@@ -1118,7 +1118,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-              <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4">
+              <Card
+                className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
+                onClick={() => navigate("/network?group=followed_by&view=list")}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate("/network?group=followed_by&view=list"); }}
+                data-testid="card-trusted-followers"
+              >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
 
@@ -1149,10 +1156,10 @@ export default function DashboardPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Live
                     </div>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-[10px] font-bold rounded-lg border border-slate-200" onClick={() => navigate("/network?group=followed_by")} data-testid="button-view-all-followers">
+                    <span className="inline-flex items-center h-7 px-3 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600" data-testid="button-view-all-followers">
                       View All
                       <ChevronRight className="ml-1.5 h-3 w-3" />
-                    </Button>
+                    </span>
                   </div>
                 </div>
               </Card>
