@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
@@ -307,12 +307,38 @@ export default function DashboardPage() {
     return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
   };
 
-  const trustDistribution = [
-    { label: "Highly Trusted", count: followersCount, color: "#22c55e" },
-    { label: "Trusted", count: followingCount, color: "#4ade80" },
-    { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#e5e7eb" },
-    { label: "Low Trust", count: mutedByCount + mutingCount, color: "#fbbf24" },
-  ];
+  const TIER_CONFIG = [
+    { key: "high", name: "Highly Trusted", color: "#22c55e" },
+    { key: "medium_high", name: "Trusted", color: "#4ade80" },
+    { key: "medium", name: "Neutral", color: "#e5e7eb" },
+    { key: "medium_low", name: "Low Trust", color: "#fbbf24" },
+    { key: "low", name: "Flagged / Muted", color: "#991b1b" },
+  ] as const;
+
+  const countValues = useMemo(() => {
+    if (!grapeRank) return null;
+    const raw = (grapeRank as any).count_values;
+    if (!raw) return null;
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, Record<string, number>>;
+    } catch { /* ignore parse errors */ }
+    return null;
+  }, [grapeRank]);
+
+  const maxHopInData = useMemo(() => {
+    if (!countValues) return 5;
+    let maxH = 1;
+    for (const tierKey of Object.keys(countValues)) {
+      const hopMap = countValues[tierKey];
+      if (!hopMap || typeof hopMap !== "object") continue;
+      for (const hopStr of Object.keys(hopMap)) {
+        const h = parseInt(hopStr, 10);
+        if (!isNaN(h) && h < 900 && h > maxH) maxH = h;
+      }
+    }
+    return Math.max(maxH, 5);
+  }, [countValues]);
 
   useEffect(() => {
     return () => {
@@ -334,40 +360,62 @@ export default function DashboardPage() {
     (currentTarget as HTMLElement).style.setProperty("--flash-y", `${y}px`);
   }
 
-  useEffect(() => {
-    const base = 500;
-    const count = Math.floor(base * Math.pow(8, hopRange[1]));
-    setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
-  }, [hopRange]);
-
-  const currentHops = hopRange[1];
-
-  const enhancedPieData = [
-    ...trustDistribution.map((d) => {
-      let multiplier = 1;
-      if (d.label === "Highly Trusted") {
-        multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-      } else if (d.label === "Trusted") {
-        multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-      } else if (d.label === "Neutral") {
-        multiplier = 1 + (currentHops - 1) * 0.4;
-      } else if (d.label === "Low Trust") {
-        multiplier = 1 + (currentHops - 1) * 0.6;
+  const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
+    if (!countValues || !countValues[tierKey]) return 0;
+    const hopMap = countValues[tierKey];
+    let total = 0;
+    for (const hopStr of Object.keys(hopMap)) {
+      const h = parseInt(hopStr, 10);
+      if (isNaN(h)) continue;
+      if (h >= lo && h <= hi) {
+        total += hopMap[hopStr] || 0;
       }
-      return {
-        name: d.label,
-        value: Math.floor(d.count * multiplier),
-        color: d.color,
-      };
-    }),
-    {
-      name: "Flagged / Muted",
-      value: Math.floor(1420 * (1 + (currentHops - 1) * 0.8)),
-      color: "#991b1b",
-    },
-  ];
+    }
+    return total;
+  };
 
-  const totalNetworkProfiles = enhancedPieData.reduce((acc, curr) => acc + curr.value, 0);
+  useEffect(() => {
+    if (countValues) {
+      let total = 0;
+      for (const tier of TIER_CONFIG) {
+        total += aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
+      }
+      setExtendedNetworkCount(total);
+    } else {
+      const base = 500;
+      const count = Math.floor(base * Math.pow(8, hopRange[1]));
+      setExtendedNetworkCount(count > 1000000 ? 1000000 : count);
+    }
+  }, [hopRange, countValues]);
+
+  const enhancedPieData = useMemo(() => {
+    if (countValues) {
+      return TIER_CONFIG.map((tier) => ({
+        name: tier.name,
+        value: aggregateByHopRange(tier.key, hopRange[0], hopRange[1]),
+        color: tier.color,
+      })).filter(d => d.value > 0);
+    }
+    const fallback = [
+      { label: "Highly Trusted", count: followersCount, color: "#22c55e" },
+      { label: "Trusted", count: followingCount, color: "#4ade80" },
+      { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#e5e7eb" },
+      { label: "Low Trust", count: mutedByCount + mutingCount, color: "#fbbf24" },
+      { label: "Flagged / Muted", count: Math.max(10, mutedByCount), color: "#991b1b" },
+    ];
+    const currentHops = hopRange[1];
+    return fallback.map((d) => {
+      let multiplier = 1;
+      if (d.label === "Highly Trusted") multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
+      else if (d.label === "Trusted") multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
+      else if (d.label === "Neutral") multiplier = 1 + (currentHops - 1) * 0.4;
+      else if (d.label === "Low Trust") multiplier = 1 + (currentHops - 1) * 0.6;
+      else multiplier = 1 + (currentHops - 1) * 0.8;
+      return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
+    }).filter(d => d.value > 0);
+  }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount]);
+
+  const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#22c55e" },
@@ -388,7 +436,7 @@ export default function DashboardPage() {
 
   const totalActivityProfiles = activityBreakdown.reduce((acc, curr) => acc + curr.value, 0);
 
-  const currentPieData = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
+  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
   const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
   const handleExport = () => {
@@ -1334,12 +1382,12 @@ export default function DashboardPage() {
                     <Slider
                       value={hopRange}
                       onValueChange={(v) => {
-                        const next = (v ?? [1, 5]).slice(0, 2) as number[];
+                        const next = (v ?? [1, maxHopInData]).slice(0, 2) as number[];
                         const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
-                        const hi = Math.min(5, Math.max(next[0] ?? 1, next[1] ?? 1));
+                        const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
                         setHopRange([lo, hi]);
                       }}
-                      max={5}
+                      max={maxHopInData}
                       min={1}
                       step={1}
                       className="cursor-pointer py-1"
