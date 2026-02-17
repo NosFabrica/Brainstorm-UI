@@ -707,11 +707,10 @@ export default function NetworkPage() {
                     <CardDescription className="text-slate-500 text-[10px] font-medium uppercase tracking-wide">Social Graph</CardDescription>
                   </div>
                 </div>
-                {networkData?.influence !== undefined && (
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-influence">
-                    <span>Influence: {networkData.influence}</span>
-                  </div>
-                )}
+                <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
+                  <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                  <span>NOSTR</span>
+                </div>
               </div>
             </CardHeader>
 
