@@ -145,7 +145,12 @@ export default function NetworkPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [activeGroup, setActiveGroup] = useState<GroupKey>("followed_by");
+  const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const group = params.get("group");
+    const validGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    return group && validGroups.includes(group as GroupKey) ? (group as GroupKey) : "followed_by";
+  });
   const [searchFilter, setSearchFilter] = useState("");
   type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "flagged";
   const [trustFilter, setTrustFilter] = useState<TrustTier>("all");

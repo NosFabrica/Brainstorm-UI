@@ -1145,11 +1145,11 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="mt-auto flex items-center justify-between pt-2">
-                    <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500" data-testid="text-trusted-followers-coming-soon">
-                      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500/60" />
-                      Coming soon
+                    <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      Live
                     </div>
-                    <Button size="sm" variant="ghost" className="h-7 px-3 text-[10px] font-bold !bg-slate-100 !text-slate-400 shadow-none rounded-lg cursor-not-allowed opacity-60 border border-slate-200" disabled data-testid="button-view-all-followers-disabled" aria-disabled="true">
+                    <Button size="sm" variant="ghost" className="h-7 px-3 text-[10px] font-bold rounded-lg border border-slate-200" onClick={() => navigate("/network?group=followed_by")} data-testid="button-view-all-followers">
                       View All
                       <ChevronRight className="ml-1.5 h-3 w-3" />
                     </Button>
