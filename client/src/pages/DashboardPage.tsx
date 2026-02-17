@@ -1416,8 +1416,8 @@ export default function DashboardPage() {
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: dist.color }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
-                              <p className="font-bold text-[10px] text-slate-900 truncate pr-2">{dist.name}</p>
-                              <span className="text-[9px] font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
+                              <p className="font-bold text-xs text-slate-900 truncate pr-2">{dist.name}</p>
+                              <span className="text-[11px] font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading ? "\u2014" : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
                               </span>
                             </div>
