@@ -1518,8 +1518,9 @@ export default function SearchPage() {
 
                     {(() => {
                       if (!selfData || !profileResult) return null;
-                      const selfFollowedBy = Array.isArray(selfData.followed_by) ? selfData.followed_by : [];
-                      const selfFollowing = Array.isArray(selfData.following) ? selfData.following : [];
+                      const selfGraph = selfData?.graph || selfData;
+                      const selfFollowedBy = Array.isArray(selfGraph?.followed_by) ? selfGraph.followed_by : [];
+                      const selfFollowing = Array.isArray(selfGraph?.following) ? selfGraph.following : [];
                       const selfNetwork = new Set([...selfFollowedBy, ...selfFollowing]);
                       const searchedFollowedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
                       const searchedFollowing = Array.isArray(profileResult.following) ? profileResult.following : [];
