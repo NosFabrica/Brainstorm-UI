@@ -29,6 +29,8 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-17: Added 3 new search insights: (1) Mutual Follows metric tile (intersection of followed_by/following, teal accent, expandable), (2) Shared Connections banner comparing searched user's network with logged-in user's network (mutual followers/following breakdown), (3) Trust Ratio badge (followers/(followers+muted_by), color-coded emerald/amber/red)
 - 2026-02-17: Replaced mock pie chart data with real count_values from GrapeRank API: parses trust tiers (high/medium_high/medium/medium_low/low) × hop distance, aggregates by hop slider range, updates pie chart + bars + extended reach count with real data, dynamic slider max from data, graceful fallback to synthetic data when GrapeRank unavailable
 - 2026-02-17: Made Shared Connections banner on SearchPage expandable: click to drill down into Mutual Followers and Mutual Following sub-sections with profile cards, trust rings, overlap badges, and load-more pagination (reuses existing renderExpandedPanel pattern)
+- 2026-02-17: Added verified user flags on NetworkPage profile cards: checks if a user's muted_by/reported_by includes verified users (TA >= 0.01) and shows amber/red badges with tooltip explanations
+- 2026-02-17: Replaced mock Network Alerts card on Dashboard with real reported_by/muted_by counts from API data, removed "Coming soon" overlay, updated dialog to show real signal summary
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui

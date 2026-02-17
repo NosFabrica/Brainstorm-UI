@@ -5,9 +5,6 @@ import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
-import riskAvatar1 from "../assets/images/risk-avatar-1.png";
-import riskAvatar2 from "../assets/images/risk-avatar-2.png";
-import riskAvatar3 from "../assets/images/risk-avatar-3.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -161,11 +158,6 @@ const INTEREST_CLUSTERS = [
   { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-purple-500", unit: "artists", image: musicSceneImg },
 ];
 
-const RISKY_FOLLOWS = [
-  { id: 1, name: "Alex Morgan", handle: "@alexmorgan", reason: "High Spam Reports", risk: "high", avatar: riskAvatar1 },
-  { id: 2, name: "Sarah Bennett", handle: "@sarahbennett", reason: "Phishing Reports", risk: "medium", avatar: riskAvatar2 },
-  { id: 3, name: "Michael Reed", handle: "@michaelreed", reason: "Identity Spoofing", risk: "high", avatar: riskAvatar3 },
-];
 
 const NETWORK_METRICS = [
   { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
@@ -186,7 +178,6 @@ export default function DashboardPage() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([2, 4]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [selectedRisk, setSelectedRisk] = useState<typeof RISKY_FOLLOWS[0] | null>(null);
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
@@ -1211,41 +1202,58 @@ export default function DashboardPage() {
                     <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden">
                       <div className="px-4 py-3 border-b border-slate-200/60 bg-gradient-to-r from-white/75 to-indigo-50/45">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-[11px] font-bold text-slate-900" data-testid="text-network-alerts-dialog-example-title">Example alerts</div>
-                          <div className="text-[10px] font-mono text-slate-500" data-testid="text-network-alerts-dialog-example-meta">Preview \u00b7 non-interactive</div>
+                          <div className="text-[11px] font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
+                          <div className="text-[10px] font-mono text-slate-500" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
                         </div>
                       </div>
 
-                      <div className="relative">
-                        <div className="absolute inset-0 pointer-events-none">
-                          <div className="absolute inset-0 backdrop-blur-[2px]" />
-                          <div className="absolute inset-0 bg-white/10" />
-                        </div>
-
-                        <div className="p-4 space-y-2" data-testid="list-network-alerts-dialog-example">
-                          {RISKY_FOLLOWS.map((risk) => (
-                            <div key={risk.id} className="flex items-center justify-between gap-3 rounded-2xl border border-red-200/60 bg-gradient-to-r from-white/70 to-red-50/35 px-3 py-2 opacity-85" data-testid={`row-network-alerts-dialog-risk-${risk.id}`} aria-disabled="true">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Avatar className="h-8 w-8 border border-red-100 shadow-sm">
-                                  <AvatarImage src={risk.avatar} alt={risk.name} className="object-cover" />
-                                  <AvatarFallback className="bg-red-100 text-red-600 text-[10px] font-bold">{risk.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0">
-                                  <div className="text-[12px] font-bold text-slate-900 truncate" data-testid={`text-network-alerts-dialog-risk-name-${risk.id}`}>{risk.name}</div>
-                                  <div className="text-[10px] font-mono text-slate-500 truncate" data-testid={`text-network-alerts-dialog-risk-handle-${risk.id}`}>{risk.handle}</div>
-                                </div>
+                      <div className="p-4 space-y-2" data-testid="list-network-alerts-dialog-signals">
+                        {reportedByCount > 0 && (
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200/60 bg-gradient-to-r from-white/70 to-red-50/35 px-3 py-2.5" data-testid="row-dialog-reported-by">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="h-8 w-8 rounded-full bg-red-100 border border-red-200 flex items-center justify-center">
+                                <ShieldAlert className="h-4 w-4 text-red-500" />
                               </div>
-                              <div className="text-[10px] font-semibold text-red-700" data-testid={`text-network-alerts-dialog-risk-reason-${risk.id}`}>{risk.reason}</div>
+                              <div className="min-w-0">
+                                <div className="text-[12px] font-bold text-slate-900">Reported By</div>
+                                <div className="text-[10px] text-slate-500">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
+                              </div>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="absolute inset-x-0 top-3 flex items-center justify-center pointer-events-none">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-[#333286] text-white px-4 py-2 text-[11px] font-bold tracking-[0.22em] uppercase shadow-lg shadow-[#333286]/20 border border-white/15 backdrop-blur-md" data-testid="badge-network-alerts-dialog-overlay">
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff] shadow-[0_0_10px_rgba(124,134,255,0.7)]" />
-                            Coming soon
+                            <Badge variant="outline" className="text-[9px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
                           </div>
-                        </div>
+                        )}
+                        {mutedByCount > 0 && (
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200/60 bg-gradient-to-r from-white/70 to-amber-50/35 px-3 py-2.5" data-testid="row-dialog-muted-by">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="h-8 w-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
+                                <VolumeX className="h-4 w-4 text-amber-500" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-[12px] font-bold text-slate-900">Muted By</div>
+                                <div className="text-[10px] text-slate-500">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
+                          </div>
+                        )}
+                        {reportedByCount === 0 && mutedByCount === 0 && (
+                          <div className="text-center py-6" data-testid="row-dialog-no-signals">
+                            {selfQuery.isLoading ? (
+                              <>
+                                <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-2 animate-pulse" />
+                                <p className="text-[12px] font-bold text-slate-500">Loading signals...</p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-2">
+                                  <Check className="h-5 w-5 text-emerald-500" />
+                                </div>
+                                <p className="text-[12px] font-bold text-slate-900">All clear</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">No reports or mutes detected in your network.</p>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1285,23 +1293,8 @@ export default function DashboardPage() {
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.02)_45%,rgba(15,23,42,0.00)_60%)]" />
                 </div>
 
-                <div className="absolute -right-12 top-6 z-30 rotate-[35deg] pointer-events-none" data-testid="banner-network-alerts-coming-soon">
-                  <div className="relative">
-                    <div className="absolute inset-0 rounded-md bg-black/10 blur-md" />
-                    <div className="relative flex items-center gap-2 rounded-md text-white px-10 py-2 shadow-lg border border-white/10 bg-[#333286]">
-                      <span className="text-[10px] font-bold tracking-[0.22em] uppercase" data-testid="text-network-alerts-coming-soon">Coming soon</span>
-                      <span className="text-[10px] text-white/65" data-testid="text-network-alerts-coming-soon-sub">Network Alerts</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute inset-x-4 bottom-4 z-30 flex items-center justify-between pointer-events-none" data-testid="row-network-alerts-coming-soon">
-                  <div className="text-[10px] font-medium text-slate-700" data-testid="text-network-alerts-coming-soon-hint">Preview</div>
-                  <div className="text-[10px] font-mono text-slate-500" data-testid="text-network-alerts-coming-soon-meta">Not active yet</div>
-                </div>
-
                 <div className="absolute top-0 right-0 p-3 z-20">
-                  <div className="h-1.5 w-1.5 rounded-full bg-[#7c86ff] animate-pulse" />
+                  {(reportedByCount + mutedByCount) > 0 && <div className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />}
                 </div>
 
                 <div className="flex flex-col h-full gap-2">
@@ -1315,27 +1308,42 @@ export default function DashboardPage() {
                   </div>
 
                   <p className="text-[10px] text-slate-500 leading-tight">
-                    <strong className="text-slate-900">3 profiles</strong> flagged as potential risks.
+                    {selfQuery.isLoading ? (
+                      <span className="text-slate-400">Loading signals...</span>
+                    ) : (reportedByCount + mutedByCount) > 0 ? (
+                      <><strong className="text-slate-900">{reportedByCount + mutedByCount} signals</strong> from your network.</>
+                    ) : (
+                      <span className="text-slate-400">No risk signals detected.</span>
+                    )}
                   </p>
 
                   <div className="space-y-1.5 mt-1">
-                    {RISKY_FOLLOWS.slice(0, 2).map((risk) => (
-                      <div key={risk.id} className="flex items-center justify-between p-1.5 rounded bg-red-50/50 border border-red-500/30 transition-colors cursor-not-allowed opacity-70" data-testid={`row-risky-follow-disabled-${risk.id}`} aria-disabled="true">
+                    {reportedByCount > 0 && (
+                      <div className="flex items-center justify-between p-1.5 rounded bg-red-50/50 border border-red-200/60" data-testid="row-reported-by-count">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Avatar className="h-5 w-5 border border-red-100 shadow-sm">
-                            <AvatarImage src={risk.avatar} alt={risk.name} className="object-cover" />
-                            <AvatarFallback className="bg-red-100 text-red-500 text-[8px] font-bold">{risk.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                          <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
+                            <ShieldAlert className="h-2.5 w-2.5 text-red-500" />
+                          </div>
                           <div className="min-w-0 flex flex-col">
-                            <p className="text-[10px] font-bold text-slate-800 truncate max-w-[80px] leading-none">{risk.name}</p>
-                            <p className="text-[8px] text-red-600/70 font-medium leading-none mt-0.5">{risk.reason}</p>
+                            <p className="text-[10px] font-bold text-slate-800 leading-none">Reported By</p>
+                            <p className="text-[8px] text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
-                        <div className="w-5 h-5 rounded-full bg-white border border-red-100 flex items-center justify-center text-red-400 opacity-50 transition-all shadow-sm">
-                          <Ban className="h-2.5 w-2.5" />
+                      </div>
+                    )}
+                    {mutedByCount > 0 && (
+                      <div className="flex items-center justify-between p-1.5 rounded bg-amber-50/50 border border-amber-200/60" data-testid="row-muted-by-count">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center">
+                            <VolumeX className="h-2.5 w-2.5 text-amber-500" />
+                          </div>
+                          <div className="min-w-0 flex flex-col">
+                            <p className="text-[10px] font-bold text-slate-800 leading-none">Muted By</p>
+                            <p className="text-[8px] text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
+                          </div>
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </Card>

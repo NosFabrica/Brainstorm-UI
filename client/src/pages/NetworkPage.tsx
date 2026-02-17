@@ -168,6 +168,7 @@ export default function NetworkPage() {
 
   const profileCache = useRef<Map<string, any>>(new Map());
   const trustCache = useRef<Map<string, number | null>>(new Map());
+  const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
 
   useEffect(() => {
@@ -234,6 +235,10 @@ export default function NetworkPage() {
           const graph = res.value?.data?.graph || res.value?.data || res.value;
           const influence = graph?.influence;
           trustCache.current.set(batch[idx], typeof influence === "number" ? influence : null);
+          graphDataCache.current.set(batch[idx], {
+            muted_by: Array.isArray(graph?.muted_by) ? graph.muted_by : [],
+            reported_by: Array.isArray(graph?.reported_by) ? graph.reported_by : [],
+          });
         } else {
           trustCache.current.set(batch[idx], null);
         }
@@ -330,6 +335,30 @@ export default function NetworkPage() {
       }
     }
   }, [filteredPubkeys, currentPage, fetchTrustScores, trustFilter, activeGroup, getGroupPubkeys]);
+
+  useEffect(() => {
+    const visible = filteredPubkeys();
+    if (visible.length === 0) return;
+    const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+    const safePage = Math.min(currentPage, totalPages || 1);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
+
+    const muterReporterPks = new Set<string>();
+    for (const pk of pageItems) {
+      const gData = graphDataCache.current.get(pk);
+      if (!gData) continue;
+      for (const m of gData.muted_by || []) {
+        if (!trustCache.current.has(m)) muterReporterPks.add(m);
+      }
+      for (const r of gData.reported_by || []) {
+        if (!trustCache.current.has(r)) muterReporterPks.add(r);
+      }
+    }
+    if (muterReporterPks.size > 0) {
+      fetchTrustScores(Array.from(muterReporterPks));
+    }
+  }, [trustLoadedCount, filteredPubkeys, currentPage, fetchTrustScores]);
 
   const handleLogout = () => {
     logout();
@@ -898,6 +927,56 @@ export default function NetworkPage() {
                   };
                 };
 
+                const getVerifiedFlagCounts = (pk: string) => {
+                  const gData = graphDataCache.current.get(pk);
+                  if (!gData) return { verifiedMuters: 0, verifiedReporters: 0 };
+                  const TA_THRESHOLD = 0.01;
+                  let verifiedMuters = 0;
+                  let verifiedReporters = 0;
+                  for (const muterPk of gData.muted_by || []) {
+                    const score = trustCache.current.get(muterPk);
+                    if (typeof score === "number" && score >= TA_THRESHOLD) verifiedMuters++;
+                  }
+                  for (const reporterPk of gData.reported_by || []) {
+                    const score = trustCache.current.get(reporterPk);
+                    if (typeof score === "number" && score >= TA_THRESHOLD) verifiedReporters++;
+                  }
+                  return { verifiedMuters, verifiedReporters };
+                };
+
+                const renderVerifiedFlags = (pk: string) => {
+                  const { verifiedMuters, verifiedReporters } = getVerifiedFlagCounts(pk);
+                  if (verifiedMuters === 0 && verifiedReporters === 0) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 flex-wrap" data-testid={`flags-verified-${pk.slice(0, 8)}`}>
+                      {verifiedMuters > 0 && (
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-muted-${pk.slice(0, 8)}`}>
+                              Muted by {verifiedMuters} verified
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
+                            <p className="text-[10px] leading-relaxed">{verifiedMuters} verified {verifiedMuters === 1 ? "user has" : "users have"} muted this account. Verified users have a trust assertion score of 0.01 or above.</p>
+                          </TooltipContent>
+                        </UITooltip>
+                      )}
+                      {verifiedReporters > 0 && (
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-reported-${pk.slice(0, 8)}`}>
+                              Reported by {verifiedReporters} verified
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
+                            <p className="text-[10px] leading-relaxed">{verifiedReporters} verified {verifiedReporters === 1 ? "user has" : "users have"} reported this account. Verified users have a trust assertion score of 0.01 or above.</p>
+                          </TooltipContent>
+                        </UITooltip>
+                      )}
+                    </div>
+                  );
+                };
+
                 const renderTrustBadge = (pk: string, compact: boolean = false) => {
                   const rawInfluence = trustCache.current.get(pk);
                   if (rawInfluence === undefined) {
@@ -1020,6 +1099,7 @@ export default function NetworkPage() {
                             })}
                           </div>
                         )}
+                        {renderVerifiedFlags(pk)}
                         {renderTrustBadge(pk, true)}
                         <button
                           type="button"
@@ -1091,6 +1171,9 @@ export default function NetworkPage() {
                             );
                           })}
                         </div>
+                      )}
+                      {renderVerifiedFlags(pk) && (
+                        <div className="mt-2">{renderVerifiedFlags(pk)}</div>
                       )}
                     </div>
                   );
