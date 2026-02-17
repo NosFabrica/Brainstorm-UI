@@ -129,10 +129,9 @@ function estimateNetworkLineLength(a: number, b: number): number {
   return Math.sqrt(dx * dx + dy * dy) * 12;
 }
 
-type GroupKey = "all" | "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting";
+type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting";
 
 const groups = [
-  { key: "all" as GroupKey, label: "All", Icon: Users, color: "text-indigo-500", bgColor: "bg-indigo-50", borderColor: "border-indigo-100" },
   { key: "followed_by" as GroupKey, label: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
   { key: "following" as GroupKey, label: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
   { key: "muted_by" as GroupKey, label: "Muted By", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
@@ -146,7 +145,7 @@ export default function NetworkPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [activeGroup, setActiveGroup] = useState<GroupKey>("all");
+  const [activeGroup, setActiveGroup] = useState<GroupKey>("followed_by");
   const [searchFilter, setSearchFilter] = useState("");
   type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "flagged";
   const [trustFilter, setTrustFilter] = useState<TrustTier>("all");
@@ -236,13 +235,6 @@ export default function NetworkPage() {
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
-    if (key === "all") {
-      const allSet = new Set<string>();
-      ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"].forEach(k => {
-        (networkData[k] || []).forEach((pk: string) => allSet.add(pk));
-      });
-      return Array.from(allSet);
-    }
     return networkData[key] || [];
   }, [networkData]);
 
