@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 
@@ -367,8 +368,8 @@ export default function SearchPage() {
 
   const mutualPubkeys = useMemo(() => {
     if (!profileResult) return [];
-    const followedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
-    const following = Array.isArray(profileResult.following) ? profileResult.following : [];
+    const followedBy = toPubkeys(profileResult.followed_by);
+    const following = toPubkeys(profileResult.following);
     const followingSet = new Set(following);
     return followedBy.filter((pk: string) => followingSet.has(pk));
   }, [profileResult]);
@@ -376,18 +377,18 @@ export default function SearchPage() {
   const sharedFollowerPubkeys = useMemo(() => {
     if (!selfData || !profileResult) return [];
     const selfGraph = selfData?.graph || selfData;
-    const selfFollowedBy = Array.isArray(selfGraph?.followed_by) ? selfGraph.followed_by : [];
+    const selfFollowedBy = toPubkeys(selfGraph?.followed_by);
     const selfFollowedBySet = new Set(selfFollowedBy);
-    const searchedFollowedBy = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
+    const searchedFollowedBy = toPubkeys(profileResult.followed_by);
     return searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk));
   }, [selfData, profileResult]);
 
   const sharedFollowingPubkeys = useMemo(() => {
     if (!selfData || !profileResult) return [];
     const selfGraph = selfData?.graph || selfData;
-    const selfFollowing = Array.isArray(selfGraph?.following) ? selfGraph.following : [];
+    const selfFollowing = toPubkeys(selfGraph?.following);
     const selfFollowingSet = new Set(selfFollowing);
-    const searchedFollowing = Array.isArray(profileResult.following) ? profileResult.following : [];
+    const searchedFollowing = toPubkeys(profileResult.following);
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
   }, [selfData, profileResult]);
 
@@ -399,8 +400,14 @@ export default function SearchPage() {
         const pubkeys = key === "mutual" ? mutualPubkeys
           : key === "shared_followers" ? sharedFollowerPubkeys
           : key === "shared_following" ? sharedFollowingPubkeys
-          : (Array.isArray(profileResult?.[key]) ? profileResult[key] : []);
+          : toPubkeys(profileResult?.[key]);
         if (pubkeys.length > 0) {
+          const influenceMap = toInfluenceMap(profileResult?.[key]);
+          influenceMap.forEach((inf, pk) => {
+            if (!expandTrustCache.current.has(pk)) {
+              expandTrustCache.current.set(pk, inf);
+            }
+          });
           fetchSectionProfiles(key, pubkeys);
         }
       } else {
@@ -429,13 +436,13 @@ export default function SearchPage() {
     if (!profileResult) return [];
     return groupDefs.filter(g => {
       if (g.key === "mutual") {
-        const fb = Array.isArray(profileResult.followed_by) ? profileResult.followed_by : [];
-        const fg = Array.isArray(profileResult.following) ? profileResult.following : [];
+        const fb = toPubkeys(profileResult.followed_by);
+        const fg = toPubkeys(profileResult.following);
         return fb.includes(pk) && fg.includes(pk);
       }
       if (g.key === "shared_followers") return sharedFollowerPubkeys.includes(pk);
       if (g.key === "shared_following") return sharedFollowingPubkeys.includes(pk);
-      return Array.isArray(profileResult[g.key]) && profileResult[g.key].includes(pk);
+      return toPubkeys(profileResult[g.key]).includes(pk);
     });
   };
 
@@ -1480,8 +1487,8 @@ export default function SearchPage() {
                               </button>
                             </div>
                             {(() => {
-                              const followers = Array.isArray(profileResult.followed_by) ? profileResult.followed_by.length : (profileResult.followed_by || 0);
-                              const mutedBy = Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : (profileResult.muted_by || 0);
+                              const followers = Array.isArray(profileResult.followed_by) ? toPubkeys(profileResult.followed_by).length : (profileResult.followed_by || 0);
+                              const mutedBy = Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0);
                               const denom = followers + mutedBy;
                               const trustRatio = denom > 0 ? (followers / denom) * 100 : 100;
                               const trustColor = trustRatio > 90 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : trustRatio >= 50 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-red-700 bg-red-50 border-red-200";
@@ -1633,10 +1640,10 @@ export default function SearchPage() {
                     })()}
 
                     {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
-                      const mutedByCount = Array.isArray(profileResult.muted_by) ? profileResult.muted_by.length : (profileResult.muted_by || 0);
-                      const reportedByCount = Array.isArray(profileResult.reported_by) ? profileResult.reported_by.length : (profileResult.reported_by || 0);
-                      const mutingCount = Array.isArray(profileResult.muting) ? profileResult.muting.length : (profileResult.muting || 0);
-                      const reportingCount = Array.isArray(profileResult.reporting) ? profileResult.reporting.length : (profileResult.reporting || 0);
+                      const mutedByCount = Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0);
+                      const reportedByCount = Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0);
+                      const mutingCount = Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0);
+                      const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
                       const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0;
                       const totalNegativeSignals = mutedByCount + reportedByCount;
                       const riskLevel = reportedByCount > 10 ? "High" : reportedByCount > 0 || mutedByCount > 30 ? "Medium" : mutedByCount > 0 ? "Low" : "None";
@@ -1655,7 +1662,7 @@ export default function SearchPage() {
                           <div className="divide-y divide-slate-100">
                             {profileResult.followed_by !== undefined && (() => {
                               const fbIsArray = Array.isArray(profileResult.followed_by);
-                              const fbCount = fbIsArray ? profileResult.followed_by.length : (profileResult.followed_by || 0);
+                              const fbCount = fbIsArray ? toPubkeys(profileResult.followed_by).length : (profileResult.followed_by || 0);
                               const fbExpandable = fbIsArray && fbCount > 0;
                               return (
                               <div>
@@ -1680,13 +1687,13 @@ export default function SearchPage() {
                                     {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {fbExpandable && renderExpandedPanel("followed_by", profileResult.followed_by)}
+                                {fbExpandable && renderExpandedPanel("followed_by", toPubkeys(profileResult.followed_by))}
                               </div>
                               );
                             })()}
                             {profileResult.following !== undefined && (() => {
                               const fgIsArray = Array.isArray(profileResult.following);
-                              const fgCount = fgIsArray ? profileResult.following.length : (profileResult.following || 0);
+                              const fgCount = fgIsArray ? toPubkeys(profileResult.following).length : (profileResult.following || 0);
                               const fgExpandable = fgIsArray && fgCount > 0;
                               return (
                               <div>
@@ -1711,7 +1718,7 @@ export default function SearchPage() {
                                     {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {fgExpandable && renderExpandedPanel("following", profileResult.following)}
+                                {fgExpandable && renderExpandedPanel("following", toPubkeys(profileResult.following))}
                               </div>
                               );
                             })()}
@@ -1806,7 +1813,7 @@ export default function SearchPage() {
                                     {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {mbExpandable && renderExpandedPanel("muted_by", profileResult.muted_by)}
+                                {mbExpandable && renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
                               </div>
                               );
                             })()}
@@ -1837,7 +1844,7 @@ export default function SearchPage() {
                                     {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {rbExpandable && renderExpandedPanel("reported_by", profileResult.reported_by)}
+                                {rbExpandable && renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
                               </div>
                               );
                             })()}
@@ -1867,7 +1874,7 @@ export default function SearchPage() {
                                     {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {mtExpandable && renderExpandedPanel("muting", profileResult.muting)}
+                                {mtExpandable && renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
                               </div>
                               );
                             })()}
@@ -1897,7 +1904,7 @@ export default function SearchPage() {
                                     {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
                                   </div>
                                 </div>
-                                {rpExpandable && renderExpandedPanel("reporting", profileResult.reporting)}
+                                {rpExpandable && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
                               </div>
                               );
                             })()}

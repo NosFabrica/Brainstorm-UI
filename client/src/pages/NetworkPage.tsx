@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -36,6 +36,7 @@ import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/componen
 import { Switch } from "@/components/ui/switch";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 
@@ -189,7 +190,17 @@ export default function NetworkPage() {
       try {
         const data = await apiClient.getSelf();
         const inner = data?.data || data;
-        setNetworkData(inner?.graph || inner);
+        const graphObj = inner?.graph || inner;
+        setNetworkData(graphObj);
+        const allGroups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+        for (const groupKey of allGroups) {
+          const influenceMap = toInfluenceMap(graphObj?.[groupKey]);
+          influenceMap.forEach((influence, pk) => {
+            if (!trustCache.current.has(pk)) {
+              trustCache.current.set(pk, influence);
+            }
+          });
+        }
       } catch {
         setNetworkData(null);
       } finally {
@@ -238,8 +249,8 @@ export default function NetworkPage() {
           const influence = graph?.influence;
           trustCache.current.set(batch[idx], typeof influence === "number" ? influence : null);
           graphDataCache.current.set(batch[idx], {
-            muted_by: Array.isArray(graph?.muted_by) ? graph.muted_by : [],
-            reported_by: Array.isArray(graph?.reported_by) ? graph.reported_by : [],
+            muted_by: toPubkeys(graph?.muted_by),
+            reported_by: toPubkeys(graph?.reported_by),
           });
         } else {
           trustCache.current.set(batch[idx], null);
@@ -251,19 +262,28 @@ export default function NetworkPage() {
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
-    return networkData[key] || [];
+    return toPubkeys(networkData[key]);
+  }, [networkData]);
+
+  const groupPubkeySets = useMemo(() => {
+    if (!networkData) return null;
+    const sets: Record<GroupKey, Set<string>> = {} as any;
+    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
+      sets[k] = new Set(toPubkeys(networkData[k]));
+    });
+    return sets;
   }, [networkData]);
 
   const getPubkeyGroups = useCallback((pubkey: string): GroupKey[] => {
-    if (!networkData) return [];
+    if (!groupPubkeySets) return [];
     const memberOf: GroupKey[] = [];
     (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
-      if ((networkData[k] || []).includes(pubkey)) {
+      if (groupPubkeySets[k].has(pubkey)) {
         memberOf.push(k);
       }
     });
     return memberOf;
-  }, [networkData]);
+  }, [groupPubkeySets]);
 
   const isVerifiableGroup = (key: GroupKey) => key === "muted_by" || key === "reported_by";
 

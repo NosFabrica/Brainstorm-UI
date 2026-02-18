@@ -84,6 +84,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { toPubkeys } from "../services/graphHelpers";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
