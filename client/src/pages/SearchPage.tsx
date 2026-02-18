@@ -518,18 +518,18 @@ export default function SearchPage() {
               >
                 <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
                   {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
-                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
                     {displayName.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
-                  {profile?.nip05 && <p className="text-[10px] text-indigo-500 truncate">{profile.nip05}</p>}
+                  {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
                 </div>
                 {overlappingGroups.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
                     {overlappingGroups.map(g => (
-                      <Badge key={g.key} variant="outline" className={`text-[8px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
+                      <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
                     ))}
                   </div>
                 )}
@@ -540,7 +540,7 @@ export default function SearchPage() {
                       <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
                         className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
                     </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[7px] font-bold text-indigo-700">{trustPct}</span>
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700">{trustPct}</span>
                   </div>
                 )}
                 {trustScore === undefined && (
@@ -559,7 +559,7 @@ export default function SearchPage() {
                 setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
                 fetchSectionProfiles(key, pubkeys, visibleCount, 10);
               }}
-              className="w-full text-[11px] font-medium text-indigo-600"
+              className="w-full text-xs font-medium text-indigo-600"
               data-testid={`button-show-more-${key}`}
             >
               Show {Math.min(10, pubkeys.length - visibleCount)} more ({pubkeys.length - visibleCount} remaining)
@@ -823,7 +823,7 @@ export default function SearchPage() {
           return (
             <div
               key={i}
-              className="absolute text-[11px] font-mono text-indigo-400/50 select-none whitespace-nowrap"
+              className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
               style={{
                 left: `${left}%`,
                 top: `${top}px`,
@@ -920,7 +920,7 @@ export default function SearchPage() {
                       <span className="text-sm font-bold text-white leading-none mb-0.5">
                         {user.displayName || "Anon"}
                       </span>
-                      <span className="text-[10px] text-indigo-300 font-mono leading-none">
+                      <span className="text-xs text-indigo-300 font-mono leading-none">
                         {user.npub.slice(0, 8)}...
                       </span>
                     </div>
@@ -976,7 +976,7 @@ export default function SearchPage() {
                   <BrainLogo size={22} className="text-indigo-200" />
                 </div>
                 <div className="leading-tight">
-                  <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
+                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
                   <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-mobile-menu-title">Menu</h2>
                 </div>
               </div>
@@ -993,10 +993,10 @@ export default function SearchPage() {
 
             <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
               <div className="space-y-2">
-                <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]">Navigation</p>
+                <p className="px-3 text-xs font-semibold text-slate-300/70 uppercase tracking-[0.22em]">Navigation</p>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-semibold text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/dashboard"); }}
                   data-testid="button-mobile-nav-dashboard"
                 >
@@ -1005,7 +1005,7 @@ export default function SearchPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => setMobileMenuOpen(false)}
                   data-testid="button-mobile-nav-search"
                 >
@@ -1014,7 +1014,7 @@ export default function SearchPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/network"); }}
                   data-testid="button-mobile-nav-network"
                 >
@@ -1023,7 +1023,7 @@ export default function SearchPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }}
                   data-testid="button-mobile-nav-wot"
                 >
@@ -1034,7 +1034,7 @@ export default function SearchPage() {
               <div className="mt-auto pt-4 px-0">
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
                   data-testid="button-mobile-nav-settings"
                 >
@@ -1088,7 +1088,7 @@ export default function SearchPage() {
             <div className="flex flex-col items-start gap-3">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm" data-testid="pill-search-kicker">
                 <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                <span className="text-[9px] font-bold tracking-[0.15em] text-indigo-900 uppercase">Profile Search</span>
+                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">Profile Search</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight relative" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
@@ -1113,10 +1113,10 @@ export default function SearchPage() {
                     </div>
                     <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
                       <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Profile Discovery</CardTitle>
-                      <CardDescription className="text-slate-500 text-[10px] font-medium uppercase tracking-wide">Trust Search</CardDescription>
+                      <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">Trust Search</CardDescription>
                     </div>
                   </div>
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr">
+                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr">
                     <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                     <span>NOSTR</span>
                   </div>
@@ -1125,7 +1125,7 @@ export default function SearchPage() {
                 <TabsList className="mt-6 w-full grid grid-cols-2 h-auto p-1 bg-slate-100/50 rounded-lg border border-slate-200/50" data-testid="tabs-search-mode">
                   <TabsTrigger
                     value="npub"
-                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-slate-500 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5"
+                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-xs sm:text-xs font-bold uppercase tracking-wide text-slate-500 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5"
                     data-testid="tab-npub"
                   >
                     <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -1137,7 +1137,7 @@ export default function SearchPage() {
                   <TabsTrigger
                     value="keyword"
                     disabled
-                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-slate-400 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
+                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-xs sm:text-xs font-bold uppercase tracking-wide text-slate-400 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
                     data-testid="tab-keyword-coming-soon"
                   >
                     <SearchIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -1146,7 +1146,7 @@ export default function SearchPage() {
                         <span className="lg:hidden">Keyword</span>
                         <span className="hidden lg:inline">Keyword Search</span>
                       </span>
-                      <span className="rounded-full bg-indigo-800 text-white border border-indigo-800/40 px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase shadow-sm">
+                      <span className="rounded-full bg-indigo-800 text-white border border-indigo-800/40 px-2 py-0.5 text-xs font-bold tracking-wider uppercase shadow-sm">
                         Coming soon
                       </span>
                     </span>
@@ -1163,7 +1163,7 @@ export default function SearchPage() {
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-700" data-testid="text-npub-section-title">Identity Lookup</h4>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">npub, hex pubkey, or NIP-05 handle</p>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">npub, hex pubkey, or NIP-05 handle</p>
                       </div>
                     </div>
 
@@ -1210,8 +1210,8 @@ export default function SearchPage() {
                           <Info className="h-3.5 w-3.5" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-red-900" data-testid="text-search-invalid-npub-title">{searchError.title}</p>
-                          <p className="text-[11px] text-red-800/80" data-testid="text-search-invalid-npub-body">{searchError.message}</p>
+                          <p className="text-xs font-bold text-red-900" data-testid="text-search-invalid-npub-title">{searchError.title}</p>
+                          <p className="text-xs text-red-800/80" data-testid="text-search-invalid-npub-body">{searchError.message}</p>
                         </div>
                       </div>
                     )}
@@ -1222,8 +1222,8 @@ export default function SearchPage() {
                           <Info className="h-3.5 w-3.5" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-amber-900" data-testid="text-search-missing-title">{searchError.title}</p>
-                          <p className="text-[11px] text-amber-800/80" data-testid="text-search-missing-body">{searchError.message}</p>
+                          <p className="text-xs font-bold text-amber-900" data-testid="text-search-missing-title">{searchError.title}</p>
+                          <p className="text-xs text-amber-800/80" data-testid="text-search-missing-body">{searchError.message}</p>
                         </div>
                       </div>
                     )}
@@ -1238,7 +1238,7 @@ export default function SearchPage() {
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-slate-700">Identity Search</h4>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Find profiles by name, NIP-05, or attributes</p>
+                        <p className="text-xs text-slate-500 uppercase tracking-wide">Find profiles by name, NIP-05, or attributes</p>
                       </div>
                     </div>
                     <div className="flex gap-2 items-center">
@@ -1352,7 +1352,7 @@ export default function SearchPage() {
                         </Button>
                       </div>
                       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5" data-testid="note-search-empty">
-                        <p className="text-[11px] text-slate-600">
+                        <p className="text-xs text-slate-600">
                           Tip: if this is a brand-new identity, it may not have published metadata yet.
                         </p>
                       </div>
@@ -1466,15 +1466,15 @@ export default function SearchPage() {
                               <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-result-title">
                                 {nostrProfile?.display_name || nostrProfile?.name || searchQuery.slice(0, 18) + "..."}
                               </h3>
-                              <Badge variant="secondary" className="text-[9px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-search-result-found">
+                              <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-search-result-found">
                                 Profile Found
                               </Badge>
                             </div>
                             {nostrProfile?.nip05 && (
-                              <p className="text-[11px] sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-search-result-nip05">{nostrProfile.nip05}</p>
+                              <p className="text-xs sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-search-result-nip05">{nostrProfile.nip05}</p>
                             )}
                             <div className="flex items-center gap-1.5 mt-1.5">
-                              <code className="text-[10px] text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-search-result-npub">{searchQuery}</code>
+                              <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-search-result-npub">{searchQuery}</code>
                               <button onClick={() => handleCopyNpub(searchQuery)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-search-npub">
                                 {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                               </button>
@@ -1509,7 +1509,7 @@ export default function SearchPage() {
                                 <div className="flex items-center gap-1">
                                   <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
                                   <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
-                                  <span className="text-[6px] sm:text-[7px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+                                  <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
                                 </div>
                                 <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                                   <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
@@ -1519,7 +1519,7 @@ export default function SearchPage() {
                                   </svg>
                                   <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{pct}</span>
                                 </div>
-                                <span className="text-[8px] sm:text-[9px] font-semibold text-indigo-600">{tier.label}</span>
+                                <span className="text-[10px] sm:text-xs font-semibold text-indigo-600">{tier.label}</span>
                               </div>
                             );
                           })()}
@@ -1534,7 +1534,7 @@ export default function SearchPage() {
                         {nostrProfile.about.length > 140 && (
                           <button
                             onClick={() => setAboutExpanded(!aboutExpanded)}
-                            className="text-[10px] text-indigo-500 font-medium mt-1"
+                            className="text-xs text-indigo-500 font-medium mt-1"
                             data-testid="button-about-toggle"
                           >
                             {aboutExpanded ? "Show less" : "Show more"}
@@ -1573,15 +1573,15 @@ export default function SearchPage() {
                             <div className="flex-1 min-w-0">
                               {sharedCount > 0 ? (
                                 <>
-                                  <p className="text-[12px] font-semibold text-indigo-900">
+                                  <p className="text-sm font-semibold text-indigo-900">
                                     You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
                                   </p>
-                                  <p className="text-[10px] text-indigo-600/70 mt-0.5">
+                                  <p className="text-xs text-indigo-600/70 mt-0.5">
                                     {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
                                   </p>
                                 </>
                               ) : (
-                                <p className="text-[12px] text-slate-400 font-medium">No shared connections</p>
+                                <p className="text-sm text-slate-400 font-medium">No shared connections</p>
                               )}
                             </div>
                             {isExpandable && (
@@ -1599,7 +1599,7 @@ export default function SearchPage() {
                                   >
                                     <div className="flex items-center gap-2">
                                       <FollowersIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                      <span className="text-[11px] font-semibold text-indigo-700">
+                                      <span className="text-xs font-semibold text-indigo-700">
                                         Mutual Followers ({mutualFollowersCount.toLocaleString()})
                                       </span>
                                     </div>
@@ -1617,7 +1617,7 @@ export default function SearchPage() {
                                   >
                                     <div className="flex items-center gap-2">
                                       <FollowingIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                      <span className="text-[11px] font-semibold text-indigo-700">
+                                      <span className="text-xs font-semibold text-indigo-700">
                                         Mutual Following ({mutualFollowingCount.toLocaleString()})
                                       </span>
                                     </div>
@@ -1648,9 +1648,9 @@ export default function SearchPage() {
                           <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <h4 className="text-[11px] font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
+                              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-mono">Network Position</span>
+                            <span className="text-xs text-slate-400 font-mono">Network Position</span>
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.followed_by !== undefined && (() => {
@@ -1669,8 +1669,8 @@ export default function SearchPage() {
                                       <FollowersIcon className="h-4 w-4 text-blue-500" />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Followers</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">People following this account</p>
+                                      <p className="text-sm font-semibold text-slate-700">Followers</p>
+                                      <p className="text-xs text-slate-400 leading-tight">People following this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1700,8 +1700,8 @@ export default function SearchPage() {
                                       <FollowingIcon className="h-4 w-4 text-blue-500" />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Following</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Accounts this person follows</p>
+                                      <p className="text-sm font-semibold text-slate-700">Following</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Accounts this person follows</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1731,8 +1731,8 @@ export default function SearchPage() {
                                       <MutualIcon className="h-4 w-4 text-teal-500" />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Mutual</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Follow each other mutually</p>
+                                      <p className="text-sm font-semibold text-slate-700">Mutual</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Follow each other mutually</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1753,8 +1753,8 @@ export default function SearchPage() {
                                     <BrainLogo size={16} className="text-indigo-500" />
                                   </div>
                                   <div>
-                                    <p className="text-[12px] font-semibold text-slate-700">Influence Score</p>
-                                    <p className="text-[10px] text-slate-400 leading-tight">Network influence rating (0-1)</p>
+                                    <p className="text-sm font-semibold text-slate-700">Influence Score</p>
+                                    <p className="text-xs text-slate-400 leading-tight">Network influence rating (0-1)</p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2.5">
@@ -1774,9 +1774,9 @@ export default function SearchPage() {
                           <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-amber-500" : "bg-slate-300"}`} />
-                              <h4 className="text-[11px] font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
+                              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
                             </div>
-                            <span className={`text-[10px] font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
+                            <span className={`text-xs font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.muted_by !== undefined && (() => {
@@ -1795,8 +1795,8 @@ export default function SearchPage() {
                                       <MutedByIcon className={`h-4 w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Muted By</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Others who muted this account</p>
+                                      <p className="text-sm font-semibold text-slate-700">Muted By</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Others who muted this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1826,8 +1826,8 @@ export default function SearchPage() {
                                       <ReportedByIcon className={`h-4 w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Reported By</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Reports filed against this account</p>
+                                      <p className="text-sm font-semibold text-slate-700">Reported By</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Reports filed against this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1856,8 +1856,8 @@ export default function SearchPage() {
                                       <MutingIcon className="h-4 w-4 text-slate-400" />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Muting</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Accounts this person has muted</p>
+                                      <p className="text-sm font-semibold text-slate-700">Muting</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Accounts this person has muted</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1886,8 +1886,8 @@ export default function SearchPage() {
                                       <ReportingIcon className="h-4 w-4 text-slate-400" />
                                     </div>
                                     <div>
-                                      <p className="text-[12px] font-semibold text-slate-700">Reporting</p>
-                                      <p className="text-[10px] text-slate-400 leading-tight">Reports filed by this person</p>
+                                      <p className="text-sm font-semibold text-slate-700">Reporting</p>
+                                      <p className="text-xs text-slate-400 leading-tight">Reports filed by this person</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1912,12 +1912,12 @@ export default function SearchPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <p className="text-[12px] font-semibold text-amber-900">Risk Advisory</p>
-                                  <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md ${riskLevel === "High" ? "bg-red-100 text-red-700" : riskLevel === "Medium" ? "bg-amber-100 text-amber-700" : "bg-amber-50 text-amber-600"}`}>
+                                  <p className="text-sm font-semibold text-amber-900">Risk Advisory</p>
+                                  <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${riskLevel === "High" ? "bg-red-100 text-red-700" : riskLevel === "Medium" ? "bg-amber-100 text-amber-700" : "bg-amber-50 text-amber-600"}`}>
                                     {totalNegativeSignals.toLocaleString()} signal{totalNegativeSignals !== 1 ? "s" : ""} detected
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-amber-800/70 leading-relaxed mt-1">
+                                <p className="text-xs text-amber-800/70 leading-relaxed mt-1">
                                   This account has been {mutedByCount > 0 ? `muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}` : ""}
                                   {mutedByCount > 0 && reportedByCount > 0 ? " and " : ""}
                                   {reportedByCount > 0 ? `reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}` : ""}.
@@ -1932,8 +1932,8 @@ export default function SearchPage() {
                     })()}
 
                     <details className="mt-4">
-                      <summary className="text-[10px] text-slate-400 font-medium uppercase tracking-wide cursor-pointer hover:text-slate-600 transition-colors" data-testid="button-search-result-raw">Raw API Data</summary>
-                      <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 overflow-auto max-h-48 font-mono mt-2" data-testid="text-search-result-raw">
+                      <summary className="text-xs text-slate-400 font-medium uppercase tracking-wide cursor-pointer hover:text-slate-600 transition-colors" data-testid="button-search-result-raw">Raw API Data</summary>
+                      <pre className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 overflow-auto max-h-48 font-mono mt-2" data-testid="text-search-result-raw">
                         {JSON.stringify(profileResult, null, 2)}
                       </pre>
                     </details>
@@ -1978,7 +1978,7 @@ export default function SearchPage() {
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-slate-800" data-testid={`text-search-feature-title-${idx}`}>{feature.title}</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed" data-testid={`text-search-feature-desc-${idx}`}>{feature.desc}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed" data-testid={`text-search-feature-desc-${idx}`}>{feature.desc}</p>
                     </div>
                   </CardContent>
                 </Card>

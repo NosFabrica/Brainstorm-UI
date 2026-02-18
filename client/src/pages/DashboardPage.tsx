@@ -530,7 +530,7 @@ export default function DashboardPage() {
                       </Avatar>
                       <div className="hidden md:flex flex-col items-start mr-2">
                         <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                        <span className="text-[10px] text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                        <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
                       </div>
                     </div>
                   </DropdownMenuTrigger>
@@ -573,7 +573,7 @@ export default function DashboardPage() {
                     <BrainLogo size={22} className="text-indigo-200" />
                   </div>
                   <div className="leading-tight">
-                    <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
+                    <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
                     <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-mobile-menu-title">Menu</h2>
                   </div>
                 </div>
@@ -584,26 +584,26 @@ export default function DashboardPage() {
 
               <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
                 <div className="space-y-2">
-                  <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
+                  <p className="px-3 text-xs font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-dashboard">
                     <Home className="h-5 w-5 text-indigo-200" />
                     Dashboard
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
                     <Search className="h-5 w-5 text-slate-200/80" />
                     Search
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
                     <Users className="h-5 w-5 text-slate-200/80" />
                     Network
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
                     <BookOpen className="h-5 w-5 text-slate-200/80" />
                     What is WoT?
                   </Button>
                 </div>
                 <div className="mt-auto pt-4 px-0">
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
                     <SettingsIcon className="h-5 w-5 text-slate-200/80" />
                     Settings
                   </Button>
@@ -637,7 +637,7 @@ export default function DashboardPage() {
               <div className="space-y-2" data-testid="section-dashboard-header-copy">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="pill-dashboard-kicker">
                   <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" aria-hidden="true" />
-                  <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-dashboard-header-kicker">Brainstorm Dashboard</p>
+                  <p className="text-xs font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-dashboard-header-kicker">Brainstorm Dashboard</p>
                 </div>
                 <h1
                   className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"
@@ -660,27 +660,27 @@ export default function DashboardPage() {
                 data-testid="card-overall-trust-score"
               >
                 <div className="flex flex-col leading-tight min-w-0">
-                  <span className="text-[10px] font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
+                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
                   {triggerGrapeRankMutation.isPending ? (
-                    <span className="text-[11px] text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
                   ) : grapeRankScore ? (
-                    <span className="text-[11px] text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
                   ) : publishDone ? (
-                    <span className="text-[11px] text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
                   ) : (
-                    <span className="text-[11px] text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
                       Awaiting calculation
                     </span>
                   )}
                   {(grapeRankScore || publishDone) && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                    <span className="text-[9px] text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
+                    <span className="text-xs text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
                   )}
@@ -724,10 +724,10 @@ export default function DashboardPage() {
                             <BrainLogo size={18} className="text-indigo-800" />
                           </div>
                           <div className="min-w-0">
-                            <AlertDialogTitle className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                            <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
                               Recalculate GrapeRank?
                             </AlertDialogTitle>
-                            <AlertDialogDescription className="text-[12px] sm:text-[13px] text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
+                            <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
                               This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
                             </AlertDialogDescription>
                           </div>
@@ -756,13 +756,13 @@ export default function DashboardPage() {
             {triggerGrapeRankMutation.isSuccess && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 w-fit ml-auto" data-testid="graperank-success">
                 <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <p className="text-[10px] text-emerald-700 font-medium">Calculation triggered. Results will update shortly.</p>
+                <p className="text-xs text-emerald-700 font-medium">Calculation triggered. Results will update shortly.</p>
               </div>
             )}
             {triggerGrapeRankMutation.isError && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200 w-fit ml-auto" data-testid="graperank-error">
                 <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <p className="text-[10px] text-red-600 font-medium">
+                <p className="text-xs text-red-600 font-medium">
                   {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
                 </p>
               </div>
@@ -864,7 +864,7 @@ export default function DashboardPage() {
                 <div className="relative p-5 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
+                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
                         Brainstorm onboarding
                       </p>
                       <h2
@@ -880,7 +880,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div
-                        className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] text-slate-200/90"
+                        className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
                         data-testid="badge-queue-position"
                         aria-label={queuePosition !== null ? `${queuePosition} people ahead of you in queue` : "Queue position loading"}
                       >
@@ -890,7 +890,7 @@ export default function DashboardPage() {
                           {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
                         </span>
                       </div>
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] text-slate-200" data-testid="badge-local-computation">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200" data-testid="badge-local-computation">
                         <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
                         In Progress
                       </span>
@@ -902,7 +902,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
+                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
                         data-testid="button-toggle-onboarding"
                         aria-expanded={!isOnboardingCollapsed}
                       >
@@ -919,11 +919,11 @@ export default function DashboardPage() {
                       >
                         <div className="flex items-center justify-between gap-3" data-testid="row-onboarding-progress-header">
                           <div className="min-w-0">
-                            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-slate-300/80" data-testid="text-onboarding-progress-kicker">
+                            <p className="text-xs font-bold tracking-[0.22em] uppercase text-slate-300/80" data-testid="text-onboarding-progress-kicker">
                               Calculation
                             </p>
                             <p
-                              className="text-[12px] font-semibold text-white truncate"
+                              className="text-sm font-semibold text-white truncate"
                               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                               data-testid="text-onboarding-progress-step"
                             >
@@ -946,7 +946,7 @@ export default function DashboardPage() {
                                 <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
                               </span>
                             )}
-                            <span className="text-[11px] font-mono text-slate-200/80" data-testid="text-onboarding-progress-percent">
+                            <span className="text-xs font-mono text-slate-200/80" data-testid="text-onboarding-progress-percent">
                               {Math.round(onboardingProgress)}%
                             </span>
                           </div>
@@ -962,9 +962,9 @@ export default function DashboardPage() {
                                 className={`w-2 h-2 rounded-full shrink-0 ${setupDone ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" : grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(129,140,248,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-relays"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${setupDone ? "text-indigo-200" : grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${setupDone ? "text-indigo-200" : grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${setupDone ? "text-indigo-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${setupDone ? "text-indigo-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
                               {setupDone ? "Done" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -978,9 +978,9 @@ export default function DashboardPage() {
                                 className={`w-2 h-2 rounded-full shrink-0 ${calcDone ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : setupDone && !calcDone ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-graph"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : setupDone && !calcDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : setupDone && !calcDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : setupDone ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : setupDone ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
                               {calcDone ? "Done" : setupDone ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -994,12 +994,12 @@ export default function DashboardPage() {
                                 className={`w-2 h-2 rounded-full shrink-0 ${publishDone ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-scores"
                               />
-                              <span className={`text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
-                              <span className={`hidden lg:inline text-[10px] font-semibold tracking-wide ${publishDone ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
+                              <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-[10px] font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
                               {publishDone ? "Done" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="mt-2 sm:hidden text-center" data-testid="text-onboarding-status-footnote">
-                        <span className="text-[10px] text-slate-400">
+                        <span className="text-xs text-slate-400">
                           Final step publishes a <span className="text-slate-200 font-semibold">Trusted Assertion</span> event.
                         </span>
                       </div>
@@ -1044,7 +1044,7 @@ export default function DashboardPage() {
                             <div className="p-4 sm:p-5">
                               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                                 <div className="min-w-0">
-                                  <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-400" data-testid="text-onboarding-active-subtitle">
+                                  <p className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-400" data-testid="text-onboarding-active-subtitle">
                                     {ONBOARDING_SLIDES[activeOnboardingIndex].subtitle}
                                   </p>
                                   <h3
@@ -1060,7 +1060,7 @@ export default function DashboardPage() {
                                   <p className="text-xs text-slate-300/90 mt-2" data-testid="text-onboarding-active-detail">
                                     {ONBOARDING_SLIDES[activeOnboardingIndex].detail}
                                   </p>
-                                  <p className="text-[11px] text-slate-400 mt-3" data-testid="text-onboarding-hint">
+                                  <p className="text-xs text-slate-400 mt-3" data-testid="text-onboarding-hint">
                                     Tap to continue
                                   </p>
                                 </div>
@@ -1086,12 +1086,12 @@ export default function DashboardPage() {
                               </div>
 
                               <div
-                                className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-[11px] text-slate-200 backdrop-blur-md"
+                                className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur-md"
                                 data-testid="badge-onboarding-step"
                                 aria-label={`Slide ${activeOnboardingIndex + 1} of ${ONBOARDING_SLIDES.length}`}
                               >
                                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" data-testid="dot-onboarding-step" />
-                                <span className="text-[11px] font-semibold tracking-[0.18em] uppercase" data-testid="text-onboarding-step">
+                                <span className="text-xs font-semibold tracking-[0.18em] uppercase" data-testid="text-onboarding-step">
                                   Slide {activeOnboardingIndex + 1} of {ONBOARDING_SLIDES.length}
                                 </span>
                               </div>
@@ -1137,17 +1137,17 @@ export default function DashboardPage() {
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-direct-follows-count">
                         {selfQuery.isLoading ? "\u2014" : followersCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 line-clamp-1" data-testid="text-direct-follows-label">Mutual follows in your web</p>
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-1" data-testid="text-direct-follows-label">Mutual follows in your web</p>
                     </div>
 
                   </div>
 
                   <div className="mt-auto flex items-center justify-between pt-2">
-                    <div className="inline-flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <div className="inline-flex items-center gap-2 text-xs font-mono text-slate-500">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Live
                     </div>
-                    <span className="inline-flex items-center h-7 px-3 text-[10px] font-bold rounded-lg border border-slate-200 text-slate-600" data-testid="button-view-all-followers">
+                    <span className="inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600" data-testid="button-view-all-followers">
                       View All
                       <ChevronRight className="ml-1.5 h-3 w-3" />
                     </span>
@@ -1180,7 +1180,7 @@ export default function DashboardPage() {
                             <DialogTitle className="text-xl font-bold text-slate-900 leading-none tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-network-alerts-dialog-title">
                               Network Alerts
                             </DialogTitle>
-                            <DialogDescription className="text-[12px] text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
+                            <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
                               Stay informed about who you follow. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
                             </DialogDescription>
                           </div>
@@ -1191,8 +1191,8 @@ export default function DashboardPage() {
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="grid-network-alerts-dialog-signals">
                       {[{ label: "Spoof detection", desc: "Look-alikes & impostors" }, { label: "Spam pressure", desc: "Mass-follow patterns" }, { label: "Trust drops", desc: "Fast score collapse" }].map((s, idx) => (
                         <div key={s.label} className="rounded-2xl border border-white/70 bg-white/60 backdrop-blur-md px-3 py-2.5 shadow-sm" data-testid={`card-network-alerts-dialog-signal-${idx}`}>
-                          <div className="text-[11px] font-bold text-slate-900" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
-                          <div className="text-[10px] text-slate-600 mt-1" data-testid={`text-network-alerts-dialog-signal-desc-${idx}`}>{s.desc}</div>
+                          <div className="text-xs font-bold text-slate-900" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
+                          <div className="text-xs text-slate-600 mt-1" data-testid={`text-network-alerts-dialog-signal-desc-${idx}`}>{s.desc}</div>
                         </div>
                       ))}
                     </div>
@@ -1202,8 +1202,8 @@ export default function DashboardPage() {
                     <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden">
                       <div className="px-4 py-3 border-b border-slate-200/60 bg-gradient-to-r from-white/75 to-indigo-50/45">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-[11px] font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
-                          <div className="text-[10px] font-mono text-slate-500" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
+                          <div className="text-xs font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
+                          <div className="text-xs font-mono text-slate-500" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
                         </div>
                       </div>
 
@@ -1215,11 +1215,11 @@ export default function DashboardPage() {
                                 <ShieldAlert className="h-4 w-4 text-red-500" />
                               </div>
                               <div className="min-w-0">
-                                <div className="text-[12px] font-bold text-slate-900">Reported By</div>
-                                <div className="text-[10px] text-slate-500">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
+                                <div className="text-sm font-bold text-slate-900">Reported By</div>
+                                <div className="text-xs text-slate-500">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-[9px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
                           </div>
                         )}
                         {mutedByCount > 0 && (
@@ -1229,11 +1229,11 @@ export default function DashboardPage() {
                                 <VolumeX className="h-4 w-4 text-amber-500" />
                               </div>
                               <div className="min-w-0">
-                                <div className="text-[12px] font-bold text-slate-900">Muted By</div>
-                                <div className="text-[10px] text-slate-500">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
+                                <div className="text-sm font-bold text-slate-900">Muted By</div>
+                                <div className="text-xs text-slate-500">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-[9px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
                           </div>
                         )}
                         {reportedByCount === 0 && mutedByCount === 0 && (
@@ -1241,15 +1241,15 @@ export default function DashboardPage() {
                             {selfQuery.isLoading ? (
                               <>
                                 <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-2 animate-pulse" />
-                                <p className="text-[12px] font-bold text-slate-500">Loading signals...</p>
+                                <p className="text-sm font-bold text-slate-500">Loading signals...</p>
                               </>
                             ) : (
                               <>
                                 <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-2">
                                   <Check className="h-5 w-5 text-emerald-500" />
                                 </div>
-                                <p className="text-[12px] font-bold text-slate-900">All clear</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">No reports or mutes detected in your network.</p>
+                                <p className="text-sm font-bold text-slate-900">All clear</p>
+                                <p className="text-xs text-slate-500 mt-0.5">No reports or mutes detected in your network.</p>
                               </>
                             )}
                           </div>
@@ -1307,7 +1307,7 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <p className="text-[10px] text-slate-500 leading-tight">
+                  <p className="text-xs text-slate-500 leading-tight">
                     {selfQuery.isLoading ? (
                       <span className="text-slate-400">Loading signals...</span>
                     ) : (reportedByCount + mutedByCount) > 0 ? (
@@ -1325,8 +1325,8 @@ export default function DashboardPage() {
                             <ShieldAlert className="h-2.5 w-2.5 text-red-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
-                            <p className="text-[10px] font-bold text-slate-800 leading-none">Reported By</p>
-                            <p className="text-[8px] text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
+                            <p className="text-xs font-bold text-slate-800 leading-none">Reported By</p>
+                            <p className="text-xs text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
                       </div>
@@ -1338,8 +1338,8 @@ export default function DashboardPage() {
                             <VolumeX className="h-2.5 w-2.5 text-amber-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
-                            <p className="text-[10px] font-bold text-slate-800 leading-none">Muted By</p>
-                            <p className="text-[8px] text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
+                            <p className="text-xs font-bold text-slate-800 leading-none">Muted By</p>
+                            <p className="text-xs text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
                       </div>
@@ -1371,10 +1371,10 @@ export default function DashboardPage() {
                       <TooltipContent className="bg-white/95 backdrop-blur-xl border-[#7c86ff]/20 text-slate-700 shadow-xl p-3">
                         <div className="space-y-1 max-w-xs">
                           <p className="font-bold text-xs text-[#333286]">About Extended Reach</p>
-                          <p className="text-[10px] leading-relaxed">
+                          <p className="text-xs leading-relaxed">
                             This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
                           </p>
-                          <p className="text-[10px] leading-relaxed border-t border-slate-100 pt-1 mt-1">
+                          <p className="text-xs leading-relaxed border-t border-slate-100 pt-1 mt-1">
                             <span className="font-semibold text-indigo-600">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
                           </p>
                         </div>
@@ -1386,11 +1386,11 @@ export default function DashboardPage() {
                     <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
                       {selfQuery.isLoading ? "\u2014" : extendedNetworkCount.toLocaleString()}
                     </div>
-                    <p className="text-[10px] text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
+                    <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
 
                   <div className="mt-auto space-y-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                    <div className="flex justify-between text-[10px] font-medium text-slate-600">
+                    <div className="flex justify-between text-xs font-medium text-slate-600">
                       <span>Reach Depth</span>
                       <span className="text-indigo-600 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
                     </div>
@@ -1407,7 +1407,7 @@ export default function DashboardPage() {
                       step={1}
                       className="cursor-pointer py-1"
                     />
-                    <div className="flex justify-between text-[8px] text-slate-400 uppercase tracking-wider font-semibold">
+                    <div className="flex justify-between text-xs text-slate-400 uppercase tracking-wider font-semibold">
                       <span>Direct</span>
                       <span>Global</span>
                     </div>
@@ -1433,12 +1433,12 @@ export default function DashboardPage() {
                         <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                           Follows Network Health
                         </CardTitle>
-                        <CardDescription className="text-slate-500 text-[9px] font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
+                        <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
                           Your follows network \u00b7 {selfQuery.isLoading ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} hops
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="px-2 py-0.5 rounded-full bg-[#7c86ff]/10 text-[9px] font-bold text-[#333286] border border-[#7c86ff]/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                    <div className="px-2 py-0.5 rounded-full bg-[#7c86ff]/10 text-xs font-bold text-[#333286] border border-[#7c86ff]/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
                       <span className="text-[#333286]">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} HOPS</span>
                     </div>
                   </div>
@@ -1461,7 +1461,7 @@ export default function DashboardPage() {
                               backgroundColor: "#ffffff",
                               color: "#0f172a",
                               boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                              fontSize: "11px",
+                              fontSize: "12px",
                             }}
                             itemStyle={{ color: "#0f172a" }}
                           />
@@ -1472,7 +1472,7 @@ export default function DashboardPage() {
                     <div className="w-full md:w-7/12 grid grid-cols-2 gap-x-6 gap-y-3">
                       <div className="col-span-2 mb-1">
                         <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Network Composition</h4>
-                        <p className="text-[10px] text-slate-500">Breakdown by trust signal strength</p>
+                        <p className="text-xs text-slate-500">Breakdown by trust signal strength</p>
                       </div>
                       {currentPieData.map((dist, i) => (
                         <div key={i} className="group flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-default border border-transparent hover:border-slate-100">
@@ -1480,7 +1480,7 @@ export default function DashboardPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
                               <p className="font-bold text-xs text-slate-900 truncate pr-2">{dist.name}</p>
-                              <span className="text-[11px] font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
+                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading ? "\u2014" : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
                               </span>
                             </div>
@@ -1520,7 +1520,7 @@ export default function DashboardPage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
                         <div className="absolute bottom-0 left-0 right-0 p-3">
                           <p className="text-sm font-bold text-white">{cluster.label}</p>
-                          <p className="text-[10px] text-white/60">{cluster.count.toLocaleString()} {cluster.unit}</p>
+                          <p className="text-xs text-white/60">{cluster.count.toLocaleString()} {cluster.unit}</p>
                         </div>
                       </div>
                     ))}
@@ -1612,7 +1612,7 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
                       <div className="flex-1 space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                             <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
                             <line x1="12" y1="18" x2="12.01" y2="18" />
@@ -1678,7 +1678,7 @@ export default function DashboardPage() {
                     aria-label="Next supported client"
                   >
                     <div
-                      className="absolute -right-16 top-[1.1rem] z-20 rotate-45 bg-[#333286] px-16 py-2 text-[11px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                      className="absolute -right-16 top-[1.1rem] z-20 rotate-45 bg-[#333286] px-16 py-2 text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
                       data-testid="ribbon-nostria-coming-soon"
                       aria-label="Coming soon"
                     >
@@ -1703,7 +1703,7 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
                       <div className="flex-1 space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients-nostria">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients-nostria">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                             <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
                             <line x1="12" y1="18" x2="12.01" y2="18" />
@@ -1781,7 +1781,7 @@ export default function DashboardPage() {
                   <Users className="h-4 w-4 text-indigo-500" />
                   <span className="text-sm font-semibold text-slate-800">Network</span>
                 </div>
-                <Button variant="ghost" size="sm" className="text-[10px] font-bold text-indigo-600 uppercase tracking-wide px-2 h-7 no-default-hover-elevate no-default-active-elevate hover:bg-indigo-50" onClick={() => navigate("/network")} data-testid="button-view-network">
+                <Button variant="ghost" size="sm" className="text-xs font-bold text-indigo-600 uppercase tracking-wide px-2 h-7 no-default-hover-elevate no-default-active-elevate hover:bg-indigo-50" onClick={() => navigate("/network")} data-testid="button-view-network">
                   View All
                 </Button>
               </div>
@@ -1843,8 +1843,8 @@ export default function DashboardPage() {
                   </div>
                   {(grapeRank as any).result && (
                     <div className="pt-1.5 border-t border-slate-100">
-                      <p className="text-[10px] text-slate-500 mb-1">Result</p>
-                      <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-auto max-h-32 font-mono">
+                      <p className="text-xs text-slate-500 mb-1">Result</p>
+                      <pre className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-auto max-h-32 font-mono">
                         {typeof (grapeRank as any).result === "string" ? (grapeRank as any).result : JSON.stringify((grapeRank as any).result, null, 2)}
                       </pre>
                     </div>
@@ -1884,14 +1884,14 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">User Self Data</p>
-                    <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-100 overflow-auto max-h-48 font-mono" data-testid="raw-self-data">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">User Self Data</p>
+                    <pre className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-100 overflow-auto max-h-48 font-mono" data-testid="raw-self-data">
                       {selfQuery.isLoading ? "Loading..." : JSON.stringify(selfData, null, 2) || "No data"}
                     </pre>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">GrapeRank Result</p>
-                    <pre className="text-[10px] text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-100 overflow-auto max-h-48 font-mono" data-testid="raw-graperank-data">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">GrapeRank Result</p>
+                    <pre className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-100 overflow-auto max-h-48 font-mono" data-testid="raw-graperank-data">
                       {grapeRankQuery.isLoading ? "Loading..." : JSON.stringify(grapeRankRaw, null, 2) || "No data"}
                     </pre>
                   </div>

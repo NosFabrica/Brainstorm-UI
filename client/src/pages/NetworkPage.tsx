@@ -489,7 +489,7 @@ export default function NetworkPage() {
           return (
             <div
               key={i}
-              className="absolute text-[11px] font-mono text-indigo-400/50 select-none whitespace-nowrap"
+              className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
               style={{
                 left: `${left}%`,
                 top: `${top}px`,
@@ -586,7 +586,7 @@ export default function NetworkPage() {
                       <span className="text-sm font-bold text-white leading-none mb-0.5">
                         {user.displayName || "Anon"}
                       </span>
-                      <span className="text-[10px] text-indigo-300 font-mono leading-none">
+                      <span className="text-xs text-indigo-300 font-mono leading-none">
                         {user.npub.slice(0, 8)}...
                       </span>
                     </div>
@@ -642,7 +642,7 @@ export default function NetworkPage() {
                   <BrainLogo size={22} className="text-indigo-200" />
                 </div>
                 <div className="leading-tight">
-                  <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
+                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
                   <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-mobile-menu-title">Menu</h2>
                 </div>
               </div>
@@ -659,10 +659,10 @@ export default function NetworkPage() {
 
             <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
               <div className="space-y-2">
-                <p className="px-3 text-[10px] font-semibold text-slate-300/70 uppercase tracking-[0.22em]">Navigation</p>
+                <p className="px-3 text-xs font-semibold text-slate-300/70 uppercase tracking-[0.22em]">Navigation</p>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/dashboard"); }}
                   data-testid="button-mobile-nav-dashboard"
                 >
@@ -671,7 +671,7 @@ export default function NetworkPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/search"); }}
                   data-testid="button-mobile-nav-search"
                 >
@@ -680,7 +680,7 @@ export default function NetworkPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-semibold text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-semibold text-white bg-white/10 border border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => setMobileMenuOpen(false)}
                   data-testid="button-mobile-nav-network"
                 >
@@ -689,7 +689,7 @@ export default function NetworkPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }}
                   data-testid="button-mobile-nav-wot"
                 >
@@ -700,7 +700,7 @@ export default function NetworkPage() {
               <div className="mt-auto pt-4 px-0">
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-[15px] font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
                   onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }}
                   data-testid="button-mobile-nav-settings"
                 >
@@ -742,7 +742,7 @@ export default function NetworkPage() {
             <div className="flex flex-col items-start gap-3">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm" data-testid="pill-network-kicker">
                 <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                <span className="text-[9px] font-bold tracking-[0.15em] text-indigo-900 uppercase">Network Explorer</span>
+                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">Network Explorer</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold tracking-tight relative" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
@@ -766,7 +766,7 @@ export default function NetworkPage() {
                   </div>
                   <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
                     <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Filters</CardTitle>
-                    <CardDescription className="text-slate-500 text-[10px] font-medium uppercase tracking-wide">Social Graph</CardDescription>
+                    <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">Social Graph</CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0 flex-wrap">
@@ -777,11 +777,11 @@ export default function NetworkPage() {
                       className="data-[state=checked]:bg-indigo-600"
                       data-testid="switch-verified-only"
                     />
-                    <span className={`text-[11px] font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
+                    <span className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
                       Verified
                     </span>
                   </label>
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
+                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
                     <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
                     <span>NOSTR</span>
                   </div>
@@ -810,7 +810,7 @@ export default function NetworkPage() {
                     >
                       <group.Icon className={`h-4 w-4 ${isActive ? "text-white" : group.color}`} />
                       <span>{group.label}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
                         isActive
                           ? "bg-white/20 text-white"
                           : `${group.bgColor} ${group.color} ${group.borderColor} border`
@@ -823,7 +823,7 @@ export default function NetworkPage() {
               </div>
 
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
                 {([
                   { key: "all" as TrustTier, label: "All", icon: null, ringFill: 0 },
                   { key: "high" as TrustTier, label: "Highly Trusted", icon: "text-emerald-500", ringFill: 0.9 },
@@ -838,7 +838,7 @@ export default function NetworkPage() {
                       key={tier.key}
                       type="button"
                       onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all shrink-0 ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
                           : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
@@ -999,24 +999,24 @@ export default function NetworkPage() {
                       {verifiedMuters > 0 && (
                         <UITooltip>
                           <TooltipTrigger asChild>
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-muted-${pk.slice(0, 8)}`}>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-muted-${pk.slice(0, 8)}`}>
                               Muted by {verifiedMuters} verified
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
-                            <p className="text-[10px] leading-relaxed">{verifiedMuters} verified {verifiedMuters === 1 ? "user has" : "users have"} muted this account. Verified users have a trust assertion score of 0.01 or above.</p>
+                            <p className="text-xs leading-relaxed">{verifiedMuters} verified {verifiedMuters === 1 ? "user has" : "users have"} muted this account. Verified users have a trust assertion score of 0.01 or above.</p>
                           </TooltipContent>
                         </UITooltip>
                       )}
                       {verifiedReporters > 0 && (
                         <UITooltip>
                           <TooltipTrigger asChild>
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-reported-${pk.slice(0, 8)}`}>
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-reported-${pk.slice(0, 8)}`}>
                               Reported by {verifiedReporters} verified
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
-                            <p className="text-[10px] leading-relaxed">{verifiedReporters} verified {verifiedReporters === 1 ? "user has" : "users have"} reported this account. Verified users have a trust assertion score of 0.01 or above.</p>
+                            <p className="text-xs leading-relaxed">{verifiedReporters} verified {verifiedReporters === 1 ? "user has" : "users have"} reported this account. Verified users have a trust assertion score of 0.01 or above.</p>
                           </TooltipContent>
                         </UITooltip>
                       )}
@@ -1042,7 +1042,7 @@ export default function NetworkPage() {
                   const circumference = 2 * Math.PI * 18;
                   const offset = circumference - (score * circumference);
                   const size = compact ? "w-7 h-7" : "w-9 h-9";
-                  const textSize = compact ? "text-[8px]" : "text-[10px]";
+                  const textSize = compact ? "text-[10px]" : "text-xs";
                   const profile = profileCache.current.get(pk);
                   const displayName = profile?.display_name || profile?.name || "this user";
                   const guidance = getVerificationGuidance(pct, displayName);
@@ -1064,9 +1064,9 @@ export default function NetworkPage() {
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-bold text-xs text-slate-900">Verification Score</p>
-                            <span className={`text-[10px] font-semibold ${guidance.color}`}>{guidance.label}</span>
+                            <span className={`text-xs font-semibold ${guidance.color}`}>{guidance.label}</span>
                           </div>
-                          <p className="text-[10px] leading-relaxed text-slate-600">{guidance.message}</p>
+                          <p className="text-xs leading-relaxed text-slate-600">{guidance.message}</p>
                         </div>
                       </TooltipContent>
                     </UITooltip>
@@ -1111,7 +1111,7 @@ export default function NetworkPage() {
                           {profile?.picture ? (
                             <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
                           ) : null}
-                          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
                             {(displayName || "?").charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -1120,11 +1120,11 @@ export default function NetworkPage() {
                             {displayName}
                           </p>
                           {profile?.nip05 && (
-                            <span className="text-[10px] text-indigo-500 truncate max-w-[140px] hidden sm:inline" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
+                            <span className="text-xs text-indigo-500 truncate max-w-[140px] hidden sm:inline" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
                               {profile.nip05}
                             </span>
                           )}
-                          <span className="text-[10px] font-mono text-slate-400 truncate hidden md:inline" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
+                          <span className="text-xs font-mono text-slate-400 truncate hidden md:inline" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
                             {displayNpub}
                           </span>
                         </div>
@@ -1137,7 +1137,7 @@ export default function NetworkPage() {
                                 <Badge
                                   key={gk}
                                   variant="outline"
-                                  className={`text-[9px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                                  className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
                                   data-testid={`badge-group-${gk}-${pk.slice(0, 8)}`}
                                 >
                                   {groupDef.label}
@@ -1181,7 +1181,7 @@ export default function NetworkPage() {
                             {displayName}
                           </p>
                           {profile?.nip05 && (
-                            <p className="text-[10px] text-indigo-500 truncate" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
+                            <p className="text-xs text-indigo-500 truncate" data-testid={`text-profile-nip05-${pk.slice(0, 8)}`}>
                               {profile.nip05}
                             </p>
                           )}
@@ -1189,7 +1189,7 @@ export default function NetworkPage() {
                         {renderTrustBadge(pk, false)}
                       </div>
                       <div className="mt-2 flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
+                        <span className="text-xs font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pk.slice(0, 8)}`}>
                           {displayNpub}
                         </span>
                         <button
@@ -1210,7 +1210,7 @@ export default function NetworkPage() {
                               <Badge
                                 key={gk}
                                 variant="outline"
-                                className={`text-[9px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                                className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
                                 data-testid={`badge-group-${gk}-${pk.slice(0, 8)}`}
                               >
                                 {groupDef.label}
