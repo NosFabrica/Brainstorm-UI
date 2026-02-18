@@ -31,6 +31,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-17: Made Shared Connections banner on SearchPage expandable: click to drill down into Mutual Followers and Mutual Following sub-sections with profile cards, trust rings, overlap badges, and load-more pagination (reuses existing renderExpandedPanel pattern)
 - 2026-02-17: Added verified user flags on NetworkPage profile cards: checks if a user's muted_by/reported_by includes verified users (TA >= 0.01) and shows amber/red badges with tooltip explanations
 - 2026-02-17: Replaced mock Network Alerts card on Dashboard with real reported_by/muted_by counts from API data, removed "Coming soon" overlay, updated dialog to show real signal summary
+- 2026-02-18: Adapted to new API format: graph arrays (followed_by, following, muted_by, etc.) now return `{pubkey, influence}` objects instead of plain strings. Added graphHelpers.ts (toPubkeys, toInfluenceMap), updated all 3 pages. NetworkPage pre-seeds trustCache from embedded influence, uses Set-based group lookups for performance
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
