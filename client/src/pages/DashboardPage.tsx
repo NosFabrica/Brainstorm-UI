@@ -883,7 +883,20 @@ export default function DashboardPage() {
                         Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                  </div>
+
+                  <div className="mt-4" data-testid="section-onboarding-carousel">
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsOnboardingCollapsed((v) => !v)}
+                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
+                        data-testid="button-toggle-onboarding"
+                        aria-expanded={!isOnboardingCollapsed}
+                      >
+                        {isOnboardingCollapsed ? "Learn More" : "Hide"}
+                        <ChevronRight className={`h-4 w-4 transition-transform ${isOnboardingCollapsed ? "" : "rotate-90"}`} />
+                      </button>
                       <div
                         className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
                         data-testid="badge-queue-position"
@@ -899,21 +912,6 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4" data-testid="section-onboarding-carousel">
-                    <div className="flex items-center justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
-                        data-testid="button-toggle-onboarding"
-                        aria-expanded={!isOnboardingCollapsed}
-                      >
-                        {isOnboardingCollapsed ? "Learn More" : "Hide"}
-                        <ChevronRight className={`h-4 w-4 transition-transform ${isOnboardingCollapsed ? "" : "rotate-90"}`} />
-                      </button>
                     </div>
 
                     <div className="mt-3" data-testid="row-onboarding-status">
