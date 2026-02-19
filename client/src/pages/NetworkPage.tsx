@@ -1259,7 +1259,7 @@ export default function NetworkPage() {
                               })()}
                               {renderVerifiedFlags(pk)}
                               <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
                                 className="text-xs gap-1.5 ml-auto"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}`); }}
