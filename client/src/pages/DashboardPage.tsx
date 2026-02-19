@@ -211,7 +211,7 @@ export default function DashboardPage() {
     refetchInterval: (query) => {
       const d = query.state.data?.data;
       if (!d || typeof d !== "object") return 10_000;
-      const done = !!(d as any).result || isStatusDone((d as any).internal_publication_status);
+      const done = isStatusDone((d as any).ta_status);
       return done ? false : 10_000;
     },
   });
@@ -484,8 +484,8 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const isCalculationComplete = !!grapeRankScore || publishDone;
-  const showOnboarding = !grapeRankQuery.isLoading && !isCalculationComplete && onboardingProgress < 100;
+  const isCalculationComplete = calcDone;
+  const showOnboarding = !grapeRankQuery.isLoading && !calcDone;
 
   return (
     <TooltipProvider>
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
-                  ) : publishDone ? (
+                  ) : calcDone ? (
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
@@ -686,7 +686,7 @@ export default function DashboardPage() {
                       Awaiting calculation
                     </span>
                   )}
-                  {(grapeRankScore || publishDone) && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                  {calcDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
                     <span className="text-xs text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
