@@ -788,9 +788,9 @@ export default function DashboardPage() {
               </div>
             )}
             {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100 border border-slate-200 w-fit ml-auto" data-testid="graperank-failed">
-                <ShieldAlert className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <p className="text-xs text-slate-600 font-medium">
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-red-300 w-fit ml-auto" data-testid="graperank-failed">
+                <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                <p className="text-xs text-red-600 font-medium">
                   Your last calculation didn't complete successfully. Please wait a few minutes, then try again.
                 </p>
               </div>
