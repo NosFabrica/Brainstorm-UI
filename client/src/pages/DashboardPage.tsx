@@ -208,6 +208,12 @@ export default function DashboardPage() {
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user && hasToken,
     retry: false,
+    refetchInterval: (query) => {
+      const d = query.state.data?.data;
+      if (!d || typeof d !== "object") return 10_000;
+      const done = !!(d as any).result || isStatusDone((d as any).internal_publication_status);
+      return done ? false : 10_000;
+    },
   });
 
   const triggerGrapeRankMutation = useMutation({
