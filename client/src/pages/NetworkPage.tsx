@@ -167,11 +167,14 @@ export default function NetworkPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
+  const [expandedLoading, setExpandedLoading] = useState(false);
   const PAGE_SIZE = 24;
 
   const profileCache = useRef<Map<string, any>>(new Map());
   const trustCache = useRef<Map<string, number | null>>(new Map());
   const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
+  const detailCache = useRef<Map<string, any>>(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
 
   useEffect(() => {
@@ -259,6 +262,25 @@ export default function NetworkPage() {
       setTrustLoadedCount(prev => prev + batch.length);
     }
   }, []);
+
+  const toggleExpanded = useCallback(async (pk: string) => {
+    if (expandedPubkey === pk) {
+      setExpandedPubkey(null);
+      return;
+    }
+    setExpandedPubkey(pk);
+    if (detailCache.current.has(pk)) return;
+    setExpandedLoading(true);
+    try {
+      const res = await apiClient.getUserByPubkey(pk);
+      const graph = res?.data?.graph || res?.data || res;
+      detailCache.current.set(pk, graph);
+    } catch {
+      detailCache.current.set(pk, null);
+    } finally {
+      setExpandedLoading(false);
+    }
+  }, [expandedPubkey]);
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
@@ -1093,6 +1115,169 @@ export default function NetworkPage() {
                   );
                 };
 
+                const detailMetrics: { key: string; label: string; desc: string; iconBg: string; iconColor: string; countColor: string }[] = [
+                  { key: "followed_by", label: "Followers", desc: "People following this account", iconBg: "bg-blue-50 border-blue-100", iconColor: "text-blue-500", countColor: "text-slate-900" },
+                  { key: "following", label: "Following", desc: "Accounts this person follows", iconBg: "bg-blue-50 border-blue-100", iconColor: "text-blue-500", countColor: "text-slate-900" },
+                  { key: "muted_by", label: "Muted By", desc: "Others who muted this account", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-amber-700" },
+                  { key: "reported_by", label: "Reported By", desc: "Others who reported this account", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-500", countColor: "text-red-700" },
+                  { key: "muting", label: "Muting", desc: "Accounts this person mutes", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-slate-900" },
+                  { key: "reporting", label: "Reporting", desc: "Accounts this person reports", iconBg: "bg-slate-50 border-slate-200", iconColor: "text-slate-500", countColor: "text-slate-900" },
+                ];
+
+                const metricIcons: Record<string, (cls: string) => JSX.Element> = {
+                  followed_by: (cls) => <FollowersIcon className={cls} />,
+                  following: (cls) => <FollowingIcon className={cls} />,
+                  muted_by: (cls) => <MutedByIcon className={cls} />,
+                  reported_by: (cls) => <ReportedByIcon className={cls} />,
+                  muting: (cls) => <MutingIcon className={cls} />,
+                  reporting: (cls) => <ReportingIcon className={cls} />,
+                };
+
+                const renderDetailPanel = (pk: string) => {
+                  if (expandedPubkey !== pk) return null;
+                  const detail = detailCache.current.get(pk);
+                  const profile = profileCache.current.get(pk);
+                  const npub = nip19.npubEncode(pk);
+                  const isLoadingDetail = expandedLoading && !detail;
+
+                  return (
+                    <div
+                      className={`bg-white border border-indigo-200 rounded-xl shadow-[0_4px_20px_rgba(99,102,241,0.1)] overflow-hidden animate-fade-up ${viewMode === "grid" ? "col-span-full" : ""}`}
+                      data-testid={`detail-panel-${pk.slice(0, 8)}`}
+                    >
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar className="h-12 w-12 border-2 border-indigo-100 shrink-0">
+                              {profile?.picture ? (
+                                <AvatarImage src={profile.picture} alt={profile?.display_name || profile?.name || ""} className="object-cover" />
+                              ) : null}
+                              <AvatarFallback className="bg-indigo-50 text-indigo-700 text-sm font-bold">
+                                {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-slate-900 truncate" data-testid={`detail-name-${pk.slice(0, 8)}`}>
+                                {profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
+                              </p>
+                              {profile?.nip05 && (
+                                <p className="text-xs text-indigo-500 truncate" data-testid={`detail-nip05-${pk.slice(0, 8)}`}>{profile.nip05}</p>
+                              )}
+                              <p className="text-xs font-mono text-slate-400 mt-0.5 truncate" data-testid={`detail-npub-${pk.slice(0, 8)}`}>{npub.slice(0, 16) + "..." + npub.slice(-8)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {renderTrustBadge(pk, false)}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => { e.stopPropagation(); setExpandedPubkey(null); }}
+                              data-testid={`button-close-detail-${pk.slice(0, 8)}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {profile?.about && (
+                          <p className="text-xs text-slate-600 leading-relaxed mb-3 line-clamp-3" data-testid={`detail-about-${pk.slice(0, 8)}`}>
+                            {profile.about}
+                          </p>
+                        )}
+
+                        {isLoadingDetail ? (
+                          <div className="flex items-center justify-center py-6 gap-2" data-testid={`detail-loading-${pk.slice(0, 8)}`}>
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                            <span className="text-xs text-slate-500">Loading details...</span>
+                          </div>
+                        ) : detail ? (
+                          <div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3" data-testid={`detail-metrics-${pk.slice(0, 8)}`}>
+                              {detailMetrics.map((m) => {
+                                const raw = detail[m.key];
+                                const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
+                                return (
+                                  <div
+                                    key={m.key}
+                                    className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2"
+                                    data-testid={`detail-metric-${m.key}-${pk.slice(0, 8)}`}
+                                  >
+                                    <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${m.iconBg}`}>
+                                      {metricIcons[m.key]?.(`h-3.5 w-3.5 ${m.iconColor}`)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
+                                        {count.toLocaleString()}
+                                      </p>
+                                      <p className="text-[10px] text-slate-400 leading-tight truncate">{m.label}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {detail.influence !== undefined && (
+                              <div className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 mb-3" data-testid={`detail-influence-${pk.slice(0, 8)}`}>
+                                <div className="w-7 h-7 rounded-md border border-indigo-100 bg-indigo-50 flex items-center justify-center shrink-0">
+                                  <BrainLogo size={14} className="text-indigo-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[10px] text-slate-400 leading-tight">Influence Score</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                      <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof detail.influence === "number" ? detail.influence : 0) * 100, 100)}%` }} />
+                                    </div>
+                                    <span className="text-xs font-bold font-mono text-slate-700">
+                                      {typeof detail.influence === "number" ? detail.influence.toFixed(3) : detail.influence}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {(() => {
+                                const memberGroups = getPubkeyGroups(pk);
+                                return memberGroups.length > 0 ? (
+                                  <div className="flex items-center gap-1 flex-wrap" data-testid={`detail-groups-${pk.slice(0, 8)}`}>
+                                    {memberGroups.map((gk) => {
+                                      const groupDef = groups.find(g => g.key === gk);
+                                      if (!groupDef) return null;
+                                      return (
+                                        <Badge
+                                          key={gk}
+                                          variant="outline"
+                                          className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
+                                          data-testid={`detail-badge-group-${gk}-${pk.slice(0, 8)}`}
+                                        >
+                                          {groupDef.label}
+                                        </Badge>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null;
+                              })()}
+                              {renderVerifiedFlags(pk)}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs gap-1.5 ml-auto"
+                                onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}`); }}
+                                data-testid={`button-view-full-${pk.slice(0, 8)}`}
+                              >
+                                <SearchIcon className="h-3 w-3" />
+                                View full profile
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 py-4 text-center" data-testid={`detail-error-${pk.slice(0, 8)}`}>Unable to load details</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                };
+
                 const renderProfileCard = (pk: string) => {
                   const profile = profileCache.current.get(pk);
                   const npub = nip19.npubEncode(pk);
@@ -1120,11 +1305,13 @@ export default function NetworkPage() {
                   }
 
                   if (viewMode === "list") {
+                    const isExpanded = expandedPubkey === pk;
                     return (
+                      <>
                       <div
                         key={pk}
-                        className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3"
-                        onClick={() => navigate(`/search?npub=${npub}`)}
+                        className={`bg-white/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
+                        onClick={() => toggleExpanded(pk)}
                         data-testid={`card-profile-${pk.slice(0, 8)}`}
                       >
                         <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
@@ -1177,14 +1364,18 @@ export default function NetworkPage() {
                           {copiedPubkey === pk ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                         </button>
                       </div>
+                      {renderDetailPanel(pk)}
+                      </>
                     );
                   }
 
+                  const isGridExpanded = expandedPubkey === pk;
                   return (
+                    <>
                     <div
                       key={pk}
-                      className="bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group"
-                      onClick={() => navigate(`/search?npub=${npub}`)}
+                      className={`bg-white/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group ${isGridExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
+                      onClick={() => toggleExpanded(pk)}
                       data-testid={`card-profile-${pk.slice(0, 8)}`}
                     >
                       <div className="flex items-center gap-3">
@@ -1243,13 +1434,15 @@ export default function NetworkPage() {
                         <div className="mt-2">{renderVerifiedFlags(pk)}</div>
                       )}
                     </div>
+                    {renderDetailPanel(pk)}
+                    </>
                   );
                 };
 
                 return (
                   <>
                     <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} data-testid="grid-network-profiles">
-                      {pageItems.map(renderProfileCard)}
+                      {pageItems.map((pk) => <div key={pk} className={viewMode === "grid" ? "contents" : ""}>{renderProfileCard(pk)}</div>)}
                     </div>
 
                     <div className="flex items-center justify-between gap-4 pt-4" data-testid="row-pagination">
