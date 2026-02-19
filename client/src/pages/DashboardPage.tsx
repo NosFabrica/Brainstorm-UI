@@ -282,8 +282,6 @@ export default function DashboardPage() {
   const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
   const calcDone = grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
   const publishDone = grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
-  const completedSteps = (setupDone ? 1 : 0) + (calcDone ? 1 : 0) + (publishDone ? 1 : 0);
-  const onboardingProgress = [0, 33, 66, 100][completedSteps];
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
@@ -882,25 +880,25 @@ export default function DashboardPage() {
                         Clarity in a fragmented world
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
-                        Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. The Queue badge shows how many people are ahead of you. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
+                        Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div
                         className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
                         data-testid="badge-queue-position"
-                        aria-label={queuePosition !== null ? `${queuePosition} people ahead of you in queue` : "Queue position loading"}
+                        aria-label={setupDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing"}
                       >
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90" data-testid="dot-queue" />
-                        <span className="font-semibold" data-testid="text-queue-label">Queue</span>
-                        <span className="font-mono" data-testid="text-queue-value">
-                          {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
+                        <span className={`h-1.5 w-1.5 rounded-full ${setupDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
+                        <span className="font-semibold" data-testid="text-queue-label">
+                          {setupDone ? "Processing" : "Queue"}
                         </span>
+                        {!setupDone && (
+                          <span className="font-mono" data-testid="text-queue-value">
+                            {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
+                          </span>
+                        )}
                       </div>
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200" data-testid="badge-local-computation">
-                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                        In Progress
-                      </span>
                     </div>
                   </div>
 
@@ -943,20 +941,15 @@ export default function DashboardPage() {
                                     : "Fetching your graph"}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0" data-testid="row-onboarding-progress-meta">
-                            {onboardingProgress < 100 && (
-                              <span
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10"
-                                data-testid="spinner-onboarding-progress"
-                                aria-label="In progress"
-                              >
-                                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
-                              </span>
-                            )}
-                            <span className="text-xs font-mono text-slate-200/80" data-testid="text-onboarding-progress-percent">
-                              {Math.round(onboardingProgress)}%
+                          {!publishDone && (
+                            <span
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
+                              data-testid="spinner-onboarding-progress"
+                              aria-label="In progress"
+                            >
+                              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
                             </span>
-                          </div>
+                          )}
                         </div>
 
                         <div className="mt-2 grid grid-cols-3 gap-2" data-testid="grid-onboarding-status">
