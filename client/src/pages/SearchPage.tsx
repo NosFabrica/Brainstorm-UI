@@ -237,7 +237,6 @@ export default function SearchPage() {
   const [forceRender, setForceRender] = useState(0);
 
   const resultPanelRef = useRef<HTMLDivElement>(null);
-  const processingPanelRef = useRef<HTMLDivElement>(null);
   const autoSearchTriggered = useRef(false);
   const pendingAutoSearch = useRef<string | null>(null);
   const [cameFromNetwork, setCameFromNetwork] = useState(false);
@@ -285,11 +284,6 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    if (isSearching && processingPanelRef.current) {
-      setTimeout(() => {
-        if (processingPanelRef.current) smoothScrollTo(processingPanelRef.current, 700);
-      }, 200);
-    }
     if (!isSearching && hasSearched && resultPanelRef.current) {
       setTimeout(() => {
         if (resultPanelRef.current) smoothScrollTo(resultPanelRef.current, 800);
@@ -1200,11 +1194,14 @@ export default function SearchPage() {
                       <Button
                         onClick={handleSearch}
                         disabled={isSearching}
-                        className="h-11 px-6 bg-indigo-800 hover:bg-indigo-900 text-white shadow-lg shadow-indigo-800/20 font-bold tracking-wide text-xs"
+                        className="h-11 px-6 bg-indigo-800 hover:bg-indigo-900 text-white shadow-lg shadow-indigo-800/20 font-bold tracking-wide text-xs gap-2"
                         data-testid="button-npub-lookup"
                       >
                         {isSearching ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Looking up...
+                          </>
                         ) : (
                           "LOOKUP"
                         )}
@@ -1269,29 +1266,6 @@ export default function SearchPage() {
               </CardContent>
             </Tabs>
           </Card>
-
-          {isSearching && (
-            <div ref={processingPanelRef} className="overflow-hidden scroll-mt-4" data-testid="panel-search-processing" style={{ animation: "processingFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-              <div className="relative w-full rounded-xl overflow-hidden bg-slate-900 border border-indigo-500/30 shadow-[0_0_40px_-10px_rgba(99,102,241,0.3)]">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/40 via-violet-900/40 to-slate-900/40 backdrop-blur-md" />
-                <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: "linear-gradient(to right, #6366f1 1px, transparent 1px), linear-gradient(to bottom, #6366f1 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-                <div className="absolute top-0 bottom-0 w-1 bg-indigo-500/50 blur-[4px]" style={{ animation: "searchScanLine 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite" }} />
-                <div className="relative z-10 p-8 flex flex-col items-center text-center">
-                  <div className="w-12 h-12 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4 border border-indigo-500/20" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both" }}>
-                    <Loader2 className="h-6 w-6 text-indigo-400" style={{ animation: "spin 1.8s linear infinite" }} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2 tracking-tight" data-testid="text-search-processing-title" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both" }}>Analyzing Trust Signals...</h3>
-                  <p className="text-indigo-200/60 text-sm font-mono mb-6" data-testid="text-search-processing-subtitle" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both" }}>Querying Decentralized Identity Network</p>
-                  <div className="w-full max-w-md bg-slate-800/50 rounded-full h-1.5 overflow-hidden" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both" }}>
-                    <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" style={{ animation: "searchProgressBar 2.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.8s forwards", width: 0 }} />
-                  </div>
-                  <div className="mt-6 text-xs text-indigo-300/60 font-mono border-t border-indigo-500/10 pt-4 w-full flex items-center justify-center" style={{ animation: "processingElementIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both" }}>
-                    <span data-testid="text-search-processing-query">Query: <span className="text-indigo-200">{searchQuery || "..."}</span></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {!isSearching && hasSearched && (
             <div ref={resultPanelRef} className="mt-6 scroll-mt-4" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
@@ -2032,19 +2006,6 @@ export default function SearchPage() {
         @keyframes processingFadeIn {
           0% { opacity: 0; transform: translateY(24px) scale(0.97); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes processingElementIn {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes searchScanLine {
-          0% { left: -2%; }
-          100% { left: 102%; }
-        }
-        @keyframes searchProgressBar {
-          0% { width: 0%; }
-          60% { width: 70%; }
-          100% { width: 100%; }
         }
       `}</style>
       <Footer />
