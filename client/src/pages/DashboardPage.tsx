@@ -1278,6 +1278,13 @@ export default function DashboardPage() {
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
 
                 <div
+                  className="absolute -right-12 top-[0.85rem] z-30 rotate-45 bg-[#333286] px-12 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                  data-testid="ribbon-network-alerts-coming-soon"
+                  aria-label="Coming soon"
+                >
+                  Coming soon
+                </div>
+                <div
                   className="absolute inset-0 z-10"
                   data-testid="overlay-network-alerts-coming-soon"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRiskDialogOpen(true); }}
