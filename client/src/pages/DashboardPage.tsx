@@ -300,7 +300,6 @@ export default function DashboardPage() {
     ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
     : false;
 
-  const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
@@ -713,10 +712,10 @@ export default function DashboardPage() {
                 <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                   <AlertDialogTrigger asChild>
                     <button
-                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                      disabled={triggerGrapeRankMutation.isPending}
                       className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 hover:text-[#333286] transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
                       data-testid="button-trigger-graperank"
-                      title={hasNoFollowing ? "Follow some people on Nostr first" : triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
+                      title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
                     >
                       {triggerGrapeRankMutation.isPending ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -793,26 +792,6 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-red-700">Calculation incomplete</p>
                     <p className="text-xs text-red-600/80 mt-0.5">Please wait a few minutes, then try again.</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <AnimatePresence>
-              {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-indigo-200/60 shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)] w-fit ml-auto"
-                  data-testid="graperank-no-following"
-                >
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Info className="w-4 h-4 text-indigo-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-indigo-700">No follows yet</p>
-                    <p className="text-xs text-indigo-600/80 mt-0.5">Follow some people on Nostr first, then come back to calculate your trust score.</p>
                   </div>
                 </motion.div>
               )}
