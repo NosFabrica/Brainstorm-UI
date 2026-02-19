@@ -185,7 +185,7 @@ export default function DashboardPage() {
   const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
-  const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(false);
+  const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
 
   useEffect(() => {
     const u = getCurrentUser();
