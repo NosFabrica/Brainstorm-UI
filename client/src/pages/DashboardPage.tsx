@@ -280,8 +280,8 @@ export default function DashboardPage() {
   const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at.endsWith("Z") ? (grapeRank as any).updated_at : (grapeRank as any).updated_at + "Z") : null;
 
   const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
-  const calcDone = grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
-  const publishDone = grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
+  const calcDone = setupDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
+  const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
