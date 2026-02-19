@@ -1194,7 +1194,7 @@ export default function DashboardPage() {
                       </div>
                     </DialogHeader>
 
-                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="grid-network-alerts-dialog-signals">
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 opacity-30 pointer-events-none select-none" data-testid="grid-network-alerts-dialog-signals">
                       {[{ label: "Spoof detection", desc: "Look-alikes & impostors" }, { label: "Spam pressure", desc: "Mass-follow patterns" }, { label: "Trust drops", desc: "Fast score collapse" }].map((s, idx) => (
                         <div key={s.label} className="rounded-2xl border border-white/70 bg-white/60 backdrop-blur-md px-3 py-2.5 shadow-sm" data-testid={`card-network-alerts-dialog-signal-${idx}`}>
                           <div className="text-xs font-bold text-slate-900" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
@@ -1204,8 +1204,12 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="px-6 pb-6">
-                    <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden">
+                  <div className="px-6 pb-6 relative">
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl">
+                      <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
+                      <span className="text-xs font-semibold text-slate-500 tracking-wide">Coming soon</span>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden opacity-30 pointer-events-none select-none">
                       <div className="px-4 py-3 border-b border-slate-200/60 bg-gradient-to-r from-white/75 to-indigo-50/45">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
