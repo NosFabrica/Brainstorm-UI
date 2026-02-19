@@ -714,7 +714,7 @@ export default function DashboardPage() {
                   <AlertDialogTrigger asChild>
                     <button
                       disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 hover:text-[#333286] transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
                       data-testid="button-trigger-graperank"
                       title={hasNoFollowing ? "Follow some people on Nostr first" : triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
                     >
