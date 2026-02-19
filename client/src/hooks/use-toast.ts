@@ -137,9 +137,11 @@ function dispatch(action: Action) {
   })
 }
 
-type Toast = Omit<ToasterToast, "id">
+type Toast = Omit<ToasterToast, "id"> & { duration?: number }
 
-function toast({ ...props }: Toast) {
+const dismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+function toast({ duration, ...props }: Toast) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -160,6 +162,17 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+
+  if (duration && duration > 0) {
+    if (dismissTimeouts.has(id)) {
+      clearTimeout(dismissTimeouts.get(id)!)
+    }
+    const t = setTimeout(() => {
+      dismissTimeouts.delete(id)
+      dismiss()
+    }, duration)
+    dismissTimeouts.set(id, t)
+  }
 
   return {
     id: id,

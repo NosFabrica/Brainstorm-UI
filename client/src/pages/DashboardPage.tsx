@@ -8,6 +8,7 @@ import nostriaIconImg from "../assets/nostria-icon.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -172,6 +173,7 @@ const NETWORK_METRICS = [
 
 export default function DashboardPage() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
@@ -223,9 +225,20 @@ export default function DashboardPage() {
         queryClient.setQueryData(["/api/auth/graperankResult"], data);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      toast({
+        title: "Calculation started",
+        description: "Your trust scores are being recalculated. Results will update shortly.",
+        duration: 5000,
+      });
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
     },
-    onError: () => {
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Calculation failed",
+        description: error instanceof Error ? error.message : "Something went wrong. Please wait a moment and try again.",
+        duration: 8000,
+      });
       setTimeout(() => triggerGrapeRankMutation.reset(), 8000);
     },
   });
@@ -764,45 +777,46 @@ export default function DashboardPage() {
 
             </div>
 
-            {triggerGrapeRankMutation.isSuccess && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 w-fit ml-auto" data-testid="graperank-success">
-                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <p className="text-xs text-emerald-700 font-medium">Calculation triggered. Results will update shortly.</p>
-              </div>
-            )}
-            {triggerGrapeRankMutation.isError && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200 w-fit ml-auto" data-testid="graperank-error">
-                <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <p className="text-xs text-red-600 font-medium">
-                  {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Something went wrong. Please wait a moment and try again."}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => triggerGrapeRankMutation.reset()}
-                  className="ml-1 p-0.5 rounded-full hover:bg-red-100 transition-colors"
-                  aria-label="Dismiss error"
-                  data-testid="button-dismiss-graperank-error"
+            <AnimatePresence>
+              {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-red-200/60 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit ml-auto"
+                  data-testid="graperank-failed"
                 >
-                  <X className="w-3 h-3 text-red-400" />
-                </button>
-              </div>
-            )}
-            {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-red-300 w-fit ml-auto" data-testid="graperank-failed">
-                <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                <p className="text-xs text-red-600 font-medium">
-                  Your last calculation didn't complete successfully. Please wait a few minutes, then try again.
-                </p>
-              </div>
-            )}
-            {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 w-fit ml-auto" data-testid="graperank-no-following">
-                <Info className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                <p className="text-xs text-indigo-700 font-medium">
-                  You need to follow some people on Nostr before we can calculate your trust score. Follow a few accounts, then come back and try again.
-                </p>
-              </div>
-            )}
+                  <div className="h-8 w-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                    <ShieldAlert className="w-4 h-4 text-red-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-red-700">Calculation incomplete</p>
+                    <p className="text-xs text-red-600/80 mt-0.5">Please wait a few minutes, then try again.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-indigo-200/60 shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)] w-fit ml-auto"
+                  data-testid="graperank-no-following"
+                >
+                  <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                    <Info className="w-4 h-4 text-indigo-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-indigo-700">No follows yet</p>
+                    <p className="text-xs text-indigo-600/80 mt-0.5">Follow some people on Nostr first, then come back to calculate your trust score.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {showOnboarding && (
               <div
