@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -236,7 +236,6 @@ export default function SearchPage() {
   const expandTrustCache = useRef<Map<string, number | null>>(new Map());
   const [forceRender, setForceRender] = useState(0);
 
-  const resultPanelRef = useRef<HTMLDivElement>(null);
   const autoSearchTriggered = useRef(false);
   const pendingAutoSearch = useRef<string | null>(null);
   const [cameFromNetwork, setCameFromNetwork] = useState(false);
@@ -267,37 +266,6 @@ export default function SearchPage() {
     }
   }, [user]);
 
-  const smoothScrollTo = useCallback((el: HTMLElement, duration = 600, offset = -16) => {
-    const targetY = el.getBoundingClientRect().top + window.scrollY + offset;
-    const startY = window.scrollY;
-    const diff = targetY - startY;
-    if (Math.abs(diff) < 4) return;
-    let start: number | null = null;
-    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-    const step = (timestamp: number) => {
-      if (!start) start = timestamp;
-      const progress = Math.min((timestamp - start) / duration, 1);
-      window.scrollTo(0, startY + diff * easeOutCubic(progress));
-      if (progress < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, []);
-
-  useEffect(() => {
-    if (!isSearching && hasSearched && resultPanelRef.current) {
-      setTimeout(() => {
-        if (resultPanelRef.current) smoothScrollTo(resultPanelRef.current, 800);
-      }, 300);
-    }
-  }, [isSearching, hasSearched, smoothScrollTo]);
-
-  useEffect(() => {
-    if (aboutExpanded && resultPanelRef.current) {
-      setTimeout(() => {
-        if (resultPanelRef.current) smoothScrollTo(resultPanelRef.current, 600);
-      }, 150);
-    }
-  }, [aboutExpanded, smoothScrollTo]);
 
   const handleLogout = () => {
     logout();
@@ -1268,7 +1236,7 @@ export default function SearchPage() {
           </Card>
 
           {!isSearching && hasSearched && (
-            <div ref={resultPanelRef} className="mt-6 scroll-mt-4" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
+            <div className="mt-6" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
               {searchError ? (
                 <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-search-empty-state">
                   <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
