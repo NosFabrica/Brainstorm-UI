@@ -1351,11 +1351,17 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4">
+              <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+                {!isCalculationComplete && (
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
+                    <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
+                    <span className="text-xs font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
+                <div className={`h-1 w-full absolute top-0 left-0 ${isCalculationComplete ? "bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" : "bg-slate-200"}`} />
 
-                <div className="flex flex-col h-full gap-2">
+                <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
@@ -1385,7 +1391,7 @@ export default function DashboardPage() {
 
                   <div>
                     <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {selfQuery.isLoading ? "\u2014" : extendedNetworkCount.toLocaleString()}
+                      {selfQuery.isLoading || !isCalculationComplete ? "\u2014" : extendedNetworkCount.toLocaleString()}
                     </div>
                     <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
@@ -1398,6 +1404,7 @@ export default function DashboardPage() {
                     <Slider
                       value={hopRange}
                       onValueChange={(v) => {
+                        if (!isCalculationComplete) return;
                         const next = (v ?? [1, maxHopInData]).slice(0, 2) as number[];
                         const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
                         const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
@@ -1406,7 +1413,8 @@ export default function DashboardPage() {
                       max={maxHopInData}
                       min={1}
                       step={1}
-                      className="cursor-pointer py-1"
+                      className={isCalculationComplete ? "cursor-pointer py-1" : "cursor-not-allowed py-1 opacity-50"}
+                      disabled={!isCalculationComplete}
                     />
                     <div className="flex justify-between text-xs text-slate-400 uppercase tracking-wider font-semibold">
                       <span>Direct</span>
@@ -1420,10 +1428,18 @@ export default function DashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative min-h-[300px]">
+              <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+                {!isCalculationComplete && (
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-400 mb-2" />
+                    <span className="text-sm font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                    <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
+                <div className={`h-1 w-full ${isCalculationComplete ? "bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" : "bg-slate-200"}`} />
 
+                <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
                 <CardHeader className="bg-gradient-to-b from-[#7c86ff]/15 to-white/60 border-b border-[#7c86ff]/10 py-3 px-5 transition-colors duration-500 group-hover:from-[#7c86ff]/25 group-hover:to-white/80">
                   <div className="flex flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -1435,7 +1451,7 @@ export default function DashboardPage() {
                           Follows Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          Your follows network \u00b7 {selfQuery.isLoading ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} hops
+                          Your follows network \u00b7 {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} hops
                         </CardDescription>
                       </div>
                     </div>
@@ -1451,9 +1467,10 @@ export default function DashboardPage() {
                         <PieChart>
                           <Pie data={currentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none">
                             {currentPieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
+                              <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} />
                             ))}
                           </Pie>
+                          {isCalculationComplete && (
                           <Tooltip
                             formatter={(value: number) => [selfQuery.isLoading ? "\u2014" : `${value.toLocaleString()} profiles`, ""]}
                             contentStyle={{
@@ -1466,6 +1483,7 @@ export default function DashboardPage() {
                             }}
                             itemStyle={{ color: "#0f172a" }}
                           />
+                          )}
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
@@ -1477,21 +1495,21 @@ export default function DashboardPage() {
                       </div>
                       {currentPieData.map((dist, i) => (
                         <div key={i} className="group flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-default border border-transparent hover:border-slate-100">
-                          <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: dist.color }} />
+                          <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
                               <p className="font-bold text-xs text-slate-900 truncate pr-2">{dist.name}</p>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
-                                {selfQuery.isLoading ? "\u2014" : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
+                                {selfQuery.isLoading || !isCalculationComplete ? "\u2014" : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: `${(dist.value / totalCurrentProfiles) * 100}%` }}
+                                animate={{ width: isCalculationComplete ? `${(dist.value / totalCurrentProfiles) * 100}%` : "0%" }}
                                 transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
                                 className="h-full rounded-full"
-                                style={{ backgroundColor: dist.color }}
+                                style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }}
                               />
                             </div>
                           </div>
@@ -1500,6 +1518,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </CardContent>
+                </div>
               </Card>
             </motion.div>
           </div>
