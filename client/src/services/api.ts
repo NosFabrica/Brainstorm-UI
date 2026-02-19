@@ -83,8 +83,18 @@ export const apiClient = {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message;
-      throw new Error(detail || `Failed to trigger GrapeRank calculation (${response.status})`);
+      const detail = errorData?.detail || errorData?.message || "";
+      const status = response.status;
+      const lowerDetail = detail.toLowerCase();
+      let friendlyMessage: string;
+      if (status === 502 || status === 503 || status === 504) {
+        friendlyMessage = "The Brainstorm server is temporarily unavailable. Please wait a few minutes and try again.";
+      } else if (status === 429 || lowerDetail.includes("rate") || lowerDetail.includes("too many") || lowerDetail.includes("wait") || lowerDetail.includes("cooldown")) {
+        friendlyMessage = "Please wait a few minutes before recalculating. The server needs time between requests.";
+      } else {
+        friendlyMessage = "Something went wrong. Please wait a moment and try again.";
+      }
+      throw new Error(friendlyMessage);
     }
     return await response.json();
   },

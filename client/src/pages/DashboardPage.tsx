@@ -226,7 +226,7 @@ export default function DashboardPage() {
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
     },
     onError: () => {
-      setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
+      setTimeout(() => triggerGrapeRankMutation.reset(), 8000);
     },
   });
 
@@ -282,6 +282,12 @@ export default function DashboardPage() {
   const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
   const calcDone = setupDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
   const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
+
+  const isGrapeRankFailed = grapeRank
+    ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
+    : false;
+
+  const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
@@ -694,10 +700,10 @@ export default function DashboardPage() {
                 <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                   <AlertDialogTrigger asChild>
                     <button
-                      disabled={triggerGrapeRankMutation.isPending}
+                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
                       className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
                       data-testid="button-trigger-graperank"
-                      title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
+                      title={hasNoFollowing ? "Follow some people on Nostr first" : triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
                     >
                       {triggerGrapeRankMutation.isPending ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -768,7 +774,32 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200 w-fit ml-auto" data-testid="graperank-error">
                 <ShieldAlert className="w-3.5 h-3.5 text-red-500 shrink-0" />
                 <p className="text-xs text-red-600 font-medium">
-                  {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Failed to trigger calculation"}
+                  {triggerGrapeRankMutation.error instanceof Error ? triggerGrapeRankMutation.error.message : "Something went wrong. Please wait a moment and try again."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => triggerGrapeRankMutation.reset()}
+                  className="ml-1 p-0.5 rounded-full hover:bg-red-100 transition-colors"
+                  aria-label="Dismiss error"
+                  data-testid="button-dismiss-graperank-error"
+                >
+                  <X className="w-3 h-3 text-red-400" />
+                </button>
+              </div>
+            )}
+            {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 w-fit ml-auto" data-testid="graperank-failed">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <p className="text-xs text-amber-700 font-medium">
+                  Your last calculation didn't complete successfully. Please wait a few minutes, then try again.
+                </p>
+              </div>
+            )}
+            {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-50 border border-indigo-200 w-fit ml-auto" data-testid="graperank-no-following">
+                <Info className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                <p className="text-xs text-indigo-700 font-medium">
+                  You need to follow some people on Nostr before we can calculate your trust score. Follow a few accounts, then come back and try again.
                 </p>
               </div>
             )}
