@@ -1260,13 +1260,13 @@ export default function NetworkPage() {
                               {renderVerifiedFlags(pk)}
                               <Button
                                 variant="default"
-                                size="sm"
-                                className="text-xs gap-1.5 ml-auto"
+                                className="text-sm gap-2 ml-auto bg-indigo-600 border-indigo-600"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}`); }}
                                 data-testid={`button-view-full-${pk.slice(0, 8)}`}
                               >
-                                <SearchIcon className="h-3 w-3" />
+                                <SearchIcon className="h-4 w-4" />
                                 View full profile
+                                <ChevronRight className="h-4 w-4" />
                               </Button>
                             </div>
                           </div>
