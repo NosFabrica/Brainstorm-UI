@@ -1163,7 +1163,17 @@ export default function NetworkPage() {
                               {profile?.nip05 && (
                                 <p className="text-xs text-indigo-500 truncate" data-testid={`detail-nip05-${pk.slice(0, 8)}`}>{profile.nip05}</p>
                               )}
-                              <p className="text-xs font-mono text-slate-400 mt-0.5 truncate" data-testid={`detail-npub-${pk.slice(0, 8)}`}>{npub.slice(0, 16) + "..." + npub.slice(-8)}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <p className="text-xs font-mono text-slate-400 truncate" data-testid={`detail-npub-${pk.slice(0, 8)}`}>{npub.slice(0, 16) + "..." + npub.slice(-8)}</p>
+                                <button
+                                  type="button"
+                                  className="p-0.5 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
+                                  onClick={(e) => { e.stopPropagation(); handleCopyNpub(npub, pk); }}
+                                  data-testid={`button-detail-copy-npub-${pk.slice(0, 8)}`}
+                                >
+                                  {copiedPubkey === pk ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                                </button>
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
