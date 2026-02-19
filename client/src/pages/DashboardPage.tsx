@@ -1165,6 +1165,14 @@ export default function DashboardPage() {
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(124,134,255,0.14)_0%,rgba(255,255,255,0.00)_40%,rgba(51,50,134,0.12)_100%)]" />
                 </div>
 
+                <div
+                  className="absolute -right-14 top-[1.1rem] z-30 rotate-45 bg-[#333286] px-14 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                  data-testid="ribbon-dialog-network-alerts-coming-soon"
+                  aria-label="Coming soon"
+                >
+                  Coming soon
+                </div>
+
                 <div className="relative">
                   <div className="h-1.5 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
                   <div className="px-6 pt-6 pb-5">
@@ -1179,7 +1187,7 @@ export default function DashboardPage() {
                               Network Alerts
                             </DialogTitle>
                             <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
-                              Stay informed about who you follow. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
+                              This feature is coming soon. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
                             </DialogDescription>
                           </div>
                         </div>
