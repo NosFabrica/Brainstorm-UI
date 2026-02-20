@@ -950,11 +950,11 @@ export default function DashboardPage() {
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : setupDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">
-                          {isErrorState ? "Idle" : setupDone ? "Processing" : "Queue"}
+                          {isErrorState ? "Idle" : setupDone ? "Processing" : (queuePosition !== null && queuePosition > 0) ? "Queue" : "Processing"}
                         </span>
-                        {!setupDone && !isErrorState && (
+                        {!setupDone && !isErrorState && queuePosition !== null && queuePosition > 0 && (
                           <span className="font-mono" data-testid="text-queue-value">
-                            {queuePosition !== null ? (queuePosition === 0 ? "Processing" : `${queuePosition} ahead`) : "\u2014"}
+                            {queuePosition} ahead
                           </span>
                         )}
                       </div>
