@@ -163,7 +163,7 @@ export default function NetworkPage() {
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("view") === "list" ? "list" : "grid";
+    return params.get("view") === "grid" ? "grid" : "list";
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(true);
