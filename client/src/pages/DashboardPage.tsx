@@ -946,7 +946,7 @@ export default function DashboardPage() {
                       <div
                         className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
                         data-testid="badge-queue-position"
-                        aria-label={isErrorState ? "Idle" : setupDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing"}
+                        aria-label={isErrorState ? "Idle" : setupDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing your scores"}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : setupDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">
@@ -954,7 +954,7 @@ export default function DashboardPage() {
                         </span>
                         {!setupDone && !isErrorState && (
                           <span className="font-mono" data-testid="text-queue-value">
-                            {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
+                            {queuePosition !== null ? (queuePosition === 0 ? "Processing" : `${queuePosition} ahead`) : "\u2014"}
                           </span>
                         )}
                       </div>
