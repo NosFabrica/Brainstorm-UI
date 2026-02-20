@@ -136,12 +136,12 @@ function estimateNetworkLineLength(a: number, b: number): number {
 type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting";
 
 const groups = [
-  { key: "followed_by" as GroupKey, label: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
-  { key: "following" as GroupKey, label: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
-  { key: "muted_by" as GroupKey, label: "Muted By", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
-  { key: "muting" as GroupKey, label: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
-  { key: "reported_by" as GroupKey, label: "Reported By", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
-  { key: "reporting" as GroupKey, label: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
+  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
+  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
+  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
+  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
+  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
+  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
 ];
 
 export default function NetworkPage() {
@@ -846,8 +846,8 @@ export default function NetworkPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-5 bg-white/60 space-y-4">
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin" data-testid="row-group-filters">
+            <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
+              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-thin" data-testid="row-group-filters">
                 {groups.map((group) => {
                   const count = getGroupCount(group.key);
                   const totalCount = getGroupPubkeys(group.key).length;
@@ -858,16 +858,17 @@ export default function NetworkPage() {
                       key={group.key}
                       type="button"
                       onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                      className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
                           : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
                       }`}
                       data-testid={`button-filter-${group.key}`}
                     >
-                      <group.Icon className={`h-4 w-4 ${isActive ? "text-white" : group.color}`} />
-                      <span>{group.label}</span>
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                      <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isActive ? "text-white" : group.color}`} />
+                      <span className="hidden sm:inline">{group.label}</span>
+                      <span className="sm:hidden">{group.shortLabel}</span>
+                      <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full ${
                         isActive
                           ? "bg-white/20 text-white"
                           : `${group.bgColor} ${group.color} ${group.borderColor} border`
@@ -879,15 +880,15 @@ export default function NetworkPage() {
                 })}
               </div>
 
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
+              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
+                <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-0.5 sm:mr-1 shrink-0">Trust</span>
                 {([
-                  { key: "all" as TrustTier, label: "All", icon: null, ringFill: 0 },
-                  { key: "high" as TrustTier, label: "Highly Trusted", icon: "text-emerald-500", ringFill: 0.9 },
-                  { key: "medium" as TrustTier, label: "Trusted", icon: "text-indigo-500", ringFill: 0.65 },
-                  { key: "neutral" as TrustTier, label: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
-                  { key: "low" as TrustTier, label: "Low Trust", icon: "text-amber-500", ringFill: 0.12 },
-                  { key: "flagged" as TrustTier, label: "Flagged / Muted", icon: "text-red-500", ringFill: 0 },
+                  { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
+                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-500", ringFill: 0.9 },
+                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-indigo-500", ringFill: 0.65 },
+                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
+                  { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
+                  { key: "flagged" as TrustTier, label: "Flagged / Muted", shortLabel: "Flagged", icon: "text-red-500", ringFill: 0 },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
@@ -895,7 +896,7 @@ export default function NetworkPage() {
                       key={tier.key}
                       type="button"
                       onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
                           : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
@@ -914,13 +915,14 @@ export default function NetworkPage() {
                             style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
                         </svg>
                       )}
-                      <span>{tier.label}</span>
+                      <span className="hidden sm:inline">{tier.label}</span>
+                      <span className="sm:hidden">{tier.shortLabel}</span>
                     </button>
                   );
                 })}
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 <div className="relative group/input flex-1">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                   <div className="relative flex items-center">
@@ -934,32 +936,34 @@ export default function NetworkPage() {
                     />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
-                  onClick={() => { setSortDirection(d => d === "desc" ? "asc" : "desc"); setCurrentPage(1); }}
-                  data-testid="button-sort-trust"
-                >
-                  <ArrowUpDown className="h-3.5 w-3.5" />
-                  <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
-                </button>
-                <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
-                    onClick={() => setViewMode("grid")}
-                    data-testid="button-view-grid"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
+                    onClick={() => { setSortDirection(d => d === "desc" ? "asc" : "desc"); setCurrentPage(1); }}
+                    data-testid="button-sort-trust"
                   >
-                    <LayoutGrid className="h-4 w-4" />
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                    <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
                   </button>
-                  <button
-                    type="button"
-                    className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
-                    onClick={() => setViewMode("list")}
-                    data-testid="button-view-list"
-                  >
-                    <List className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
+                    <button
+                      type="button"
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      onClick={() => setViewMode("grid")}
+                      data-testid="button-view-grid"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      onClick={() => setViewMode("list")}
+                      data-testid="button-view-list"
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </CardContent>
