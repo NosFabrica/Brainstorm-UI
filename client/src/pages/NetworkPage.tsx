@@ -449,9 +449,6 @@ export default function NetworkPage() {
     } catch {}
   };
 
-  if (!user) return null;
-
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
   const visiblePubkeys = useMemo(() => {
     const pks = filteredPubkeys();
     return [...pks].sort((a, b) => {
@@ -465,6 +462,10 @@ export default function NetworkPage() {
       return sortDirection === "desc" ? scoreB! - scoreA! : scoreA! - scoreB!;
     });
   }, [filteredPubkeys, sortDirection, trustLoadedCount]);
+
+  if (!user) return null;
+
+  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
   return (
     <div
