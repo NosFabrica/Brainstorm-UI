@@ -503,6 +503,7 @@ export default function DashboardPage() {
 
   const isCalculationComplete = calcDone;
   const showOnboarding = !grapeRankQuery.isLoading && !calcDone;
+  const isErrorState = isGrapeRankFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
 
   return (
     <TooltipProvider>
@@ -945,13 +946,13 @@ export default function DashboardPage() {
                       <div
                         className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
                         data-testid="badge-queue-position"
-                        aria-label={setupDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing"}
+                        aria-label={isErrorState ? "Idle" : setupDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing"}
                       >
-                        <span className={`h-1.5 w-1.5 rounded-full ${setupDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
+                        <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : setupDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">
-                          {setupDone ? "Processing" : "Queue"}
+                          {isErrorState ? "Idle" : setupDone ? "Processing" : "Queue"}
                         </span>
-                        {!setupDone && (
+                        {!setupDone && !isErrorState && (
                           <span className="font-mono" data-testid="text-queue-value">
                             {queuePosition !== null ? (queuePosition === 0 ? "You're next" : `${queuePosition} ahead`) : "\u2014"}
                           </span>
@@ -975,16 +976,20 @@ export default function DashboardPage() {
                               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                               data-testid="text-onboarding-progress-step"
                             >
-                              {publishDone
-                                ? "Calculation complete"
-                                : calcDone
-                                  ? "Publishing Trusted Assertion"
-                                  : setupDone
-                                    ? "Computing network trust"
-                                    : "Fetching your graph"}
+                              {isGrapeRankFailed
+                                ? "Calculation failed"
+                                : hasNoFollowing && !triggerGrapeRankMutation.isPending
+                                  ? "Ready to calculate"
+                                  : publishDone
+                                    ? "Calculation complete"
+                                    : calcDone
+                                      ? "Publishing Trusted Assertion"
+                                      : setupDone
+                                        ? "Computing network trust"
+                                        : "Fetching your graph"}
                             </p>
                           </div>
-                          {!publishDone && (
+                          {!publishDone && !isErrorState && (
                             <span
                               className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
                               data-testid="spinner-onboarding-progress"
@@ -997,34 +1002,34 @@ export default function DashboardPage() {
 
                         <div className="mt-2 grid grid-cols-3 gap-2" data-testid="grid-onboarding-status">
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${setupDone ? "bg-indigo-500/10 border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]" : !setupDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${setupDone ? "bg-indigo-500/10 border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : !setupDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-relays"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${setupDone ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" : grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(129,140,248,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${setupDone ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]" : isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(129,140,248,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-relays"
                               />
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${setupDone ? "text-indigo-200" : grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${setupDone ? "text-indigo-200" : isGrapeRankFailed ? "text-red-200" : grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-relays">Setup</span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${setupDone ? "text-indigo-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
-                              {setupDone ? "Done" : grapeRank ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${setupDone ? "text-indigo-200/80" : isGrapeRankFailed ? "text-red-200/80" : "text-indigo-200/80"}`} data-testid="badge-onboarding-relays-state">
+                              {setupDone ? "Done" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
 
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-violet-500/10 border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)]" : setupDone && !calcDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-violet-500/10 border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : setupDone && !calcDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-graph"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${calcDone ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : setupDone && !calcDone ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${calcDone ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : setupDone && !calcDone ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-graph"
                               />
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : setupDone && !calcDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : isGrapeRankFailed ? "text-red-200" : setupDone && !calcDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : setupDone ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
-                              {calcDone ? "Done" : setupDone ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : isGrapeRankFailed ? "text-red-200/80" : setupDone ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                              {calcDone ? "Done" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : setupDone ? "Working" : "Waiting"}
                             </span>
                           </div>
 
@@ -1043,7 +1048,7 @@ export default function DashboardPage() {
                               </span>
                             </div>
                             <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {publishDone ? "Done" : calcDone ? "Working" : "Waiting"}
+                              {publishDone ? "Done" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
                         </div>
