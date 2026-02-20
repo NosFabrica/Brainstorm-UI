@@ -293,8 +293,8 @@ export default function DashboardPage() {
   const grapeRankUpdatedAt = grapeRank && (grapeRank as any).updated_at ? new Date((grapeRank as any).updated_at.endsWith("Z") ? (grapeRank as any).updated_at : (grapeRank as any).updated_at + "Z") : null;
 
   const setupDone = grapeRank ? isStatusDone((grapeRank as any).status) : false;
-  const calcDone = setupDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
-  const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
+  const calcDone = setupDone && grapeRank ? isStatusDone((grapeRank as any).internal_publication_status) : false;
+  const publishDone = calcDone && grapeRank ? isStatusDone((grapeRank as any).ta_status) : false;
 
   const isGrapeRankFailed = grapeRank
     ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
@@ -501,7 +501,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const isCalculationComplete = calcDone;
+  const isCalculationComplete = publishDone;
   const showOnboarding = !grapeRankQuery.isLoading && !calcDone;
   const isErrorState = isGrapeRankFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
 
