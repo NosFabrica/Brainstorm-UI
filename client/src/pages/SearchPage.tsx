@@ -1077,75 +1077,80 @@ export default function SearchPage() {
             <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
             <Tabs defaultValue="npub" className="w-full" onValueChange={(v) => setActiveTab((v as "npub" | "keyword") || "npub")}>
-              <CardHeader className="bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
-                <div className="flex flex-row flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100">
-                      <EnterpriseSearchIcon className="h-4 w-4" />
+              <CardHeader className="bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-3 px-3 sm:py-4 sm:px-5">
+                <div className="flex flex-row flex-wrap items-center justify-between gap-2 sm:gap-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100">
+                      <EnterpriseSearchIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </div>
-                    <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
-                      <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Profile Discovery</CardTitle>
-                      <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">Trust Search</CardDescription>
+                    <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-2xl border border-slate-100 shadow-sm">
+                      <CardTitle className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Profile Discovery</CardTitle>
+                      <CardDescription className="text-slate-500 text-[10px] sm:text-xs font-medium uppercase tracking-wide">Trust Search</CardDescription>
                     </div>
                   </div>
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr">
-                    <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-[10px] sm:text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 shrink-0" data-testid="badge-nostr">
+                    <img src="/nostr-ostrich.gif" alt="" className="h-3.5 w-3.5 sm:h-4 sm:w-4 object-contain" aria-hidden="true" />
                     <span>NOSTR</span>
                   </div>
                 </div>
 
-                <TabsList className="mt-6 w-full grid grid-cols-2 h-auto p-1 bg-slate-100/50 rounded-lg border border-slate-200/50" data-testid="tabs-search-mode">
+                <TabsList className="mt-4 sm:mt-6 w-full grid grid-cols-2 h-auto p-0.5 sm:p-1 bg-slate-100/50 rounded-lg border border-slate-200/50" data-testid="tabs-search-mode">
                   <TabsTrigger
                     value="npub"
-                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-xs sm:text-xs font-bold uppercase tracking-wide text-slate-500 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5"
+                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wide text-slate-500 transition-all flex flex-row items-center justify-center gap-1 sm:gap-1.5"
                     data-testid="tab-npub"
                   >
                     <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     <span>
-                      <span className="lg:hidden">Npub</span>
+                      <span className="sm:hidden">Npub</span>
+                      <span className="hidden sm:inline lg:hidden">Npub</span>
                       <span className="hidden lg:inline">Public Key</span>
                     </span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="keyword"
                     disabled
-                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-2 sm:py-2.5 text-xs sm:text-xs font-bold uppercase tracking-wide text-slate-400 transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 opacity-70 cursor-not-allowed"
+                    className="data-[state=active]:bg-white data-[state=active]:text-indigo-800 data-[state=active]:shadow-sm data-[state=active]:border-slate-200 py-1.5 sm:py-2.5 text-[11px] sm:text-xs font-bold uppercase tracking-wide text-slate-400 transition-all flex flex-row items-center justify-center gap-1 sm:gap-1.5 opacity-70 cursor-not-allowed"
                     data-testid="tab-keyword-coming-soon"
                   >
                     <SearchIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 sm:gap-2">
                       <span>
-                        <span className="lg:hidden">Keyword</span>
+                        <span className="sm:hidden">Keyword</span>
+                        <span className="hidden sm:inline lg:hidden">Keyword</span>
                         <span className="hidden lg:inline">Keyword Search</span>
                       </span>
-                      <span className="rounded-full bg-indigo-800 text-white border border-indigo-800/40 px-2 py-0.5 text-xs font-bold tracking-wider uppercase shadow-sm">
-                        Coming soon
+                      <span className="rounded-full bg-indigo-800 text-white border border-indigo-800/40 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-bold tracking-wider uppercase shadow-sm">
+                        Soon
                       </span>
                     </span>
                   </TabsTrigger>
                 </TabsList>
               </CardHeader>
 
-              <CardContent className="space-y-4 p-5 bg-white/60 min-h-[180px]">
+              <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-5 bg-white/60 min-h-[140px] sm:min-h-[180px]">
                 <TabsContent value="npub" className="mt-0 focus-visible:outline-none data-[state=inactive]:hidden">
-                  <div className="flex flex-col gap-4 py-4">
-                    <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col gap-3 sm:gap-4 py-3 sm:py-4">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                       <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-800">
-                        <EnterpriseUserIcon className="h-4 w-4" />
+                        <EnterpriseUserIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-700" data-testid="text-npub-section-title">Identity Lookup</h4>
-                        <p className="text-xs text-slate-500 uppercase tracking-wide">npub, hex pubkey, or NIP-05 handle</p>
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-700" data-testid="text-npub-section-title">Identity Lookup</h4>
+                        <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wide">
+                          <span className="sm:hidden">npub, hex, or NIP-05</span>
+                          <span className="hidden sm:inline">npub, hex pubkey, or NIP-05 handle</span>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                       <div className="relative flex-1 group/input">
                         <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                         <Input
-                          placeholder="npub1..., hex pubkey, or name@domain.com"
+                          placeholder="npub1..., hex, or name@domain.com"
                           className={
-                            "relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 h-11 rounded-lg transition-all font-mono text-sm shadow-sm focus:shadow-[0_0_20px_rgba(99,102,241,0.2)]" +
+                            "relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 h-10 sm:h-11 rounded-lg transition-all font-mono text-xs sm:text-sm shadow-sm focus:shadow-[0_0_20px_rgba(99,102,241,0.2)]" +
                             (searchError?.code === "INVALID_NPUB"
                               ? " border-red-300 focus:border-red-400 focus:ring-red-200/40"
                               : "")
@@ -1165,7 +1170,7 @@ export default function SearchPage() {
                       <Button
                         onClick={handleSearch}
                         disabled={isSearching}
-                        className="h-11 px-6 bg-indigo-800 hover:bg-indigo-900 text-white shadow-lg shadow-indigo-800/20 font-bold tracking-wide text-xs gap-2"
+                        className="h-10 sm:h-11 px-6 bg-indigo-800 hover:bg-indigo-900 text-white shadow-lg shadow-indigo-800/20 font-bold tracking-wide text-xs gap-2 w-full sm:w-auto"
                         data-testid="button-npub-lookup"
                       >
                         {isSearching ? (
@@ -1597,12 +1602,12 @@ export default function SearchPage() {
                       return (
                       <div className="space-y-5">
                         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                          <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
+                              <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
                             </div>
-                            <span className="text-xs text-slate-400 font-mono">Network Position</span>
+                            <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">Network Position</span>
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.followed_by !== undefined && (() => {
@@ -1612,21 +1617,21 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${fbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
                                   onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
                                   data-testid="metric-search-followers"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                      <FollowersIcon className="h-4 w-4 text-blue-500" />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                      <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Followers</p>
-                                      <p className="text-xs text-slate-400 leading-tight">People following this account</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Followers</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">People following this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-followers">
+                                    <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-followers">
                                       {fbCount.toLocaleString()}
                                     </p>
                                     {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
@@ -1643,21 +1648,21 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${fgExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
                                   onClick={fgExpandable ? () => toggleSection("following") : undefined}
                                   data-testid="metric-search-following"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                                      <FollowingIcon className="h-4 w-4 text-blue-500" />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                      <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Following</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Accounts this person follows</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Following</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person follows</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-following">
+                                    <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-following">
                                       {fgCount.toLocaleString()}
                                     </p>
                                     {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
@@ -1674,21 +1679,21 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md group ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
                                   onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
                                   data-testid="metric-search-mutual"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
-                                      <MutualIcon className="h-4 w-4 text-teal-500" />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
+                                      <MutualIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-teal-500" />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Mutual</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Follow each other mutually</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Mutual</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Follow each other mutually</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-mutual">
+                                    <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-mutual">
                                       {mtCount.toLocaleString()}
                                     </p>
                                     {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["mutual"] ? "rotate-180" : ""}`} />}
@@ -1699,21 +1704,22 @@ export default function SearchPage() {
                               );
                             })()}
                             {profileResult.influence !== undefined && (
-                              <div className="flex items-center justify-between px-4 py-3.5 max-w-md group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                                    <BrainLogo size={16} className="text-indigo-500" />
+                              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-search-influence">
+                                <div className="flex items-center gap-2 sm:gap-3">
+                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                    <BrainLogo size={14} className="text-indigo-500 sm:hidden" />
+                                    <BrainLogo size={16} className="text-indigo-500 hidden sm:block" />
                                   </div>
                                   <div>
-                                    <p className="text-sm font-semibold text-slate-700">Influence Score</p>
-                                    <p className="text-xs text-slate-400 leading-tight">Network influence rating (0-1)</p>
+                                    <p className="text-xs sm:text-sm font-semibold text-slate-700">Influence</p>
+                                    <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Network influence rating (0-1)</p>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                <div className="flex items-center gap-2 sm:gap-2.5">
+                                  <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                                     <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof profileResult.influence === "number" ? profileResult.influence : 0) * 100, 100)}%` }} />
                                   </div>
-                                  <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-influence">
+                                  <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-influence">
                                     {typeof profileResult.influence === "number" ? profileResult.influence.toFixed(2) : profileResult.influence}
                                   </p>
                                 </div>
@@ -1723,12 +1729,12 @@ export default function SearchPage() {
                         </div>
 
                         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                          <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                          <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-amber-500" : "bg-slate-300"}`} />
-                              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
+                              <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
                             </div>
-                            <span className={`text-xs font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
+                            <span className={`text-[11px] sm:text-xs font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
                           </div>
                           <div className="divide-y divide-slate-100">
                             {profileResult.muted_by !== undefined && (() => {
@@ -1737,22 +1743,22 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${mbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
                                   title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
                                   onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
                                   data-testid="metric-search-muted-by"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
-                                      <MutedByIcon className={`h-4 w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
+                                      <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Muted By</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Others who muted this account</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Muted By</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Others who muted this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-search-result-muted-by">
+                                    <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-search-result-muted-by">
                                       {mutedByCount.toLocaleString()}
                                     </p>
                                     {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
@@ -1768,22 +1774,22 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${rbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
                                   title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
                                   onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
                                   data-testid="metric-search-reported-by"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
-                                      <ReportedByIcon className={`h-4 w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
+                                      <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Reported By</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Reports filed against this account</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Reported By</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed against this account</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className={`text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-search-result-reported-by">
+                                    <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-search-result-reported-by">
                                       {reportedByCount.toLocaleString()}
                                     </p>
                                     {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
@@ -1799,21 +1805,21 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
                                   onClick={mtExpandable ? () => toggleSection("muting") : undefined}
                                   data-testid="metric-search-muting"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                      <MutingIcon className="h-4 w-4 text-slate-400" />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                      <MutingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Muting</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Accounts this person has muted</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Muting</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person has muted</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-muting">
+                                    <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-muting">
                                       {mutingCount.toLocaleString()}
                                     </p>
                                     {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
@@ -1829,21 +1835,21 @@ export default function SearchPage() {
                               return (
                               <div>
                                 <div
-                                  className={`flex items-center justify-between px-4 py-3.5 max-w-md ${rpExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
                                   onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
                                   data-testid="metric-search-reporting"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                      <ReportingIcon className="h-4 w-4 text-slate-400" />
+                                  <div className="flex items-center gap-2 sm:gap-3">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                      <ReportingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
                                     </div>
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-700">Reporting</p>
-                                      <p className="text-xs text-slate-400 leading-tight">Reports filed by this person</p>
+                                      <p className="text-xs sm:text-sm font-semibold text-slate-700">Reporting</p>
+                                      <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed by this person</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <p className="text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-reporting">
+                                    <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-search-result-reporting">
                                       {reportingCount.toLocaleString()}
                                     </p>
                                     {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
@@ -1858,9 +1864,9 @@ export default function SearchPage() {
 
                         {hasRiskSignals && (
                           <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-amber-50/50 overflow-hidden" data-testid="alert-search-trust-warning">
-                            <div className="px-4 py-3 flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
-                                <RiskAdvisoryIcon className="h-4 w-4 text-amber-600" />
+                            <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                                <RiskAdvisoryIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
