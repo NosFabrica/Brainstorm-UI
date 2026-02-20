@@ -179,7 +179,7 @@ export default function DashboardPage() {
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [hopRange, setHopRange] = useState([2, 4]);
+  const [hopRange, setHopRange] = useState([1, 2]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const riskTeaserTimerRef = useRef<number | null>(null);
