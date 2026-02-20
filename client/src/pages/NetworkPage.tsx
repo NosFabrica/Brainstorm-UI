@@ -18,6 +18,7 @@ import {
   List,
   ChevronLeft,
   ChevronRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -167,6 +168,7 @@ export default function NetworkPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
   const PAGE_SIZE = 24;
@@ -450,7 +452,19 @@ export default function NetworkPage() {
   if (!user) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
-  const visiblePubkeys = filteredPubkeys();
+  const visiblePubkeys = useMemo(() => {
+    const pks = filteredPubkeys();
+    return [...pks].sort((a, b) => {
+      const scoreA = trustCache.current.get(a);
+      const scoreB = trustCache.current.get(b);
+      const hasA = typeof scoreA === "number";
+      const hasB = typeof scoreB === "number";
+      if (!hasA && !hasB) return 0;
+      if (!hasA) return 1;
+      if (!hasB) return -1;
+      return sortDirection === "desc" ? scoreB! - scoreA! : scoreA! - scoreB!;
+    });
+  }, [filteredPubkeys, sortDirection, trustLoadedCount]);
 
   return (
     <div
@@ -919,6 +933,15 @@ export default function NetworkPage() {
                     />
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
+                  onClick={() => { setSortDirection(d => d === "desc" ? "asc" : "desc"); setCurrentPage(1); }}
+                  data-testid="button-sort-trust"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
+                </button>
                 <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
                   <button
                     type="button"
