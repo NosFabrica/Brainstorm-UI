@@ -502,7 +502,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   const isCalculationComplete = publishDone;
-  const showOnboarding = !grapeRankQuery.isLoading && !calcDone;
+  const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
   const isErrorState = isGrapeRankFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
 
   return (
@@ -695,7 +695,7 @@ export default function DashboardPage() {
                     <span className="text-xs text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
-                  ) : calcDone ? (
+                  ) : publishDone ? (
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
@@ -704,7 +704,7 @@ export default function DashboardPage() {
                       Awaiting calculation
                     </span>
                   )}
-                  {calcDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
+                  {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
                     <span className="text-xs text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
