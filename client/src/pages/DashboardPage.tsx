@@ -1416,8 +1416,17 @@ export default function DashboardPage() {
               <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
-                    <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
-                    <span className="text-xs font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                    {isErrorState ? (
+                      <>
+                        <Network className="w-5 h-5 text-slate-300 mb-2" />
+                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
+                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -1493,9 +1502,19 @@ export default function DashboardPage() {
               <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
-                    <Loader2 className="w-6 h-6 animate-spin text-slate-400 mb-2" />
-                    <span className="text-sm font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
-                    <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                    {isErrorState ? (
+                      <>
+                        <Users className="w-6 h-6 text-slate-300 mb-2" />
+                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
+                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin text-slate-400 mb-2" />
+                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
