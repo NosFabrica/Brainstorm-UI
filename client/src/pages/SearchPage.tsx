@@ -239,6 +239,7 @@ export default function SearchPage() {
   const autoSearchTriggered = useRef(false);
   const pendingAutoSearch = useRef<string | null>(null);
   const [cameFromNetwork, setCameFromNetwork] = useState(false);
+  const [fromGroup, setFromGroup] = useState<string | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -250,11 +251,13 @@ export default function SearchPage() {
 
     const params = new URLSearchParams(window.location.search);
     const prefill = params.get("npub");
+    const group = params.get("fromGroup");
     if (prefill && !autoSearchTriggered.current) {
       setNpub(prefill);
       setActiveTab("npub");
       pendingAutoSearch.current = prefill;
       setCameFromNetwork(true);
+      if (group) setFromGroup(group);
     }
   }, [navigate]);
 
@@ -1044,7 +1047,7 @@ export default function SearchPage() {
             variant="ghost"
             size="sm"
             className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 mb-4 -ml-1 no-default-hover-elevate no-default-active-elevate"
-            onClick={() => window.history.back()}
+            onClick={() => navigate(fromGroup ? `/network?group=${fromGroup}` : "/network")}
             data-testid="button-back-to-network"
           >
             <ArrowLeft className="h-4 w-4" />

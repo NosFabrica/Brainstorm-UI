@@ -1295,7 +1295,7 @@ export default function NetworkPage() {
                               <Button
                                 variant="outline"
                                 className="gap-2 ml-auto border-indigo-200 bg-indigo-50/80 text-indigo-700 font-semibold"
-                                onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}`); }}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}&fromGroup=${activeGroup}`); }}
                                 data-testid={`button-view-full-${pk.slice(0, 8)}`}
                               >
                                 <SearchIcon className="h-3.5 w-3.5" />
