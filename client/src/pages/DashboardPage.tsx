@@ -287,6 +287,23 @@ export default function DashboardPage() {
   const reportingCount = network?.reporting?.length ?? 0;
   const influence = network?.influence ?? 0;
 
+  const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
+    if (!network) return { verifiedFollowersCount: 0, verifiedFollowingCount: 0 };
+    const flaggedSet = new Set<string>();
+    for (const gk of ["muted_by", "muting", "reported_by", "reporting"] as const) {
+      const members = (network as any)[gk];
+      if (Array.isArray(members)) for (const m of members) flaggedSet.add(m.pubkey);
+    }
+    const countVerified = (arr: any[] | undefined) => {
+      if (!Array.isArray(arr)) return 0;
+      return arr.filter(m => !flaggedSet.has(m.pubkey) && typeof m.influence === "number" && m.influence >= 0.02).length;
+    };
+    return {
+      verifiedFollowersCount: countVerified(network.followed_by),
+      verifiedFollowingCount: countVerified(network.following),
+    };
+  }, [network]);
+
   const grapeRankStatus = grapeRank
     ? (grapeRank as any).status || "complete"
     : triggerGrapeRankMutation.isPending
@@ -507,11 +524,11 @@ export default function DashboardPage() {
         continue;
       }
       const inf = typeof m.influence === "number" ? m.influence : -1;
-      const pct = Math.round(Math.min(1, Math.max(0, inf)) * 100);
-      if (pct >= 80) counts.high++;
-      else if (pct >= 50) counts.medium++;
-      else if (pct >= 25) counts.neutral++;
-      else counts.low++;
+      if (inf >= 0.50) counts.high++;
+      else if (inf >= 0.20) counts.medium++;
+      else if (inf >= 0.07) counts.neutral++;
+      else if (inf >= 0.02) counts.low++;
+      else counts.flagged++;
     }
     return counts;
   }, [network]);
@@ -1421,9 +1438,9 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followersCount}
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">People who follow you</p>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
                       {calcDone && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
                           <span>Explore</span>
@@ -1448,9 +1465,9 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followingCount}
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">People you follow</p>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {calcDone && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-violet-500/60">
                           <span>Explore</span>

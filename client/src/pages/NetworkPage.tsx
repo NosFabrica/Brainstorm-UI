@@ -126,9 +126,9 @@ const decorativeTextStyles: React.CSSProperties[] = decorativeText.map((_, i) =>
 });
 
 const getVerificationGuidance = (pct: number, name: string) => {
-  if (pct >= 80) return { label: "High confidence", color: "text-emerald-600", message: `${pct}% confidence that ${name} is a genuine participant, based on your trusted community's follows, mutes, and reports.` };
-  if (pct >= 50) return { label: "Moderate confidence", color: "text-indigo-600", message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.` };
-  if (pct >= 25) return { label: "Low confidence", color: "text-slate-500", message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.` };
+  if (pct >= 50) return { label: "High confidence", color: "text-emerald-600", message: `${pct}% confidence that ${name} is a genuine participant, based on your trusted community's follows, mutes, and reports.` };
+  if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-600", message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.` };
+  if (pct >= 7) return { label: "Low confidence", color: "text-slate-500", message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.` };
   return { label: "Very low confidence", color: "text-amber-600", message: `${pct}% confidence that ${name} is a genuine participant. Your community's signals suggest careful scrutiny before trusting.` };
 };
 
@@ -254,7 +254,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
     if (trustScore === null) return null;
     const score = Math.min(1, Math.max(0, trustScore));
     const pct = Math.round(score * 100);
-    const ringColor = pct >= 80 ? "stroke-emerald-500" : pct >= 50 ? "stroke-indigo-500" : pct >= 25 ? "stroke-slate-400" : "stroke-amber-500";
+    const ringColor = pct >= 50 ? "stroke-emerald-500" : pct >= 20 ? "stroke-indigo-500" : pct >= 7 ? "stroke-slate-400" : "stroke-amber-500";
     const circumference = 2 * Math.PI * 18;
     const offset = circumference - (score * circumference);
     const size = compact ? "w-7 h-7" : "w-9 h-9";
@@ -827,10 +827,10 @@ export default function NetworkPage() {
           if (influence === undefined) return true;
           if (influence === null) return false;
           const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
-          if (trustFilter === "high") return pct >= 80;
-          if (trustFilter === "medium") return pct >= 50 && pct < 80;
-          if (trustFilter === "neutral") return pct >= 25 && pct < 50;
-          if (trustFilter === "low") return pct < 25;
+          if (trustFilter === "high") return pct >= 50;
+          if (trustFilter === "medium") return pct >= 20 && pct < 50;
+          if (trustFilter === "neutral") return pct >= 7 && pct < 20;
+          if (trustFilter === "low") return pct >= 2 && pct < 7;
           return true;
         });
       }

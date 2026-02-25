@@ -476,7 +476,7 @@ export default function SearchPage() {
             const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
             const circ = 2 * Math.PI * 18;
             const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-            const ringColor = trustPct !== null ? (trustPct >= 80 ? "text-indigo-500" : trustPct >= 50 ? "text-indigo-400" : trustPct >= 25 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
+            const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
 
             if (profile === undefined) {
               return (
@@ -1497,9 +1497,9 @@ export default function SearchPage() {
                             const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
                             const score = Math.min(1, Math.max(0, rawScore));
                             const pct = Math.round(score * 100);
-                            const tier = pct >= 80 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
-                              : pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
-                              : pct >= 25 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
+                            const tier = pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
+                              : pct >= 20 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
+                              : pct >= 7 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
                               : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
                             const circumference = 2 * Math.PI * 18;
                             const offset = circumference - (score * circumference);
