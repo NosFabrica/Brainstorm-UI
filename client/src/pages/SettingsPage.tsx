@@ -36,7 +36,6 @@ import {
   ArrowRight,
   Clock,
   Lock,
-  Copy,
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -48,7 +47,6 @@ export default function SettingsPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
 
@@ -374,28 +372,6 @@ export default function SettingsPage() {
                         <span className="text-xs text-slate-500">Event kind</span>
                         <span className="text-xs font-mono text-slate-600">10040</span>
                       </div>
-                      {taPubkey && (
-                        <div className="flex items-center justify-between" data-testid="row-sp-ta-pubkey">
-                          <span className="text-xs text-slate-500">TA pubkey</span>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-600 hover:text-[#333286] transition-colors group"
-                            onClick={() => {
-                              navigator.clipboard.writeText(taPubkey);
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 1500);
-                            }}
-                            data-testid="button-copy-ta-pubkey"
-                          >
-                            {taPubkey.slice(0, 12)}...{taPubkey.slice(-6)}
-                            {copied ? (
-                              <Check className="h-3 w-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3 w-3 text-slate-400 group-hover:text-[#333286] transition-colors" />
-                            )}
-                          </button>
-                        </div>
-                      )}
                       {lastCalculated && (
                         <div className="flex items-center justify-between" data-testid="row-sp-since">
                           <span className="text-xs text-slate-500">Active since</span>
