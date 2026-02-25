@@ -107,6 +107,7 @@ export default function SettingsPage() {
 
   const calcDone = grapeRankData?.data?.internal_publication_status === "success";
   const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
+  const isGrapeRankFailedState = (typeof grapeRankData?.data?.status === "string" && grapeRankData.data.status.toLowerCase() === "failure") || (typeof grapeRankData?.data?.ta_status === "string" && grapeRankData.data.ta_status.toLowerCase() === "failure");
   const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;
   const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
   const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
@@ -529,6 +530,12 @@ export default function SettingsPage() {
                     <span className="text-xs font-mono text-slate-600">{grapeRankData?.data?.algorithm || "graperank"}</span>
                   </div>
                 </div>
+
+                {isGrapeRankFailedState && !triggerGrapeRankMutation.isSuccess && !isRecalcInProgress && !triggerGrapeRankMutation.isPending && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5" data-testid="alert-gr-failed-state">
+                    <p className="text-xs text-amber-800 font-medium">Your last calculation didn't complete successfully. You can try again below.</p>
+                  </div>
+                )}
 
                 {triggerGrapeRankMutation.isError && (
                   <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2" data-testid="alert-gr-error">

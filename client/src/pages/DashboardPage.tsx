@@ -323,7 +323,19 @@ export default function DashboardPage() {
     ? typeof (grapeRank as any).status === "string" && (grapeRank as any).status.toLowerCase() === "failure"
     : false;
 
+  const isPublishFailed = calcDone && grapeRank
+    ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
+    : false;
+
   const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
+
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    if (!isGrapeRankFailed && !isPublishFailed) {
+      setRetryCount(0);
+    }
+  }, [isGrapeRankFailed, isPublishFailed]);
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
@@ -550,7 +562,7 @@ export default function DashboardPage() {
 
   const isCalculationComplete = publishDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
-  const isErrorState = isGrapeRankFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
+  const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
   const isRecalculation = !publishDone && !!(selfData?.history?.last_time_calculated_graperank || nip85Activated);
 
   return (
@@ -1097,13 +1109,15 @@ export default function DashboardPage() {
                             >
                               {isGrapeRankFailed
                                 ? "Calculation failed"
-                                : hasNoFollowing && !triggerGrapeRankMutation.isPending
-                                  ? "Ready to calculate"
-                                  : publishDone
-                                    ? "Calculation complete"
-                                    : calcDone
-                                      ? "Publishing Trusted Assertion"
-                                      : "Computing network trust"}
+                                : isPublishFailed
+                                  ? "Publishing failed"
+                                  : hasNoFollowing && !triggerGrapeRankMutation.isPending
+                                    ? "Ready to calculate"
+                                    : publishDone
+                                      ? "Calculation complete"
+                                      : calcDone
+                                        ? "Publishing Trusted Assertion"
+                                        : "Computing network trust"}
                             </p>
                           </div>
                           {!publishDone && !isErrorState && (
@@ -1135,21 +1149,21 @@ export default function DashboardPage() {
                           </div>
 
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-fuchsia-500/10 border-fuchsia-500/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-fuchsia-500/10 border-fuchsia-500/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]" : isPublishFailed ? "bg-red-500/10 border-red-500/20" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-scores"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${publishDone ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                className={`w-2 h-2 rounded-full shrink-0 ${publishDone ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
                                 data-testid="dot-onboarding-scores"
                               />
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : isPublishFailed ? "text-red-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
                               <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {publishDone ? "Done" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                              {publishDone ? "Done" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
                         </div>
@@ -1160,6 +1174,43 @@ export default function DashboardPage() {
                           Final step publishes a <span className="text-slate-200 font-semibold">Trusted Assertion</span> event.
                         </span>
                       </div>
+
+                      {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && (
+                        <div className="mt-3 flex items-center justify-center gap-3" data-testid="row-onboarding-retry">
+                          {retryCount === 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={triggerGrapeRankMutation.isPending}
+                              onClick={() => {
+                                setRetryCount(1);
+                                triggerGrapeRankMutation.mutate();
+                              }}
+                              data-testid="button-onboarding-retry"
+                            >
+                              {triggerGrapeRankMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              )}
+                              Try Again
+                            </button>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <p className="text-xs text-slate-400">Still having trouble?</p>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all"
+                                onClick={() => navigate("/settings")}
+                                data-testid="button-onboarding-go-settings"
+                              >
+                                <SettingsIcon className="w-3.5 h-3.5" />
+                                Go to Settings
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <AnimatePresence initial={false}>
