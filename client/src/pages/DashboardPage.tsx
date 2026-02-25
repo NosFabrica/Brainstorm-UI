@@ -527,6 +527,7 @@ export default function DashboardPage() {
   const isCalculationComplete = publishDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
   const isErrorState = isGrapeRankFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
+  const isRecalculation = !publishDone && !!(selfData?.history?.last_time_calculated_graperank || nip85Activated);
 
   return (
     <TooltipProvider>
@@ -791,7 +792,7 @@ export default function DashboardPage() {
                     </span>
                   ) : (
                     <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
-                      Awaiting calculation
+                      {isRecalculation ? "Recalculating\u2026" : "Awaiting calculation"}
                     </span>
                   )}
                   {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
@@ -1007,17 +1008,20 @@ export default function DashboardPage() {
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
-                        Brainstorm onboarding
+                        {isRecalculation ? "Recalculating" : "Brainstorm onboarding"}
                       </p>
                       <h2
                         className="text-xl sm:text-2xl font-bold text-white tracking-tight"
                         style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                         data-testid="text-onboarding-title"
                       >
-                        Clarity in a fragmented world
+                        {isRecalculation ? "Refreshing your trust scores" : "Clarity in a fragmented world"}
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
-                        Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.
+                        {isRecalculation
+                          ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
+                          : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
+                        }
                       </p>
                     </div>
                   </div>
