@@ -491,23 +491,26 @@ export default function DashboardPage() {
 
   const directTierCounts = useMemo(() => {
     if (!network) return {} as Record<string, number>;
-    const seen = new Map<string, number>();
-    const groups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as const;
-    for (const g of groups) {
-      const members = (network as any)[g];
+    const followers = network.followed_by;
+    if (!Array.isArray(followers)) return {} as Record<string, number>;
+    const flaggedSet = new Set<string>();
+    const flaggedGroups = ["muted_by", "muting", "reported_by", "reporting"] as const;
+    for (const gk of flaggedGroups) {
+      const members = (network as any)[gk];
       if (!Array.isArray(members)) continue;
-      for (const m of members) {
-        if (!seen.has(m.pubkey)) {
-          seen.set(m.pubkey, typeof m.influence === "number" ? m.influence : -1);
-        }
-      }
+      for (const m of members) flaggedSet.add(m.pubkey);
     }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
-    for (const [, inf] of seen) {
-      if (inf <= 0) counts.flagged++;
-      else if (inf >= 0.80) counts.high++;
-      else if (inf >= 0.50) counts.medium++;
-      else if (inf >= 0.25) counts.neutral++;
+    for (const m of followers) {
+      if (flaggedSet.has(m.pubkey)) {
+        counts.flagged++;
+        continue;
+      }
+      const inf = typeof m.influence === "number" ? m.influence : -1;
+      const pct = Math.round(Math.min(1, Math.max(0, inf)) * 100);
+      if (pct >= 80) counts.high++;
+      else if (pct >= 50) counts.medium++;
+      else if (pct >= 25) counts.neutral++;
       else counts.low++;
     }
     return counts;
@@ -1817,7 +1820,7 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} direct</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} followers</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
