@@ -199,11 +199,15 @@ export async function registerRoutes(
     }
     try {
       const resp = await fetch(`${BRAINSTORM_API}/user/self`, {
-        headers: { 'access_token': token }
+        headers: { 'access_token': token },
+        signal: AbortSignal.timeout(60000),
       });
       const data = await resp.json();
       return res.status(resp.status).json(data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        return res.status(504).json({ error: "Request timed out — large accounts may take longer. Please try again." });
+      }
       return res.status(502).json({ error: "Failed to reach auth server" });
     }
   });
@@ -219,11 +223,15 @@ export async function registerRoutes(
     }
     try {
       const resp = await fetch(`${BRAINSTORM_API}/user/${pubkey}`, {
-        headers: { 'access_token': token }
+        headers: { 'access_token': token },
+        signal: AbortSignal.timeout(60000),
       });
       const data = await resp.json();
       return res.status(resp.status).json(data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        return res.status(504).json({ error: "Request timed out — large accounts may take longer. Please try again." });
+      }
       return res.status(502).json({ error: "Failed to reach API server" });
     }
   });

@@ -32,6 +32,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-17: Added verified user flags on NetworkPage profile cards: checks if a user's muted_by/reported_by includes verified users (TA >= 0.01) and shows amber/red badges with tooltip explanations
 - 2026-02-17: Replaced mock Network Alerts card on Dashboard with real reported_by/muted_by counts from API data, removed "Coming soon" overlay, updated dialog to show real signal summary
 - 2026-02-18: Adapted to new API format: graph arrays (followed_by, following, muted_by, etc.) now return `{pubkey, influence}` objects instead of plain strings. Added graphHelpers.ts (toPubkeys, toInfluenceMap), updated all 3 pages. NetworkPage pre-seeds trustCache from embedded influence, uses Set-based group lookups for performance
+- 2026-02-25: Optimized login flow for large accounts: removed getSelf() and profile fetch from handleLogin() (deferred to Dashboard via useQuery), added 60s timeouts to /api/auth/self and /api/user/:pubkey server proxy routes, replaced generic loading placeholders with branded BrainLogo pulse animations throughout Dashboard
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -69,8 +70,9 @@ client/src/
 3. Sign kind 22242 event with tags `["t", "brainstorm_login"]` and `["challenge", <challenge>]`
 4. Verify signed event via `POST /authChallenge/:pubkey/verify`
 5. Store token in localStorage as `brainstorm_session_token`
-6. Fetch user data via `GET /user/self` with `access_token` header
-7. Fetch Nostr profile metadata from relays for display name/avatar
+6. Navigate to Dashboard immediately (minimal user: pubkey + npub only)
+7. Dashboard lazily fetches `/user/self` (social graph) and `/api/profile/:pubkey` (avatar/name) via useQuery
+8. Profile data updates localStorage and UI state when it arrives
 
 ### API Client (`api.ts`)
 - `getAuthChallenge(pubkey)` - Gets challenge string from brainstormserver

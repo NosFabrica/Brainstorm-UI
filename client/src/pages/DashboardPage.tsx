@@ -83,7 +83,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, updateCurrentUser, fetchProfileFromServer, applyProfileToUser, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 
@@ -195,6 +195,26 @@ export default function DashboardPage() {
     }
     setUser(u);
   }, [navigate]);
+
+  const needsProfile = !!user && !user.displayName && !user.picture;
+  const profileQuery = useQuery({
+    queryKey: ["/api/profile", user?.pubkey],
+    queryFn: async () => {
+      if (!user?.pubkey) return null;
+      const content = await fetchProfileFromServer(user.pubkey);
+      if (content) {
+        const updates = applyProfileToUser(content);
+        updateCurrentUser(updates);
+        setUser((prev) => prev ? { ...prev, ...updates } : prev);
+        return content;
+      }
+      throw new Error("Profile not found");
+    },
+    enabled: needsProfile,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    staleTime: Infinity,
+  });
 
   const hasToken = !!localStorage.getItem("brainstorm_session_token");
 
@@ -550,7 +570,7 @@ export default function DashboardPage() {
                           <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
                         ) : null}
                         <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                          {user.displayName?.charAt(0) || "U"}
+                          {needsProfile && profileQuery.isFetching ? <BrainLogo size={18} className="animate-pulse text-indigo-400" /> : (user.displayName?.charAt(0) || "U")}
                         </AvatarFallback>
                       </Avatar>
                       <div className="hidden md:flex flex-col items-start mr-2">
@@ -639,7 +659,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
                   <Avatar className="h-10 w-10 border border-white/10">
                     {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} /> : null}
-                    <AvatarFallback className="bg-indigo-900 text-white font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                    <AvatarFallback className="bg-indigo-900 text-white font-bold">{needsProfile && profileQuery.isFetching ? <BrainLogo size={20} className="animate-pulse text-indigo-400" /> : (user.displayName?.charAt(0) || "U")}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate" data-testid="text-mobile-menu-user-label">{user.displayName || "Anonymous"}</p>
@@ -1183,7 +1203,7 @@ export default function DashboardPage() {
                   <div className="flex items-end justify-between">
                     <div>
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-direct-follows-count">
-                        {selfQuery.isLoading ? "\u2014" : followersCount}
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followersCount}
                       </div>
                       <p className="text-xs text-slate-400 mt-1 line-clamp-1" data-testid="text-direct-follows-label">Mutual follows in your web</p>
                     </div>
@@ -1462,7 +1482,7 @@ export default function DashboardPage() {
 
                   <div>
                     <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {selfQuery.isLoading || !isCalculationComplete ? "\u2014" : extendedNetworkCount.toLocaleString()}
+                      {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
                     </div>
                     <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
@@ -1581,7 +1601,7 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-center mb-1">
                               <p className="font-bold text-xs text-slate-900 truncate pr-2">{dist.name}</p>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
-                                {selfQuery.isLoading || !isCalculationComplete ? "\u2014" : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
+                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
@@ -1888,8 +1908,8 @@ export default function DashboardPage() {
               </div>
               {selfQuery.isLoading ? (
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
-                  <span className="text-xs text-slate-400">Loading...</span>
+                  <BrainLogo size={14} className="animate-pulse text-indigo-400" />
+                  <span className="text-xs text-slate-400">Loading network...</span>
                 </div>
               ) : network ? (
                 <div className="space-y-2">

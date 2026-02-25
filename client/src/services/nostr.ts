@@ -57,7 +57,14 @@ function setCurrentUser(user: NostrUser | null) {
   }
 }
 
-async function fetchProfileFromServer(pubkey: string): Promise<ProfileContent | undefined> {
+export function updateCurrentUser(updates: Partial<NostrUser>) {
+  const existing = getCurrentUser();
+  if (!existing) return;
+  const updated = { ...existing, ...updates };
+  setCurrentUser(updated);
+}
+
+export async function fetchProfileFromServer(pubkey: string): Promise<ProfileContent | undefined> {
   try {
     const resp = await fetch(`/api/profile/${pubkey}`, {
       signal: AbortSignal.timeout(15000),
@@ -85,6 +92,16 @@ async function fetchProfileFromServer(pubkey: string): Promise<ProfileContent | 
   } catch {}
 
   return undefined;
+}
+
+export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> {
+  return {
+    profile: content,
+    displayName: getDisplayName(content) || content.name || content.display_name,
+    picture: getProfilePicture(content) || content.picture || content.image,
+    about: content.about,
+    nip05: content.nip05,
+  };
 }
 
 export async function handleLogin(): Promise<NostrUser> {
@@ -125,29 +142,12 @@ export async function handleLogin(): Promise<NostrUser> {
   }
   localStorage.setItem("brainstorm_session_token", token);
 
-  let selfData: any = null;
-  try {
-    selfData = await apiClient.getSelf();
-  } catch {}
-
   const npub = nip19.npubEncode(pubkey);
 
   const user: NostrUser = {
     pubkey,
     npub,
-    userData: selfData,
   };
-
-  try {
-    const content = await fetchProfileFromServer(pubkey);
-    if (content) {
-      user.profile = content;
-      user.displayName = getDisplayName(content) || content.name || content.display_name;
-      user.picture = getProfilePicture(content) || content.picture || content.image;
-      user.about = content.about;
-      user.nip05 = content.nip05;
-    }
-  } catch {}
 
   setCurrentUser(user);
   return user;
