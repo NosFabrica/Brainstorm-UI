@@ -867,7 +867,12 @@ export default function NetworkPage() {
                           ? "bg-white/20 text-white"
                           : `${group.bgColor} ${group.color} ${group.borderColor} border`
                       }`}>
-                        {showVerifiedLabel ? `${count} / ${totalCount}` : count}
+                        {showVerifiedLabel ? (
+                          <>
+                            <span className="sm:hidden">{count}</span>
+                            <span className="hidden sm:inline">{count} / {totalCount}</span>
+                          </>
+                        ) : count}
                       </span>
                     </button>
                   );
