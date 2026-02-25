@@ -229,6 +229,22 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             })}
           </div>
 
+          <div className="px-6 pb-2">
+            <div className="flex items-center gap-3 px-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
+              <div className="flex items-center gap-2">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors" data-testid="link-modal-amethyst">
+                  Amethyst
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+                <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-100 text-orange-700 text-xs font-semibold hover:bg-orange-100 transition-colors" data-testid="link-modal-nostria">
+                  Nostria
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+            </div>
+          </div>
+
           <div className="px-6 pb-6 pt-2">
             <div className="border-t border-slate-200/60 pt-4">
               {activateState === "success" ? (
