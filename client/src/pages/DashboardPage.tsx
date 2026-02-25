@@ -749,7 +749,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <span className="text-[8px] font-extrabold uppercase tracking-[0.2em] text-[#333286]/50 block leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                        <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] bg-clip-text text-transparent bg-gradient-to-r from-[#333286] to-[#7c86ff] block leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                           Certified WoT
                         </span>
                         <span className="text-xs font-bold text-slate-900 tracking-tight block mt-0.5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -786,7 +786,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5">
+                    <div className="mt-2 pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5 ml-[52px]">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
                       <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
                       <span className="text-[10px] text-slate-400">·</span>
