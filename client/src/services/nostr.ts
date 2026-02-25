@@ -8,6 +8,7 @@ import {
 } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
+import { queryClient } from "@/lib/queryClient";
 
 declare global {
   interface Window {
@@ -156,6 +157,7 @@ export async function handleLogin(): Promise<NostrUser> {
 export function logout() {
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
+  queryClient.clear();
 }
 
 const DEFAULT_PUBLISH_RELAYS = [

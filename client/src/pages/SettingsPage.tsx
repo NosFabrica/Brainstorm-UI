@@ -66,14 +66,14 @@ export default function SettingsPage() {
 
   const { data: selfData, isPending: selfLoading } = useQuery({
     queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf().then((r: any) => r.data),
+    queryFn: () => apiClient.getSelf(),
     enabled: !!user,
     staleTime: 60_000,
   });
 
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
     queryKey: ["/api/auth/graperankResult"],
-    queryFn: () => apiClient.getGrapeRankResult().then((r: any) => r.data),
+    queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
   });
@@ -82,10 +82,10 @@ export default function SettingsPage() {
     mutationFn: () => apiClient.triggerGrapeRank(),
   });
 
-  const grapeRankStatus = grapeRankData?.ta_status || grapeRankData?.status || null;
-  const lastCalculated = selfData?.history?.last_time_calculated_graperank || grapeRankData?.updated_at || null;
-  const lastTriggered = selfData?.history?.last_time_triggered_graperank || grapeRankData?.created_at || null;
-  const taPubkey = selfData?.history?.ta_pubkey || null;
+  const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;
+  const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
+  const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
+  const taPubkey = selfData?.data?.history?.ta_pubkey || null;
 
   if (!user) return null;
 
@@ -494,7 +494,7 @@ export default function SettingsPage() {
                   )}
                   <div className="flex items-center justify-between" data-testid="row-gr-algorithm">
                     <span className="text-xs text-slate-500">Algorithm</span>
-                    <span className="text-xs font-mono text-slate-600">{grapeRankData?.algorithm || "graperank"}</span>
+                    <span className="text-xs font-mono text-slate-600">{grapeRankData?.data?.algorithm || "graperank"}</span>
                   </div>
                 </div>
 
