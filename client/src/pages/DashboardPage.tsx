@@ -477,6 +477,30 @@ export default function DashboardPage() {
   const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
   const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
+  const directTierCounts = useMemo(() => {
+    if (!network) return {} as Record<string, number>;
+    const seen = new Map<string, number>();
+    const groups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as const;
+    for (const g of groups) {
+      const members = (network as any)[g];
+      if (!Array.isArray(members)) continue;
+      for (const m of members) {
+        if (!seen.has(m.pubkey)) {
+          seen.set(m.pubkey, typeof m.influence === "number" ? m.influence : -1);
+        }
+      }
+    }
+    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
+    for (const [, inf] of seen) {
+      if (inf <= 0) counts.flagged++;
+      else if (inf >= 0.80) counts.high++;
+      else if (inf >= 0.50) counts.medium++;
+      else if (inf >= 0.25) counts.neutral++;
+      else counts.low++;
+    }
+    return counts;
+  }, [network]);
+
   const handleExport = () => {
     const data = {
       format: "brainstorm-v1",
@@ -1694,7 +1718,11 @@ export default function DashboardPage() {
                           </Pie>
                           {isCalculationComplete && (
                           <Tooltip
-                            formatter={(value: number) => [selfQuery.isLoading ? "\u2014" : `${value.toLocaleString()} profiles`, ""]}
+                            formatter={(value: number, _name: string) => {
+                              if (selfQuery.isLoading) return ["\u2014", ""];
+                              const hopLabel = hopRange[0] === hopRange[1] ? `Hop ${hopRange[0]}` : `Hops ${hopRange[0]}–${hopRange[1]}`;
+                              return [`${value.toLocaleString()} profiles · ${hopLabel}`, ""];
+                            }}
                             contentStyle={{
                               borderRadius: "8px",
                               border: "1px solid #e2e8f0",
@@ -1719,13 +1747,17 @@ export default function DashboardPage() {
                         const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
                         const tier = tierMap[dist.name];
                         const canClick = isCalculationComplete && calcDone && !!tier;
+                        const directCount = tier ? directTierCounts[tier] ?? 0 : 0;
                         return (
                         <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
-                              <p className="font-bold text-xs text-slate-900 truncate pr-2">{dist.name}</p>
-                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors" data-testid={`text-network-composition-percent-${i}`}>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} direct</span>}
+                              </div>
+                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
                               </span>
                             </div>
