@@ -49,7 +49,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
 
     const event = {
       kind: 10040,
-      tags: [["30382:rank", serviceKey, "wss://relay.nostr.band"]],
+      tags: [["30382:rank", serviceKey, "wss://testnip85.nosfabrica.com"]],
       content: "",
       created_at: Math.floor(Date.now() / 1000),
       pubkey: user.pubkey,

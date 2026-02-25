@@ -239,7 +239,7 @@ export async function publishToRelays(
 
 export async function signAndPublishNip85(
   serviceKey: string,
-  relayHint: string = "wss://relay.nostr.band"
+  relayHint: string = "wss://testnip85.nosfabrica.com"
 ): Promise<{ success: boolean; error?: string }> {
   if (!window.nostr) {
     return { success: false, error: "No Nostr extension found" };
