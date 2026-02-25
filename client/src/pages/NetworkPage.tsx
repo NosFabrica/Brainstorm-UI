@@ -196,7 +196,7 @@ export default function NetworkPage() {
 
   const fetchProfiles = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
-    const batchSize = 5;
+    const batchSize = 10;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
       const results = await Promise.allSettled(
@@ -221,7 +221,7 @@ export default function NetworkPage() {
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
     if (unfetched.length === 0) return;
-    const batchSize = 3;
+    const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
       const results = await Promise.allSettled(
@@ -390,8 +390,16 @@ export default function NetworkPage() {
       if (pageItems.length > 0) {
         fetchTrustScores(pageItems);
       }
+      if (safePage < totalPages) {
+        const nextStart = safePage * PAGE_SIZE;
+        const nextPageItems = visible.slice(nextStart, nextStart + PAGE_SIZE);
+        if (nextPageItems.length > 0) {
+          fetchProfiles(nextPageItems);
+          fetchTrustScores(nextPageItems);
+        }
+      }
     }
-  }, [filteredPubkeys, currentPage, fetchTrustScores, trustFilter, activeGroup, getGroupPubkeys]);
+  }, [filteredPubkeys, currentPage, fetchTrustScores, fetchProfiles, trustFilter, activeGroup, getGroupPubkeys]);
 
   useEffect(() => {
     const visible = filteredPubkeys();
