@@ -704,6 +704,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {!(nip85Activated && publishDone) && (
               <div
                 className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
                 data-testid="card-overall-trust-score"
@@ -799,6 +800,7 @@ export default function DashboardPage() {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
+              )}
 
             </div>
 
