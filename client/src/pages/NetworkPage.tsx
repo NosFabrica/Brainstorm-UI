@@ -1257,7 +1257,7 @@ export default function NetworkPage() {
                               })()}
                               {renderVerifiedFlags(pk)}
                               <button
-                                className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md hover:shadow-lg hover:opacity-90 transition-all duration-200"
+                                className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}&fromGroup=${activeGroup}`); }}
                                 data-testid={`button-view-full-${pk.slice(0, 8)}`}
                               >
