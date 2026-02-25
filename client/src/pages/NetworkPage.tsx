@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
+import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
@@ -129,6 +130,14 @@ export default function NetworkPage() {
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
+  const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
+    queryKey: ["/api/auth/graperankResult"],
+    queryFn: () => apiClient.getGrapeRankResult(),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
+
   const PAGE_SIZE = 24;
 
   const profileCache = useRef<Map<string, any>>(new Map());
@@ -424,6 +433,31 @@ export default function NetworkPage() {
   if (!user) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
+
+  if (!calcDone && !grapeRankLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4" data-testid="page-network-gate">
+        <div className="max-w-md w-full text-center">
+          <div className="mb-6 flex justify-center">
+            <BrainLogo size={64} className="text-indigo-400 animate-pulse" />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-3" data-testid="text-network-gate-title">Your network is being calculated</h1>
+          <p className="text-slate-400 mb-8 text-sm leading-relaxed" data-testid="text-network-gate-description">
+            We're crunching the numbers on your social graph. Once the calculation completes, you'll be able to explore your full network here.
+          </p>
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+            onClick={() => navigate("/dashboard")}
+            data-testid="button-back-to-dashboard"
+          >
+            <Home className="h-4 w-4" />
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

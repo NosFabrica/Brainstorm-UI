@@ -82,6 +82,7 @@ export default function SettingsPage() {
     mutationFn: () => apiClient.triggerGrapeRank(),
   });
 
+  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
   const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;
   const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
   const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
@@ -158,8 +159,10 @@ export default function SettingsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                  onClick={() => navigate("/network")}
+                  className={`gap-2 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
+                  onClick={() => calcDone && navigate("/network")}
+                  disabled={!calcDone}
+                  title={!calcDone ? "Available after calculation completes" : undefined}
                   data-testid="button-nav-network"
                 >
                   <Users className="h-4 w-4" />
@@ -258,20 +261,25 @@ export default function SettingsPage() {
                   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
                 ].map((item) => {
                   const active = location === item.path;
+                  const isNetworkDisabled = item.path === "/network" && !calcDone;
                   return (
                     <Button
                       key={item.path}
                       variant="ghost"
                       className={
                         "w-full justify-start gap-3 text-[15px] rounded-2xl transition-colors no-default-hover-elevate no-default-active-elevate " +
-                        (active
-                          ? "font-semibold text-white bg-white/10 border border-white/10 shadow-[0_12px_26px_-18px_rgba(99,102,241,0.35)]"
-                          : "font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10")
+                        (isNetworkDisabled
+                          ? "font-medium text-slate-500 opacity-40 cursor-not-allowed border border-transparent"
+                          : active
+                            ? "font-semibold text-white bg-white/10 border border-white/10 shadow-[0_12px_26px_-18px_rgba(99,102,241,0.35)]"
+                            : "font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10")
                       }
-                      onClick={() => { setMobileMenuOpen(false); navigate(item.path); }}
+                      onClick={() => { if (!isNetworkDisabled) { setMobileMenuOpen(false); navigate(item.path); } }}
+                      disabled={isNetworkDisabled}
+                      title={isNetworkDisabled ? "Available after calculation completes" : undefined}
                       data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
                     >
-                      <item.icon className={"h-5 w-5 " + (active ? "text-indigo-200" : "text-slate-200/80")} />
+                      <item.icon className={"h-5 w-5 " + (isNetworkDisabled ? "text-slate-500" : active ? "text-indigo-200" : "text-slate-200/80")} />
                       {item.label}
                     </Button>
                   );

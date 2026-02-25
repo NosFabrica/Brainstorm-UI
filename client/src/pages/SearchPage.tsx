@@ -31,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
@@ -240,6 +241,14 @@ export default function SearchPage() {
   const pendingAutoSearch = useRef<string | null>(null);
   const [cameFromNetwork, setCameFromNetwork] = useState(false);
   const [fromGroup, setFromGroup] = useState<string | null>(null);
+
+  const { data: grapeRankData } = useQuery({
+    queryKey: ["/api/auth/graperankResult"],
+    queryFn: () => apiClient.getGrapeRankResult(),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -863,8 +872,10 @@ export default function SearchPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                  onClick={() => navigate("/network")}
+                  className={`gap-2 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
+                  onClick={() => calcDone && navigate("/network")}
+                  disabled={!calcDone}
+                  title={!calcDone ? "Available after calculation completes" : undefined}
                   data-testid="button-nav-network"
                 >
                   <User className="h-4 w-4" />
@@ -986,11 +997,13 @@ export default function SearchPage() {
                 </Button>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
-                  onClick={() => { setMobileMenuOpen(false); navigate("/network"); }}
+                  className={`w-full justify-start gap-3 text-base font-medium border border-transparent rounded-2xl no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-200/90 hover:text-white hover:bg-white/10 hover:border-white/10" : "text-slate-500 opacity-40 cursor-not-allowed"}`}
+                  onClick={() => { if (calcDone) { setMobileMenuOpen(false); navigate("/network"); } }}
+                  disabled={!calcDone}
+                  title={!calcDone ? "Available after calculation completes" : undefined}
                   data-testid="button-mobile-nav-network"
                 >
-                  <User className="h-5 w-5 text-slate-200/80" />
+                  <User className={`h-5 w-5 ${calcDone ? "text-slate-200/80" : "text-slate-500"}`} />
                   Network
                 </Button>
                 <Button

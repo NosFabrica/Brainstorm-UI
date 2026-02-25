@@ -557,7 +557,7 @@ export default function DashboardPage() {
                     <Search className="h-4 w-4" />
                     Search
                   </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/network")} data-testid="button-nav-network">
+                  <Button variant="ghost" size="sm" className={`gap-2 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
                     <Users className="h-4 w-4" />
                     Network
                   </Button>
@@ -641,8 +641,8 @@ export default function DashboardPage() {
                     <Search className="h-5 w-5 text-slate-200/80" />
                     Search
                   </Button>
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
-                    <Users className="h-5 w-5 text-slate-200/80" />
+                  <Button variant="ghost" className={`w-full justify-start gap-3 text-base font-medium border border-transparent rounded-2xl no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-200/90 hover:text-white hover:bg-white/10 hover:border-white/10" : "text-slate-500 opacity-40 cursor-not-allowed"}`} onClick={() => { if (calcDone) { setMobileMenuOpen(false); navigate("/network"); } }} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-mobile-nav-network">
+                    <Users className={`h-5 w-5 ${calcDone ? "text-slate-200/80" : "text-slate-500"}`} />
                     Network
                   </Button>
                   <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
@@ -1294,11 +1294,12 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
-                className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
-                onClick={() => navigate("/network?group=followed_by&view=list")}
+                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${calcDone ? "cursor-pointer hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : "opacity-50 cursor-not-allowed"}`}
+                onClick={() => calcDone && navigate("/network?group=followed_by&view=list")}
                 role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate("/network?group=followed_by&view=list"); }}
+                tabIndex={calcDone ? 0 : -1}
+                onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
+                title={!calcDone ? "Available after calculation completes" : undefined}
                 data-testid="card-trusted-followers"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -2018,7 +2019,7 @@ export default function DashboardPage() {
                   <Users className="h-4 w-4 text-indigo-500" />
                   <span className="text-sm font-semibold text-slate-800">Network</span>
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs font-bold text-indigo-600 uppercase tracking-wide px-2 h-7 no-default-hover-elevate no-default-active-elevate hover:bg-indigo-50" onClick={() => navigate("/network")} data-testid="button-view-network">
+                <Button variant="ghost" size="sm" className={`text-xs font-bold uppercase tracking-wide px-2 h-7 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-indigo-600 hover:bg-indigo-50" : "text-slate-400 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-view-network">
                   View All
                 </Button>
               </div>
