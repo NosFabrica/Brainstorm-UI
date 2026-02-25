@@ -1687,9 +1687,9 @@ export default function DashboardPage() {
                     <div className="h-48 w-full md:w-5/12">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={currentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none">
+                          <Pie data={currentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[currentPieData[index]?.name]; if (tier) navigate(`/network?trust=${tier}`); }}>
                             {currentPieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} />
+                              <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
                             ))}
                           </Pie>
                           {isCalculationComplete && (
@@ -1715,8 +1715,12 @@ export default function DashboardPage() {
                         <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Network Composition</h4>
                         <p className="text-xs text-slate-500">Breakdown by trust signal strength</p>
                       </div>
-                      {currentPieData.map((dist, i) => (
-                        <div key={i} className="group flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-default border border-transparent hover:border-slate-100">
+                      {currentPieData.map((dist, i) => {
+                        const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
+                        const tier = tierMap[dist.name];
+                        const canClick = isCalculationComplete && calcDone && !!tier;
+                        return (
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
@@ -1736,7 +1740,8 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </CardContent>

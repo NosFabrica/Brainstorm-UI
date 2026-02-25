@@ -116,7 +116,19 @@ export default function NetworkPage() {
   });
   const [searchFilter, setSearchFilter] = useState("");
   type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "flagged";
-  const [trustFilter, setTrustFilter] = useState<TrustTier>("all");
+  const [trustFilter, setTrustFilter] = useState<TrustTier>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("trust");
+    const valid: TrustTier[] = ["high", "medium", "neutral", "low", "flagged"];
+    if (t && valid.includes(t as TrustTier)) return t as TrustTier;
+    return "all";
+  });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("trust")) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
   const [networkData, setNetworkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
