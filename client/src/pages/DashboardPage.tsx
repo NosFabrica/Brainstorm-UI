@@ -289,14 +289,9 @@ export default function DashboardPage() {
 
   const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
     if (!network) return { verifiedFollowersCount: 0, verifiedFollowingCount: 0 };
-    const flaggedSet = new Set<string>();
-    for (const gk of ["muted_by", "muting", "reported_by", "reporting"] as const) {
-      const members = (network as any)[gk];
-      if (Array.isArray(members)) for (const m of members) flaggedSet.add(m.pubkey);
-    }
     const countVerified = (arr: any[] | undefined) => {
       if (!Array.isArray(arr)) return 0;
-      return arr.filter(m => !flaggedSet.has(m.pubkey) && typeof m.influence === "number" && m.influence >= 0.02).length;
+      return arr.filter(m => typeof m.influence === "number" && m.influence >= 0.02).length;
     };
     return {
       verifiedFollowersCount: countVerified(network.followed_by),

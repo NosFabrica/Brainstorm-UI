@@ -194,7 +194,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
 
   const getVerifiedFlagCounts = () => {
     if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
-    const TA_THRESHOLD = 0.01;
+    const TA_THRESHOLD = 0.02;
     let verifiedMuters = 0;
     let verifiedReporters = 0;
     for (const muterPk of graphData.muted_by || []) {
@@ -779,7 +779,7 @@ export default function NetworkPage() {
   const getVerifiedPubkeys = useCallback((key: GroupKey): string[] => {
     const all = getGroupPubkeys(key);
     if (!isVerifiableGroup(key)) return all;
-    const TA_THRESHOLD = 0.01;
+    const TA_THRESHOLD = 0.02;
     return all.filter(pk => {
       const score = trustCache.current.get(pk);
       return typeof score === "number" && score >= TA_THRESHOLD;
