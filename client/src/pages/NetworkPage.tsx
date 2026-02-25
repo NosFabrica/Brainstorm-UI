@@ -813,14 +813,18 @@ export default function NetworkPage() {
     }
     if (trustFilter !== "all") {
       if (trustFilter === "flagged") {
-        const flaggedGroups: GroupKey[] = ["muted_by", "muting", "reported_by", "reporting"];
+        const flaggedGroups: GroupKey[] = ["muted_by", "reported_by"];
         const flaggedSet = new Set<string>();
         for (const gk of flaggedGroups) {
           for (const pk of getGroupPubkeys(gk)) {
             flaggedSet.add(pk);
           }
         }
-        pubkeys = pubkeys.filter(pk => flaggedSet.has(pk));
+        pubkeys = pubkeys.filter(pk => {
+          if (flaggedSet.has(pk)) return true;
+          const influence = trustCache.current.get(pk);
+          return typeof influence === "number" && influence < 0.02;
+        });
       } else {
         pubkeys = pubkeys.filter(pk => {
           const influence = trustCache.current.get(pk);
