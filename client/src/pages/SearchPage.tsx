@@ -1256,6 +1256,35 @@ export default function SearchPage() {
             </Tabs>
           </Card>
 
+          {isSearching && (
+            <div className="mt-6" data-testid="panel-search-skeleton">
+              <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden">
+                <div className="p-6 sm:p-8 animate-pulse">
+                  <div className="flex items-start gap-4">
+                    <div className="h-14 w-14 rounded-full bg-slate-200 shrink-0" />
+                    <div className="flex-1 space-y-2.5 pt-1">
+                      <div className="h-4 bg-slate-200 rounded w-36" />
+                      <div className="h-3 bg-slate-100 rounded w-48" />
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-2">
+                    <div className="h-3 bg-slate-100 rounded w-full" />
+                    <div className="h-3 bg-slate-100 rounded w-3/4" />
+                  </div>
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="h-12 bg-slate-50 rounded-xl" />
+                    <div className="h-12 bg-slate-50 rounded-xl" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {!isSearching && hasSearched && (
             <div className="mt-6" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
               {searchError ? (
