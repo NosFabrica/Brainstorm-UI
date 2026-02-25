@@ -297,13 +297,22 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   </button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleActivate}
-                  disabled={activateState === "signing" || activateState === "publishing"}
-                  className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
-                  data-testid="button-activate-confirm"
-                >
+                <>
+                  {activateState === "idle" && (
+                    <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        If you have an active Web of Trust service provider, proceeding will override existing trusted assertion calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleActivate}
+                    disabled={activateState === "signing" || activateState === "publishing"}
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    data-testid="button-activate-confirm"
+                  >
                   {activateState === "signing" ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -321,6 +330,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     </>
                   )}
                 </button>
+                </>
               )}
             </div>
           </div>
