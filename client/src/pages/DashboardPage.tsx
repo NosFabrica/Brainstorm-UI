@@ -350,7 +350,7 @@ export default function DashboardPage() {
     { key: "medium_high", name: "Trusted", color: "#4ade80" },
     { key: "medium", name: "Neutral", color: "#e5e7eb" },
     { key: "medium_low", name: "Low Trust", color: "#fbbf24" },
-    { key: "low", name: "Flagged / Muted", color: "#991b1b" },
+    { key: "low", name: "Unverified", color: "#991b1b" },
   ] as const;
 
   const countValues = useMemo(() => {
@@ -439,7 +439,7 @@ export default function DashboardPage() {
       { label: "Trusted", count: followingCount, color: "#4ade80" },
       { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#e5e7eb" },
       { label: "Low Trust", count: mutedByCount + mutingCount, color: "#fbbf24" },
-      { label: "Flagged / Muted", count: Math.max(10, mutedByCount), color: "#991b1b" },
+      { label: "Unverified", count: Math.max(10, mutedByCount), color: "#991b1b" },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
