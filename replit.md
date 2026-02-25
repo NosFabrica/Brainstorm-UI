@@ -36,6 +36,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-25: Added 6 custom neural-node SVG metric icons to WotIcons.tsx (NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon) — node-and-connection style matching BrainLogo aesthetic
 - 2026-02-25: Redesigned NetworkPage detail panel: glassmorphism container (gradient bg, backdrop-blur, rounded-2xl, top accent bar), glass metric tiles (rounded-xl, white/70 backdrop-blur), gradient influence bar, branded gradient "View full profile" button, BrainLogo loading spinner
 - 2026-02-25: Added NIP-85 Service Provider activation: CTA card on Dashboard (post-onboarding), ActivateBrainstormModal with 3 educational accordion sections, double-confirmation flow (CTA button → modal confirm → NIP-07 sign), kind 10040 event publishing to relays, "Service Provider Active" badge, publishToRelays utility, POST /api/publish server fallback route
+- 2026-02-25: Rebuilt Settings page with 3 real sections: (1) Service Provider status card (NIP-85 activation state from localStorage + ta_pubkey/timestamps from /api/auth/self), (2) Trust Calculation card (GrapeRank status/timestamps from /api/auth/graperankResult + recalculate button with confirmation dialog), (3) Trust Perspective "Coming Soon" teaser (Lock badge overlay, disabled preset chips). Removed old mock preset picker, added useQuery/useMutation for live API data
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -60,7 +61,7 @@ client/src/
 │   ├── DashboardPage.tsx     # Full dashboard: onboarding panel, GrapeRank hero, metrics grid, PieChart, educational strip, clients carousel, keyboard shortcuts
 │   ├── SearchPage.tsx        # Npub lookup with npub→hex decode, parallel profile+graph fetch, trust profile card, all 7 metrics, warning banner
 │   ├── NetworkPage.tsx       # CRM-style social graph explorer: profile cards by group, filter chips, search, batch profile fetch, skeleton loading
-│   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
+│   ├── SettingsPage.tsx      # Settings: Service Provider status (NIP-85), Trust Calculation (GrapeRank), Trust Perspective (coming soon teaser)
 │   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
 ├── services/
 │   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt, publishToRelays, signAndPublishNip85
