@@ -704,7 +704,98 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {!(nip85Activated && publishDone) && (
+              {nip85Activated && publishDone ? (
+              <div
+                className="relative rounded-2xl overflow-hidden self-start md:self-end max-w-xs"
+                data-testid="badge-nip85-active"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-[#7c86ff]/20 via-[#333286]/10 to-[#7c86ff]/20 rounded-2xl" />
+                <div className="absolute inset-[1px] bg-gradient-to-br from-white/98 via-white/95 to-indigo-50/80 rounded-2xl" />
+
+                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+                  <div className="absolute top-1.5 left-1.5 w-5 h-5 border-t border-l border-[#7c86ff]/15 rounded-tl-md" />
+                  <div className="absolute top-1.5 right-1.5 w-5 h-5 border-t border-r border-[#7c86ff]/15 rounded-tr-md" />
+                  <div className="absolute bottom-1.5 left-1.5 w-5 h-5 border-b border-l border-[#7c86ff]/15 rounded-bl-md" />
+                  <div className="absolute bottom-1.5 right-1.5 w-5 h-5 border-b border-r border-[#7c86ff]/15 rounded-br-md" />
+                </div>
+
+                <div className="relative">
+                  <div className="h-[2px] w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
+
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-[#7c86ff]/25 via-[#333286]/15 to-[#7c86ff]/25 blur-sm animate-pulse" />
+                        <div className="relative h-10 w-10 rounded-full bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-md shadow-[#333286]/15">
+                          <div className="h-full w-full rounded-full bg-white flex items-center justify-center">
+                            <div className="relative">
+                              <BrainLogo size={18} className="text-[#333286]" />
+                              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-[1.5px] border-white flex items-center justify-center">
+                                <Check className="h-1.5 w-1.5 text-white" strokeWidth={3} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="50" cy="50" r="47" stroke="url(#sealGradientCompact)" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.35" />
+                          <defs>
+                            <linearGradient id="sealGradientCompact" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#7c86ff" />
+                              <stop offset="50%" stopColor="#333286" />
+                              <stop offset="100%" stopColor="#7c86ff" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[8px] font-extrabold uppercase tracking-[0.2em] text-[#333286]/50 block leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                          Certified WoT
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 tracking-tight block mt-0.5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                          Service Provider Active
+                        </span>
+                        <div className="flex items-center gap-1 mt-1">
+                          {user?.picture ? (
+                            <img src={user.picture} alt="" className="h-3.5 w-3.5 rounded-full object-cover border border-slate-200" />
+                          ) : (
+                            <div className="h-3.5 w-3.5 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                              <span className="text-[6px] font-bold text-[#333286]">{(user?.displayName?.charAt(0) || "U").toUpperCase()}</span>
+                            </div>
+                          )}
+                          <span className="text-[9px] font-semibold text-slate-600 truncate max-w-[80px]">{user?.displayName || "Anonymous"}</span>
+                          {selfData?.history?.last_time_calculated_graperank && (
+                            <>
+                              <span className="text-[9px] text-slate-300 mx-0.5">·</span>
+                              <span className="text-[9px] font-mono text-slate-400">
+                                {new Date(selfData.history.last_time_calculated_graperank).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                          </span>
+                          <span className="text-[8px] font-extrabold uppercase tracking-widest text-emerald-700">Active</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center gap-1.5">
+                      <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300">Supported by</span>
+                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[9px] font-semibold text-purple-500 hover:text-purple-700 transition-colors">Amethyst</a>
+                      <span className="text-[8px] text-slate-300">·</span>
+                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[9px] font-semibold text-orange-500 hover:text-orange-700 transition-colors">Nostria</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              ) : (
               <div
                 className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
                 data-testid="card-overall-trust-score"
@@ -1229,126 +1320,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </Card>
-            </motion.div>
-          )}
-
-          {publishDone && nip85Activated && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="mb-6"
-              data-testid="badge-nip85-active"
-            >
-              <div className="relative rounded-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-[#7c86ff]/20 via-[#333286]/10 to-[#7c86ff]/20 rounded-2xl" />
-                <div className="absolute inset-[1px] bg-gradient-to-br from-white/98 via-white/95 to-indigo-50/80 rounded-2xl" />
-
-                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
-                  <div className="absolute top-2 left-2 w-8 h-8 border-t-2 border-l-2 border-[#7c86ff]/15 rounded-tl-lg" />
-                  <div className="absolute top-2 right-2 w-8 h-8 border-t-2 border-r-2 border-[#7c86ff]/15 rounded-tr-lg" />
-                  <div className="absolute bottom-2 left-2 w-8 h-8 border-b-2 border-l-2 border-[#7c86ff]/15 rounded-bl-lg" />
-                  <div className="absolute bottom-2 right-2 w-8 h-8 border-b-2 border-r-2 border-[#7c86ff]/15 rounded-br-lg" />
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,134,255,0.06)_0%,transparent_50%)]" />
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(51,50,134,0.04)_0%,transparent_50%)]" />
-                </div>
-
-                <div className="relative">
-                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
-
-                  <div className="px-4 sm:px-6 py-4 sm:py-5">
-                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
-
-                      <div className="relative shrink-0">
-                        <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-[#7c86ff]/30 via-[#333286]/20 to-[#7c86ff]/30 blur-sm animate-pulse" />
-                        <div className="relative h-16 w-16 sm:h-[72px] sm:w-[72px] rounded-full bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[2px] shadow-lg shadow-[#333286]/20">
-                          <div className="h-full w-full rounded-full bg-white flex items-center justify-center">
-                            <div className="relative">
-                              <BrainLogo size={28} className="text-[#333286]" />
-                              <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
-                                <Check className="h-2 w-2 text-white" strokeWidth={3} />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <svg className="absolute -inset-3 w-[calc(100%+24px)] h-[calc(100%+24px)]" viewBox="0 0 100 100" fill="none">
-                          <circle cx="50" cy="50" r="47" stroke="url(#sealGradient)" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.4" />
-                          <defs>
-                            <linearGradient id="sealGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#7c86ff" />
-                              <stop offset="50%" stopColor="#333286" />
-                              <stop offset="100%" stopColor="#7c86ff" />
-                            </linearGradient>
-                          </defs>
-                        </svg>
-                      </div>
-
-                      <div className="flex-1 min-w-0 text-center sm:text-left">
-                        <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
-                          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#333286]/60" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                            Certified Web of Trust
-                          </span>
-                        </div>
-                        <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          Service Provider Active
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          Your personalized trust scores are live across the nostr ecosystem.
-                        </p>
-
-                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 mt-2.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Provider</span>
-                            <span className="text-[10px] font-bold text-[#333286] font-mono">Brainstorm</span>
-                          </div>
-                          <div className="hidden sm:block w-px h-3 bg-slate-200" />
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Holder</span>
-                            <div className="flex items-center gap-1">
-                              {user?.picture ? (
-                                <img src={user.picture} alt="" className="h-4 w-4 rounded-full object-cover border border-slate-200" />
-                              ) : (
-                                <div className="h-4 w-4 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                                  <span className="text-[7px] font-bold text-[#333286]">{(user?.displayName?.charAt(0) || "U").toUpperCase()}</span>
-                                </div>
-                              )}
-                              <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[100px]">{user?.displayName || "Anonymous"}</span>
-                            </div>
-                          </div>
-                          {selfData?.history?.last_time_calculated_graperank && (
-                            <>
-                              <div className="hidden sm:block w-px h-3 bg-slate-200" />
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Since</span>
-                                <span className="text-[10px] font-mono text-slate-600">
-                                  {new Date(selfData.history.last_time_calculated_graperank).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                                </span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 shadow-sm">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                          </span>
-                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">Active</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-center sm:justify-start gap-1.5">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">Supported by</span>
-                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-purple-500 hover:text-purple-700 transition-colors">Amethyst</a>
-                      <span className="text-[9px] text-slate-300">·</span>
-                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-orange-500 hover:text-orange-700 transition-colors">Nostria</a>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </motion.div>
           )}
 
