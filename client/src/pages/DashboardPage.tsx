@@ -563,7 +563,7 @@ export default function DashboardPage() {
   const isCalculationComplete = publishDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
-  const isRecalculation = !publishDone && !!(selfData?.history?.last_time_calculated_graperank || nip85Activated);
+  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated);
 
   return (
     <TooltipProvider>
