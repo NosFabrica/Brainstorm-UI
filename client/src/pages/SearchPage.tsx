@@ -1170,7 +1170,7 @@ export default function SearchPage() {
                       <Button
                         onClick={handleSearch}
                         disabled={isSearching}
-                        className="h-10 sm:h-11 px-6 bg-indigo-800 hover:bg-indigo-900 text-white shadow-lg shadow-indigo-800/20 font-bold tracking-wide text-xs gap-2 w-full sm:w-auto"
+                        className="h-10 sm:h-11 px-6 bg-[#3730a3] hover:bg-[#312e81] text-white shadow-lg shadow-[#3730a3]/20 font-bold tracking-wide text-xs gap-2 w-full sm:w-auto"
                         data-testid="button-npub-lookup"
                       >
                         {isSearching ? (
@@ -1233,7 +1233,7 @@ export default function SearchPage() {
                           data-testid="input-keyword"
                         />
                       </div>
-                      <Button disabled className="h-11 px-6 bg-indigo-800 text-white font-bold tracking-wide text-xs opacity-50" data-testid="button-keyword-lookup">
+                      <Button disabled className="h-11 px-6 bg-[#3730a3] text-white font-bold tracking-wide text-xs opacity-50" data-testid="button-keyword-lookup">
                         LOOKUP
                       </Button>
                     </div>
@@ -1285,7 +1285,7 @@ export default function SearchPage() {
                             "h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm " +
                             (searchError.code === "RELAY_TIMEOUT"
                               ? "bg-amber-600 hover:bg-amber-700 text-white"
-                              : "bg-indigo-800 hover:bg-indigo-900 text-white")
+                              : "bg-[#3730a3] hover:bg-[#312e81] text-white")
                           }
                           data-testid="button-search-retry"
                         >
