@@ -1406,39 +1406,57 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <div
-                      className={`rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 transition-all ${calcDone ? "cursor-pointer hover:border-[#7c86ff]/30 hover:bg-indigo-50/50" : ""}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
                       onClick={() => calcDone && navigate("/network?group=followed_by&view=list")}
                       role={calcDone ? "button" : undefined}
                       tabIndex={calcDone ? 0 : -1}
                       onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
                       data-testid="card-trusted-followers"
                     >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Award className="h-3 w-3 text-[#333286]" />
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#7c86ff] to-[#333286]" />
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                          <Award className="h-3 w-3" />
+                        </div>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
                       </div>
-                      <div className="text-xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {selfQuery.isLoading ? <BrainLogo size={18} className="animate-pulse text-indigo-300" /> : followersCount}
+                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followersCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5 leading-tight" data-testid="text-followers-label">People who follow you</p>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">People who follow you</p>
+                      {calcDone && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
+                          <span>Explore</span>
+                          <ChevronRight className="h-2.5 w-2.5" />
+                        </div>
+                      )}
                     </div>
 
                     <div
-                      className={`rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 transition-all ${calcDone ? "cursor-pointer hover:border-[#7c86ff]/30 hover:bg-indigo-50/50" : ""}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-violet-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-violet-400/40 hover:shadow-[0_8px_24px_-8px_rgba(139,92,246,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
                       onClick={() => calcDone && navigate("/network?group=following&view=list")}
                       role={calcDone ? "button" : undefined}
                       tabIndex={calcDone ? 0 : -1}
                       onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
                       data-testid="card-trusted-following"
                     >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <UserPlus className="h-3 w-3 text-[#333286]" />
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-[#7c86ff]" />
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="p-1 rounded-md bg-violet-500/8 text-violet-600">
+                          <UserPlus className="h-3 w-3" />
+                        </div>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
                       </div>
-                      <div className="text-xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {selfQuery.isLoading ? <BrainLogo size={18} className="animate-pulse text-indigo-300" /> : followingCount}
+                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followingCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5 leading-tight" data-testid="text-following-label">People you follow</p>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">People you follow</p>
+                      {calcDone && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-violet-500/60">
+                          <span>Explore</span>
+                          <ChevronRight className="h-2.5 w-2.5" />
+                        </div>
+                      )}
                     </div>
                   </div>
 
