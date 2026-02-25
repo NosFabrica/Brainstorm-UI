@@ -276,7 +276,7 @@ export default function NetworkPage() {
     return memberOf;
   }, [groupPubkeySets]);
 
-  const isVerifiableGroup = (key: GroupKey) => key === "muted_by" || key === "reported_by";
+  const isVerifiableGroup = (_key: GroupKey) => true;
 
   const getVerifiedPubkeys = useCallback((key: GroupKey): string[] => {
     const all = getGroupPubkeys(key);
@@ -342,11 +342,13 @@ export default function NetworkPage() {
 
   useEffect(() => {
     if (!verifiedOnly) return;
-    const mutedBy = getGroupPubkeys("muted_by");
-    const reportedBy = getGroupPubkeys("reported_by");
     const allPksSet = new Set<string>();
-    mutedBy.forEach(pk => allPksSet.add(pk));
-    reportedBy.forEach(pk => allPksSet.add(pk));
+    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"];
+    for (const gk of allGroups) {
+      for (const pk of getGroupPubkeys(gk)) {
+        allPksSet.add(pk);
+      }
+    }
     const allPks = Array.from(allPksSet);
     if (allPks.length > 0) {
       fetchTrustScores(allPks);
@@ -880,7 +882,7 @@ export default function NetworkPage() {
                   { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-indigo-500", ringFill: 0.65 },
                   { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
-                  { key: "flagged" as TrustTier, label: "Flagged / Muted", shortLabel: "Flagged", icon: "text-red-500", ringFill: 0 },
+                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-red-500", ringFill: 0 },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
