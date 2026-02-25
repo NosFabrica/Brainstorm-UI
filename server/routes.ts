@@ -253,6 +253,69 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/publish", async (req, res) => {
+    const { event } = req.body;
+    if (!event || !event.id || !event.sig || !event.pubkey || !event.kind || !Array.isArray(event.tags)) {
+      return res.status(400).json({ error: "Invalid signed event: missing required fields" });
+    }
+
+    if (typeof event.kind !== "number" || typeof event.pubkey !== "string" || typeof event.sig !== "string" || typeof event.id !== "string") {
+      return res.status(400).json({ error: "Invalid signed event: malformed fields" });
+    }
+
+    if (!/^[0-9a-f]{64}$/i.test(event.id) || !/^[0-9a-f]{128}$/i.test(event.sig) || !/^[0-9a-f]{64}$/i.test(event.pubkey)) {
+      return res.status(400).json({ error: "Invalid signed event: invalid hex values" });
+    }
+
+    const publishRelays = [
+      "wss://relay.damus.io",
+      "wss://relay.nostr.band",
+      "wss://nos.lol",
+      "wss://relay.primal.net",
+      "wss://purplepag.es",
+    ];
+
+    const relayPromises = publishRelays.map(
+      (relayUrl) =>
+        new Promise<{ relay: string }>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            try { ws.close(); } catch {}
+            reject(new Error("timeout"));
+          }, 10000);
+
+          const ws = new WebSocket(relayUrl);
+
+          ws.on("open", () => {
+            ws.send(JSON.stringify(["EVENT", event]));
+          });
+
+          ws.on("message", (raw: Buffer) => {
+            try {
+              const data = JSON.parse(raw.toString());
+              if (Array.isArray(data) && data[0] === "OK") {
+                clearTimeout(timeout);
+                try { ws.close(); } catch {}
+                resolve({ relay: relayUrl });
+              }
+            } catch {}
+          });
+
+          ws.on("error", () => {
+            clearTimeout(timeout);
+            try { ws.close(); } catch {}
+            reject(new Error("error"));
+          });
+        })
+    );
+
+    try {
+      const result = await Promise.any(relayPromises);
+      return res.json({ success: true, relay: result.relay });
+    } catch {
+      return res.status(502).json({ error: "Failed to publish to any relay" });
+    }
+  });
+
   app.get("/api/auth/graperankResult", async (req, res) => {
     const token = req.headers['x-brainstorm-token'] as string;
     if (!token) {

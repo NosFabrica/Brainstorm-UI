@@ -35,6 +35,7 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-25: Optimized login flow for large accounts: removed getSelf() and profile fetch from handleLogin() (deferred to Dashboard via useQuery), added 60s timeouts to /api/auth/self and /api/user/:pubkey server proxy routes, replaced generic loading placeholders with branded BrainLogo pulse animations throughout Dashboard
 - 2026-02-25: Added 6 custom neural-node SVG metric icons to WotIcons.tsx (NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon) — node-and-connection style matching BrainLogo aesthetic
 - 2026-02-25: Redesigned NetworkPage detail panel: glassmorphism container (gradient bg, backdrop-blur, rounded-2xl, top accent bar), glass metric tiles (rounded-xl, white/70 backdrop-blur), gradient influence bar, branded gradient "View full profile" button, BrainLogo loading spinner
+- 2026-02-25: Added NIP-85 Service Provider activation: CTA card on Dashboard (post-onboarding), ActivateBrainstormModal with 3 educational accordion sections, double-confirmation flow (CTA button → modal confirm → NIP-07 sign), kind 10040 event publishing to relays, "Service Provider Active" badge, publishToRelays utility, POST /api/publish server fallback route
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -50,7 +51,8 @@ client/src/
 │   ├── BrainLogo.tsx          # Brain SVG logo component with size/color props
 │   ├── ComputingBackground.tsx # Animated graph background (dark/light variants, CSS-only)
 │   ├── Footer.tsx             # Dark footer with partner logos, WoT link, version (CSS-only)
-│   └── WotIcons.tsx           # Custom SVG icon components for Web of Trust UI
+│   ├── WotIcons.tsx           # Custom SVG icon components for Web of Trust UI
+│   └── ActivateBrainstormModal.tsx # NIP-85 activation modal: educational accordion, kind 10040 signing+publishing
 ├── pages/
 │   ├── landing.tsx           # Marketing hero page with brain logo, stats, sign-in CTA, ComputingBackground, Footer
 │   ├── OnboardingPage.tsx    # 3-step getting started guide with ComputingBackground dark variant
@@ -61,7 +63,7 @@ client/src/
 │   ├── SettingsPage.tsx      # Trust perspective presets (Relax/Default/Strict) with save/reset
 │   └── WhatIsWotPage.tsx     # Educational page: What is Web of Trust? (framer-motion, interactive trust scenarios, Show vs Tell, FAQ, CTA)
 ├── services/
-│   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt
+│   ├── nostr.ts              # handleLogin (challenge-response auth), profile fetch, session mgmt, publishToRelays, signAndPublishNip85
 │   └── api.ts                # Brainstorm API client (getAuthChallenge, verifyAuthChallenge, getSelf, getGrapeRankResult)
 └── App.tsx                   # Routing setup
 ```
@@ -91,8 +93,20 @@ client/src/
 - Relays: damus, nostr.band, nos.lol, primal, purplepag.es, nostr.info, nostr.wine, snort.social
 - HTTP fallbacks: api.nostr.band, purplepag.es
 
+### NIP-85 Service Provider Activation (`nostr.ts` + `ActivateBrainstormModal.tsx`)
+1. CTA card appears on Dashboard after GrapeRank completes (ta_status="success")
+2. User clicks "Select Brainstorm" → modal opens (1st confirmation)
+3. User reads educational content, clicks "Select Brainstorm as my Service Provider" (2nd confirmation)
+4. NIP-07 extension prompts for signature (3rd layer from browser extension)
+5. Kind 10040 event published to relays with tag `["30382:rank", ta_pubkey, relay_hint]`
+6. Activation persisted in localStorage as `brainstorm_nip85_activated`
+7. "Service Provider Active" badge shown on Dashboard post-activation
+- `publishToRelays(signedEvent, relays?)` — publishes signed event to 5 default relays via WebSocket, Promise.any pattern, falls back to `POST /api/publish` server route
+- `signAndPublishNip85(serviceKey, relayHint?)` — builds kind 10040 event, signs via NIP-07, publishes via publishToRelays
+
 ### Key Details
 - Event kind for auth: 22242
+- Event kind for NIP-85 service provider declaration: 10040
 - Auth header: `access_token` (not Authorization Bearer)
 - Session token key: `brainstorm_session_token`
 - User profile stored in localStorage as `nostr_user`

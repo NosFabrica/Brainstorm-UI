@@ -86,6 +86,7 @@ import {
 import { getCurrentUser, logout, updateCurrentUser, fetchProfileFromServer, applyProfileToUser, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
+import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
@@ -186,6 +187,9 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
+  const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
+  const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
+  const [nip85Dismissed, setNip85Dismissed] = useState(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -1173,6 +1177,78 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {publishDone && !nip85Activated && !nip85Dismissed && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.5 }}
+              className="mb-6"
+            >
+              <Card
+                className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative"
+                data-testid="card-nip85-cta"
+              >
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 pointer-events-none" />
+
+                <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286] shrink-0">
+                    <BrainLogo size={24} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-nip85-cta-title">
+                      Select Brainstorm as your Web of Trust Service Provider
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
+                      Sign a nostr note that tells compatible clients where to find your personalized trust scores.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setNip85ModalOpen(true)}
+                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                      data-testid="button-nip85-cta"
+                    >
+                      <BrainLogo size={14} className="text-white/80" />
+                      Select Brainstorm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNip85Dismissed(true)}
+                      className="text-xs text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
+                      data-testid="button-nip85-dismiss"
+                    >
+                      Maybe later
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {publishDone && nip85Activated && (
+            <div className="mb-4 flex items-center gap-2" data-testid="badge-nip85-active">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold tracking-wide">Service Provider Active</span>
+              </div>
+            </div>
+          )}
+
+          <ActivateBrainstormModal
+            open={nip85ModalOpen}
+            onOpenChange={setNip85ModalOpen}
+            serviceKey={selfData?.history?.ta_pubkey || ""}
+            onActivated={() => {
+              setNip85Activated(true);
+              setNip85ModalOpen(false);
+              toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
+            }}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 

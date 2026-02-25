@@ -158,4 +158,118 @@ export function logout() {
   localStorage.removeItem("brainstorm_session_token");
 }
 
+const DEFAULT_PUBLISH_RELAYS = [
+  "wss://relay.damus.io",
+  "wss://relay.nostr.band",
+  "wss://nos.lol",
+  "wss://relay.primal.net",
+  "wss://purplepag.es",
+];
+
+export async function publishToRelays(
+  signedEvent: Record<string, unknown>,
+  relays: string[] = DEFAULT_PUBLISH_RELAYS
+): Promise<{ success: boolean; relay?: string; error?: string }> {
+  const relayPromises = relays.map(
+    (relayUrl) =>
+      new Promise<{ success: true; relay: string }>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          try { ws.close(); } catch {}
+          reject(new Error(`Timeout connecting to ${relayUrl}`));
+        }, 10000);
+
+        let ws: WebSocket;
+        try {
+          ws = new WebSocket(relayUrl);
+        } catch {
+          clearTimeout(timeout);
+          reject(new Error(`Failed to create WebSocket for ${relayUrl}`));
+          return;
+        }
+
+        ws.onopen = () => {
+          ws.send(JSON.stringify(["EVENT", signedEvent]));
+        };
+
+        ws.onmessage = (msg) => {
+          try {
+            const data = JSON.parse(msg.data as string);
+            if (Array.isArray(data) && data[0] === "OK") {
+              clearTimeout(timeout);
+              try { ws.close(); } catch {}
+              resolve({ success: true, relay: relayUrl });
+            }
+          } catch {}
+        };
+
+        ws.onerror = () => {
+          clearTimeout(timeout);
+          try { ws.close(); } catch {}
+          reject(new Error(`WebSocket error for ${relayUrl}`));
+        };
+
+        ws.onclose = () => {
+          clearTimeout(timeout);
+        };
+      })
+  );
+
+  try {
+    const result = await Promise.any(relayPromises);
+    return result;
+  } catch {
+    try {
+      const resp = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: signedEvent }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        return { success: true, relay: data.relay || "server-proxy" };
+      }
+      return { success: false, error: "All relays failed and server fallback failed" };
+    } catch {
+      return { success: false, error: "All relays failed" };
+    }
+  }
+}
+
+export async function signAndPublishNip85(
+  serviceKey: string,
+  relayHint: string = "wss://relay.nostr.band"
+): Promise<{ success: boolean; error?: string }> {
+  if (!window.nostr) {
+    return { success: false, error: "No Nostr extension found" };
+  }
+
+  const user = getCurrentUser();
+  if (!user?.pubkey) {
+    return { success: false, error: "Not logged in" };
+  }
+
+  const event = {
+    kind: 10040,
+    tags: [["30382:rank", serviceKey, relayHint]],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+
+  try {
+    const signedEvent = await window.nostr.signEvent(event);
+    const result = await publishToRelays(signedEvent);
+    if (result.success) {
+      localStorage.setItem("brainstorm_nip85_activated", "true");
+      return { success: true };
+    }
+    return { success: false, error: result.error || "Publishing failed" };
+  } catch (err: any) {
+    if (err?.message?.includes("denied") || err?.message?.includes("rejected") || err?.message?.includes("cancel")) {
+      return { success: false, error: "cancelled" };
+    }
+    return { success: false, error: err?.message || "Signing failed" };
+  }
+}
+
 export { eventStore };
