@@ -33,6 +33,8 @@ Minimal Brainstorm shell built with React + TypeScript + Vite. Implements real N
 - 2026-02-17: Replaced mock Network Alerts card on Dashboard with real reported_by/muted_by counts from API data, removed "Coming soon" overlay, updated dialog to show real signal summary
 - 2026-02-18: Adapted to new API format: graph arrays (followed_by, following, muted_by, etc.) now return `{pubkey, influence}` objects instead of plain strings. Added graphHelpers.ts (toPubkeys, toInfluenceMap), updated all 3 pages. NetworkPage pre-seeds trustCache from embedded influence, uses Set-based group lookups for performance
 - 2026-02-25: Optimized login flow for large accounts: removed getSelf() and profile fetch from handleLogin() (deferred to Dashboard via useQuery), added 60s timeouts to /api/auth/self and /api/user/:pubkey server proxy routes, replaced generic loading placeholders with branded BrainLogo pulse animations throughout Dashboard
+- 2026-02-25: Added 6 custom neural-node SVG metric icons to WotIcons.tsx (NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon) — node-and-connection style matching BrainLogo aesthetic
+- 2026-02-25: Redesigned NetworkPage detail panel: glassmorphism container (gradient bg, backdrop-blur, rounded-2xl, top accent bar), glass metric tiles (rounded-xl, white/70 backdrop-blur), gradient influence bar, branded gradient "View full profile" button, BrainLogo loading spinner
 
 ## Project Architecture
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui

@@ -40,56 +40,14 @@ import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon } from "@/components/WotIcons";
 
-const FollowersIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M2.5 19.5c0-3.5 2.8-6 6.5-6s6.5 2.5 6.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="17.5" cy="8.5" r="2.5" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.6" />
-    <path d="M17.5 13c2.2 0 4 1.5 4.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
-  </svg>
-);
-
-const FollowingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
-    <path d="M5 20c0-3.5 3-6.5 7-6.5s7 3 7 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M16 4l2 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.7" />
-    <path d="M12 6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.5" />
-  </svg>
-);
-
-const MutedByIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M17 9l-5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <path d="M12 9l5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const MutingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M3 10v4a2 2 0 002 2h2l5 4V6L7 10H5a2 2 0 00-2 0z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M16 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const ReportedByIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M12 3L4 9v11a1 1 0 001 1h14a1 1 0 001-1V9l-8-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.06" />
-    <path d="M12 8v5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="12" cy="16" r="1" fill="currentColor" />
-  </svg>
-);
-
-const ReportingIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M5 4h10l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M14 4v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12 11v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="12" cy="17.5" r="0.75" fill="currentColor" />
-  </svg>
-);
+const FollowersIcon = NodeFollowersIcon;
+const FollowingIcon = NodeFollowingIcon;
+const MutedByIcon = NodeMutedByIcon;
+const MutingIcon = NodeMutingIcon;
+const ReportedByIcon = NodeReportedByIcon;
+const ReportingIcon = NodeReportingIcon;
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -1170,13 +1128,14 @@ export default function NetworkPage() {
 
                   return (
                     <div
-                      className={`bg-white border border-indigo-200 rounded-xl shadow-[0_4px_20px_rgba(99,102,241,0.1)] overflow-hidden animate-fade-up ${viewMode === "grid" ? "col-span-full" : ""}`}
+                      className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl rounded-2xl border border-[#7c86ff]/20 shadow-[0_8px_30px_-12px_rgba(124,134,255,0.15)] overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
                       data-testid={`detail-panel-${pk.slice(0, 8)}`}
                     >
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                      <div className="p-5">
+                        <div className="flex items-start justify-between gap-3 mb-4">
                           <div className="flex items-center gap-3 min-w-0">
-                            <Avatar className="h-12 w-12 border-2 border-indigo-100 shrink-0">
+                            <Avatar className="h-12 w-12 border-2 border-[#7c86ff]/20 shrink-0 shadow-sm">
                               {profile?.picture ? (
                                 <AvatarImage src={profile.picture} alt={profile?.display_name || profile?.name || ""} className="object-cover" />
                               ) : null}
@@ -1209,6 +1168,7 @@ export default function NetworkPage() {
                             <Button
                               size="icon"
                               variant="ghost"
+                              className="rounded-xl"
                               onClick={(e) => { e.stopPropagation(); setExpandedPubkey(null); }}
                               data-testid={`button-close-detail-${pk.slice(0, 8)}`}
                             >
@@ -1218,30 +1178,30 @@ export default function NetworkPage() {
                         </div>
 
                         {profile?.about && (
-                          <p className="text-xs text-slate-600 leading-relaxed mb-3 line-clamp-3" data-testid={`detail-about-${pk.slice(0, 8)}`}>
+                          <p className="text-xs text-slate-600 leading-relaxed mb-4 line-clamp-3" data-testid={`detail-about-${pk.slice(0, 8)}`}>
                             {profile.about}
                           </p>
                         )}
 
                         {isLoadingDetail ? (
                           <div className="flex items-center justify-center py-6 gap-2" data-testid={`detail-loading-${pk.slice(0, 8)}`}>
-                            <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                            <BrainLogo size={18} className="animate-pulse text-indigo-400" />
                             <span className="text-xs text-slate-500">Loading details...</span>
                           </div>
                         ) : detail ? (
                           <div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3" data-testid={`detail-metrics-${pk.slice(0, 8)}`}>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" data-testid={`detail-metrics-${pk.slice(0, 8)}`}>
                               {detailMetrics.map((m) => {
                                 const raw = detail[m.key];
                                 const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                                 return (
                                   <div
                                     key={m.key}
-                                    className="flex items-center gap-2.5 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2"
+                                    className="flex items-center gap-2.5 rounded-xl bg-white/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3 py-2.5"
                                     data-testid={`detail-metric-${m.key}-${pk.slice(0, 8)}`}
                                   >
-                                    <div className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${m.iconBg}`}>
-                                      {metricIcons[m.key]?.(`h-3.5 w-3.5 ${m.iconColor}`)}
+                                    <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${m.iconBg}`}>
+                                      {metricIcons[m.key]?.(`h-4 w-4 ${m.iconColor}`)}
                                     </div>
                                     <div className="min-w-0">
                                       <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
@@ -1255,15 +1215,15 @@ export default function NetworkPage() {
                             </div>
 
                             {detail.influence !== undefined && (
-                              <div className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 mb-3" data-testid={`detail-influence-${pk.slice(0, 8)}`}>
-                                <div className="w-7 h-7 rounded-md border border-indigo-100 bg-indigo-50 flex items-center justify-center shrink-0">
-                                  <BrainLogo size={14} className="text-indigo-500" />
+                              <div className="flex items-center gap-3 rounded-xl bg-white/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3.5 py-2.5 mb-4" data-testid={`detail-influence-${pk.slice(0, 8)}`}>
+                                <div className="w-8 h-8 rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50 to-indigo-100/60 flex items-center justify-center shrink-0">
+                                  <BrainLogo size={16} className="text-indigo-500" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[10px] text-slate-400 leading-tight">Influence Score</p>
                                   <div className="flex items-center gap-2 mt-0.5">
                                     <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                      <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof detail.influence === "number" ? detail.influence : 0) * 100, 100)}%` }} />
+                                      <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((typeof detail.influence === "number" ? detail.influence : 0) * 100, 100)}%` }} />
                                     </div>
                                     <span className="text-xs font-bold font-mono text-slate-700">
                                       {typeof detail.influence === "number" ? detail.influence.toFixed(3) : detail.influence}
@@ -1296,16 +1256,15 @@ export default function NetworkPage() {
                                 ) : null;
                               })()}
                               {renderVerifiedFlags(pk)}
-                              <Button
-                                variant="outline"
-                                className="gap-2 ml-auto border-indigo-200 bg-indigo-50/80 text-indigo-700 font-semibold"
+                              <button
+                                className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md hover:shadow-lg hover:opacity-90 transition-all duration-200"
                                 onClick={(e) => { e.stopPropagation(); navigate(`/search?npub=${npub}&fromGroup=${activeGroup}`); }}
                                 data-testid={`button-view-full-${pk.slice(0, 8)}`}
                               >
                                 <SearchIcon className="h-3.5 w-3.5" />
                                 View full profile
                                 <ChevronRight className="h-3.5 w-3.5" />
-                              </Button>
+                              </button>
                             </div>
                           </div>
                         ) : (
