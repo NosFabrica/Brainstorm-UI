@@ -611,7 +611,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const isCalculationComplete = publishDone;
+  const isCalculationComplete = calcDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
   const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated);
