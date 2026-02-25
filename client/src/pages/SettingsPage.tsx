@@ -64,14 +64,14 @@ export default function SettingsPage() {
     navigate("/");
   };
 
-  const { data: selfData, isLoading: selfLoading } = useQuery({
+  const { data: selfData, isPending: selfLoading } = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf().then((r: any) => r.data),
     enabled: !!user,
     staleTime: 60_000,
   });
 
-  const { data: grapeRankData, isLoading: grapeRankLoading } = useQuery({
+  const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
     queryKey: ["/api/auth/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult().then((r: any) => r.data),
     enabled: !!user,
