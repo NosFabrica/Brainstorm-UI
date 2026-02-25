@@ -506,7 +506,7 @@ export default function DashboardPage() {
     const followers = network.followed_by;
     if (!Array.isArray(followers)) return {} as Record<string, number>;
     const flaggedSet = new Set<string>();
-    const flaggedGroups = ["muted_by", "muting", "reported_by", "reporting"] as const;
+    const flaggedGroups = ["muted_by", "reported_by"] as const;
     for (const gk of flaggedGroups) {
       const members = (network as any)[gk];
       if (!Array.isArray(members)) continue;
