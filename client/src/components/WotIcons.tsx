@@ -853,3 +853,47 @@ export function NodeReportingIcon({ className = "w-4 h-4" }: { className?: strin
     </svg>
   );
 }
+
+export function NodeSignIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="8" cy="14" r="3" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="14" r="1.2" fill="currentColor" fillOpacity="0.3" />
+      <path d="M11 14h2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.5" />
+      <path d="M15 16l2-4.5 2-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.5 11.5l4.5-1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeOpacity="0.7" />
+      <path d="M13 18c1 1.5 3 2 5.5 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeOpacity="0.5" />
+    </svg>
+  );
+}
+
+export function NodeShieldIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M12 3l-7 3.5v5c0 4.5 3 8.5 7 9.5 4-1 7-5 7-9.5v-5L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.06" />
+      <circle cx="12" cy="11" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="12" cy="11" r="1" fill="currentColor" fillOpacity="0.4" />
+      <circle cx="7.5" cy="9" r="1.2" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+      <circle cx="16.5" cy="9" r="1.2" stroke="currentColor" strokeWidth="1" strokeOpacity="0.5" />
+      <path d="M8.7 9h0.8" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.4" />
+      <path d="M14.5 10.5l0.8-0.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.4" />
+      <circle cx="12" cy="16" r="1" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
+      <path d="M12 13.5v1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.4" />
+    </svg>
+  );
+}
+
+export function NodeBroadcastIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" fillOpacity="0.4" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" strokeOpacity="0.7" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" fill="none" strokeOpacity="0.7" />
+      <path d="M6 6a8.5 8.5 0 0 0 0 12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" fill="none" strokeOpacity="0.4" />
+      <path d="M18 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" fill="none" strokeOpacity="0.4" />
+      <circle cx="5" cy="5" r="1" fill="currentColor" fillOpacity="0.25" />
+      <circle cx="19" cy="5" r="1" fill="currentColor" fillOpacity="0.25" />
+    </svg>
+  );
+}

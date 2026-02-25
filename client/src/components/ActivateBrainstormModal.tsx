@@ -7,8 +7,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, Zap, Shield, Globe } from "lucide-react";
+import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle } from "lucide-react";
 import { publishToRelays, getCurrentUser } from "@/services/nostr";
+import { NodeSignIcon, NodeShieldIcon, NodeBroadcastIcon } from "@/components/WotIcons";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
