@@ -1820,7 +1820,7 @@ export default function DashboardPage() {
                           Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]} hop` : `${hopRange[0]}\u2013${hopRange[1]} hops`}
+                          {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
                         </CardDescription>
                       </div>
                     </div>
@@ -1863,8 +1863,8 @@ export default function DashboardPage() {
 
                     <div className="w-full md:w-7/12 grid grid-cols-2 gap-x-6 gap-y-3">
                       <div className="col-span-2 mb-1">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Network Composition</h4>
-                        <p className="text-xs text-slate-500">Breakdown by trust signal strength</p>
+                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{hopRange[0] === 1 && hopRange[1] === 1 ? "Follower Trust Breakdown" : "Network Composition"}</h4>
+                        <p className="text-xs text-slate-500">{hopRange[0] === 1 && hopRange[1] === 1 ? "How your followers rank by trust" : "Breakdown by trust signal strength"}</p>
                       </div>
                       {currentPieData.map((dist, i) => {
                         const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
@@ -1878,7 +1878,7 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} of your followers</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{hopRange[0] === 1 && hopRange[1] === 1 ? `${directCount} of your followers` : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
