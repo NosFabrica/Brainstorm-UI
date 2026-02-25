@@ -200,13 +200,15 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               return (
                 <div
                   key={section.key}
-                  className="rounded-xl border border-slate-200/70 bg-white/60 backdrop-blur-sm overflow-hidden transition-all duration-200"
+                  className="rounded-xl border border-slate-200/70 bg-white/60 backdrop-blur-sm overflow-hidden transition-all duration-200 cursor-pointer hover:bg-slate-50/60"
+                  onClick={() => toggleSection(section.key)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection(section.key); } }}
                   data-testid={`section-activate-${section.key}`}
                 >
-                  <button
-                    type="button"
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50/60 transition-colors"
-                    onClick={() => toggleSection(section.key)}
+                  <div
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left"
                     data-testid={`button-toggle-${section.key}`}
                   >
                     <div className="h-7 w-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#3730a3] shrink-0">
@@ -216,9 +218,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     <ChevronDown
                       className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                     />
-                  </button>
+                  </div>
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-0 ml-10" data-testid={`content-${section.key}`}>
+                    <div className="px-4 pb-4 pt-0 ml-10" onClick={(e) => e.stopPropagation()} data-testid={`content-${section.key}`}>
                       {section.content}
                     </div>
                   )}
