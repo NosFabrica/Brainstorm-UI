@@ -826,9 +826,18 @@ export default function DashboardPage() {
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
+                  ) : isErrorState ? (
+                    <span className="text-xs text-red-500 font-medium" data-testid="text-overall-trust-score-sub">
+                      {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
+                    </span>
+                  ) : isRecalculation ? (
+                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Recalculating…
+                    </span>
                   ) : (
                     <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
-                      {isRecalculation ? "Recalculating\u2026" : "Awaiting calculation"}
+                      Awaiting calculation
                     </span>
                   )}
                   {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
@@ -1044,19 +1053,21 @@ export default function DashboardPage() {
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
-                        {isRecalculation ? "Recalculating" : "Brainstorm onboarding"}
+                        {isRecalculation ? "Recalculating" : isErrorState ? "Action needed" : "Brainstorm onboarding"}
                       </p>
                       <h2
                         className="text-xl sm:text-2xl font-bold text-white tracking-tight"
                         style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                         data-testid="text-onboarding-title"
                       >
-                        {isRecalculation ? "Refreshing your trust scores" : "Clarity in a fragmented world"}
+                        {isRecalculation ? "Refreshing your trust scores" : isErrorState ? "Something went wrong" : "Clarity in a fragmented world"}
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
                         {isRecalculation
                           ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
-                          : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
+                          : isErrorState
+                            ? <>Your {isGrapeRankFailed ? "trust score calculation" : "trusted assertion publishing"} didn't complete successfully. You can retry below, or head to <span className="font-semibold text-white">Settings</span> to try again later.</>
+                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
                         }
                       </p>
                     </div>
