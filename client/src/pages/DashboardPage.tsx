@@ -706,7 +706,7 @@ export default function DashboardPage() {
 
               {nip85Activated && publishDone ? (
               <div
-                className="relative rounded-2xl overflow-hidden self-start md:self-end max-w-xs"
+                className="relative rounded-2xl overflow-hidden self-start md:self-end max-w-xs shadow-[0_8px_30px_-12px_rgba(124,134,255,0.18)] hover:shadow-[0_12px_36px_-10px_rgba(124,134,255,0.25)] transition-shadow duration-300"
                 data-testid="badge-nip85-active"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-[#7c86ff]/20 via-[#333286]/10 to-[#7c86ff]/20 rounded-2xl" />
@@ -786,11 +786,11 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 pt-1.5 border-t border-slate-100/80 flex items-center gap-1.5">
-                      <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300">Supported by</span>
-                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[9px] font-semibold text-purple-500 hover:text-purple-700 transition-colors">Amethyst</a>
-                      <span className="text-[8px] text-slate-300">·</span>
-                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[9px] font-semibold text-orange-500 hover:text-orange-700 transition-colors">Nostria</a>
+                    <div className="mt-2 pt-1.5 border-t border-slate-200/60 flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
+                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
+                      <span className="text-[10px] text-slate-400">·</span>
+                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
                     </div>
                   </div>
                 </div>
