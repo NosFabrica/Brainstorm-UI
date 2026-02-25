@@ -794,7 +794,7 @@ export default function NetworkPage() {
   }, [getGroupPubkeys, getVerifiedPubkeys, verifiedOnly]);
 
   const filteredPubkeys = useCallback(() => {
-    let pubkeys = verifiedOnly && isVerifiableGroup(activeGroup)
+    let pubkeys = verifiedOnly && isVerifiableGroup(activeGroup) && trustFilter !== "flagged"
       ? getVerifiedPubkeys(activeGroup)
       : getGroupPubkeys(activeGroup);
     if (searchFilter.trim()) {
