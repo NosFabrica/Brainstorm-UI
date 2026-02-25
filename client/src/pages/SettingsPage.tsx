@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 
@@ -47,6 +49,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
+  const { toast } = useToast();
 
   const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
 
@@ -80,9 +83,30 @@ export default function SettingsPage() {
 
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
+    onSuccess: (data) => {
+      if (data?.data && typeof data.data === "object") {
+        queryClient.setQueryData(["/api/auth/graperankResult"], data);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      toast({
+        title: "Recalculation started",
+        description: "Your trust scores are being recalculated. Redirecting to dashboard...",
+        duration: 4000,
+      });
+      setTimeout(() => navigate("/dashboard"), 600);
+    },
+    onError: () => {
+      toast({
+        title: "Recalculation failed",
+        description: "Something went wrong triggering the recalculation. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    },
   });
 
   const calcDone = grapeRankData?.data?.internal_publication_status === "success";
+  const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
   const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;
   const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
   const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
@@ -522,12 +546,12 @@ export default function SettingsPage() {
                   <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                     <button
                       type="button"
-                      disabled={triggerGrapeRankMutation.isPending}
+                      disabled={triggerGrapeRankMutation.isPending || isRecalcInProgress}
                       onClick={() => setRecalcConfirmOpen(true)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                       data-testid="button-gr-recalculate"
                     >
-                      {triggerGrapeRankMutation.isPending ? (
+                      {triggerGrapeRankMutation.isPending || isRecalcInProgress ? (
                         <>
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           Recalculating...

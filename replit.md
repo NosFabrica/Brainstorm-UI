@@ -28,3 +28,8 @@ The application is structured around a React 18 frontend with TypeScript, Vite, 
 - **Brainstorm Backend API:** `https://brainstormserver.nosfabrica.com` for authentication challenges, verification, user data (`/user/self`, `/user/:pubkey`), GrapeRank results (`/graperankResult`), and NIP-05 proxying.
 - **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback options for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
+
+## Recent Changes
+- Network page gated behind GrapeRank calculation: nav links grayed out on all pages until `calcDone`, NetworkPage shows branded gate screen if accessed directly before completion. Trusted Followers card on Dashboard also disabled until calcDone.
+- Settings "Recalculate GrapeRank" button: triggers API, invalidates cache, shows toast, redirects to Dashboard where onboarding panel reappears with polling. Button disabled with spinner when calculation already in progress.
+- Onboarding condensed to 2 steps: Calculating (internal_publication_status=success) + Publishing (ta_status=success). Logout clears all React Query cache.
