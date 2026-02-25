@@ -17,7 +17,7 @@ export function Footer() {
       <div className="w-full px-6 pb-6 pt-4 sm:px-8">
         {/* Desktop Footer */}
         <div className="hidden sm:block">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-5" />
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/20 to-transparent mb-5" />
           
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-5 text-xs text-slate-500">
@@ -161,7 +161,7 @@ export function Footer() {
         
         {/* Mobile Footer - Clean stacked layout */}
         <div className="sm:hidden">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/50 to-transparent mb-6" />
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/20 to-transparent mb-6" />
           
           {/* What is Web of Trust - Featured at top */}
           <motion.button 
