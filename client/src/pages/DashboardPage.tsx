@@ -1302,7 +1302,16 @@ export default function DashboardPage() {
                           <div className="hidden sm:block w-px h-3 bg-slate-200" />
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Holder</span>
-                            <span className="text-[10px] font-mono text-slate-600 truncate max-w-[120px]">{truncatedNpub}</span>
+                            <div className="flex items-center gap-1">
+                              {user?.picture ? (
+                                <img src={user.picture} alt="" className="h-4 w-4 rounded-full object-cover border border-slate-200" />
+                              ) : (
+                                <div className="h-4 w-4 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                                  <span className="text-[7px] font-bold text-[#333286]">{(user?.displayName?.charAt(0) || "U").toUpperCase()}</span>
+                                </div>
+                              )}
+                              <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[100px]">{user?.displayName || "Anonymous"}</span>
+                            </div>
                           </div>
                           {selfData?.history?.last_time_calculated_graperank && (
                             <>
@@ -1310,7 +1319,7 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Since</span>
                                 <span className="text-[10px] font-mono text-slate-600">
-                                  {new Date(selfData.history.last_time_calculated_graperank).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  {new Date(selfData.history.last_time_calculated_graperank).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                                 </span>
                               </div>
                             </>
