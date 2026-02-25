@@ -185,6 +185,7 @@ export default function DashboardPage() {
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
+  const [healthView, setHealthView] = useState<"followers" | "following">("followers");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
@@ -527,6 +528,41 @@ export default function DashboardPage() {
     }
     return counts;
   }, [network]);
+
+  const directFollowingTierCounts = useMemo(() => {
+    if (!network) return {} as Record<string, number>;
+    const following = network.following;
+    if (!Array.isArray(following)) return {} as Record<string, number>;
+    const flaggedSet = new Set<string>();
+    const flaggedGroups = ["muted_by", "reported_by"] as const;
+    for (const gk of flaggedGroups) {
+      const members = (network as any)[gk];
+      if (!Array.isArray(members)) continue;
+      for (const m of members) flaggedSet.add(m.pubkey);
+    }
+    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
+    for (const m of following) {
+      if (flaggedSet.has(m.pubkey)) {
+        counts.flagged++;
+        continue;
+      }
+      const inf = typeof m.influence === "number" ? m.influence : -1;
+      if (inf >= 0.50) counts.high++;
+      else if (inf >= 0.20) counts.medium++;
+      else if (inf >= 0.07) counts.neutral++;
+      else if (inf >= 0.02) counts.low++;
+      else counts.flagged++;
+    }
+    return counts;
+  }, [network]);
+
+  const followingPieData = useMemo(() => {
+    return TIER_CONFIG.map((tier) => ({
+      name: tier.name,
+      value: directFollowingTierCounts[tier.key] ?? 0,
+      color: tier.color,
+    })).filter(d => d.value > 0);
+  }, [directFollowingTierCounts]);
 
   const handleExport = () => {
     const data = {
@@ -1768,6 +1804,7 @@ export default function DashboardPage() {
                         const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
                         const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
                         setHopRange([lo, hi]);
+                        if (lo !== 1 || hi !== 1) setHealthView("followers");
                       }}
                       max={maxHopInData}
                       min={1}
@@ -1834,10 +1871,10 @@ export default function DashboardPage() {
                     <div className="h-48 w-full md:w-5/12">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={currentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[currentPieData[index]?.name]; if (tier) navigate(`/network?trust=${tier}&group=followed_by`); }}>
-                            {currentPieData.map((entry, index) => (
+                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return isHop1 && healthView === "following" ? followingPieData : currentPieData; })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[activePieData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
+                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; return activePieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
-                            ))}
+                            )); })()}
                           </Pie>
                           {isCalculationComplete && (
                           <Tooltip
@@ -1861,33 +1898,50 @@ export default function DashboardPage() {
                       </ResponsiveContainer>
                     </div>
 
+                    {(() => {
+                      const isHop1 = hopRange[0] === 1 && hopRange[1] === 1;
+                      const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData;
+                      const activeTierCounts = isHop1 && healthView === "following" ? directFollowingTierCounts : directTierCounts;
+                      const activeGroup = isHop1 && healthView === "following" ? "following" : "followed_by";
+                      const totalActive = activePieData.reduce((acc, curr) => acc + curr.value, 0);
+                      return (
                     <div className="w-full md:w-7/12 grid grid-cols-2 gap-x-6 gap-y-3">
                       <div className="col-span-2 mb-1">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{hopRange[0] === 1 && hopRange[1] === 1 ? "Follower Trust Breakdown" : "Network Composition"}</h4>
-                        <p className="text-xs text-slate-500">{hopRange[0] === 1 && hopRange[1] === 1 ? "How your followers rank by trust" : "Breakdown by trust signal strength"}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
+                            <p className="text-xs text-slate-500">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
+                          </div>
+                          {isHop1 && (
+                            <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {currentPieData.map((dist, i) => {
+                      {activePieData.map((dist, i) => {
                         const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
                         const tier = tierMap[dist.name];
                         const canClick = isCalculationComplete && calcDone && !!tier;
-                        const directCount = tier ? directTierCounts[tier] ?? 0 : 0;
+                        const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
                         return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=followed_by`); }} data-testid={`link-pie-tier-${tier || i}`}>
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{hopRange[0] === 1 && hopRange[1] === 1 ? `${directCount} of your followers` : `${dist.value.toLocaleString()} profiles`}</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{isHop1 ? (healthView === "following" ? `${directCount} you follow` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
-                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
+                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: isCalculationComplete ? `${(dist.value / totalCurrentProfiles) * 100}%` : "0%" }}
+                                animate={{ width: isCalculationComplete ? `${(dist.value / totalActive) * 100}%` : "0%" }}
                                 transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
                                 className="h-full rounded-full"
                                 style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }}
@@ -1898,6 +1952,8 @@ export default function DashboardPage() {
                         );
                       })}
                     </div>
+                      );
+                    })()}
                   </div>
                 </CardContent>
                 </div>
