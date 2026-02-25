@@ -7,9 +7,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
 import { publishToRelays, getCurrentUser } from "@/services/nostr";
-import { NodeSignIcon, NodeShieldIcon, NodeBroadcastIcon } from "@/components/WotIcons";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
@@ -94,7 +93,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const sections = [
     {
       key: "what",
-      icon: <NodeSignIcon className="h-4 w-4" />,
+      icon: <FileSignature className="h-4 w-4" />,
       title: "What does this mean?",
       content: (
         <div className="space-y-3">
@@ -117,7 +116,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     },
     {
       key: "why",
-      icon: <NodeShieldIcon className="h-4 w-4" />,
+      icon: <HeartHandshake className="h-4 w-4" />,
       title: "Why this matters",
       content: (
         <p className="text-sm text-slate-600 leading-relaxed">
@@ -130,7 +129,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     },
     {
       key: "next",
-      icon: <NodeBroadcastIcon className="h-4 w-4" />,
+      icon: <Rocket className="h-4 w-4" />,
       title: "What happens next",
       content: (
         <div className="space-y-3">
