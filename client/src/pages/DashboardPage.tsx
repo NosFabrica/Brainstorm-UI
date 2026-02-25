@@ -228,6 +228,13 @@ export default function DashboardPage() {
     queryFn: () => apiClient.getSelf(),
     enabled: !!user && hasToken,
     retry: false,
+    refetchInterval: () => {
+      const grData = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
+      const d = grData?.data;
+      if (!d || typeof d !== "object") return 10_000;
+      const done = isStatusDone((d as any).ta_status);
+      return done ? false : 10_000;
+    },
   });
 
   const grapeRankQuery = useQuery({
@@ -341,6 +348,14 @@ export default function DashboardPage() {
     : false;
 
   const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
+
+  const prevCalcDoneRef = useRef(false);
+  useEffect(() => {
+    if (calcDone && !prevCalcDoneRef.current) {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/self"] });
+    }
+    prevCalcDoneRef.current = calcDone;
+  }, [calcDone]);
 
   const [retryCount, setRetryCount] = useState(0);
 
