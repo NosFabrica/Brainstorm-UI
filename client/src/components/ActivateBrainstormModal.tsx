@@ -94,7 +94,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const sections = [
     {
       key: "what",
-      icon: <Zap className="h-4 w-4" />,
+      icon: <NodeSignIcon className="h-4 w-4" />,
       title: "What does this mean?",
       content: (
         <div className="space-y-3">
@@ -117,7 +117,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     },
     {
       key: "why",
-      icon: <Shield className="h-4 w-4" />,
+      icon: <NodeShieldIcon className="h-4 w-4" />,
       title: "Why this matters",
       content: (
         <p className="text-sm text-slate-600 leading-relaxed">
@@ -130,7 +130,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     },
     {
       key: "next",
-      icon: <Globe className="h-4 w-4" />,
+      icon: <NodeBroadcastIcon className="h-4 w-4" />,
       title: "What happens next",
       content: (
         <div className="space-y-3">
