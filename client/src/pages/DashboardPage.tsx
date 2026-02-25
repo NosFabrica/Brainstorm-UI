@@ -1805,7 +1805,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
                         <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          Follows Network Health
+                          Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
                           {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]} hop` : `${hopRange[0]}\u2013${hopRange[1]} hops`}
@@ -1866,7 +1866,7 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} followers</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} of your followers</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
