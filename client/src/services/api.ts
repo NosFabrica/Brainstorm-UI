@@ -74,6 +74,7 @@ export const apiClient = {
   },
 
   async getUserByPubkey(pubkey: string) {
+    console.log("getUserByPubkey", pubkey)
     const response = await authenticatedFetch(`${BRAINSTORM_API}/user/${pubkey}`, {
       signal: AbortSignal.timeout(60000),
     });
