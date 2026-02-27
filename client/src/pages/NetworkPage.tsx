@@ -181,12 +181,14 @@ interface NetworkProfileCardProps {
   onCloseDetail: () => void;
   onNavigate: (path: string) => void;
   getPubkeyGroups: (pk: string) => GroupKey[];
+  profileVersion: number;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
+  profileVersion: _profileVersion,
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -635,6 +637,7 @@ export default function NetworkPage() {
   const [networkData, setNetworkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
+  const [profileVersions, setProfileVersions] = useState<Map<string, number>>(() => new Map());
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const params = new URLSearchParams(window.location.search);
@@ -710,29 +713,27 @@ export default function NetworkPage() {
         missing.push(pk);
       }
     }
-    console.log("Fetching ", missing.length, " profiles")
+    if (cached.length > 0) {
+      setProfileVersions(prev => {
+        const next = new Map(prev);
+        for (const pk of cached) next.set(pk, (prev.get(pk) ?? 0) + 1);
+        return next;
+      });
+    }
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
-      console.log("Batch ", batch.length, " profiles")
       await fetchProfiles(batch, (pubkey, profile) => {
-        console.log("Found   ", pubkey)
         profileCache.current.set(pubkey, profile);
+        setProfileVersions(prev => new Map(prev).set(pubkey, (prev.get(pubkey) ?? 0) + 1));
       });
       setLoadedCount(prev => prev + batch.length);
     }
-    if (missing.length > 0) {
-      setLoadedCount(prev => prev + 1);
-    }
-  }, []);
+  }, [setProfileVersions]);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
-    console.log("Fetching ", unfetched.length, " trust scores")
-    if (unfetched.length === 0) {
-      setTrustLoadedCount(prev => prev + 1);
-      return;
-    }
+    if (unfetched.length === 0) { return; }
     const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
@@ -1524,6 +1525,7 @@ export default function NetworkPage() {
                             isExpanded={expandedPubkey === pk}
                             isCopied={copiedPubkey === pk}
                             isProfileLoaded={profileCache.current.has(pk)}
+                            profileVersion={profileVersions.get(pk) ?? 0}
                             expandedLoading={expandedLoading}
                             activeGroup={activeGroup}
                             trustCacheRef={trustCache}
