@@ -714,8 +714,9 @@ export default function NetworkPage() {
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
+      console.log("Batch ", batch.length, " profiles")
       await fetchProfiles(batch, (pubkey, profile) => {
-        console.log("Found ", pubkey)
+        console.log("Found   ", pubkey)
         profileCache.current.set(pubkey, profile);
       });
       setLoadedCount(prev => prev + batch.length);
