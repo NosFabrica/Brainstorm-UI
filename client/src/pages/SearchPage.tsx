@@ -475,7 +475,7 @@ export default function SearchPage() {
             const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
             const circ = 2 * Math.PI * 18;
             const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-            const ringColor = trustPct !== null ? (trustPct >= 80 ? "text-indigo-500" : trustPct >= 50 ? "text-indigo-400" : trustPct >= 25 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
+            const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
 
             if (profile === undefined) {
               return (
@@ -1257,6 +1257,35 @@ export default function SearchPage() {
             </Tabs>
           </Card>
 
+          {isSearching && (
+            <div className="mt-6" data-testid="panel-search-skeleton">
+              <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden">
+                <div className="p-6 sm:p-8 animate-pulse">
+                  <div className="flex items-start gap-4">
+                    <div className="h-14 w-14 rounded-full bg-slate-200 shrink-0" />
+                    <div className="flex-1 space-y-2.5 pt-1">
+                      <div className="h-4 bg-slate-200 rounded w-36" />
+                      <div className="h-3 bg-slate-100 rounded w-48" />
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-2">
+                    <div className="h-3 bg-slate-100 rounded w-full" />
+                    <div className="h-3 bg-slate-100 rounded w-3/4" />
+                  </div>
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="h-12 bg-slate-50 rounded-xl" />
+                    <div className="h-12 bg-slate-50 rounded-xl" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
           {!isSearching && hasSearched && (
             <div className="mt-6" data-testid="panel-search-result" style={{ animation: "processingFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
               {searchError ? (
@@ -1469,9 +1498,9 @@ export default function SearchPage() {
                             const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
                             const score = Math.min(1, Math.max(0, rawScore));
                             const pct = Math.round(score * 100);
-                            const tier = pct >= 80 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
-                              : pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
-                              : pct >= 25 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
+                            const tier = pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
+                              : pct >= 20 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
+                              : pct >= 7 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
                               : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
                             const circumference = 2 * Math.PI * 18;
                             const offset = circumference - (score * circumference);

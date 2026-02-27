@@ -180,11 +180,12 @@ export default function DashboardPage() {
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [hopRange, setHopRange] = useState([1, 2]);
+  const [hopRange, setHopRange] = useState([1, 1]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [riskDialogOpen, setRiskDialogOpen] = useState(false);
   const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
+  const [healthView, setHealthView] = useState<"followers" | "following">("followers");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
@@ -227,6 +228,13 @@ export default function DashboardPage() {
     queryFn: () => apiClient.getSelf(),
     enabled: !!user && hasToken,
     retry: false,
+    refetchInterval: () => {
+      const grData = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
+      const d = grData?.data;
+      if (!d || typeof d !== "object") return 10_000;
+      const done = isStatusDone((d as any).ta_status);
+      return done ? false : 10_000;
+    },
   });
 
   const grapeRankQuery = useQuery({
@@ -287,6 +295,18 @@ export default function DashboardPage() {
   const reportingCount = network?.reporting?.length ?? 0;
   const influence = network?.influence ?? 0;
 
+  const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
+    if (!network) return { verifiedFollowersCount: 0, verifiedFollowingCount: 0 };
+    const countVerified = (arr: any[] | undefined) => {
+      if (!Array.isArray(arr)) return 0;
+      return arr.filter(m => typeof m.influence === "number" && m.influence >= 0.02).length;
+    };
+    return {
+      verifiedFollowersCount: countVerified(network.followed_by),
+      verifiedFollowingCount: countVerified(network.following),
+    };
+  }, [network]);
+
   const grapeRankStatus = grapeRank
     ? (grapeRank as any).status || "complete"
     : triggerGrapeRankMutation.isPending
@@ -328,6 +348,14 @@ export default function DashboardPage() {
     : false;
 
   const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
+
+  const prevCalcDoneRef = useRef(false);
+  useEffect(() => {
+    if (calcDone && !prevCalcDoneRef.current) {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/self"] });
+    }
+    prevCalcDoneRef.current = calcDone;
+  }, [calcDone]);
 
   const [retryCount, setRetryCount] = useState(0);
 
@@ -491,27 +519,65 @@ export default function DashboardPage() {
 
   const directTierCounts = useMemo(() => {
     if (!network) return {} as Record<string, number>;
-    const seen = new Map<string, number>();
-    const groups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as const;
-    for (const g of groups) {
-      const members = (network as any)[g];
+    const followers = network.followed_by;
+    if (!Array.isArray(followers)) return {} as Record<string, number>;
+    const flaggedSet = new Set<string>();
+    const flaggedGroups = ["muted_by", "reported_by"] as const;
+    for (const gk of flaggedGroups) {
+      const members = (network as any)[gk];
       if (!Array.isArray(members)) continue;
-      for (const m of members) {
-        if (!seen.has(m.pubkey)) {
-          seen.set(m.pubkey, typeof m.influence === "number" ? m.influence : -1);
-        }
-      }
+      for (const m of members) flaggedSet.add(m.pubkey);
     }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
-    for (const [, inf] of seen) {
-      if (inf <= 0) counts.flagged++;
-      else if (inf >= 0.80) counts.high++;
-      else if (inf >= 0.50) counts.medium++;
-      else if (inf >= 0.25) counts.neutral++;
-      else counts.low++;
+    for (const m of followers) {
+      if (flaggedSet.has(m.pubkey)) {
+        counts.flagged++;
+        continue;
+      }
+      const inf = typeof m.influence === "number" ? m.influence : -1;
+      if (inf >= 0.50) counts.high++;
+      else if (inf >= 0.20) counts.medium++;
+      else if (inf >= 0.07) counts.neutral++;
+      else if (inf >= 0.02) counts.low++;
+      else counts.flagged++;
     }
     return counts;
   }, [network]);
+
+  const directFollowingTierCounts = useMemo(() => {
+    if (!network) return {} as Record<string, number>;
+    const following = network.following;
+    if (!Array.isArray(following)) return {} as Record<string, number>;
+    const flaggedSet = new Set<string>();
+    const flaggedGroups = ["muted_by", "reported_by"] as const;
+    for (const gk of flaggedGroups) {
+      const members = (network as any)[gk];
+      if (!Array.isArray(members)) continue;
+      for (const m of members) flaggedSet.add(m.pubkey);
+    }
+    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
+    for (const m of following) {
+      if (flaggedSet.has(m.pubkey)) {
+        counts.flagged++;
+        continue;
+      }
+      const inf = typeof m.influence === "number" ? m.influence : -1;
+      if (inf >= 0.50) counts.high++;
+      else if (inf >= 0.20) counts.medium++;
+      else if (inf >= 0.07) counts.neutral++;
+      else if (inf >= 0.02) counts.low++;
+      else counts.flagged++;
+    }
+    return counts;
+  }, [network]);
+
+  const followingPieData = useMemo(() => {
+    return TIER_CONFIG.map((tier) => ({
+      name: tier.name,
+      value: directFollowingTierCounts[tier.key] ?? 0,
+      color: tier.color,
+    })).filter(d => d.value > 0);
+  }, [directFollowingTierCounts]);
 
   const handleExport = () => {
     const data = {
@@ -560,10 +626,10 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
-  const isCalculationComplete = publishDone;
+  const isCalculationComplete = calcDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
-  const isRecalculation = !publishDone && !!(selfData?.history?.last_time_calculated_graperank || nip85Activated);
+  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated);
 
   return (
     <TooltipProvider>
@@ -826,9 +892,18 @@ export default function DashboardPage() {
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
+                  ) : isErrorState ? (
+                    <span className="text-xs text-red-500 font-medium" data-testid="text-overall-trust-score-sub">
+                      {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
+                    </span>
+                  ) : isRecalculation ? (
+                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Recalculating…
+                    </span>
                   ) : (
                     <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
-                      {isRecalculation ? "Recalculating\u2026" : "Awaiting calculation"}
+                      Awaiting calculation
                     </span>
                   )}
                   {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
@@ -1044,19 +1119,21 @@ export default function DashboardPage() {
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
-                        {isRecalculation ? "Recalculating" : "Brainstorm onboarding"}
+                        {isRecalculation ? "Recalculating" : isErrorState ? "Action needed" : "Brainstorm onboarding"}
                       </p>
                       <h2
                         className="text-xl sm:text-2xl font-bold text-white tracking-tight"
                         style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                         data-testid="text-onboarding-title"
                       >
-                        {isRecalculation ? "Refreshing your trust scores" : "Clarity in a fragmented world"}
+                        {isRecalculation ? "Refreshing your trust scores" : isErrorState ? "Something went wrong" : "Clarity in a fragmented world"}
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
                         {isRecalculation
                           ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
-                          : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
+                          : isErrorState
+                            ? <>Your {isGrapeRankFailed ? "trust score calculation" : "trusted assertion publishing"} didn't complete successfully. You can retry below, or head to <span className="font-semibold text-white">Settings</span> to try again later.</>
+                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
                         }
                       </p>
                     </div>
@@ -1373,37 +1450,77 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
-                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${calcDone ? "cursor-pointer hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : "opacity-50 cursor-not-allowed"}`}
-                onClick={() => calcDone && navigate("/network?group=followed_by&view=list")}
-                role="button"
-                tabIndex={calcDone ? 0 : -1}
-                onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
+                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${calcDone ? "" : "opacity-50 cursor-not-allowed"}`}
                 title={!calcDone ? "Available after calculation completes" : undefined}
-                data-testid="card-trusted-followers"
+                data-testid="card-social-graph"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
 
                 <div className="flex flex-col h-full gap-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
-                        <Award className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                        Trusted Followers
-                      </span>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                      <Users className="h-3.5 w-3.5" />
                     </div>
+                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                      Social Graph
+                    </span>
                   </div>
 
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-direct-follows-count">
-                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : followersCount}
+                  <div className="grid grid-cols-2 gap-3 mt-1">
+                    <div
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      onClick={() => calcDone && navigate("/network?group=followed_by&view=list")}
+                      role={calcDone ? "button" : undefined}
+                      tabIndex={calcDone ? 0 : -1}
+                      onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
+                      data-testid="card-trusted-followers"
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#7c86ff] to-[#333286]" />
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                          <Award className="h-3 w-3" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-1" data-testid="text-direct-follows-label">Mutual follows in your web</p>
+                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
+                      {calcDone && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
+                          <span>Explore</span>
+                          <ChevronRight className="h-2.5 w-2.5" />
+                        </div>
+                      )}
                     </div>
 
+                    <div
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-violet-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-violet-400/40 hover:shadow-[0_8px_24px_-8px_rgba(139,92,246,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      onClick={() => calcDone && navigate("/network?group=following&view=list")}
+                      role={calcDone ? "button" : undefined}
+                      tabIndex={calcDone ? 0 : -1}
+                      onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
+                      data-testid="card-trusted-following"
+                    >
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-[#7c86ff]" />
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="p-1 rounded-md bg-violet-500/8 text-violet-600">
+                          <UserPlus className="h-3 w-3" />
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
+                      </div>
+                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
+                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
+                      {calcDone && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-violet-500/60">
+                          <span>Explore</span>
+                          <ChevronRight className="h-2.5 w-2.5" />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-auto flex items-center justify-between pt-2">
@@ -1411,7 +1528,13 @@ export default function DashboardPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Live
                     </div>
-                    <span className="inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600" data-testid="button-view-all-followers">
+                    <span
+                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 ${calcDone ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors" : ""}`}
+                      onClick={() => calcDone && navigate("/network")}
+                      role={calcDone ? "button" : undefined}
+                      tabIndex={calcDone ? 0 : -1}
+                      data-testid="button-view-all-network"
+                    >
                       View All
                       <ChevronRight className="ml-1.5 h-3 w-3" />
                     </span>
@@ -1696,6 +1819,7 @@ export default function DashboardPage() {
                         const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
                         const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
                         setHopRange([lo, hi]);
+                        if (lo !== 1 || hi !== 1) setHealthView("followers");
                       }}
                       max={maxHopInData}
                       min={1}
@@ -1745,10 +1869,10 @@ export default function DashboardPage() {
                       </div>
                       <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
                         <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          Follows Network Health
+                          Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : `${extendedNetworkCount.toLocaleString()} people`} within {hopRange[0] === hopRange[1] ? `${hopRange[0]} hop` : `${hopRange[0]}\u2013${hopRange[1]} hops`}
+                          {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
                         </CardDescription>
                       </div>
                     </div>
@@ -1762,10 +1886,10 @@ export default function DashboardPage() {
                     <div className="h-48 w-full md:w-5/12">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={currentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[currentPieData[index]?.name]; if (tier) navigate(`/network?trust=${tier}`); }}>
-                            {currentPieData.map((entry, index) => (
+                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return isHop1 && healthView === "following" ? followingPieData : currentPieData; })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[activePieData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
+                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; return activePieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
-                            ))}
+                            )); })()}
                           </Pie>
                           {isCalculationComplete && (
                           <Tooltip
@@ -1789,33 +1913,50 @@ export default function DashboardPage() {
                       </ResponsiveContainer>
                     </div>
 
+                    {(() => {
+                      const isHop1 = hopRange[0] === 1 && hopRange[1] === 1;
+                      const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData;
+                      const activeTierCounts = isHop1 && healthView === "following" ? directFollowingTierCounts : directTierCounts;
+                      const activeGroup = isHop1 && healthView === "following" ? "following" : "followed_by";
+                      const totalActive = activePieData.reduce((acc, curr) => acc + curr.value, 0);
+                      return (
                     <div className="w-full md:w-7/12 grid grid-cols-2 gap-x-6 gap-y-3">
                       <div className="col-span-2 mb-1">
-                        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Network Composition</h4>
-                        <p className="text-xs text-slate-500">Breakdown by trust signal strength</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
+                            <p className="text-xs text-slate-500">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
+                          </div>
+                          {isHop1 && (
+                            <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {currentPieData.map((dist, i) => {
+                      {activePieData.map((dist, i) => {
                         const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
                         const tier = tierMap[dist.name];
                         const canClick = isCalculationComplete && calcDone && !!tier;
-                        const directCount = tier ? directTierCounts[tier] ?? 0 : 0;
+                        const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
                         return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}`); }} data-testid={`link-pie-tier-${tier || i}`}>
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1">
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{directCount} direct</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
-                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalCurrentProfiles) * 100).toFixed(1)}%`}
+                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
-                                animate={{ width: isCalculationComplete ? `${(dist.value / totalCurrentProfiles) * 100}%` : "0%" }}
+                                animate={{ width: isCalculationComplete ? `${(dist.value / totalActive) * 100}%` : "0%" }}
                                 transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
                                 className="h-full rounded-full"
                                 style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }}
@@ -1826,6 +1967,8 @@ export default function DashboardPage() {
                         );
                       })}
                     </div>
+                      );
+                    })()}
                   </div>
                 </CardContent>
                 </div>
