@@ -878,13 +878,11 @@ export default function NetworkPage() {
   }, []);
 
   const visiblePubkeys = useMemo(() => {
-    console.log("Updating visible pubkeys")
     const pks = filteredPubkeys();
     return [...pks].sort(sortByTrustScore(trustCache.current, sortDirection));
   }, [filteredPubkeys, sortDirection, trustFilter, trustLoadedCount]);
 
   const visiblePubkeyPage = useMemo(() => {
-    console.log("Updating all visible page")
     const totalPages = Math.ceil(visiblePubkeys.length / PAGE_SIZE);
     const safePage = Math.min(currentPage, totalPages || 1);
     const startIdx = (safePage - 1) * PAGE_SIZE;
@@ -921,7 +919,6 @@ export default function NetworkPage() {
 
   useEffect(() => {
     const pageItems = visiblePubkeyPage.items
-    console.log("Fetching profiles and trust scores for ", pageItems.length)
     if (pageItems.length > 0) {
       fetchProfilesCallback(pageItems);
       fetchTrustScores(pageItems);
