@@ -83,11 +83,14 @@ export function fetchProfiles(
   return new Promise<void>((resolve) => {
     pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }).subscribe({
       next: (event) => {
-        try { eventStore.add(event); } catch {}
-        if (onProfile && isValidProfile(event)) {
-          const content = getProfileContent(event);
-          if (content) onProfile(event.pubkey, content);
-        }
+        try { 
+          if (eventStore.add(event)) {
+            if (onProfile && isValidProfile(event)) {
+              const content = getProfileContent(event);
+              if (content) onProfile(event.pubkey, content);
+            }
+          }; 
+        } catch {}
       },
       error: () => resolve(),
       complete: () => resolve(),

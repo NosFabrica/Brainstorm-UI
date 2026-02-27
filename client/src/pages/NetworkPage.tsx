@@ -181,14 +181,12 @@ interface NetworkProfileCardProps {
   onCloseDetail: () => void;
   onNavigate: (path: string) => void;
   getPubkeyGroups: (pk: string) => GroupKey[];
-  profileVersion: number;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
-  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
-  profileVersion: _profileVersion,
+  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -637,7 +635,6 @@ export default function NetworkPage() {
   const [networkData, setNetworkData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
-  const [profileVersions, setProfileVersions] = useState<Map<string, number>>(() => new Map());
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     const params = new URLSearchParams(window.location.search);
@@ -707,29 +704,23 @@ export default function NetworkPage() {
     for (const pk of unfetched) {
       const event = eventStore.getReplaceable(0, pk);
       if (event) {
-        if (isValidProfile(event)) profileCache.current.set(pk, getProfileContent(event));
+        if (isValidProfile(event)) {
+          profileCache.current.set(pk, getProfileContent(event));
+        }
         cached.push(pk);
       } else {
         missing.push(pk);
       }
-    }
-    if (cached.length > 0) {
-      setProfileVersions(prev => {
-        const next = new Map(prev);
-        for (const pk of cached) next.set(pk, (prev.get(pk) ?? 0) + 1);
-        return next;
-      });
     }
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
       await fetchProfiles(batch, (pubkey, profile) => {
         profileCache.current.set(pubkey, profile);
-        setProfileVersions(prev => new Map(prev).set(pubkey, (prev.get(pubkey) ?? 0) + 1));
+        setLoadedCount(prev => prev + 1);
       });
-      setLoadedCount(prev => prev + batch.length);
     }
-  }, [setProfileVersions]);
+  }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
@@ -926,7 +917,7 @@ export default function NetworkPage() {
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE)
       }
     }
-  }, [currentPage, visiblePubkeys.length]);
+  }, [currentPage, visiblePubkeys.length, loadedCount]);
 
   useEffect(() => {
     const pageItems = visiblePubkeyPage.items
@@ -1525,7 +1516,6 @@ export default function NetworkPage() {
                             isExpanded={expandedPubkey === pk}
                             isCopied={copiedPubkey === pk}
                             isProfileLoaded={profileCache.current.has(pk)}
-                            profileVersion={profileVersions.get(pk) ?? 0}
                             expandedLoading={expandedLoading}
                             activeGroup={activeGroup}
                             trustCacheRef={trustCache}
