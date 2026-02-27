@@ -208,6 +208,7 @@ export default function NetworkPage() {
         missing.push(pk);
       }
     }
+    console.log("Fetching ", missing.length, " profiles")
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
@@ -219,6 +220,7 @@ export default function NetworkPage() {
   }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
+    console.log("Fetching ", pubkeys.length, " trust scores")
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
     if (unfetched.length === 0) return;
     const batchSize = 8;
