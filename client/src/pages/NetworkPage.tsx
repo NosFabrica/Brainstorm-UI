@@ -369,39 +369,40 @@ export default function NetworkPage() {
     }
   }, [networkData, verifiedOnly, getGroupPubkeys, fetchTrustScores]);
 
+  /*
   useEffect(() => {
     const pubkeys = getGroupPubkeys(activeGroup);
     if (pubkeys.length > 0) {
       fetchProfilesCallback(pubkeys);
     }
   }, [activeGroup, networkData, fetchProfilesCallback, getGroupPubkeys]);
+  */
 
   useEffect(() => {
+    let visible: string[]
     if (trustFilter !== "all") {
-      const allGroupPubkeys = getGroupPubkeys(activeGroup);
-      if (allGroupPubkeys.length > 0) {
-        fetchTrustScores(allGroupPubkeys);
-      }
+      visible = getGroupPubkeys(activeGroup);
     } else {
-      const visible = filteredPubkeys();
-      if (visible.length === 0) return;
-      const totalPages = Math.ceil(visible.length / PAGE_SIZE);
-      const safePage = Math.min(currentPage, totalPages || 1);
-      const startIdx = (safePage - 1) * PAGE_SIZE;
-      const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
-      if (pageItems.length > 0) {
-        fetchTrustScores(pageItems);
-      }
-      if (safePage < totalPages) {
-        const nextStart = safePage * PAGE_SIZE;
-        const nextPageItems = visible.slice(nextStart, nextStart + PAGE_SIZE);
-        if (nextPageItems.length > 0) {
-          fetchProfilesCallback(nextPageItems);
-          fetchTrustScores(nextPageItems);
-        }
+      visible = filteredPubkeys();
+    }
+    if (visible.length === 0) return;
+    const totalPages = Math.ceil(visible.length / PAGE_SIZE);
+    const safePage = Math.min(currentPage, totalPages || 1);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+    const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
+    if (pageItems.length > 0) {
+      fetchProfilesCallback(pageItems);
+      fetchTrustScores(pageItems);
+    }
+    if (safePage < totalPages) {
+      const nextStart = safePage * PAGE_SIZE;
+      const nextPageItems = visible.slice(nextStart, nextStart + PAGE_SIZE);
+      if (nextPageItems.length > 0) {
+        fetchProfilesCallback(nextPageItems);
+        fetchTrustScores(nextPageItems);
       }
     }
-  }, [filteredPubkeys, currentPage, fetchTrustScores, fetchProfilesCallback, trustFilter, activeGroup, getGroupPubkeys]);
+  }, [filteredPubkeys, currentPage, networkData, fetchTrustScores, fetchProfilesCallback, trustFilter, activeGroup, getGroupPubkeys]);
 
   useEffect(() => {
     const visible = filteredPubkeys();
