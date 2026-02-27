@@ -859,15 +859,6 @@ export default function NetworkPage() {
     }
   }, [networkData, verifiedOnly, getGroupPubkeys, fetchTrustScores]);
 
-  /*
-  useEffect(() => {
-    const pubkeys = getGroupPubkeys(activeGroup);
-    if (pubkeys.length > 0) {
-      fetchProfilesCallback(pubkeys);
-    }
-  }, [activeGroup, networkData, fetchProfilesCallback, getGroupPubkeys]);
-  */
-
   useEffect(() => {
     let visible: string[]
     if (trustFilter !== "all") {
@@ -880,6 +871,7 @@ export default function NetworkPage() {
     const safePage = Math.min(currentPage, totalPages || 1);
     const startIdx = (safePage - 1) * PAGE_SIZE;
     const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
+    console.log("NetworkPageItems ", pageItems.length)
     if (pageItems.length > 0) {
       fetchProfilesCallback(pageItems);
       fetchTrustScores(pageItems);
