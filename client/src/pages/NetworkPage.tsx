@@ -706,8 +706,8 @@ export default function NetworkPage() {
   }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
-    console.log("Fetching ", pubkeys.length, " trust scores")
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
+    console.log("Fetching ", unfetched.length, " trust scores")
     if (unfetched.length === 0) return;
     const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
