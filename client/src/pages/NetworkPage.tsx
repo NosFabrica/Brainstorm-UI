@@ -715,16 +715,23 @@ export default function NetworkPage() {
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
       await fetchProfiles(batch, (pubkey, profile) => {
+        console.log("Found ", pubkey)
         profileCache.current.set(pubkey, profile);
       });
       setLoadedCount(prev => prev + batch.length);
+    }
+    if (missing.length > 0) {
+      setLoadedCount(prev => prev + 1);
     }
   }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
     console.log("Fetching ", unfetched.length, " trust scores")
-    if (unfetched.length === 0) return;
+    if (unfetched.length === 0) {
+      setTrustLoadedCount(prev => prev + 1);
+      return;
+    }
     const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
