@@ -845,21 +845,6 @@ export default function NetworkPage() {
   }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, getVerifiedPubkeys, verifiedOnly, loadedCount, trustLoadedCount]);
 
   useEffect(() => {
-    if (!verifiedOnly) return;
-    const allPksSet = new Set<string>();
-    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"];
-    for (const gk of allGroups) {
-      for (const pk of getGroupPubkeys(gk)) {
-        allPksSet.add(pk);
-      }
-    }
-    const allPks = Array.from(allPksSet);
-    if (allPks.length > 0) {
-      fetchTrustScores(allPks);
-    }
-  }, [networkData, verifiedOnly, getGroupPubkeys, fetchTrustScores]);
-
-  useEffect(() => {
     let visible: string[]
     if (trustFilter !== "all") {
       visible = getGroupPubkeys(activeGroup);
