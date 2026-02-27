@@ -36,7 +36,8 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfiles, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
+import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
@@ -196,9 +197,20 @@ export default function NetworkPage() {
 
   const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
+    const cached: string[] = [];
+    const missing: string[] = [];
+    for (const pk of unfetched) {
+      const event = eventStore.getReplaceable(0, pk);
+      if (event) {
+        if (isValidProfile(event)) profileCache.current.set(pk, getProfileContent(event));
+        cached.push(pk);
+      } else {
+        missing.push(pk);
+      }
+    }
     const batchSize = 400;
-    for (let i = 0; i < unfetched.length; i += batchSize) {
-      const batch = unfetched.slice(i, i + batchSize);
+    for (let i = 0; i < missing.length; i += batchSize) {
+      const batch = missing.slice(i, i + batchSize);
       await fetchProfiles(batch, (pubkey, profile) => {
         profileCache.current.set(pubkey, profile);
       });

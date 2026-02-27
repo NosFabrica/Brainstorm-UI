@@ -32,7 +32,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
+import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
@@ -314,10 +315,19 @@ export default function SearchPage() {
       const batch = toFetch.slice(i, i + batchSize);
       const profilePubkeys = batch.filter(pk => !expandProfileCache.current.has(pk));
       const trustPubkeys = batch.filter(pk => !expandTrustCache.current.has(pk));
+      const missingProfiles: string[] = [];
+      for (const pk of profilePubkeys) {
+        const event = eventStore.getReplaceable(0, pk);
+        if (event) {
+          if (isValidProfile(event)) expandProfileCache.current.set(pk, getProfileContent(event));
+        } else {
+          missingProfiles.push(pk);
+        }
+      }
       await Promise.allSettled([
-        fetchProfiles(profilePubkeys, (pubkey, profile) => {
+        ...(missingProfiles.length > 0 ? [fetchProfiles(missingProfiles, (pubkey, profile) => {
           expandProfileCache.current.set(pubkey, profile);
-        }),
+        })] : []),
         ...trustPubkeys.map(pk =>
           apiClient.getUserByPubkey(pk)
             .then(resp => expandTrustCache.current.set(pk, resp?.data?.influence ?? null))
