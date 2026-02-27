@@ -83,7 +83,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfileFromServer, applyProfileToUser, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, updateCurrentUser, fetchProfile, applyProfileToUser, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
@@ -202,10 +202,10 @@ export default function DashboardPage() {
 
   const needsProfile = !!user && !user.displayName && !user.picture;
   const profileQuery = useQuery({
-    queryKey: ["/api/profile", user?.pubkey],
+    queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
-      const content = await fetchProfileFromServer(user.pubkey);
+      const content = await fetchProfile(user.pubkey);
       if (content) {
         const updates = applyProfileToUser(content);
         updateCurrentUser(updates);

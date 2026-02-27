@@ -1,3 +1,5 @@
+const BRAINSTORM_API = "https://brainstormserver.nosfabrica.com";
+
 function handleUnauthorized() {
   localStorage.removeItem("brainstorm_session_token");
   localStorage.removeItem("nostr_user");
@@ -12,7 +14,7 @@ async function authenticatedFetch(url: string, options: RequestInit = {}): Promi
   }
   const response = await fetch(url, {
     ...options,
-    headers: { ...options.headers, 'x-brainstorm-token': token }
+    headers: { ...options.headers, 'access_token': token }
   });
   if (response.status === 401 || response.status === 403) {
     const data = await response.json().catch(() => null);
@@ -34,7 +36,7 @@ async function authenticatedFetch(url: string, options: RequestInit = {}): Promi
 
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
-    const response = await fetch(`/api/auth/challenge/${pubkey}`);
+    const response = await fetch(`${BRAINSTORM_API}/authChallenge/${pubkey}`);
     if (!response.ok) {
       throw new Error(`Failed to get auth challenge (${response.status})`);
     }
@@ -46,7 +48,7 @@ export const apiClient = {
   },
 
   async verifyAuthChallenge(pubkey: string, signedEvent: any) {
-    const response = await fetch(`/api/auth/verify/${pubkey}`, {
+    const response = await fetch(`${BRAINSTORM_API}/authChallenge/${pubkey}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signed_event: signedEvent })
@@ -62,7 +64,9 @@ export const apiClient = {
   },
 
   async getSelf() {
-    const response = await authenticatedFetch(`/api/auth/self`);
+    const response = await authenticatedFetch(`${BRAINSTORM_API}/user/self`, {
+      signal: AbortSignal.timeout(60000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
     }
@@ -70,7 +74,9 @@ export const apiClient = {
   },
 
   async getUserByPubkey(pubkey: string) {
-    const response = await authenticatedFetch(`/api/user/${pubkey}`);
+    const response = await authenticatedFetch(`${BRAINSTORM_API}/user/${pubkey}`, {
+      signal: AbortSignal.timeout(60000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch user data (${response.status})`);
     }
@@ -78,7 +84,7 @@ export const apiClient = {
   },
 
   async triggerGrapeRank() {
-    const response = await authenticatedFetch(`/api/auth/graperank`, {
+    const response = await authenticatedFetch(`${BRAINSTORM_API}/user/graperank`, {
       method: 'POST',
     });
     if (!response.ok) {
@@ -100,7 +106,7 @@ export const apiClient = {
   },
 
   async getGrapeRankResult() {
-    const response = await authenticatedFetch(`/api/auth/graperankResult`);
+    const response = await authenticatedFetch(`${BRAINSTORM_API}/user/graperankResult`);
     if (!response.ok) {
       throw new Error(`Failed to fetch GrapeRank data (${response.status})`);
     }

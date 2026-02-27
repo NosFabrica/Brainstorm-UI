@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
-import { publishToRelays, getCurrentUser } from "@/services/nostr";
+import { publishToRelays, getCurrentUser, signNip85 } from "@/services/nostr";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
@@ -47,17 +47,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
-    const event = {
-      kind: 10040,
-      tags: [["30382:rank", serviceKey, "wss://relay.nostr.band"]],
-      content: "",
-      created_at: Math.floor(Date.now() / 1000),
-      pubkey: user.pubkey,
-    };
-
     let signedEvent: Record<string, unknown>;
     try {
-      signedEvent = await window.nostr.signEvent(event);
+      signedEvent = await signNip85(serviceKey,"wss://nip85.nosfabrica.com");
     } catch (err: any) {
       setActivateState("cancelled");
       setTimeout(() => setActivateState("idle"), 3000);

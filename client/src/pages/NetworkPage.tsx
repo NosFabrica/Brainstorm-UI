@@ -36,7 +36,7 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfiles, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
@@ -194,25 +194,13 @@ export default function NetworkPage() {
     loadNetwork();
   }, [user]);
 
-  const fetchProfiles = useCallback(async (pubkeys: string[]) => {
+  const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
-    const batchSize = 10;
+    const batchSize = 400;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map(pk => fetch(`/api/profile/${pk}`).then(r => r.json()))
-      );
-      results.forEach((res, idx) => {
-        if (res.status === "fulfilled" && res.value?.event) {
-          try {
-            const meta = JSON.parse(res.value.event.content);
-            profileCache.current.set(batch[idx], meta);
-          } catch {
-            profileCache.current.set(batch[idx], null);
-          }
-        } else {
-          profileCache.current.set(batch[idx], null);
-        }
+      await fetchProfiles(batch, (pubkey, profile) => {
+        profileCache.current.set(pubkey, profile);
       });
       setLoadedCount(prev => prev + batch.length);
     }
@@ -370,9 +358,9 @@ export default function NetworkPage() {
   useEffect(() => {
     const pubkeys = getGroupPubkeys(activeGroup);
     if (pubkeys.length > 0) {
-      fetchProfiles(pubkeys);
+      fetchProfilesCallback(pubkeys);
     }
-  }, [activeGroup, networkData, fetchProfiles, getGroupPubkeys]);
+  }, [activeGroup, networkData, fetchProfilesCallback, getGroupPubkeys]);
 
   useEffect(() => {
     if (trustFilter !== "all") {
@@ -394,12 +382,12 @@ export default function NetworkPage() {
         const nextStart = safePage * PAGE_SIZE;
         const nextPageItems = visible.slice(nextStart, nextStart + PAGE_SIZE);
         if (nextPageItems.length > 0) {
-          fetchProfiles(nextPageItems);
+          fetchProfilesCallback(nextPageItems);
           fetchTrustScores(nextPageItems);
         }
       }
     }
-  }, [filteredPubkeys, currentPage, fetchTrustScores, fetchProfiles, trustFilter, activeGroup, getGroupPubkeys]);
+  }, [filteredPubkeys, currentPage, fetchTrustScores, fetchProfilesCallback, trustFilter, activeGroup, getGroupPubkeys]);
 
   useEffect(() => {
     const visible = filteredPubkeys();

@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, fetchProfiles, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
@@ -308,33 +308,22 @@ export default function SearchPage() {
     const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
       pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk)
     );
-    const concurrency = 5;
-    for (let i = 0; i < toFetch.length; i += concurrency) {
+    const batchSize = 10;
+    for (let i = 0; i < toFetch.length; i += batchSize) {
       if (fetchAbortRef.current !== fetchId) return;
-      const batch = toFetch.slice(i, i + concurrency);
-      await Promise.allSettled(batch.map(async (pk) => {
-        if (!expandProfileCache.current.has(pk)) {
-          try {
-            const resp = await fetch(`/api/profile/${pk}`);
-            const data = await resp.json();
-            if (data?.event?.content) {
-              expandProfileCache.current.set(pk, JSON.parse(data.event.content));
-            } else {
-              expandProfileCache.current.set(pk, {});
-            }
-          } catch {
-            expandProfileCache.current.set(pk, {});
-          }
-        }
-        if (!expandTrustCache.current.has(pk)) {
-          try {
-            const resp = await apiClient.getUserByPubkey(pk);
-            expandTrustCache.current.set(pk, resp?.data?.influence ?? null);
-          } catch {
-            expandTrustCache.current.set(pk, null);
-          }
-        }
-      }));
+      const batch = toFetch.slice(i, i + batchSize);
+      const profilePubkeys = batch.filter(pk => !expandProfileCache.current.has(pk));
+      const trustPubkeys = batch.filter(pk => !expandTrustCache.current.has(pk));
+      await Promise.allSettled([
+        fetchProfiles(profilePubkeys, (pubkey, profile) => {
+          expandProfileCache.current.set(pubkey, profile);
+        }),
+        ...trustPubkeys.map(pk =>
+          apiClient.getUserByPubkey(pk)
+            .then(resp => expandTrustCache.current.set(pk, resp?.data?.influence ?? null))
+            .catch(() => expandTrustCache.current.set(pk, null))
+        ),
+      ]);
       if (fetchAbortRef.current !== fetchId) return;
       setForceRender(c => c + 1);
     }
@@ -576,13 +565,18 @@ export default function SearchPage() {
       name = "_";
       domain = trimmed;
     }
-    const resp = await fetch(`/api/nip05?name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}`);
+    const resp = await fetch(`https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
     if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error || "Could not resolve handle");
+      throw new Error("Could not resolve handle");
     }
     const data = await resp.json();
-    return data.pubkey;
+    const pubkey = data?.names?.[name] || data?.names?.[name.toLowerCase()];
+    if (!pubkey || !/^[0-9a-f]{64}$/i.test(pubkey)) {
+      throw new Error("Handle not found");
+    }
+    return pubkey;
   };
 
   const handleSearch = async () => {
@@ -666,19 +660,16 @@ export default function SearchPage() {
     try {
       const [graphRes, profileRes] = await Promise.allSettled([
         apiClient.getUserByPubkey(hexPubkey),
-        fetch(`/api/profile/${hexPubkey}`).then(r => r.json()),
+        fetchProfile(hexPubkey),
       ]);
 
       const graphData = graphRes.status === "fulfilled" ? graphRes.value?.data : null;
       setProfileResult(graphData || null);
 
-      if (profileRes.status === "fulfilled" && profileRes.value?.event) {
-        try {
-          const meta = JSON.parse(profileRes.value.event.content);
-          setNostrProfile(meta);
-        } catch {
-          setNostrProfile(null);
-        }
+      if (profileRes.status === "fulfilled" && profileRes.value) {
+        setNostrProfile(profileRes.value as any);
+      } else {
+        setNostrProfile(null);
       }
 
       setHasSearched(true);
