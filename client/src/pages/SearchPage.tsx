@@ -119,13 +119,6 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const TrustShieldIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08" />
-    <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 const RiskAdvisoryIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
     <path d="M12 3l9 16H3L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08" />
@@ -1480,20 +1473,6 @@ export default function SearchPage() {
                                 {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                               </button>
                             </div>
-                            {(() => {
-                              const followers = Array.isArray(profileResult.followed_by) ? toPubkeys(profileResult.followed_by).length : (profileResult.followed_by || 0);
-                              const mutedBy = Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0);
-                              const denom = followers + mutedBy;
-                              const trustRatio = denom > 0 ? (followers / denom) * 100 : 100;
-                              const trustColor = trustRatio > 90 ? "text-emerald-700 bg-emerald-50 border-emerald-200" : trustRatio >= 50 ? "text-amber-700 bg-amber-50 border-amber-200" : "text-red-700 bg-red-50 border-red-200";
-                              const iconColor = trustRatio > 90 ? "text-emerald-500" : trustRatio >= 50 ? "text-amber-500" : "text-red-500";
-                              return (
-                                <Badge variant="outline" className={`mt-2 text-[10px] font-semibold no-default-hover-elevate no-default-active-elevate ${trustColor}`} data-testid="badge-trust-ratio">
-                                  <TrustShieldIcon className={`h-3 w-3 mr-1 ${iconColor}`} />
-                                  Trust Ratio: {trustRatio.toFixed(1)}%
-                                </Badge>
-                              );
-                            })()}
                           </div>
                           {profileResult.influence !== undefined && (() => {
                             const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
