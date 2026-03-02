@@ -204,22 +204,25 @@ export default function ProfilePage() {
     expandProfileCache.current.clear();
     expandTrustCache.current.clear();
 
-    Promise.allSettled([
-      apiClient.getUserByPubkey(hexPubkey),
-      fetchProfile(hexPubkey),
-    ]).then(([graphRes, profileRes]) => {
-      const graphData = graphRes.status === "fulfilled" ? graphRes.value?.data : null;
-      setProfileResult(graphData || null);
-
-      if (profileRes.status === "fulfilled" && profileRes.value) {
-        setNostrProfile(profileRes.value as any);
-      }
-
-      if (!graphData) {
+    apiClient.getUserByPubkey(hexPubkey)
+      .then(res => {
+        setProfileResult(res?.data || null);
+        if (!res?.data) {
+          setLoadError("No profile data found for this identity on the Brainstorm backend.");
+        }
+      })
+      .catch(() => {
         setLoadError("No profile data found for this identity on the Brainstorm backend.");
-      }
-      setIsLoading(false);
-    });
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+    fetchProfile(hexPubkey)
+      .then(profile => {
+        if (profile) setNostrProfile(profile as any);
+      })
+      .catch(() => {});
   }, [user, npubParam]);
 
   const handleLogout = () => {

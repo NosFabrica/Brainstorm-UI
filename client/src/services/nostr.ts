@@ -98,9 +98,12 @@ export function fetchProfiles(
   });
 }
 
-export async function fetchProfile(pubkey: string): Promise<ProfileContent | undefined> {
+export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
   try {
-    const event = await firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [0], authors: [pubkey] }));
+    const event = await Promise.race([
+      firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [0], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
 
     if (!event) return undefined;
 
