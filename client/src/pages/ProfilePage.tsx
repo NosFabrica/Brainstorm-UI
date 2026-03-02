@@ -481,13 +481,14 @@ export default function ProfilePage() {
     } catch {}
   };
 
-  if (!user) return null;
-
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
   const displayNpub = useMemo(() => {
     if (/^npub1/.test(npubParam)) return npubParam;
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
+
+  if (!user) return null;
+
+  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
   return (
     <div
