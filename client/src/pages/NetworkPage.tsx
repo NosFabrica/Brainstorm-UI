@@ -423,7 +423,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 {renderVerifiedFlags()}
                 <button
                   className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
-                  onClick={(e) => { e.stopPropagation(); onNavigate(`/search?npub=${npub}&fromGroup=${activeGroup}`); }}
+                  onClick={(e) => { e.stopPropagation(); onNavigate(`/profile/${npub}?fromGroup=${activeGroup}`); }}
                   data-testid={`button-view-full-${pkShort}`}
                 >
                   <SearchIcon className="h-3.5 w-3.5" />
