@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -15,6 +15,8 @@ import {
   ChevronDown,
   Search as SearchIcon,
   User,
+  ArrowUpDown,
+  Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -137,6 +139,12 @@ export default function ProfilePage() {
   const expandProfileCache = useRef<Map<string, any>>(new Map());
   const expandTrustCache = useRef<Map<string, number | null>>(new Map());
   const [forceRender, setForceRender] = useState(0);
+
+  type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
+  type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
+  const [sectionSort, setSectionSort] = useState<Record<string, SortMode>>({});
+  const [sectionFilter, setSectionFilter] = useState<Record<string, FilterMode>>({});
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
 
@@ -368,6 +376,66 @@ export default function ProfilePage() {
     return { counts, total };
   }, [profileResult]);
 
+  const getTrustForPk = useCallback((pk: string): number => {
+    const cached = expandTrustCache.current.get(pk);
+    if (cached !== undefined && cached !== null) return cached;
+    if (profileResult) {
+      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
+        const map = toInfluenceMap(profileResult[groupKey]);
+        const val = map.get(pk);
+        if (val !== undefined && val !== null) return val;
+      }
+    }
+    return -1;
+  }, [profileResult]);
+
+  const getNameForPk = useCallback((pk: string): string => {
+    const profile = expandProfileCache.current.get(pk);
+    return (profile?.display_name || profile?.name || "").toLowerCase();
+  }, []);
+
+  const getTierKey = (score: number): string => {
+    if (score >= 0.50) return "high";
+    if (score >= 0.20) return "trusted";
+    if (score >= 0.07) return "neutral";
+    if (score >= 0.02) return "low";
+    return "unverified";
+  };
+
+  const getSortedFilteredPubkeys = useCallback((key: string, pubkeys: string[]): string[] => {
+    const filter = sectionFilter[key] || "all";
+    const sort = sectionSort[key] || "trust-desc";
+
+    let filtered = pubkeys;
+    if (filter !== "all") {
+      filtered = pubkeys.filter(pk => {
+        const score = getTrustForPk(pk);
+        if (score < 0) return filter === "unverified";
+        if (filter === "verified") return score >= 0.02;
+        return getTierKey(score) === filter;
+      });
+    }
+
+    const sorted = [...filtered];
+    if (sort === "trust-desc" || sort === "trust-asc") {
+      sorted.sort((a, b) => {
+        const sa = getTrustForPk(a);
+        const sb = getTrustForPk(b);
+        return sort === "trust-desc" ? sb - sa : sa - sb;
+      });
+    } else {
+      sorted.sort((a, b) => {
+        const na = getNameForPk(a);
+        const nb = getNameForPk(b);
+        if (!na && !nb) return 0;
+        if (!na) return 1;
+        if (!nb) return -1;
+        return sort === "name-asc" ? na.localeCompare(nb) : nb.localeCompare(na);
+      });
+    }
+    return sorted;
+  }, [sectionFilter, sectionSort, getTrustForPk, getNameForPk]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -392,10 +460,31 @@ export default function ProfilePage() {
           delete copy[key];
           return copy;
         });
+        setSectionSort(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+        setSectionFilter(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+        setFilterDropdownOpen(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
       }
       return next;
     });
   };
+
+  useEffect(() => {
+    Object.keys(expandedSections).forEach(key => {
+      if (!expandedSections[key]) return;
+      const rawPubkeys = key === "mutual" ? mutualPubkeys
+        : key === "shared_followers" ? sharedFollowerPubkeys
+        : key === "shared_following" ? sharedFollowingPubkeys
+        : toPubkeys(profileResult?.[key]);
+      if (rawPubkeys.length === 0) return;
+      const processed = getSortedFilteredPubkeys(key, rawPubkeys);
+      const visCount = sectionVisibleCount[key] || 10;
+      const visible = processed.slice(0, visCount);
+      const needsFetch = visible.some(pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk));
+      if (needsFetch) {
+        fetchSectionProfiles(key, visible, 0, visCount);
+      }
+    });
+  }, [sectionSort, sectionFilter]);
 
   const getGroupsForPubkey = (pk: string): { key: string; label: string; colors: string }[] => {
     const groupDefs: { key: string; label: string; colors: string }[] = [
@@ -439,15 +528,98 @@ export default function ProfilePage() {
     navigate(`/profile/${targetNpub}${fromGroup ? `?fromGroup=${fromGroup}` : ""}`);
   };
 
+  const sortOptions: { value: SortMode; label: string }[] = [
+    { value: "trust-desc", label: "Trust \u2193" },
+    { value: "trust-asc", label: "Trust \u2191" },
+    { value: "name-asc", label: "A\u2013Z" },
+    { value: "name-desc", label: "Z\u2013A" },
+  ];
+
+  const filterOptions: { value: FilterMode; label: string; color: string }[] = [
+    { value: "all", label: "All", color: "bg-slate-100 text-slate-600" },
+    { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
+    { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
+    { value: "trusted", label: "Trusted", color: "bg-green-50 text-green-600" },
+    { value: "neutral", label: "Neutral", color: "bg-slate-50 text-slate-500" },
+    { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
+    { value: "unverified", label: "Unverified", color: "bg-red-50 text-red-500" },
+  ];
+
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {
     const isExpanded = expandedSections[key];
     if (!isExpanded || pubkeys.length === 0) return null;
+
+    const processed = getSortedFilteredPubkeys(key, pubkeys);
+    const activeFilter = sectionFilter[key] || "all";
+    const activeSort = sectionSort[key] || "trust-desc";
+    const isFiltered = activeFilter !== "all";
+
     const visibleCount = sectionVisibleCount[key] || 10;
-    const visiblePubkeys = pubkeys.slice(0, visibleCount);
+    const visiblePubkeys = processed.slice(0, visibleCount);
     const borderColor = sectionBorderColors[key] || "border-slate-300";
+    const isFilterOpen = filterDropdownOpen[key] || false;
 
     return (
       <div className="border-t border-slate-100 bg-slate-50/50">
+        <div className="px-3 py-2 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white/60">
+          <div className="flex items-center gap-1 mr-1">
+            <ArrowUpDown className="h-3 w-3 text-slate-400" />
+            <div className="flex rounded-md overflow-hidden border border-slate-200">
+              {sortOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${activeSort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  data-testid={`sort-${opt.value}-${key}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${isFiltered ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              data-testid={`filter-toggle-${key}`}
+            >
+              <Filter className="h-3 w-3" />
+              {isFiltered ? filterOptions.find(f => f.value === activeFilter)?.label : "Filter"}
+              <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+            {isFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                  {filterOptions.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSectionFilter(prev => ({ ...prev, [key]: opt.value }));
+                        setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
+                        setFilterDropdownOpen(prev => ({ ...prev, [key]: false }));
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
+                      data-testid={`filter-${opt.value}-${key}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-400" : opt.value === "trusted" ? "bg-green-400" : opt.value === "neutral" ? "bg-slate-400" : opt.value === "low" ? "bg-amber-400" : "bg-red-400"}`} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {isFiltered && (
+            <span className="text-[10px] text-slate-400 ml-auto" data-testid={`filter-count-${key}`}>
+              {processed.length} of {pubkeys.length}
+            </span>
+          )}
+        </div>
+
         <div className={`border-l-2 ${borderColor} ml-4`}>
           {visiblePubkeys.map(pk => {
             const profile = expandProfileCache.current.get(pk);
@@ -512,7 +684,7 @@ export default function ProfilePage() {
               </div>
             );
           })}
-          {pubkeys.length > visibleCount && (
+          {processed.length > visibleCount && (
             <Button
               variant="ghost"
               size="sm"
@@ -520,13 +692,25 @@ export default function ProfilePage() {
                 e.stopPropagation();
                 const newCount = (sectionVisibleCount[key] || 10) + 10;
                 setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
-                fetchSectionProfiles(key, pubkeys, visibleCount, 10);
+                fetchSectionProfiles(key, processed, visibleCount, 10);
               }}
               className="w-full text-xs font-medium text-indigo-600"
               data-testid={`button-show-more-${key}`}
             >
-              Show {Math.min(10, pubkeys.length - visibleCount)} more ({pubkeys.length - visibleCount} remaining)
+              Show {Math.min(10, processed.length - visibleCount)} more ({processed.length - visibleCount} remaining)
             </Button>
+          )}
+          {processed.length === 0 && isFiltered && (
+            <div className="px-4 py-6 text-center">
+              <p className="text-xs text-slate-400">No users match this filter</p>
+              <button
+                onClick={(e) => { e.stopPropagation(); setSectionFilter(prev => ({ ...prev, [key]: "all" })); }}
+                className="text-xs text-indigo-500 mt-1 hover:underline"
+                data-testid={`filter-clear-${key}`}
+              >
+                Clear filter
+              </button>
+            </div>
           )}
         </div>
       </div>
