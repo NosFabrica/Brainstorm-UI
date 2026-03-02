@@ -1571,50 +1571,47 @@ export default function ProfilePage() {
                             </div>
                           </div>
                         )}
+                        {followerTierBreakdown && followerTierBreakdown.total > 0 && (
+                          <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30" data-testid="card-audience-quality">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Audience Quality</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
+                            </div>
+                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
+                              {TIER_THRESHOLDS.map(tier => {
+                                const count = followerTierBreakdown.counts[tier.key] || 0;
+                                if (count === 0) return null;
+                                const widthPct = (count / followerTierBreakdown.total) * 100;
+                                return (
+                                  <div
+                                    key={tier.key}
+                                    className="h-full transition-all duration-500"
+                                    style={{ width: `${widthPct}%`, backgroundColor: tier.color, minWidth: widthPct > 0 ? "2px" : "0" }}
+                                    title={`${tier.name}: ${count}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                              {TIER_THRESHOLDS.map(tier => {
+                                const count = followerTierBreakdown.counts[tier.key] || 0;
+                                if (count === 0) return null;
+                                return (
+                                  <div key={tier.key} className="flex items-center gap-1.5" data-testid={`legend-tier-${tier.key}`}>
+                                    <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: tier.color }} />
+                                    <span className="text-[10px] text-slate-500 font-medium">{tier.name}</span>
+                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{count.toLocaleString()}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    {followerTierBreakdown && followerTierBreakdown.total > 0 && (
-                      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm" data-testid="card-audience-quality">
-                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                            <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest">Audience Quality</h4>
-                          </div>
-                          <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">{followerTierBreakdown.total.toLocaleString()} followers</span>
-                        </div>
-                        <div className="px-3 sm:px-4 py-3 sm:py-4">
-                          <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
-                            {TIER_THRESHOLDS.map(tier => {
-                              const count = followerTierBreakdown.counts[tier.key] || 0;
-                              if (count === 0) return null;
-                              const widthPct = (count / followerTierBreakdown.total) * 100;
-                              return (
-                                <div
-                                  key={tier.key}
-                                  className="h-full transition-all duration-500"
-                                  style={{ width: `${widthPct}%`, backgroundColor: tier.color, minWidth: widthPct > 0 ? "2px" : "0" }}
-                                  title={`${tier.name}: ${count}`}
-                                />
-                              );
-                            })}
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5">
-                            {TIER_THRESHOLDS.map(tier => {
-                              const count = followerTierBreakdown.counts[tier.key] || 0;
-                              if (count === 0) return null;
-                              return (
-                                <div key={tier.key} className="flex items-center gap-1.5" data-testid={`legend-tier-${tier.key}`}>
-                                  <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: tier.color }} />
-                                  <span className="text-[10px] text-slate-500 font-medium">{tier.name}</span>
-                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{count.toLocaleString()}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
