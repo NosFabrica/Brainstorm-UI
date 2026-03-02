@@ -678,7 +678,7 @@ export default function NetworkPage() {
   const networkData = selfData?.graph || null;
   const isLoading = selfQuery.isLoading;
 
-  useEffect(() => {
+  useMemo(() => {
     if (!networkData) return;
     const allGroups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
     for (const groupKey of allGroups) {
