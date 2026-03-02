@@ -309,34 +309,35 @@ export default function SearchPage() {
     const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
       pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk)
     );
-    const batchSize = 10;
-    for (let i = 0; i < toFetch.length; i += batchSize) {
-      if (fetchAbortRef.current !== fetchId) return;
-      const batch = toFetch.slice(i, i + batchSize);
-      const profilePubkeys = batch.filter(pk => !expandProfileCache.current.has(pk));
-      const trustPubkeys = batch.filter(pk => !expandTrustCache.current.has(pk));
-      const missingProfiles: string[] = [];
-      for (const pk of profilePubkeys) {
-        const event = eventStore.getReplaceable(0, pk);
-        if (event) {
-          if (isValidProfile(event)) expandProfileCache.current.set(pk, getProfileContent(event));
-        } else {
-          missingProfiles.push(pk);
-        }
+    if (toFetch.length === 0) return;
+    const profilePubkeys = toFetch.filter(pk => !expandProfileCache.current.has(pk));
+    const trustPubkeys = toFetch.filter(pk => !expandTrustCache.current.has(pk));
+    const missingProfiles: string[] = [];
+    for (const pk of profilePubkeys) {
+      const event = eventStore.getReplaceable(0, pk);
+      if (event) {
+        if (isValidProfile(event)) expandProfileCache.current.set(pk, getProfileContent(event));
+      } else {
+        missingProfiles.push(pk);
       }
-      await Promise.allSettled([
-        ...(missingProfiles.length > 0 ? [fetchProfiles(missingProfiles, (pubkey, profile) => {
-          expandProfileCache.current.set(pubkey, profile);
-        })] : []),
-        ...trustPubkeys.map(pk =>
-          apiClient.getUserByPubkey(pk)
-            .then(resp => expandTrustCache.current.set(pk, resp?.data?.influence ?? null))
-            .catch(() => expandTrustCache.current.set(pk, null))
-        ),
-      ]);
-      if (fetchAbortRef.current !== fetchId) return;
+    }
+    if (fetchAbortRef.current !== fetchId) return;
+    if (missingProfiles.length > 0 || trustPubkeys.length > 0) {
       setForceRender(c => c + 1);
     }
+    await Promise.allSettled([
+      ...(missingProfiles.length > 0 ? [fetchProfiles(missingProfiles, (pubkey, profile) => {
+        expandProfileCache.current.set(pubkey, profile);
+        setForceRender(c => c + 1);
+      })] : []),
+      ...trustPubkeys.map(pk =>
+        apiClient.getUserByPubkey(pk)
+          .then(resp => expandTrustCache.current.set(pk, resp?.data?.influence ?? null))
+          .catch(() => expandTrustCache.current.set(pk, null))
+      ),
+    ]);
+    if (fetchAbortRef.current !== fetchId) return;
+    setForceRender(c => c + 1);
   };
 
   const mutualPubkeys = useMemo(() => {
