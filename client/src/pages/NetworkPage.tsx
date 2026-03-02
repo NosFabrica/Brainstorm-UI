@@ -632,8 +632,6 @@ export default function NetworkPage() {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
-  const [networkData, setNetworkData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
   const [copiedPubkey, setCopiedPubkey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
@@ -670,32 +668,28 @@ export default function NetworkPage() {
     setUser(u);
   }, [navigate]);
 
+  const selfQuery = useQuery({
+    queryKey: ["/api/auth/self"],
+    queryFn: () => apiClient.getSelf(),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
+  const selfData = selfQuery.data?.data || selfQuery.data;
+  const networkData = selfData?.graph || selfData || null;
+  const isLoading = selfQuery.isLoading;
+
   useEffect(() => {
-    if (!user) return;
-    const loadNetwork = async () => {
-      setIsLoading(true);
-      try {
-        const data = await apiClient.getSelf();
-        const inner = data?.data || data;
-        const graphObj = inner?.graph || inner;
-        setNetworkData(graphObj);
-        const allGroups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
-        for (const groupKey of allGroups) {
-          const influenceMap = toInfluenceMap(graphObj?.[groupKey]);
-          influenceMap.forEach((influence, pk) => {
-            if (!trustCache.current.has(pk)) {
-              trustCache.current.set(pk, influence);
-            }
-          });
+    if (!networkData) return;
+    const allGroups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    for (const groupKey of allGroups) {
+      const influenceMap = toInfluenceMap(networkData?.[groupKey]);
+      influenceMap.forEach((influence, pk) => {
+        if (!trustCache.current.has(pk)) {
+          trustCache.current.set(pk, influence);
         }
-      } catch {
-        setNetworkData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadNetwork();
-  }, [user]);
+      });
+    }
+  }, [networkData]);
 
   const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
@@ -915,7 +909,7 @@ export default function NetworkPage() {
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE)
       }
     }
-  }, [currentPage, visiblePubkeys.length, loadedCount]);
+  }, [currentPage, visiblePubkeys, loadedCount, trustLoadedCount]);
 
   useEffect(() => {
     const pageItems = visiblePubkeyPage.items
