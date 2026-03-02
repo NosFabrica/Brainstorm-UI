@@ -17,6 +17,10 @@ import {
   User,
   ArrowUpDown,
   Filter,
+  ShieldCheck,
+  Shield,
+  ShieldAlert,
+  ShieldX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -339,10 +343,10 @@ export default function ProfilePage() {
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
     const pct = Math.round(score * 100);
     const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
-    if (pct >= 50) return { label: "High confidence", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", message: `Strong trust signals from your community for ${name}.` };
-    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", message: `Some trust signals present. Your network has limited data on ${name}.` };
-    if (pct >= 7) return { label: "Low confidence", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-100", message: `Weak or mixed signals from your trusted community for ${name}.` };
-    return { label: "Very low confidence", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", message: `Your community's signals suggest careful scrutiny before trusting ${name}.` };
+    if (pct >= 50) return { label: "High confidence", color: "text-emerald-700", iconColor: "text-emerald-500", iconBg: "bg-emerald-100", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40", border: "border-emerald-200/60", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
+    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-700", iconColor: "text-indigo-500", iconBg: "bg-indigo-100", bg: "bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40", border: "border-indigo-200/60", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
+    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600", iconColor: "text-slate-400", iconBg: "bg-slate-100", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40", border: "border-slate-200/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
+    return { label: "Very low confidence", color: "text-amber-700", iconColor: "text-amber-500", iconBg: "bg-amber-100", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40", border: "border-amber-200/60", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
   }, [profileResult, nostrProfile]);
 
   const verifiedCounts = useMemo(() => {
@@ -613,7 +617,7 @@ export default function ProfilePage() {
 
     return (
       <div className="border-t border-slate-100 bg-slate-50/50">
-        <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-white/60">
+        <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-gradient-to-r from-white/80 via-indigo-50/20 to-white/80 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 mr-1">
               <ArrowUpDown className="h-3 w-3 text-slate-400" />
@@ -760,27 +764,27 @@ export default function ProfilePage() {
             );
           })}
           {processed.length > visibleCount && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                const newCount = (sectionVisibleCount[key] || 10) + 10;
-                setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
-                fetchSectionProfiles(key, processed, visibleCount, 10);
-              }}
-              className="w-full text-xs font-medium text-indigo-600"
-              data-testid={`button-show-more-${key}`}
-            >
-              Show {Math.min(10, processed.length - visibleCount)} more ({processed.length - visibleCount} remaining)
-            </Button>
+            <div className="px-3 py-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newCount = (sectionVisibleCount[key] || 10) + 10;
+                  setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
+                  fetchSectionProfiles(key, processed, visibleCount, 10);
+                }}
+                className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+                data-testid={`button-show-more-${key}`}
+              >
+                Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining)</span>
+              </button>
+            </div>
           )}
           {processed.length === 0 && isFiltered && (
             <div className="px-4 py-6 text-center">
               <p className="text-xs text-slate-400">No users match this filter</p>
               <button
                 onClick={(e) => { e.stopPropagation(); setSectionFilter(prev => ({ ...prev, [key]: "all" })); }}
-                className="text-xs text-indigo-500 mt-1 hover:underline"
+                className="text-xs text-[#3730a3] font-medium mt-1.5 hover:underline"
                 data-testid={`filter-clear-${key}`}
               >
                 Clear filter
@@ -1147,7 +1151,7 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-profile-result">
+            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
               <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
               <div className="p-5 sm:p-6 relative overflow-hidden"
@@ -1313,11 +1317,19 @@ export default function ProfilePage() {
                 )}
 
                 {confidenceGuidance && (
-                  <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} px-3 sm:px-4 py-2.5 flex items-center gap-2.5`} data-testid="banner-confidence-guidance">
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0`} style={{ backgroundColor: profileTier?.color || "#94a3b8" }} />
+                  <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3`} data-testid="banner-confidence-guidance">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${confidenceGuidance.iconBg} flex items-center justify-center shrink-0`}>
+                      {confidenceGuidance.icon === "check" && <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
+                      {confidenceGuidance.icon === "shield" && <Shield className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
+                      {confidenceGuidance.icon === "alert" && <ShieldAlert className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
+                      {confidenceGuidance.icon === "x" && <ShieldX className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <span className={`text-xs font-bold ${confidenceGuidance.color}`} data-testid="text-confidence-label">{confidenceGuidance.label}</span>
-                      <span className="text-xs text-slate-500 ml-1.5">{confidenceGuidance.message}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs sm:text-sm font-bold ${confidenceGuidance.color}`} data-testid="text-confidence-label">{confidenceGuidance.label}</span>
+                        <span className={`text-[10px] font-bold font-mono tabular-nums px-1.5 py-0.5 rounded ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}>{confidenceGuidance.pct}%</span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">{confidenceGuidance.message}</p>
                     </div>
                   </div>
                 )}
@@ -1427,10 +1439,10 @@ export default function ProfilePage() {
 
                   return (
                   <div className="space-y-5">
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                    <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
                         </div>
                         <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">Network Position</span>
@@ -1443,7 +1455,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
                               onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
                               data-testid="metric-profile-followers"
                             >
@@ -1478,7 +1490,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
                               onClick={fgExpandable ? () => toggleSection("following") : undefined}
                               data-testid="metric-profile-following"
                             >
@@ -1513,7 +1525,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
                               data-testid="metric-profile-mutual"
                             >
@@ -1563,8 +1575,8 @@ export default function ProfilePage() {
                     </div>
 
                     {followerTierBreakdown && followerTierBreakdown.total > 0 && (
-                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden" data-testid="card-audience-quality">
-                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm" data-testid="card-audience-quality">
+                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                             <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest">Audience Quality</h4>
@@ -1604,8 +1616,8 @@ export default function ProfilePage() {
                       </div>
                     )}
 
-                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                    <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-amber-500" : "bg-slate-300"}`} />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
@@ -1619,7 +1631,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : "cursor-help"}`}
                               title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
                               onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
                               data-testid="metric-profile-muted-by"
@@ -1654,7 +1666,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : "cursor-help"}`}
                               title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
                               onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
                               data-testid="metric-profile-reported-by"
@@ -1689,7 +1701,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("muting") : undefined}
                               data-testid="metric-profile-muting"
                             >
@@ -1720,7 +1732,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-slate-50/50 transition-colors" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
                               onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
                               data-testid="metric-profile-reporting"
                             >
