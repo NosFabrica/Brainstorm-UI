@@ -2280,10 +2280,6 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Influence</span>
-                    <span className="text-xs font-semibold text-indigo-600">{network.influence ?? 0}</span>
-                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">No network data available.</p>
