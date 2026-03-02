@@ -706,6 +706,9 @@ export default function NetworkPage() {
         missing.push(pk);
       }
     }
+    if (cached.length > 0) {
+      setLoadedCount(prev => prev + cached.length);
+    }
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
@@ -713,6 +716,9 @@ export default function NetworkPage() {
         profileCache.current.set(pubkey, profile);
         setLoadedCount(prev => prev + 1);
       });
+    }
+    if (unfetched.length === 0) {
+      setLoadedCount(prev => prev + 1);
     }
   }, []);
 
