@@ -144,6 +144,7 @@ export default function ProfilePage() {
   type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
   const [sectionSort, setSectionSort] = useState<Record<string, SortMode>>({});
   const [sectionFilter, setSectionFilter] = useState<Record<string, FilterMode>>({});
+  const [sectionSearch, setSectionSearch] = useState<Record<string, string>>({});
   const [filterDropdownOpen, setFilterDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
@@ -402,9 +403,29 @@ export default function ProfilePage() {
     return "unverified";
   };
 
+  const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
+    if (!profileResult || !Array.isArray(profileResult[sectionKey])) return null;
+    const map = toInfluenceMap(profileResult[sectionKey]);
+    if (map.size === 0) return null;
+    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+    map.forEach((inf) => {
+      const score = inf ?? 0;
+      counts[getTierKey(score)]++;
+    });
+    const tierDefs: { tier: string; label: string; color: string }[] = [
+      { tier: "high", label: "Highly Trusted", color: "text-emerald-500" },
+      { tier: "trusted", label: "Trusted", color: "text-green-500" },
+      { tier: "neutral", label: "Neutral", color: "text-slate-400" },
+      { tier: "low", label: "Low", color: "text-amber-500" },
+      { tier: "unverified", label: "Unverified", color: "text-red-400" },
+    ];
+    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+  }, [profileResult]);
+
   const getSortedFilteredPubkeys = useCallback((key: string, pubkeys: string[]): string[] => {
     const filter = sectionFilter[key] || "all";
     const sort = sectionSort[key] || "trust-desc";
+    const search = (sectionSearch[key] || "").toLowerCase().trim();
 
     let filtered = pubkeys;
     if (filter !== "all") {
@@ -413,6 +434,20 @@ export default function ProfilePage() {
         if (score < 0) return filter === "unverified";
         if (filter === "verified") return score >= 0.02;
         return getTierKey(score) === filter;
+      });
+    }
+
+    if (search) {
+      filtered = filtered.filter(pk => {
+        const profile = expandProfileCache.current.get(pk);
+        const name = (profile?.display_name || profile?.name || "").toLowerCase();
+        const nip05 = (profile?.nip05 || "").toLowerCase();
+        if (name.includes(search) || nip05.includes(search)) return true;
+        if (search.startsWith("npub")) {
+          const npub = nip19.npubEncode(pk).toLowerCase();
+          return npub.includes(search);
+        }
+        return false;
       });
     }
 
@@ -434,7 +469,7 @@ export default function ProfilePage() {
       });
     }
     return sorted;
-  }, [sectionFilter, sectionSort, getTrustForPk, getNameForPk]);
+  }, [sectionFilter, sectionSort, sectionSearch, getTrustForPk, getNameForPk]);
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
@@ -462,6 +497,7 @@ export default function ProfilePage() {
         });
         setSectionSort(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
         setSectionFilter(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
+        setSectionSearch(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
         setFilterDropdownOpen(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
       }
       return next;
@@ -484,7 +520,7 @@ export default function ProfilePage() {
         fetchSectionProfiles(key, visible, 0, visCount);
       }
     });
-  }, [sectionSort, sectionFilter]);
+  }, [sectionSort, sectionFilter, sectionSearch]);
 
   const getGroupsForPubkey = (pk: string): { key: string; label: string; colors: string }[] => {
     const groupDefs: { key: string; label: string; colors: string }[] = [
@@ -523,6 +559,21 @@ export default function ProfilePage() {
     reporting: "border-slate-300",
   };
 
+  const renderTierBadges = (sectionKey: string) => {
+    const breakdown = getTierBreakdown(sectionKey);
+    if (!breakdown || breakdown.length === 0) return null;
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap mt-0.5" data-testid={`tier-breakdown-${sectionKey}`}>
+        {breakdown.map(t => (
+          <span key={t.tier} className={`text-[9px] font-medium ${t.color} flex items-center gap-0.5`}>
+            <span className={`w-1.5 h-1.5 rounded-full inline-block ${t.color.replace("text-", "bg-")}`} />
+            {t.count}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const navigateToProfile = (pk: string) => {
     const targetNpub = nip19.npubEncode(pk);
     navigate(`/profile/${targetNpub}${fromGroup ? `?fromGroup=${fromGroup}` : ""}`);
@@ -552,7 +603,8 @@ export default function ProfilePage() {
     const processed = getSortedFilteredPubkeys(key, pubkeys);
     const activeFilter = sectionFilter[key] || "all";
     const activeSort = sectionSort[key] || "trust-desc";
-    const isFiltered = activeFilter !== "all";
+    const activeSearch = sectionSearch[key] || "";
+    const isFiltered = activeFilter !== "all" || activeSearch.trim().length > 0;
 
     const visibleCount = sectionVisibleCount[key] || 10;
     const visiblePubkeys = processed.slice(0, visibleCount);
@@ -561,63 +613,86 @@ export default function ProfilePage() {
 
     return (
       <div className="border-t border-slate-100 bg-slate-50/50">
-        <div className="px-3 py-2 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white/60">
-          <div className="flex items-center gap-1 mr-1">
-            <ArrowUpDown className="h-3 w-3 text-slate-400" />
-            <div className="flex rounded-md overflow-hidden border border-slate-200">
-              {sortOptions.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${activeSort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
-                  data-testid={`sort-${opt.value}-${key}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+        <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-white/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 mr-1">
+              <ArrowUpDown className="h-3 w-3 text-slate-400" />
+              <div className="flex rounded-md overflow-hidden border border-slate-200">
+                {sortOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
+                    className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${activeSort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                    data-testid={`sort-${opt.value}-${key}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="relative">
-            <button
-              onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${isFiltered ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-              data-testid={`filter-toggle-${key}`}
-            >
-              <Filter className="h-3 w-3" />
-              {isFiltered ? filterOptions.find(f => f.value === activeFilter)?.label : "Filter"}
-              <ChevronDown className="h-2.5 w-2.5" />
-            </button>
-            {isFilterOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
-                  {filterOptions.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSectionFilter(prev => ({ ...prev, [key]: opt.value }));
-                        setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-                        setFilterDropdownOpen(prev => ({ ...prev, [key]: false }));
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
-                      data-testid={`filter-${opt.value}-${key}`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-400" : opt.value === "trusted" ? "bg-green-400" : opt.value === "neutral" ? "bg-slate-400" : opt.value === "low" ? "bg-amber-400" : "bg-red-400"}`} />
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </>
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${activeFilter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                data-testid={`filter-toggle-${key}`}
+              >
+                <Filter className="h-3 w-3" />
+                {activeFilter !== "all" ? filterOptions.find(f => f.value === activeFilter)?.label : "Filter"}
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
+              {isFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                    {filterOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSectionFilter(prev => ({ ...prev, [key]: opt.value }));
+                          setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
+                          setFilterDropdownOpen(prev => ({ ...prev, [key]: false }));
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
+                        data-testid={`filter-${opt.value}-${key}`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-400" : opt.value === "trusted" ? "bg-green-400" : opt.value === "neutral" ? "bg-slate-400" : opt.value === "low" ? "bg-amber-400" : "bg-red-400"}`} />
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {isFiltered && (
+              <span className="text-[10px] text-slate-400 ml-auto" data-testid={`filter-count-${key}`}>
+                {processed.length} of {pubkeys.length}
+              </span>
             )}
           </div>
-
-          {isFiltered && (
-            <span className="text-[10px] text-slate-400 ml-auto" data-testid={`filter-count-${key}`}>
-              {processed.length} of {pubkeys.length}
-            </span>
-          )}
+          <div className="relative">
+            <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={activeSearch}
+              onChange={(e) => { setSectionSearch(prev => ({ ...prev, [key]: e.target.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="Search by name or npub..."
+              className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+              data-testid={`search-input-${key}`}
+            />
+            {activeSearch && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setSectionSearch(prev => ({ ...prev, [key]: "" })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                data-testid={`search-clear-${key}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className={`border-l-2 ${borderColor} ml-4`}>
@@ -1382,6 +1457,7 @@ export default function ProfilePage() {
                                   {verifiedCounts.followersTotal > 0 && (
                                     <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-followers">{verifiedCounts.followers.toLocaleString()} of {verifiedCounts.followersTotal.toLocaleString()} verified</p>
                                   )}
+                                  {renderTierBadges("followed_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1416,6 +1492,7 @@ export default function ProfilePage() {
                                   {verifiedCounts.followingTotal > 0 && (
                                     <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-following">{verifiedCounts.following.toLocaleString()} of {verifiedCounts.followingTotal.toLocaleString()} verified</p>
                                   )}
+                                  {renderTierBadges("following")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1557,6 +1634,7 @@ export default function ProfilePage() {
                                   {verifiedCounts.mutedByTotal > 0 && verifiedCounts.mutedBy > 0 && (
                                     <p className="text-[10px] text-amber-600 font-medium mt-0.5" data-testid="text-verified-muted-by">{verifiedCounts.mutedBy.toLocaleString()} verified</p>
                                   )}
+                                  {renderTierBadges("muted_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1591,6 +1669,7 @@ export default function ProfilePage() {
                                   {verifiedCounts.reportedByTotal > 0 && verifiedCounts.reportedBy > 0 && (
                                     <p className="text-[10px] text-red-600 font-medium mt-0.5" data-testid="text-verified-reported-by">{verifiedCounts.reportedBy.toLocaleString()} verified</p>
                                   )}
+                                  {renderTierBadges("reported_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1621,6 +1700,7 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Muting</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person has muted</p>
+                                  {renderTierBadges("muting")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1651,6 +1731,7 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Reporting</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed by this person</p>
+                                  {renderTierBadges("reporting")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
