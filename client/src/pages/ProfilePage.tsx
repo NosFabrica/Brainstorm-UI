@@ -311,6 +311,63 @@ export default function ProfilePage() {
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
   }, [selfData, profileResult]);
 
+  const TIER_THRESHOLDS = [
+    { key: "high", name: "Highly Trusted", min: 0.50, color: "#22c55e", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-500" },
+    { key: "trusted", name: "Trusted", min: 0.20, color: "#4ade80", bg: "bg-green-50", text: "text-green-700", border: "border-green-200", ring: "stroke-green-500" },
+    { key: "neutral", name: "Neutral", min: 0.07, color: "#94a3b8", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
+    { key: "low", name: "Low Trust", min: 0.02, color: "#fbbf24", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
+    { key: "unverified", name: "Unverified", min: 0, color: "#991b1b", bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ring: "stroke-red-400" },
+  ];
+
+  const profileTier = useMemo(() => {
+    if (!profileResult || profileResult.influence === undefined) return null;
+    const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+    return TIER_THRESHOLDS.find(t => score >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1];
+  }, [profileResult]);
+
+  const confidenceGuidance = useMemo(() => {
+    if (!profileResult || profileResult.influence === undefined) return null;
+    const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+    const pct = Math.round(score * 100);
+    const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
+    if (pct >= 50) return { label: "High confidence", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", message: `Strong trust signals from your community for ${name}.` };
+    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-100", message: `Some trust signals present. Your network has limited data on ${name}.` };
+    if (pct >= 7) return { label: "Low confidence", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-100", message: `Weak or mixed signals from your trusted community for ${name}.` };
+    return { label: "Very low confidence", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", message: `Your community's signals suggest careful scrutiny before trusting ${name}.` };
+  }, [profileResult, nostrProfile]);
+
+  const verifiedCounts = useMemo(() => {
+    if (!profileResult) return { followers: 0, followersTotal: 0, following: 0, followingTotal: 0, mutedBy: 0, mutedByTotal: 0, reportedBy: 0, reportedByTotal: 0 };
+    const count = (arr: any) => {
+      const map = toInfluenceMap(arr);
+      let verified = 0;
+      map.forEach((inf) => { if (inf !== null && inf >= 0.02) verified++; });
+      return { verified, total: map.size };
+    };
+    const fb = count(profileResult.followed_by);
+    const fg = count(profileResult.following);
+    const mb = count(profileResult.muted_by);
+    const rb = count(profileResult.reported_by);
+    return { followers: fb.verified, followersTotal: fb.total, following: fg.verified, followingTotal: fg.total, mutedBy: mb.verified, mutedByTotal: mb.total, reportedBy: rb.verified, reportedByTotal: rb.total };
+  }, [profileResult]);
+
+  const followerTierBreakdown = useMemo(() => {
+    if (!profileResult || !Array.isArray(profileResult.followed_by)) return null;
+    const map = toInfluenceMap(profileResult.followed_by);
+    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+    map.forEach((inf) => {
+      const score = inf ?? 0;
+      if (score >= 0.50) counts.high++;
+      else if (score >= 0.20) counts.trusted++;
+      else if (score >= 0.07) counts.neutral++;
+      else if (score >= 0.02) counts.low++;
+      else counts.unverified++;
+    });
+    const total = map.size;
+    if (total === 0) return null;
+    return { counts, total };
+  }, [profileResult]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -951,14 +1008,10 @@ export default function ProfilePage() {
                           </button>
                         </div>
                       </div>
-                      {profileResult.influence !== undefined && (() => {
+                      {profileResult.influence !== undefined && profileTier && (() => {
                         const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
                         const score = Math.min(1, Math.max(0, rawScore));
                         const pct = Math.round(score * 100);
-                        const tier = pct >= 50 ? { label: "Trust Score", ring: "stroke-indigo-500", opacity: "1" }
-                          : pct >= 20 ? { label: "Trust Score", ring: "stroke-indigo-400", opacity: "0.85" }
-                          : pct >= 7 ? { label: "Trust Score", ring: "stroke-indigo-300", opacity: "0.7" }
-                          : { label: "Trust Score", ring: "stroke-indigo-200", opacity: "0.55" };
                         const circumference = 2 * Math.PI * 18;
                         const offset = circumference - (score * circumference);
                         return (
@@ -972,11 +1025,11 @@ export default function ProfilePage() {
                               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
                                 <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
                                 <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                                  className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out", opacity: tier.opacity }} />
+                                  className={profileTier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
                               </svg>
                               <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{pct}</span>
                             </div>
-                            <span className="text-[10px] sm:text-xs font-semibold text-indigo-600">{tier.label}</span>
+                            <span className={`text-[10px] sm:text-xs font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
                           </div>
                         );
                       })()}
@@ -997,6 +1050,16 @@ export default function ProfilePage() {
                         {aboutExpanded ? "Show less" : "Show more"}
                       </button>
                     )}
+                  </div>
+                )}
+
+                {confidenceGuidance && (
+                  <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} px-3 sm:px-4 py-2.5 flex items-center gap-2.5`} data-testid="banner-confidence-guidance">
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0`} style={{ backgroundColor: profileTier?.color || "#94a3b8" }} />
+                    <div className="flex-1 min-w-0">
+                      <span className={`text-xs font-bold ${confidenceGuidance.color}`} data-testid="text-confidence-label">{confidenceGuidance.label}</span>
+                      <span className="text-xs text-slate-500 ml-1.5">{confidenceGuidance.message}</span>
+                    </div>
                   </div>
                 )}
 
@@ -1096,7 +1159,11 @@ export default function ProfilePage() {
                   const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
                   const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0;
                   const totalNegativeSignals = mutedByCount + reportedByCount;
-                  const riskLevel = reportedByCount > 10 ? "High" : reportedByCount > 0 || mutedByCount > 30 ? "Medium" : mutedByCount > 0 ? "Low" : "None";
+                  const vMuted = verifiedCounts.mutedBy;
+                  const vReported = verifiedCounts.reportedBy;
+                  const riskLevel = vReported > 3 || reportedByCount > 10 ? "High"
+                    : vReported > 0 || reportedByCount > 0 || vMuted > 5 || mutedByCount > 30 ? "Medium"
+                    : mutedByCount > 0 ? "Low" : "None";
                   const riskColor = riskLevel === "High" ? "text-red-600" : riskLevel === "Medium" ? "text-amber-600" : riskLevel === "Low" ? "text-amber-500" : "text-emerald-600";
 
                   return (
@@ -1128,6 +1195,9 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Followers</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">People following this account</p>
+                                  {verifiedCounts.followersTotal > 0 && (
+                                    <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-followers">{verifiedCounts.followers.toLocaleString()} of {verifiedCounts.followersTotal.toLocaleString()} verified</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1159,6 +1229,9 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Following</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person follows</p>
+                                  {verifiedCounts.followingTotal > 0 && (
+                                    <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-following">{verifiedCounts.following.toLocaleString()} of {verifiedCounts.followingTotal.toLocaleString()} verified</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1228,6 +1301,48 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
+                    {followerTierBreakdown && followerTierBreakdown.total > 0 && (
+                      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden" data-testid="card-audience-quality">
+                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest">Audience Quality</h4>
+                          </div>
+                          <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">{followerTierBreakdown.total.toLocaleString()} followers</span>
+                        </div>
+                        <div className="px-3 sm:px-4 py-3 sm:py-4">
+                          <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
+                            {TIER_THRESHOLDS.map(tier => {
+                              const count = followerTierBreakdown.counts[tier.key] || 0;
+                              if (count === 0) return null;
+                              const widthPct = (count / followerTierBreakdown.total) * 100;
+                              return (
+                                <div
+                                  key={tier.key}
+                                  className="h-full transition-all duration-500"
+                                  style={{ width: `${widthPct}%`, backgroundColor: tier.color, minWidth: widthPct > 0 ? "2px" : "0" }}
+                                  title={`${tier.name}: ${count}`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2.5">
+                            {TIER_THRESHOLDS.map(tier => {
+                              const count = followerTierBreakdown.counts[tier.key] || 0;
+                              if (count === 0) return null;
+                              return (
+                                <div key={tier.key} className="flex items-center gap-1.5" data-testid={`legend-tier-${tier.key}`}>
+                                  <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: tier.color }} />
+                                  <span className="text-[10px] text-slate-500 font-medium">{tier.name}</span>
+                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{count.toLocaleString()}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -1255,6 +1370,9 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Muted By</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Others who muted this account</p>
+                                  {verifiedCounts.mutedByTotal > 0 && verifiedCounts.mutedBy > 0 && (
+                                    <p className="text-[10px] text-amber-600 font-medium mt-0.5" data-testid="text-verified-muted-by">{verifiedCounts.mutedBy.toLocaleString()} verified</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1286,6 +1404,9 @@ export default function ProfilePage() {
                                 <div>
                                   <p className="text-xs sm:text-sm font-semibold text-slate-700">Reported By</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed against this account</p>
+                                  {verifiedCounts.reportedByTotal > 0 && verifiedCounts.reportedBy > 0 && (
+                                    <p className="text-[10px] text-red-600 font-medium mt-0.5" data-testid="text-verified-reported-by">{verifiedCounts.reportedBy.toLocaleString()} verified</p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1376,9 +1497,9 @@ export default function ProfilePage() {
                               </span>
                             </div>
                             <p className="text-xs text-amber-800/70 leading-relaxed mt-1">
-                              This account has been {mutedByCount > 0 ? `muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}` : ""}
+                              This account has been {mutedByCount > 0 ? `muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}` : ""}
                               {mutedByCount > 0 && reportedByCount > 0 ? " and " : ""}
-                              {reportedByCount > 0 ? `reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}` : ""}.
+                              {reportedByCount > 0 ? `reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}` : ""}.
                               Exercise due diligence when evaluating this identity.
                             </p>
                           </div>
