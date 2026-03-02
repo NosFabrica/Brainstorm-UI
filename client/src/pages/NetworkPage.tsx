@@ -674,8 +674,8 @@ export default function NetworkPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const selfData = selfQuery.data?.data || selfQuery.data;
-  const networkData = selfData?.graph || selfData || null;
+  const selfData = selfQuery.data?.data;
+  const networkData = selfData?.graph || null;
   const isLoading = selfQuery.isLoading;
 
   useEffect(() => {
