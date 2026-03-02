@@ -1,5 +1,6 @@
 import { nip19 } from "nostr-tools";
-import { EventStore } from "applesauce-core";
+import { RelayPool } from "applesauce-relay";
+import { EventStore, firstValueFrom } from "applesauce-core";
 import {
   getProfileContent,
   getDisplayName,
@@ -65,17 +66,43 @@ export function updateCurrentUser(updates: Partial<NostrUser>) {
   setCurrentUser(updated);
 }
 
-export async function fetchProfileFromServer(pubkey: string): Promise<ProfileContent | undefined> {
-  try {
-    const resp = await fetch(`/api/profile/${pubkey}`, {
-      signal: AbortSignal.timeout(15000),
+const PROFILE_RELAYS = [
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.primal.net",
+  "wss://purplepag.es",
+  "wss://nostr.wine",
+];
+
+const pool = new RelayPool();
+
+export function fetchProfiles(
+  pubkeys: string[],
+  onProfile?: (pubkey: string, profile: ProfileContent) => void
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }).subscribe({
+      next: (event) => {
+        try { 
+          if (eventStore.add(event)) {
+            if (onProfile && isValidProfile(event)) {
+              const content = getProfileContent(event);
+              if (content) onProfile(event.pubkey, content);
+            }
+          }; 
+        } catch {}
+      },
+      error: () => resolve(),
+      complete: () => resolve(),
     });
-    if (!resp.ok) return undefined;
+  });
+}
 
-    const data = await resp.json();
-    if (!data?.event) return undefined;
+export async function fetchProfile(pubkey: string): Promise<ProfileContent | undefined> {
+  try {
+    const event = await firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [0], authors: [pubkey] }));
 
-    const event = data.event;
+    if (!event) return undefined;
 
     try {
       eventStore.add(event as any);
@@ -172,75 +199,20 @@ export async function publishToRelays(
   signedEvent: Record<string, unknown>,
   relays: string[] = DEFAULT_PUBLISH_RELAYS
 ): Promise<{ success: boolean; relay?: string; error?: string }> {
-  const relayPromises = relays.map(
-    (relayUrl) =>
-      new Promise<{ success: true; relay: string }>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          try { ws.close(); } catch {}
-          reject(new Error(`Timeout connecting to ${relayUrl}`));
-        }, 10000);
-
-        let ws: WebSocket;
-        try {
-          ws = new WebSocket(relayUrl);
-        } catch {
-          clearTimeout(timeout);
-          reject(new Error(`Failed to create WebSocket for ${relayUrl}`));
-          return;
-        }
-
-        ws.onopen = () => {
-          ws.send(JSON.stringify(["EVENT", signedEvent]));
-        };
-
-        ws.onmessage = (msg) => {
-          try {
-            const data = JSON.parse(msg.data as string);
-            if (Array.isArray(data) && data[0] === "OK") {
-              clearTimeout(timeout);
-              try { ws.close(); } catch {}
-              resolve({ success: true, relay: relayUrl });
-            }
-          } catch {}
-        };
-
-        ws.onerror = () => {
-          clearTimeout(timeout);
-          try { ws.close(); } catch {}
-          reject(new Error(`WebSocket error for ${relayUrl}`));
-        };
-
-        ws.onclose = () => {
-          clearTimeout(timeout);
-        };
-      })
-  );
-
   try {
-    const result = await Promise.any(relayPromises);
-    return result;
+    const responses = await pool.publish(relays, signedEvent as any);
+    const succeeded = responses.find(r => r.ok);
+    if (succeeded) return { success: true, relay: succeeded.from };
+    return { success: false, error: responses[0]?.message || "All relays failed" };
   } catch {
-    try {
-      const resp = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event: signedEvent }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        return { success: true, relay: data.relay || "server-proxy" };
-      }
-      return { success: false, error: "All relays failed and server fallback failed" };
-    } catch {
-      return { success: false, error: "All relays failed" };
-    }
+    return { success: false, error: "All relays failed" };
   }
 }
 
-export async function signAndPublishNip85(
+export async function signNip85(
   serviceKey: string,
-  relayHint: string = "wss://testnip85.nosfabrica.com"
-): Promise<{ success: boolean; error?: string }> {
+  relayHint: string
+): Promise<Record<string, unknown>> {
   if (!window.nostr) {
     return { success: false, error: "No Nostr extension found" };
   }
@@ -258,20 +230,7 @@ export async function signAndPublishNip85(
     pubkey: user.pubkey,
   };
 
-  try {
-    const signedEvent = await window.nostr.signEvent(event);
-    const result = await publishToRelays(signedEvent);
-    if (result.success) {
-      localStorage.setItem("brainstorm_nip85_activated", "true");
-      return { success: true };
-    }
-    return { success: false, error: result.error || "Publishing failed" };
-  } catch (err: any) {
-    if (err?.message?.includes("denied") || err?.message?.includes("rejected") || err?.message?.includes("cancel")) {
-      return { success: false, error: "cancelled" };
-    }
-    return { success: false, error: err?.message || "Signing failed" };
-  }
+  return await window.nostr.signEvent(event);
 }
 
 export { eventStore };

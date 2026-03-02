@@ -36,7 +36,8 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
+import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
@@ -185,7 +186,7 @@ interface NetworkProfileCardProps {
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
-  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
+  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -589,6 +590,22 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
   );
 });
 
+function sortByTrustScore(
+  scoreMap: Map<string, number | null>,
+  direction: "asc" | "desc"
+): (a: string, b: string) => number {
+  return (a, b) => {
+    const scoreA = scoreMap.get(a);
+    const scoreB = scoreMap.get(b);
+    const hasA = typeof scoreA === "number";
+    const hasB = typeof scoreB === "number";
+    if (!hasA && !hasB) return 0;
+    if (!hasA) return 1;
+    if (!hasB) return -1;
+    return direction === "desc" ? scoreB! - scoreA! : scoreA! - scoreB!;
+  };
+}
+
 export default function NetworkPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
@@ -680,33 +697,34 @@ export default function NetworkPage() {
     loadNetwork();
   }, [user]);
 
-  const fetchProfiles = useCallback(async (pubkeys: string[]) => {
+  const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
-    const batchSize = 10;
-    for (let i = 0; i < unfetched.length; i += batchSize) {
-      const batch = unfetched.slice(i, i + batchSize);
-      const results = await Promise.allSettled(
-        batch.map(pk => fetch(`/api/profile/${pk}`).then(r => r.json()))
-      );
-      results.forEach((res, idx) => {
-        if (res.status === "fulfilled" && res.value?.event) {
-          try {
-            const meta = JSON.parse(res.value.event.content);
-            profileCache.current.set(batch[idx], meta);
-          } catch {
-            profileCache.current.set(batch[idx], null);
-          }
-        } else {
-          profileCache.current.set(batch[idx], null);
+    const cached: string[] = [];
+    const missing: string[] = [];
+    for (const pk of unfetched) {
+      const event = eventStore.getReplaceable(0, pk);
+      if (event) {
+        if (isValidProfile(event)) {
+          profileCache.current.set(pk, getProfileContent(event));
         }
+        cached.push(pk);
+      } else {
+        missing.push(pk);
+      }
+    }
+    const batchSize = 400;
+    for (let i = 0; i < missing.length; i += batchSize) {
+      const batch = missing.slice(i, i + batchSize);
+      await fetchProfiles(batch, (pubkey, profile) => {
+        profileCache.current.set(pubkey, profile);
+        setLoadedCount(prev => prev + 1);
       });
-      setLoadedCount(prev => prev + batch.length);
     }
   }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
     const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
-    if (unfetched.length === 0) return;
+    if (unfetched.length === 0) { return; }
     const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
@@ -842,79 +860,6 @@ export default function NetworkPage() {
     return pubkeys;
   }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, getVerifiedPubkeys, verifiedOnly, loadedCount, trustLoadedCount]);
 
-  useEffect(() => {
-    if (!verifiedOnly) return;
-    const allPksSet = new Set<string>();
-    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"];
-    for (const gk of allGroups) {
-      for (const pk of getGroupPubkeys(gk)) {
-        allPksSet.add(pk);
-      }
-    }
-    const allPks = Array.from(allPksSet);
-    if (allPks.length > 0) {
-      fetchTrustScores(allPks);
-    }
-  }, [networkData, verifiedOnly, getGroupPubkeys, fetchTrustScores]);
-
-  useEffect(() => {
-    const pubkeys = getGroupPubkeys(activeGroup);
-    if (pubkeys.length > 0) {
-      fetchProfiles(pubkeys);
-    }
-  }, [activeGroup, networkData, fetchProfiles, getGroupPubkeys]);
-
-  useEffect(() => {
-    if (trustFilter !== "all") {
-      const allGroupPubkeys = getGroupPubkeys(activeGroup);
-      if (allGroupPubkeys.length > 0) {
-        fetchTrustScores(allGroupPubkeys);
-      }
-    } else {
-      const visible = filteredPubkeys();
-      if (visible.length === 0) return;
-      const totalPages = Math.ceil(visible.length / PAGE_SIZE);
-      const safePage = Math.min(currentPage, totalPages || 1);
-      const startIdx = (safePage - 1) * PAGE_SIZE;
-      const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
-      if (pageItems.length > 0) {
-        fetchTrustScores(pageItems);
-      }
-      if (safePage < totalPages) {
-        const nextStart = safePage * PAGE_SIZE;
-        const nextPageItems = visible.slice(nextStart, nextStart + PAGE_SIZE);
-        if (nextPageItems.length > 0) {
-          fetchProfiles(nextPageItems);
-          fetchTrustScores(nextPageItems);
-        }
-      }
-    }
-  }, [filteredPubkeys, currentPage, fetchTrustScores, fetchProfiles, trustFilter, activeGroup, getGroupPubkeys]);
-
-  useEffect(() => {
-    const visible = filteredPubkeys();
-    if (visible.length === 0) return;
-    const totalPages = Math.ceil(visible.length / PAGE_SIZE);
-    const safePage = Math.min(currentPage, totalPages || 1);
-    const startIdx = (safePage - 1) * PAGE_SIZE;
-    const pageItems = visible.slice(startIdx, startIdx + PAGE_SIZE);
-
-    const muterReporterPks = new Set<string>();
-    for (const pk of pageItems) {
-      const gData = graphDataCache.current.get(pk);
-      if (!gData) continue;
-      for (const m of gData.muted_by || []) {
-        if (!trustCache.current.has(m)) muterReporterPks.add(m);
-      }
-      for (const r of gData.reported_by || []) {
-        if (!trustCache.current.has(r)) muterReporterPks.add(r);
-      }
-    }
-    if (muterReporterPks.size > 0) {
-      fetchTrustScores(Array.from(muterReporterPks));
-    }
-  }, [trustLoadedCount, filteredPubkeys, currentPage, fetchTrustScores]);
-
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -934,18 +879,73 @@ export default function NetworkPage() {
 
   const visiblePubkeys = useMemo(() => {
     const pks = filteredPubkeys();
-    return [...pks].sort((a, b) => {
-      const scoreA = trustCache.current.get(a);
-      const scoreB = trustCache.current.get(b);
-      const hasA = typeof scoreA === "number";
-      const hasB = typeof scoreB === "number";
-      if (!hasA && !hasB) return 0;
-      if (!hasA) return 1;
-      if (!hasB) return -1;
-      return sortDirection === "desc" ? scoreB! - scoreA! : scoreA! - scoreB!;
-    });
-  }, [filteredPubkeys, sortDirection, trustLoadedCount]);
+    return [...pks].sort(sortByTrustScore(trustCache.current, sortDirection));
+  }, [filteredPubkeys, sortDirection, trustFilter, trustLoadedCount]);
 
+  const visiblePubkeyPage = useMemo(() => {
+    const totalPages = Math.ceil(visiblePubkeys.length / PAGE_SIZE);
+    const safePage = Math.min(currentPage, totalPages || 1);
+    const startIdx = (safePage - 1) * PAGE_SIZE;
+
+    if (safePage < totalPages) {
+      const nextIdx = safePage * PAGE_SIZE;
+      return {
+        totalPages: totalPages,
+        startIdx: startIdx,
+        safePage: safePage, 
+        nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
+        totalItems: visiblePubkeys.length,
+        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
+        nextPage: {
+          totalPages: totalPages,
+          startIdx: nextIdx,
+          safePage: safePage, 
+          nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
+          totalItems: visiblePubkeys.length,
+          items: visiblePubkeys.slice(nextIdx, nextIdx + PAGE_SIZE)
+        }
+      }
+    } else {
+      return {
+        totalPages: totalPages,
+        startIdx: startIdx,
+        safePage: safePage, 
+        nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
+        totalItems: visiblePubkeys.length,
+        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE)
+      }
+    }
+  }, [currentPage, visiblePubkeys.length, loadedCount]);
+
+  useEffect(() => {
+    const pageItems = visiblePubkeyPage.items
+    if (pageItems.length > 0) {
+      fetchProfilesCallback(pageItems);
+      fetchTrustScores(pageItems);
+    }
+    if (visiblePubkeyPage.nextPage) {
+      if (visiblePubkeyPage.nextPage.items.length > 0) {
+        fetchProfilesCallback(visiblePubkeyPage.nextPage.items);
+        fetchTrustScores(visiblePubkeyPage.nextPage.items);
+      }
+    }
+
+    const muterReporterPks = new Set<string>();
+    for (const pk of pageItems) {
+      const gData = graphDataCache.current.get(pk);
+      if (!gData) continue;
+      for (const m of gData.muted_by || []) {
+        if (!trustCache.current.has(m)) muterReporterPks.add(m);
+      }
+      for (const r of gData.reported_by || []) {
+        if (!trustCache.current.has(r)) muterReporterPks.add(r);
+      }
+    }
+    if (muterReporterPks.size > 0) {
+      fetchTrustScores(Array.from(muterReporterPks));
+    }
+  }, [visiblePubkeyPage]);
+  
   if (!user) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
@@ -1497,15 +1497,10 @@ export default function NetworkPage() {
           ) : (
             <>
               {(() => {
-                const totalPages = Math.ceil(visiblePubkeys.length / PAGE_SIZE);
-                const safePage = Math.min(currentPage, totalPages || 1);
-                const startIdx = (safePage - 1) * PAGE_SIZE;
-                const pageItems = visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE);
-
                 return (
                   <>
                     <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} data-testid="grid-network-profiles">
-                      {pageItems.map((pk) => (
+                      {visiblePubkeyPage.items.map((pk) => (
                         <div key={pk} className={viewMode === "grid" ? "contents" : ""}>
                           <NetworkProfileCard
                             pk={pk}
@@ -1533,30 +1528,30 @@ export default function NetworkPage() {
 
                     <div className="flex items-center justify-between gap-4 pt-4" data-testid="row-pagination">
                       <span className="text-xs text-slate-500">
-                        {startIdx + 1}&ndash;{Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length)} of {visiblePubkeys.length}
+                        {visiblePubkeyPage.startIdx + 1}&ndash;{visiblePubkeyPage.nextItemStart} of {visiblePubkeyPage.totalItems}
                       </span>
-                      {totalPages > 1 && (
+                      {visiblePubkeyPage.totalPages > 1 && (
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             className="gap-1.5 text-xs"
-                            disabled={safePage <= 1}
-                            onClick={() => { setCurrentPage(safePage - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            disabled={visiblePubkeyPage.safePage <= 1}
+                            onClick={() => { setCurrentPage(visiblePubkeyPage.safePage - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                             data-testid="button-page-prev"
                           >
                             <ChevronLeft className="h-3.5 w-3.5" />
                             Previous
                           </Button>
                           <span className="text-xs font-medium text-slate-600 tabular-nums px-2" data-testid="text-page-indicator">
-                            {safePage} / {totalPages}
+                            {visiblePubkeyPage.safePage} / {visiblePubkeyPage.totalPages}
                           </span>
                           <Button
                             variant="outline"
                             size="sm"
                             className="gap-1.5 text-xs"
-                            disabled={safePage >= totalPages}
-                            onClick={() => { setCurrentPage(safePage + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            disabled={visiblePubkeyPage.safePage >= visiblePubkeyPage.totalPages}
+                            onClick={() => { setCurrentPage(visiblePubkeyPage.safePage + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                             data-testid="button-page-next"
                           >
                             Next
