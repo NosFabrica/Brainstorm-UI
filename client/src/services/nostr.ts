@@ -229,7 +229,7 @@ export async function signNip85(
     kind: 10040,
     tags: [
       ["30382:rank", serviceKey, relayHint],
-      ["30382:followers", serviceKey, relayHint],
+      ["30382:followers", serviceKey, relayHint]
     ],
     content: "",
     created_at: Math.floor(Date.now() / 1000),
