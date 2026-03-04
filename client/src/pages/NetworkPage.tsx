@@ -359,6 +359,16 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 {detailMetrics.map((m) => {
                   const raw = detail[m.key];
                   const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
+                  const isVerifiable = m.key === "followed_by" || m.key === "following";
+                  let verifiedCount = 0;
+                  let hasVerifiedData = false;
+                  if (isVerifiable && Array.isArray(raw)) {
+                    const infMap = toInfluenceMap(raw);
+                    infMap.forEach((score) => {
+                      if (typeof score === "number" && score >= 0.02) verifiedCount++;
+                    });
+                    hasVerifiedData = infMap.size > 0 && Array.from(infMap.values()).some(v => v !== null);
+                  }
                   return (
                     <div
                       key={m.key}
@@ -370,9 +380,14 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                       </div>
                       <div className="min-w-0">
                         <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
-                          {count.toLocaleString()}
+                          {isVerifiable && hasVerifiedData ? verifiedCount.toLocaleString() : count.toLocaleString()}
                         </p>
-                        <p className="text-[10px] text-slate-400 leading-tight truncate">{m.label}</p>
+                        <p className="text-[10px] text-slate-400 leading-tight truncate">
+                          {isVerifiable && hasVerifiedData ? `Verified ${m.label}` : m.label}
+                        </p>
+                        {isVerifiable && hasVerifiedData && (
+                          <p className="text-[9px] text-slate-400 font-mono tabular-nums">of {count.toLocaleString()} total</p>
+                        )}
                       </div>
                     </div>
                   );
