@@ -22,7 +22,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
     - **What is WoT? Page:** An educational resource with interactive trust scenarios.
     - **NIP-85 Service Provider Activation:** A guided process for activating Brainstorm as a NIP-85 service provider.
     - **Settings Page:** Manages NIP-85 status, GrapeRank calculation triggers, and trust perspective settings.
-- **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, defers profile fetching to the dashboard, and uses branded loading animations.
+- **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, defers profile fetching to the dashboard, and uses branded loading animations. Network page search uses on-demand debounced profile fetching (500ms delay, batches of 50, max 500 uncached profiles) instead of eager bulk loading — keeps initial page load fast while enabling name-based search across the full group.
 
 ## External Dependencies
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.

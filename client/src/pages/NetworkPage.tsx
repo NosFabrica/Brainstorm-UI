@@ -747,6 +747,8 @@ export default function NetworkPage() {
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchAbortRef = useRef(0);
   const { toast } = useToast();
   const social = useSocialActions(user?.pubkey);
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
@@ -918,15 +920,17 @@ export default function NetworkPage() {
   }, [getGroupPubkeys, getVerifiedPubkeys, verifiedOnly]);
 
   const filteredPubkeys = useCallback(() => {
-    let pubkeys = verifiedOnly && isVerifiableGroup(activeGroup) && trustFilter !== "flagged"
-      ? getVerifiedPubkeys(activeGroup)
-      : getGroupPubkeys(activeGroup);
-    if (searchFilter.trim()) {
+    const hasSearch = !!searchFilter.trim();
+    let pubkeys = (hasSearch || !verifiedOnly || !isVerifiableGroup(activeGroup) || trustFilter === "flagged")
+      ? getGroupPubkeys(activeGroup)
+      : getVerifiedPubkeys(activeGroup);
+    if (hasSearch) {
       const query = searchFilter.trim().toLowerCase();
       pubkeys = pubkeys.filter(pk => {
         const profile = profileCache.current.get(pk);
         const npub = nip19.npubEncode(pk);
         if (npub.toLowerCase().includes(query)) return true;
+        if (pk.toLowerCase().includes(query)) return true;
         if (profile) {
           if (profile.name?.toLowerCase().includes(query)) return true;
           if (profile.display_name?.toLowerCase().includes(query)) return true;
@@ -952,7 +956,7 @@ export default function NetworkPage() {
       } else {
         pubkeys = pubkeys.filter(pk => {
           const influence = trustCache.current.get(pk);
-          if (influence === undefined) return true;
+          if (influence === undefined) return false;
           if (influence === null) return false;
           const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
           if (trustFilter === "high") return pct >= 50;
@@ -965,6 +969,39 @@ export default function NetworkPage() {
     }
     return pubkeys;
   }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, getVerifiedPubkeys, verifiedOnly, loadedCount, trustLoadedCount]);
+
+  useEffect(() => {
+    const query = searchFilter.trim();
+    if (query.length < 3) {
+      setSearchLoading(false);
+      return;
+    }
+    const abortId = ++searchAbortRef.current;
+    const timer = setTimeout(async () => {
+      const allPks = getGroupPubkeys(activeGroup);
+      const uncached = allPks.filter(pk => !profileCache.current.has(pk));
+      if (uncached.length === 0) return;
+
+      setSearchLoading(true);
+      const BATCH = 50;
+      const MAX = 500;
+      const toFetch = uncached.slice(0, MAX);
+      for (let i = 0; i < toFetch.length; i += BATCH) {
+        if (searchAbortRef.current !== abortId) break;
+        const batch = toFetch.slice(i, i + BATCH);
+        await fetchProfilesCallback(batch);
+      }
+      if (searchAbortRef.current === abortId) {
+        setSearchLoading(false);
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      searchAbortRef.current++;
+      setSearchLoading(false);
+    };
+  }, [searchFilter, activeGroup, getGroupPubkeys, fetchProfilesCallback]);
 
   const handleLogout = () => {
     logout();
@@ -1547,7 +1584,11 @@ export default function NetworkPage() {
                 <div className="relative group/input flex-1">
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                   <div className="relative flex items-center">
-                    <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
+                    {searchLoading ? (
+                      <Loader2 className="absolute left-3 h-4 w-4 text-indigo-500 z-10 animate-spin" />
+                    ) : (
+                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
+                    )}
                     <Input
                       placeholder="Search by name or npub..."
                       className="relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9"
