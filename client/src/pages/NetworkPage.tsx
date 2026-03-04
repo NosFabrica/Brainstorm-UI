@@ -19,6 +19,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  VolumeX,
+  Volume2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +48,8 @@ import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon } from "@/components/WotIcons";
+import { useSocialActions } from "@/hooks/useSocialActions";
+import { useToast } from "@/hooks/use-toast";
 
 const FollowersIcon = NodeFollowersIcon;
 const FollowingIcon = NodeFollowingIcon;
@@ -181,17 +188,28 @@ interface NetworkProfileCardProps {
   onCloseDetail: () => void;
   onNavigate: (path: string) => void;
   getPubkeyGroups: (pk: string) => GroupKey[];
+  isSelf: boolean;
+  isFollowingUser: boolean;
+  isMutedUser: boolean;
+  onFollow: (pk: string) => Promise<{ success: boolean; error?: string }>;
+  onUnfollow: (pk: string) => Promise<{ success: boolean; error?: string }>;
+  onMute: (pk: string) => Promise<{ success: boolean; error?: string }>;
+  onUnmute: (pk: string) => Promise<{ success: boolean; error?: string }>;
+  socialPending: boolean;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
-  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups
+  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
+  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
   const displayName = profile?.display_name || profile?.name || displayNpub;
   const pkShort = pk.slice(0, 8);
+  const [cardFollowHovered, setCardFollowHovered] = useState(false);
+  const [cardActionPending, setCardActionPending] = useState<string | null>(null);
 
   const getVerifiedFlagCounts = () => {
     if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
@@ -436,6 +454,77 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                   ) : null;
                 })()}
                 {renderVerifiedFlags()}
+                {!isSelf && (
+                  <div className="flex items-center gap-1.5" data-testid={`detail-social-actions-${pkShort}`}>
+                    <button
+                      type="button"
+                      disabled={cardActionPending !== null || socialPending}
+                      onMouseEnter={() => isFollowingUser && setCardFollowHovered(true)}
+                      onMouseLeave={() => setCardFollowHovered(false)}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setCardActionPending("follow");
+                        try {
+                          if (isFollowingUser) await onUnfollow(pk);
+                          else await onFollow(pk);
+                        } finally {
+                          setCardActionPending(null);
+                          setCardFollowHovered(false);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                        isFollowingUser
+                          ? cardFollowHovered
+                            ? "bg-red-50 border border-red-200 text-red-600"
+                            : "bg-white border border-slate-200 text-slate-600"
+                          : "bg-[#3730a3] text-white hover:bg-[#312e81]"
+                      }`}
+                      data-testid={`button-follow-${pkShort}`}
+                    >
+                      {cardActionPending === "follow" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isFollowingUser ? (
+                        cardFollowHovered ? <UserMinus className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />
+                      ) : (
+                        <UserPlus className="h-3 w-3" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {cardActionPending === "follow" ? "..." : isFollowingUser ? (cardFollowHovered ? "Unfollow" : "Following") : "Follow"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={cardActionPending !== null || socialPending}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setCardActionPending("mute");
+                        try {
+                          if (isMutedUser) await onUnmute(pk);
+                          else await onMute(pk);
+                        } finally {
+                          setCardActionPending(null);
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
+                        isMutedUser
+                          ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                      }`}
+                      data-testid={`button-mute-${pkShort}`}
+                    >
+                      {cardActionPending === "mute" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : isMutedUser ? (
+                        <Volume2 className="h-3 w-3" />
+                      ) : (
+                        <VolumeX className="h-3 w-3" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {cardActionPending === "mute" ? "..." : isMutedUser ? "Unmute" : "Mute"}
+                      </span>
+                    </button>
+                  </div>
+                )}
                 <button
                   className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
                   onClick={(e) => { e.stopPropagation(); onNavigate(`/profile/${npub}?fromGroup=${activeGroup}`); }}
@@ -658,6 +747,8 @@ export default function NetworkPage() {
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
+  const { toast } = useToast();
+  const social = useSocialActions(user?.pubkey);
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
     queryKey: ["/api/auth/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
@@ -891,6 +982,34 @@ export default function NetworkPage() {
   const handleCloseDetail = useCallback(() => {
     setExpandedPubkey(null);
   }, []);
+
+  const handleSocialFollow = useCallback(async (pk: string) => {
+    const result = await social.follow(pk);
+    if (result.success) toast({ title: "Followed", description: "Added to your contact list" });
+    else toast({ title: "Error", description: result.error || "Follow failed", variant: "destructive" });
+    return result;
+  }, [social, toast]);
+
+  const handleSocialUnfollow = useCallback(async (pk: string) => {
+    const result = await social.unfollow(pk);
+    if (result.success) toast({ title: "Unfollowed", description: "Removed from your contact list" });
+    else toast({ title: "Error", description: result.error || "Unfollow failed", variant: "destructive" });
+    return result;
+  }, [social, toast]);
+
+  const handleSocialMute = useCallback(async (pk: string) => {
+    const result = await social.mute(pk);
+    if (result.success) toast({ title: "Muted", description: "Added to your mute list" });
+    else toast({ title: "Error", description: result.error || "Mute failed", variant: "destructive" });
+    return result;
+  }, [social, toast]);
+
+  const handleSocialUnmute = useCallback(async (pk: string) => {
+    const result = await social.unmute(pk);
+    if (result.success) toast({ title: "Unmuted", description: "Removed from your mute list" });
+    else toast({ title: "Error", description: result.error || "Unmute failed", variant: "destructive" });
+    return result;
+  }, [social, toast]);
 
   const visiblePubkeys = useMemo(() => {
     const pks = filteredPubkeys();
@@ -1536,6 +1655,14 @@ export default function NetworkPage() {
                             onCloseDetail={handleCloseDetail}
                             onNavigate={navigate}
                             getPubkeyGroups={getPubkeyGroups}
+                            isSelf={user?.pubkey === pk}
+                            isFollowingUser={social.isFollowing(pk)}
+                            isMutedUser={social.isMuted(pk)}
+                            onFollow={handleSocialFollow}
+                            onUnfollow={handleSocialUnfollow}
+                            onMute={handleSocialMute}
+                            onUnmute={handleSocialUnmute}
+                            socialPending={social.isAnyPending}
                           />
                         </div>
                       ))}

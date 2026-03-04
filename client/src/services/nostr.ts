@@ -66,7 +66,7 @@ export function updateCurrentUser(updates: Partial<NostrUser>) {
   setCurrentUser(updated);
 }
 
-const PROFILE_RELAYS = [
+export const PROFILE_RELAYS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
   "wss://relay.primal.net",
@@ -190,7 +190,7 @@ export function logout() {
   queryClient.clear();
 }
 
-const DEFAULT_PUBLISH_RELAYS = [
+export const DEFAULT_PUBLISH_RELAYS = [
   "wss://relay.damus.io",
   "wss://relay.nostr.band",
   "wss://nos.lol",
@@ -239,4 +239,4 @@ export async function signNip85(
   return await window.nostr.signEvent(event);
 }
 
-export { eventStore };
+export { eventStore, pool };

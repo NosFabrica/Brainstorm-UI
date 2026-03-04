@@ -21,6 +21,13 @@ import {
   Shield,
   ShieldAlert,
   ShieldX,
+  UserPlus,
+  UserCheck,
+  UserMinus,
+  VolumeX,
+  Volume2,
+  Flag,
+  MoreVertical,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,10 +44,20 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+import { useSocialActions } from "@/hooks/useSocialActions";
+import { useToast } from "@/hooks/use-toast";
 
 const FollowersIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -152,6 +169,24 @@ export default function ProfilePage() {
   const [filterDropdownOpen, setFilterDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("spam");
+  const [followHovered, setFollowHovered] = useState(false);
+  const { toast } = useToast();
+
+  const hexPubkey = useMemo(() => {
+    try {
+      if (/^npub1[02-9ac-hj-np-z]{20,}$/i.test(npubParam)) {
+        const decoded = nip19.decode(npubParam);
+        if (decoded.type === "npub" && typeof decoded.data === "string") return decoded.data;
+      } else if (/^[0-9a-f]{64}$/i.test(npubParam)) {
+        return npubParam.toLowerCase();
+      }
+    } catch {}
+    return "";
+  }, [npubParam]);
+
+  const social = useSocialActions(user?.pubkey);
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/api/auth/graperankResult"],
@@ -1270,6 +1305,97 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
+                        {hexPubkey && !social.isSelf(hexPubkey) && (
+                          <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
+                            {(() => {
+                              const following = social.isFollowing(hexPubkey);
+                              const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={pending || social.isAnyPending}
+                                  onMouseEnter={() => following && setFollowHovered(true)}
+                                  onMouseLeave={() => setFollowHovered(false)}
+                                  onClick={async () => {
+                                    const result = following
+                                      ? await social.unfollow(hexPubkey)
+                                      : await social.follow(hexPubkey);
+                                    if (result.success) {
+                                      toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
+                                    } else {
+                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                                    }
+                                    setFollowHovered(false);
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-3 sm:px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                                    following
+                                      ? followHovered
+                                        ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                        : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                                      : "bg-[#3730a3] text-white hover:bg-[#312e81] shadow-sm"
+                                  }`}
+                                  data-testid="button-follow-toggle"
+                                >
+                                  {pending ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : following ? (
+                                    followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                  )}
+                                  <span className="hidden sm:inline">
+                                    {pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}
+                                  </span>
+                                </button>
+                              );
+                            })()}
+                            {(() => {
+                              const muted = social.isMuted(hexPubkey);
+                              const pending = social.isPending("mute", hexPubkey) || social.isPending("unmute", hexPubkey);
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={pending || social.isAnyPending}
+                                  onClick={async () => {
+                                    const result = muted
+                                      ? await social.unmute(hexPubkey)
+                                      : await social.mute(hexPubkey);
+                                    if (result.success) {
+                                      toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
+                                    } else {
+                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                                    }
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
+                                    muted
+                                      ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                                  }`}
+                                  data-testid="button-mute-toggle"
+                                >
+                                  {pending ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : muted ? (
+                                    <Volume2 className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <VolumeX className="h-3.5 w-3.5" />
+                                  )}
+                                  <span className="hidden sm:inline">{pending ? "..." : muted ? "Unmute" : "Mute"}</span>
+                                </button>
+                              );
+                            })()}
+                            <button
+                              type="button"
+                              disabled={social.isAnyPending}
+                              onClick={() => setReportDialogOpen(true)}
+                              className="inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border bg-white border-slate-200 text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-50 disabled:pointer-events-none"
+                              data-testid="button-report"
+                            >
+                              <Flag className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Report</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                       {profileResult.influence !== undefined && profileTier && (() => {
                         const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
@@ -1844,6 +1970,80 @@ export default function ProfilePage() {
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl border-slate-200/80 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Report User</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              This will publish a kind 1984 report event to Nostr relays. Choose a reason below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-3">
+            {[
+              { value: "spam", label: "Spam", desc: "Unsolicited or repetitive content" },
+              { value: "impersonation", label: "Impersonation", desc: "Pretending to be someone else" },
+              { value: "nudity", label: "Inappropriate Content", desc: "Offensive or explicit material" },
+              { value: "other", label: "Other", desc: "Another reason not listed above" },
+            ].map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                  reportReason === opt.value
+                    ? "border-indigo-300 bg-indigo-50/60 shadow-sm"
+                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                }`}
+                data-testid={`report-option-${opt.value}`}
+              >
+                <input
+                  type="radio"
+                  name="report-reason"
+                  value={opt.value}
+                  checked={reportReason === opt.value}
+                  onChange={() => setReportReason(opt.value)}
+                  className="mt-0.5 accent-[#3730a3]"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setReportDialogOpen(false)}
+              className="flex-1 sm:flex-none h-9 px-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              data-testid="button-report-cancel"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
+              onClick={async () => {
+                const result = await social.report(hexPubkey, reportReason);
+                if (result.success) {
+                  toast({ title: "Reported", description: "Report published to Nostr relays" });
+                  setReportDialogOpen(false);
+                } else {
+                  toast({ title: "Error", description: result.error || "Failed to report", variant: "destructive" });
+                }
+              }}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-9 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              data-testid="button-report-confirm"
+            >
+              {social.isPending("report", hexPubkey) ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Flag className="h-3.5 w-3.5" />
+              )}
+              Submit Report
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Footer />
     </div>
   );
