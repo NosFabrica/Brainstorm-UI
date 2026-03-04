@@ -227,7 +227,10 @@ export async function signNip85(
 
   const event = {
     kind: 10040,
-    tags: [["30382:rank", serviceKey, relayHint]],
+    tags: [
+      ["30382:rank", serviceKey, relayHint],
+      ["30382:followers", serviceKey, relayHint]
+    ],
     content: "",
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
