@@ -1464,18 +1464,20 @@ export default function ProfilePage() {
                                   <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Followers</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.followersTotal > 0 ? "Verified Followers" : "Followers"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">People following this account</p>
-                                  {verifiedCounts.followersTotal > 0 && (
-                                    <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-followers">{verifiedCounts.followers.toLocaleString()} of {verifiedCounts.followersTotal.toLocaleString()} verified</p>
-                                  )}
                                   {renderTierBadges("followed_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
-                                  {fbCount.toLocaleString()}
-                                </p>
+                                <div className="text-right">
+                                  <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
+                                    {verifiedCounts.followersTotal > 0 ? verifiedCounts.followers.toLocaleString() : fbCount.toLocaleString()}
+                                  </p>
+                                  {verifiedCounts.followersTotal > 0 && (
+                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-followers">of {fbCount.toLocaleString()} total</p>
+                                  )}
+                                </div>
                                 {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
@@ -1499,18 +1501,20 @@ export default function ProfilePage() {
                                   <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Following</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.followingTotal > 0 ? "Verified Following" : "Following"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person follows</p>
-                                  {verifiedCounts.followingTotal > 0 && (
-                                    <p className="text-[10px] text-indigo-500 font-medium mt-0.5" data-testid="text-verified-following">{verifiedCounts.following.toLocaleString()} of {verifiedCounts.followingTotal.toLocaleString()} verified</p>
-                                  )}
                                   {renderTierBadges("following")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
-                                  {fgCount.toLocaleString()}
-                                </p>
+                                <div className="text-right">
+                                  <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
+                                    {verifiedCounts.followingTotal > 0 ? verifiedCounts.following.toLocaleString() : fgCount.toLocaleString()}
+                                  </p>
+                                  {verifiedCounts.followingTotal > 0 && (
+                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-following">of {fgCount.toLocaleString()} total</p>
+                                  )}
+                                </div>
                                 {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
