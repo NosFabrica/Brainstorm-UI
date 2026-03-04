@@ -36,8 +36,9 @@ import {
   ArrowRight,
   Clock,
   Lock,
+  RefreshCw,
 } from "lucide-react";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, signNip85, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +50,8 @@ export default function SettingsPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
+  const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
+  const [republishError, setRepublishError] = useState("");
   const { toast } = useToast();
 
   const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
@@ -104,6 +107,52 @@ export default function SettingsPage() {
       });
     },
   });
+
+  const handleRepublishNip85 = async () => {
+    setRepublishState("signing");
+    setRepublishError("");
+
+    if (!window.nostr) {
+      setRepublishState("error");
+      setRepublishError("No Nostr extension found. Please install a NIP-07 compatible extension.");
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    if (!currentUser?.pubkey) {
+      setRepublishState("error");
+      setRepublishError("Not logged in.");
+      return;
+    }
+
+    if (!taPubkey) {
+      setRepublishState("error");
+      setRepublishError("Service key not available. Please wait for data to load and try again.");
+      return;
+    }
+
+    let signedEvent: Record<string, unknown>;
+    try {
+      signedEvent = await signNip85(taPubkey, "wss://nip85.nosfabrica.com");
+    } catch {
+      setRepublishState("idle");
+      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      return;
+    }
+
+    setRepublishState("publishing");
+    const result = await publishToRelays(signedEvent);
+
+    if (result.success) {
+      localStorage.setItem("brainstorm_nip85_activated", "true");
+      setRepublishState("success");
+      toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
+      setTimeout(() => setRepublishState("idle"), 3000);
+    } else {
+      setRepublishState("error");
+      setRepublishError(result.error || "Failed to publish to relays. Please try again.");
+    }
+  };
 
   const calcDone = grapeRankData?.data?.internal_publication_status === "success";
   const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
@@ -420,6 +469,32 @@ export default function SettingsPage() {
                       <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
                       <span className="text-[10px] text-slate-400">&middot;</span>
                       <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleRepublishNip85}
+                        disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold transition-all shadow-sm hover:shadow-md"
+                        data-testid="button-sp-republish"
+                      >
+                        {republishState === "signing" && (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Signing...</>
+                        )}
+                        {republishState === "publishing" && (
+                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Publishing...</>
+                        )}
+                        {republishState === "success" && (
+                          <><Check className="h-3.5 w-3.5" /> Updated</>
+                        )}
+                        {(republishState === "idle" || republishState === "error") && (
+                          <><RefreshCw className="h-3.5 w-3.5" /> Update NIP-85 Event</>
+                        )}
+                      </button>
+                      {republishState === "error" && republishError && (
+                        <p className="mt-2 text-[11px] text-red-500 leading-relaxed" data-testid="text-sp-republish-error">{republishError}</p>
+                      )}
                     </div>
                   </div>
                 ) : (
