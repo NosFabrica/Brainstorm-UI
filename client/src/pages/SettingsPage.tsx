@@ -462,39 +462,48 @@ export default function SettingsPage() {
                           </span>
                         </div>
                       )}
+                      <div className="flex items-center justify-between" data-testid="row-sp-supported">
+                        <span className="text-xs text-slate-500">Supported by</span>
+                        <div className="flex items-center gap-1.5">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
+                          <span className="text-[10px] text-slate-400">&middot;</span>
+                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
-                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
-                      <span className="text-[10px] text-slate-400">&middot;</span>
-                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
-                    </div>
+                    {republishState === "error" && republishError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2" data-testid="alert-sp-republish-error">
+                        <p className="text-xs text-red-700 font-medium">{republishError}</p>
+                      </div>
+                    )}
+
+                    {republishState === "success" && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2" data-testid="alert-sp-republish-success">
+                        <p className="text-xs text-emerald-700 font-medium">NIP-85 event updated successfully.</p>
+                      </div>
+                    )}
 
                     <div className="pt-3 border-t border-slate-100">
                       <button
                         type="button"
                         onClick={handleRepublishNip85}
                         disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold transition-all shadow-sm hover:shadow-md"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                         data-testid="button-sp-republish"
                       >
-                        {republishState === "signing" && (
-                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Signing...</>
-                        )}
-                        {republishState === "publishing" && (
-                          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Publishing...</>
-                        )}
-                        {republishState === "success" && (
-                          <><Check className="h-3.5 w-3.5" /> Updated</>
-                        )}
-                        {(republishState === "idle" || republishState === "error") && (
-                          <><RefreshCw className="h-3.5 w-3.5" /> Update NIP-85 Event</>
+                        {republishState === "signing" || republishState === "publishing" ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            {republishState === "signing" ? "Signing..." : "Publishing..."}
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            Update NIP-85 Event
+                          </>
                         )}
                       </button>
-                      {republishState === "error" && republishError && (
-                        <p className="mt-2 text-[11px] text-red-500 leading-relaxed" data-testid="text-sp-republish-error">{republishError}</p>
-                      )}
                     </div>
                   </div>
                 ) : (
