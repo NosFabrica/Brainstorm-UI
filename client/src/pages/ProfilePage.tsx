@@ -329,7 +329,7 @@ export default function ProfilePage() {
     { key: "trusted", name: "Trusted", min: 0.20, color: "#4ade80", bg: "bg-green-50", text: "text-green-700", border: "border-green-200", ring: "stroke-green-500" },
     { key: "neutral", name: "Neutral", min: 0.07, color: "#94a3b8", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
     { key: "low", name: "Low Trust", min: 0.02, color: "#fbbf24", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", min: 0, color: "#991b1b", bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ring: "stroke-red-400" },
+    { key: "unverified", name: "Unverified", min: 0, color: "#9ca3af", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
   ];
 
   const profileTier = useMemo(() => {
@@ -421,7 +421,7 @@ export default function ProfilePage() {
       { tier: "trusted", label: "Trusted", color: "text-green-500" },
       { tier: "neutral", label: "Neutral", color: "text-slate-400" },
       { tier: "low", label: "Low", color: "text-amber-500" },
-      { tier: "unverified", label: "Unverified", color: "text-red-400" },
+      { tier: "unverified", label: "Unverified", color: "text-slate-400" },
     ];
     return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
   }, [profileResult]);
@@ -597,7 +597,7 @@ export default function ProfilePage() {
     { value: "trusted", label: "Trusted", color: "bg-green-50 text-green-600" },
     { value: "neutral", label: "Neutral", color: "bg-slate-50 text-slate-500" },
     { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
-    { value: "unverified", label: "Unverified", color: "bg-red-50 text-red-500" },
+    { value: "unverified", label: "Unverified", color: "bg-slate-50 text-slate-500" },
   ];
 
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {
@@ -661,7 +661,7 @@ export default function ProfilePage() {
                         className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
                         data-testid={`filter-${opt.value}-${key}`}
                       >
-                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-400" : opt.value === "trusted" ? "bg-green-400" : opt.value === "neutral" ? "bg-slate-400" : opt.value === "low" ? "bg-amber-400" : "bg-red-400"}`} />
+                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-400" : opt.value === "trusted" ? "bg-green-400" : opt.value === "neutral" ? "bg-slate-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
                         {opt.label}
                       </button>
                     ))}

@@ -1390,7 +1390,7 @@ export default function NetworkPage() {
                   { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-indigo-500", ringFill: 0.65 },
                   { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
-                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-red-500", ringFill: 0 },
+                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-slate-400", ringFill: 0 },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
@@ -1406,7 +1406,7 @@ export default function NetworkPage() {
                       data-testid={`button-trust-filter-${tier.key}`}
                     >
                       {tier.key === "flagged" ? (
-                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
                           <line x1="4" y1="22" x2="4" y2="15" />
                         </svg>
