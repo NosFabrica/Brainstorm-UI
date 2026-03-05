@@ -72,6 +72,7 @@ export default function SettingsPage() {
     toast({
       title: "Trust perspective updated",
       description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
+      duration: 2000,
     });
   }, [toast]);
 
@@ -86,6 +87,7 @@ export default function SettingsPage() {
     toast({
       title: "Custom threshold set",
       description: `Verified threshold: ≥ ${clamped.toFixed(2)}`,
+      duration: 2000,
     });
   }, [toast]);
 
