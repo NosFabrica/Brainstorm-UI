@@ -1543,9 +1543,9 @@ export default function NetworkPage() {
                 <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-0.5 sm:mr-1 shrink-0">Trust</span>
                 {([
                   { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
-                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-500", ringFill: 0.9 },
-                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-indigo-500", ringFill: 0.65 },
-                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-orange-300", ringFill: 0.37 },
+                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9 },
+                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-teal-500", ringFill: 0.65 },
+                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
                   { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-slate-400", ringFill: 0 },
                 ] as const).map((tier) => {

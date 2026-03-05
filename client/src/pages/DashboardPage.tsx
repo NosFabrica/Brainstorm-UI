@@ -389,11 +389,11 @@ export default function DashboardPage() {
   };
 
   const TIER_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: "#22c55e" },
-    { key: "medium_high", name: "Trusted", color: "#4ade80" },
-    { key: "medium", name: "Neutral", color: "#fdba74" },
-    { key: "medium_low", name: "Low Trust", color: "#fbbf24" },
-    { key: "low", name: "Unverified", color: "#9ca3af" },
+    { key: "high", name: "Highly Trusted", color: "#059669" },
+    { key: "medium_high", name: "Trusted", color: "#0d9488" },
+    { key: "medium", name: "Neutral", color: "#6366f1" },
+    { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
+    { key: "low", name: "Unverified", color: "#94a3b8" },
   ] as const;
 
   const countValues = useMemo(() => {
@@ -478,11 +478,11 @@ export default function DashboardPage() {
       })).filter(d => d.value > 0);
     }
     const fallback = [
-      { label: "Highly Trusted", count: followersCount, color: "#22c55e" },
-      { label: "Trusted", count: followingCount, color: "#4ade80" },
-      { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#fdba74" },
-      { label: "Low Trust", count: mutedByCount + mutingCount, color: "#fbbf24" },
-      { label: "Unverified", count: Math.max(10, mutedByCount), color: "#9ca3af" },
+      { label: "Highly Trusted", count: followersCount, color: "#059669" },
+      { label: "Trusted", count: followingCount, color: "#0d9488" },
+      { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#6366f1" },
+      { label: "Low Trust", count: mutedByCount + mutingCount, color: "#f59e0b" },
+      { label: "Unverified", count: Math.max(10, mutedByCount), color: "#94a3b8" },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
@@ -499,9 +499,9 @@ export default function DashboardPage() {
   const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
-    { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#22c55e" },
-    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#4ade80" },
-    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#fdba74" },
+    { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
+    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0d9488" },
+    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#6366f1" },
     {
       name: "Dormant (1+ year)",
       value: Math.max(
