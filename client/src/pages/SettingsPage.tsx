@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getActivePreset, setActivePreset, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { getActivePreset, setActivePreset, setCustomThreshold, getCustomThreshold, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
 import PageBackground from "@/components/PageBackground";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -54,14 +54,38 @@ export default function SettingsPage() {
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
   const [republishError, setRepublishError] = useState("");
   const [activePreset, setActivePresetState] = useState<TrustPreset>(getActivePreset());
+  const [customValue, setCustomValue] = useState<string>(() => {
+    const stored = getCustomThreshold();
+    return stored !== null ? stored.toFixed(2) : "0.05";
+  });
   const { toast } = useToast();
 
-  const handlePresetChange = useCallback((preset: TrustPreset) => {
+  const currentThreshold = activePreset === "custom"
+    ? (getCustomThreshold() ?? PRESET_THRESHOLDS.default)
+    : PRESET_THRESHOLDS[activePreset];
+
+  const handlePresetChange = useCallback((preset: Exclude<TrustPreset, "custom">) => {
     setActivePreset(preset);
     setActivePresetState(preset);
+    setCustomThreshold(null);
+    setCustomValue(PRESET_THRESHOLDS[preset].toFixed(2));
     toast({
       title: "Trust perspective updated",
       description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
+    });
+  }, [toast]);
+
+  const handleCustomValueCommit = useCallback((rawValue: string) => {
+    const parsed = parseFloat(rawValue);
+    if (isNaN(parsed)) return;
+    const clamped = Math.max(0, Math.min(1, Math.round(parsed * 100) / 100));
+    setCustomThreshold(clamped);
+    setActivePreset("custom");
+    setActivePresetState("custom");
+    setCustomValue(clamped.toFixed(2));
+    toast({
+      title: "Custom threshold set",
+      description: `Verified threshold: ≥ ${clamped.toFixed(2)}`,
     });
   }, [toast]);
 
@@ -765,7 +789,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#333286]">
-                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 </div>
@@ -783,10 +807,10 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips">
                 {([
-                  { key: "relax" as TrustPreset, label: "Relax", desc: "More trusting" },
-                  { key: "default" as TrustPreset, label: "Default", desc: "Balanced" },
-                  { key: "strict" as TrustPreset, label: "Strict", desc: "Safety-first" },
-                ] as const).map((preset) => {
+                  { key: "relax" as const, label: "Relax", desc: "More trusting" },
+                  { key: "default" as const, label: "Default", desc: "Balanced" },
+                  { key: "strict" as const, label: "Strict", desc: "Safety-first" },
+                ]).map((preset) => {
                   const isActive = activePreset === preset.key;
                   return (
                     <button
@@ -814,9 +838,34 @@ export default function SettingsPage() {
                 })}
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3" data-testid="input-custom-threshold-section">
+                <label className="text-xs font-semibold text-slate-700 block mb-2">Custom Threshold</label>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 font-mono shrink-0">≥</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                    onBlur={(e) => handleCustomValueCommit(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCustomValueCommit((e.target as HTMLInputElement).value); }}
+                    className={
+                      "w-24 rounded-lg border px-3 py-1.5 text-sm font-mono text-center transition-all outline-none " +
+                      (activePreset === "custom"
+                        ? "border-[#7c86ff]/40 bg-[#333286]/5 text-[#333286] ring-1 ring-[#7c86ff]/20 focus:ring-2 focus:ring-[#7c86ff]/30"
+                        : "border-slate-200 bg-slate-50 text-slate-600 focus:border-[#7c86ff]/40 focus:ring-1 focus:ring-[#7c86ff]/20")
+                    }
+                    data-testid="input-custom-threshold"
+                  />
+                  <span className="text-[11px] text-slate-400">Enter a value between 0.00 and 1.00</span>
+                </div>
+              </div>
+
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-presets-detail">
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {PRESET_THRESHOLDS[activePreset].toFixed(2)} — accounts with a trust assertion score below this are marked as unverified.
+                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)}{activePreset === "custom" ? " (custom)" : ""} — accounts with a trust assertion score below this are marked as unverified.
                 </p>
               </div>
             </div>
