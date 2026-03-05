@@ -634,7 +634,7 @@ export default function DashboardPage() {
   const isCalculationComplete = calcDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
-  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated);
+  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated || grapeRank);
 
   return (
     <TooltipProvider>
