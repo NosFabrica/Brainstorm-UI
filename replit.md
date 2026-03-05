@@ -21,7 +21,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
     - **Network Page:** A CRM-style social graph explorer for managing connections by group with filtering and search.
     - **What is WoT? Page:** An educational resource with interactive trust scenarios.
     - **NIP-85 Service Provider Activation:** A guided process for activating Brainstorm as a NIP-85 service provider.
-    - **Settings Page:** Manages NIP-85 status, GrapeRank calculation triggers, and trust perspective settings.
+    - **Settings Page:** Manages NIP-85 status, GrapeRank calculation triggers, and trust perspective settings. Trust Perspective presets (Relax/Default/Strict) are functional — each sets a verified threshold (0.00/0.02/0.15) stored in `localStorage` key `brainstorm_trust_preset`, which controls "verified" vs "unverified" display across Dashboard, Network, and Profile pages. Utility module: `client/src/services/trustThreshold.ts`.
 - **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, defers profile fetching to the dashboard, and uses branded loading animations. Network page search uses on-demand debounced profile fetching (500ms delay, batches of 50, max 500 uncached profiles) instead of eager bulk loading — keeps initial page load fast while enabling name-based search across the full group.
 
 ## External Dependencies

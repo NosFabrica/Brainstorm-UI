@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -213,7 +214,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
 
   const getVerifiedFlagCounts = () => {
     if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
-    const TA_THRESHOLD = 0.02;
+    const TA_THRESHOLD = getVerifiedThreshold();
     let verifiedMuters = 0;
     let verifiedReporters = 0;
     for (const muterPk of graphData.muted_by || []) {
@@ -383,7 +384,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                   if (isVerifiable && Array.isArray(raw)) {
                     const infMap = toInfluenceMap(raw);
                     infMap.forEach((score) => {
-                      if (typeof score === "number" && score >= 0.02) verifiedCount++;
+                      if (typeof score === "number" && score >= getVerifiedThreshold()) verifiedCount++;
                     });
                     hasVerifiedData = infMap.size > 0 && Array.from(infMap.values()).some(v => v !== null);
                   }
@@ -905,7 +906,7 @@ export default function NetworkPage() {
   const getVerifiedPubkeys = useCallback((key: GroupKey): string[] => {
     const all = getGroupPubkeys(key);
     if (!isVerifiableGroup(key)) return all;
-    const TA_THRESHOLD = 0.02;
+    const TA_THRESHOLD = getVerifiedThreshold();
     return all.filter(pk => {
       const score = trustCache.current.get(pk);
       return typeof score === "number" && score >= TA_THRESHOLD;
@@ -951,7 +952,7 @@ export default function NetworkPage() {
         pubkeys = pubkeys.filter(pk => {
           if (flaggedSet.has(pk)) return true;
           const influence = trustCache.current.get(pk);
-          return typeof influence === "number" && influence < 0.02;
+          return typeof influence === "number" && influence < getVerifiedThreshold();
         });
       } else {
         pubkeys = pubkeys.filter(pk => {

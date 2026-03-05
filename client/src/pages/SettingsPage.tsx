@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { getActivePreset, setActivePreset, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
 import PageBackground from "@/components/PageBackground";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -53,7 +54,17 @@ export default function SettingsPage() {
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
   const [republishError, setRepublishError] = useState("");
+  const [activePreset, setActivePresetState] = useState<TrustPreset>(getActivePreset());
   const { toast } = useToast();
+
+  const handlePresetChange = useCallback((preset: TrustPreset) => {
+    setActivePreset(preset);
+    setActivePresetState(preset);
+    toast({
+      title: "Trust perspective updated",
+      description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
+    });
+  }, [toast]);
 
   const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
 
@@ -774,37 +785,45 @@ export default function SettingsPage() {
 
             <div className="p-5 space-y-4">
               <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-presets-desc">
-                Choose between discovery and caution. Presets will control hop depth, penalty weighting, and identity signal boosting for your personalized trust view.
+                Adjust how strict the verified threshold is across Brainstorm. This controls which accounts appear as "verified" on Dashboard, Network, and Profile pages.
               </p>
 
               <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips">
-                {[
-                  { label: "Relax", desc: "More trusting" },
-                  { label: "Default", desc: "Balanced" },
-                  { label: "Strict", desc: "Safety-first" },
-                ].map((preset) => (
-                  <div
-                    key={preset.label}
-                    className={
-                      "rounded-xl border px-3 py-2.5 text-center " +
-                      (preset.label === "Default"
-                        ? "border-[#7c86ff]/30 bg-[#333286]/5"
-                        : "border-slate-200 bg-slate-50")
-                    }
-                    data-testid={`chip-preset-${preset.label.toLowerCase()}`}
-                  >
-                    <span className={
-                      "text-xs font-bold block " +
-                      (preset.label === "Default" ? "text-[#333286]" : "text-slate-500")
-                    }>{preset.label}</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">{preset.desc}</span>
-                  </div>
-                ))}
+                {([
+                  { key: "relax" as TrustPreset, label: "Relax", desc: "More trusting" },
+                  { key: "default" as TrustPreset, label: "Default", desc: "Balanced" },
+                  { key: "strict" as TrustPreset, label: "Strict", desc: "Safety-first" },
+                ] as const).map((preset) => {
+                  const isActive = activePreset === preset.key;
+                  return (
+                    <button
+                      key={preset.key}
+                      onClick={() => handlePresetChange(preset.key)}
+                      className={
+                        "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer " +
+                        (isActive
+                          ? "border-[#7c86ff]/30 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20"
+                          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100")
+                      }
+                      data-testid={`chip-preset-${preset.key}`}
+                    >
+                      <span className={
+                        "text-xs font-bold block " +
+                        (isActive ? "text-[#333286]" : "text-slate-500")
+                      }>{preset.label}</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">{preset.desc}</span>
+                      <span className={
+                        "text-[10px] font-mono block mt-1 " +
+                        (isActive ? "text-[#7c86ff]" : "text-slate-400")
+                      }>≥ {PRESET_THRESHOLDS[preset.key].toFixed(2)}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-presets-detail">
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  <span className="font-semibold text-slate-700">Parameters include:</span> hop depth (1-5), flagged penalty weighting, NIP-05 identity boost, and graph signal requirements.
+                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {PRESET_THRESHOLDS[activePreset].toFixed(2)} — accounts with a trust assertion score below this are marked as unverified.
                 </p>
               </div>
             </div>

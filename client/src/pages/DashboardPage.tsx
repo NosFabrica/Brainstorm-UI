@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { getVerifiedThreshold } from "@/services/trustThreshold";
 import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
@@ -300,7 +301,8 @@ export default function DashboardPage() {
     if (!network) return { verifiedFollowersCount: 0, verifiedFollowingCount: 0 };
     const countVerified = (arr: any[] | undefined) => {
       if (!Array.isArray(arr)) return 0;
-      return arr.filter(m => typeof m.influence === "number" && m.influence >= 0.02).length;
+      const threshold = getVerifiedThreshold();
+      return arr.filter(m => typeof m.influence === "number" && m.influence >= threshold).length;
     };
     return {
       verifiedFollowersCount: countVerified(network.followed_by),
@@ -536,10 +538,11 @@ export default function DashboardPage() {
         continue;
       }
       const inf = typeof m.influence === "number" ? m.influence : -1;
+      const vt = getVerifiedThreshold();
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
       else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= 0.02) counts.low++;
+      else if (inf >= vt) counts.low++;
       else counts.flagged++;
     }
     return counts;
@@ -563,10 +566,11 @@ export default function DashboardPage() {
         continue;
       }
       const inf = typeof m.influence === "number" ? m.influence : -1;
+      const vt = getVerifiedThreshold();
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
       else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= 0.02) counts.low++;
+      else if (inf >= vt) counts.low++;
       else counts.flagged++;
     }
     return counts;

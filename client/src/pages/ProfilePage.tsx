@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -363,7 +364,7 @@ export default function ProfilePage() {
     { key: "high", name: "Highly Trusted", min: 0.50, color: "#22c55e", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-500" },
     { key: "trusted", name: "Trusted", min: 0.20, color: "#4ade80", bg: "bg-green-50", text: "text-green-700", border: "border-green-200", ring: "stroke-green-500" },
     { key: "neutral", name: "Neutral", min: 0.07, color: "#fdba74", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200", ring: "stroke-orange-300" },
-    { key: "low", name: "Low Trust", min: 0.02, color: "#fbbf24", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
+    { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#fbbf24", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#9ca3af", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
   ];
 
@@ -389,7 +390,8 @@ export default function ProfilePage() {
     const count = (arr: any) => {
       const map = toInfluenceMap(arr);
       let verified = 0;
-      map.forEach((inf) => { if (inf !== null && inf >= 0.02) verified++; });
+      const threshold = getVerifiedThreshold();
+      map.forEach((inf) => { if (inf !== null && inf >= threshold) verified++; });
       return { verified, total: map.size };
     };
     const fb = count(profileResult.followed_by);
@@ -408,7 +410,7 @@ export default function ProfilePage() {
       if (score >= 0.50) counts.high++;
       else if (score >= 0.20) counts.trusted++;
       else if (score >= 0.07) counts.neutral++;
-      else if (score >= 0.02) counts.low++;
+      else if (score >= getVerifiedThreshold()) counts.low++;
       else counts.unverified++;
     });
     const total = map.size;
@@ -438,7 +440,7 @@ export default function ProfilePage() {
     if (score >= 0.50) return "high";
     if (score >= 0.20) return "trusted";
     if (score >= 0.07) return "neutral";
-    if (score >= 0.02) return "low";
+    if (score >= getVerifiedThreshold()) return "low";
     return "unverified";
   };
 
@@ -471,7 +473,7 @@ export default function ProfilePage() {
       filtered = pubkeys.filter(pk => {
         const score = getTrustForPk(pk);
         if (score < 0) return filter === "unverified";
-        if (filter === "verified") return score >= 0.02;
+        if (filter === "verified") return score >= getVerifiedThreshold();
         return getTierKey(score) === filter;
       });
     }
