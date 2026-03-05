@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
+  const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
   const [republishError, setRepublishError] = useState("");
   const { toast } = useToast();
@@ -485,25 +486,66 @@ export default function SettingsPage() {
                     )}
 
                     <div className="pt-3 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={handleRepublishNip85}
-                        disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                        data-testid="button-sp-republish"
-                      >
-                        {republishState === "signing" || republishState === "publishing" ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            {republishState === "signing" ? "Signing..." : "Publishing..."}
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            Update NIP-85 Event
-                          </>
-                        )}
-                      </button>
+                      <AlertDialog open={nip85ConfirmOpen} onOpenChange={setNip85ConfirmOpen}>
+                        <button
+                          type="button"
+                          onClick={() => setNip85ConfirmOpen(true)}
+                          disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          data-testid="button-sp-republish"
+                        >
+                          {republishState === "signing" || republishState === "publishing" ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              {republishState === "signing" ? "Signing..." : "Publishing..."}
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              Update NIP-85 Event
+                            </>
+                          )}
+                        </button>
+                        <AlertDialogContent
+                          className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-[#7c86ff]/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(124,134,255,0.10)] p-0 overflow-hidden"
+                          data-testid="dialog-confirm-nip85-update"
+                        >
+                          <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
+                            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#7c86ff]/15 to-transparent" />
+                          </div>
+                          <div className="relative p-4 sm:p-5">
+                            <AlertDialogHeader className="space-y-2">
+                              <div className="flex items-start gap-3">
+                                <div className="h-9 w-9 rounded-2xl bg-[#333286]/10 border border-[#333286]/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(124,134,255,0.22)] shrink-0" data-testid="icon-confirm-nip85-update">
+                                  <BrainLogo size={18} className="text-[#333286]" />
+                                </div>
+                                <div className="min-w-0">
+                                  <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
+                                    Update NIP-85 Event?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-nip85-desc">
+                                    This will re-sign and publish your NIP-85 service provider event, replacing the current one on relays. Your existing trust data and settings will be preserved.
+                                  </AlertDialogDescription>
+                                </div>
+                              </div>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                              <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-nip85-cancel">Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="rounded-xl bg-[#3730a3] hover:bg-[#312e81]"
+                                onClick={() => {
+                                  setNip85ConfirmOpen(false);
+                                  handleRepublishNip85();
+                                }}
+                                data-testid="button-confirm-nip85-continue"
+                              >
+                                Update
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 ) : (
