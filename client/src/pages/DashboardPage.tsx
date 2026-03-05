@@ -55,6 +55,7 @@ import {
   Bitcoin,
   Ban,
   Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -1197,50 +1198,68 @@ export default function DashboardPage() {
                                         : "Computing network trust"}
                             </p>
                           </div>
-                          {!publishDone && !isErrorState && (
-                            <span
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
-                              data-testid="spinner-onboarding-progress"
-                              aria-label="In progress"
-                            >
-                              <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
-                            </span>
+                          {!isErrorState && (
+                            publishDone ? (
+                              <span
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-400/30 shrink-0 animate-[scale-in_0.3s_ease-out]"
+                                data-testid="check-onboarding-complete"
+                                aria-label="All steps complete"
+                              >
+                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
+                                data-testid="spinner-onboarding-progress"
+                                aria-label="In progress"
+                              >
+                                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
+                              </span>
+                            )
                           )}
                         </div>
 
                         <div className="mt-2 grid grid-cols-2 gap-2" data-testid="grid-onboarding-status">
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-violet-500/10 border-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : !calcDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : !calcDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-graph"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${calcDone ? "bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" : isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                data-testid="dot-onboarding-graph"
-                              />
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-violet-200" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">Calculating</span>
+                              {calcDone ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-graph" />
+                              ) : (
+                                <div
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  data-testid="dot-onboarding-graph"
+                                />
+                              )}
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-emerald-300" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">{calcDone ? "Calculated" : "Calculating"}</span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-violet-200/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
-                              {calcDone ? "Done" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                              {calcDone ? "Complete" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
 
                           <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-fuchsia-500/10 border-fuchsia-500/20 shadow-[0_0_15px_rgba(217,70,239,0.15)]" : isPublishFailed ? "bg-red-500/10 border-red-500/20" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
+                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isPublishFailed ? "bg-red-500/10 border-red-500/20" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
                             data-testid="status-onboarding-scores"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${publishDone ? "bg-fuchsia-400 shadow-[0_0_8px_rgba(232,121,249,0.8)]" : isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                data-testid="dot-onboarding-scores"
-                              />
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-fuchsia-200" : isPublishFailed ? "text-red-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">Publishing</span>
-                              <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-fuchsia-200/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
+                              {publishDone ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-scores" />
+                              ) : (
+                                <div
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  data-testid="dot-onboarding-scores"
+                                />
+                              )}
+                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-emerald-300" : isPublishFailed ? "text-red-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">{publishDone ? "Published" : "Publishing"}</span>
+                              <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-emerald-300/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-fuchsia-200/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {publishDone ? "Done" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                              {publishDone ? "Complete" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
                         </div>
