@@ -37,6 +37,7 @@ import {
   ArrowRight,
   Clock,
   RefreshCw,
+  Info,
 } from "lucide-react";
 import { getCurrentUser, logout, signNip85, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -198,6 +199,8 @@ export default function SettingsPage() {
   const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
   const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
   const taPubkey = selfData?.data?.history?.ta_pubkey || null;
+  const settingsNetwork = selfData?.graph || null;
+  const hasNoFollowing = !selfLoading && selfData !== undefined && settingsNetwork !== null && Array.isArray(settingsNetwork?.following) && settingsNetwork.following.length === 0;
 
   if (!user) return null;
 
@@ -598,10 +601,18 @@ export default function SettingsPage() {
                       No WoT service provider has been selected. Activate Brainstorm as your provider to publish trust scores across the Nostr ecosystem.
                     </p>
 
+                    {hasNoFollowing && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/60" data-testid="banner-sp-no-follows">
+                        <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <p className="text-xs text-amber-700 font-medium">Follow some people on Nostr first to activate this feature.</p>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => navigate("/dashboard")}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors"
+                      disabled={hasNoFollowing}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                       data-testid="button-sp-go-to-dashboard"
                     >
                       Go to Dashboard
@@ -711,11 +722,18 @@ export default function SettingsPage() {
                   </div>
                 )}
 
+                {hasNoFollowing && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/60 mb-3" data-testid="banner-gr-no-follows">
+                    <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <p className="text-xs text-amber-700 font-medium">Follow some people on Nostr first to calculate trust scores.</p>
+                  </div>
+                )}
+
                 <div className="pt-3 border-t border-slate-100">
                   <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                     <button
                       type="button"
-                      disabled={triggerGrapeRankMutation.isPending || isRecalcInProgress}
+                      disabled={triggerGrapeRankMutation.isPending || isRecalcInProgress || hasNoFollowing}
                       onClick={() => setRecalcConfirmOpen(true)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                       data-testid="button-gr-recalculate"
