@@ -904,7 +904,12 @@ export default function DashboardPage() {
                   ) : isRecalculation ? (
                     <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      Recalculating…
+                      {calcDone ? "Publishing…" : "Calculating…"}
+                    </span>
+                  ) : triggerGrapeRankMutation.isPending ? (
+                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Calculating…
                     </span>
                   ) : (
                     <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
