@@ -273,7 +273,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
     if (trustScore === null) return null;
     const score = Math.min(1, Math.max(0, trustScore));
     const pct = Math.round(score * 100);
-    const ringColor = pct >= 50 ? "stroke-emerald-500" : pct >= 20 ? "stroke-indigo-500" : pct >= 7 ? "stroke-slate-400" : "stroke-amber-500";
+    const ringColor = pct >= 50 ? "stroke-emerald-500" : pct >= 20 ? "stroke-indigo-500" : pct >= 7 ? "stroke-orange-300" : "stroke-amber-500";
     const circumference = 2 * Math.PI * 18;
     const offset = circumference - (score * circumference);
     const size = compact ? "w-7 h-7" : "w-9 h-9";
@@ -1544,7 +1544,7 @@ export default function NetworkPage() {
                   { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
                   { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-500", ringFill: 0.9 },
                   { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-indigo-500", ringFill: 0.65 },
-                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-slate-400", ringFill: 0.37 },
+                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-orange-300", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
                   { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-slate-400", ringFill: 0 },
                 ] as const).map((tier) => {

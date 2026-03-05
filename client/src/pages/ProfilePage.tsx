@@ -362,7 +362,7 @@ export default function ProfilePage() {
   const TIER_THRESHOLDS = [
     { key: "high", name: "Highly Trusted", min: 0.50, color: "#22c55e", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-500" },
     { key: "trusted", name: "Trusted", min: 0.20, color: "#4ade80", bg: "bg-green-50", text: "text-green-700", border: "border-green-200", ring: "stroke-green-500" },
-    { key: "neutral", name: "Neutral", min: 0.07, color: "#94a3b8", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
+    { key: "neutral", name: "Neutral", min: 0.07, color: "#fdba74", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200", ring: "stroke-orange-300" },
     { key: "low", name: "Low Trust", min: 0.02, color: "#fbbf24", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#9ca3af", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
   ];
@@ -454,7 +454,7 @@ export default function ProfilePage() {
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-500" },
       { tier: "trusted", label: "Trusted", color: "text-green-500" },
-      { tier: "neutral", label: "Neutral", color: "text-slate-400" },
+      { tier: "neutral", label: "Neutral", color: "text-orange-300" },
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-slate-400" },
     ];
@@ -630,7 +630,7 @@ export default function ProfilePage() {
     { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
     { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
     { value: "trusted", label: "Trusted", color: "bg-green-50 text-green-600" },
-    { value: "neutral", label: "Neutral", color: "bg-slate-50 text-slate-500" },
+    { value: "neutral", label: "Neutral", color: "bg-orange-50 text-orange-500" },
     { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
     { value: "unverified", label: "Unverified", color: "bg-slate-50 text-slate-500" },
   ];
