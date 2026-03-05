@@ -390,7 +390,7 @@ export default function DashboardPage() {
 
   const TIER_CONFIG = [
     { key: "high", name: "Highly Trusted", color: "#059669" },
-    { key: "medium_high", name: "Trusted", color: "#0d9488" },
+    { key: "medium_high", name: "Trusted", color: "#0ea5e9" },
     { key: "medium", name: "Neutral", color: "#6366f1" },
     { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
     { key: "low", name: "Unverified", color: "#94a3b8" },
@@ -479,7 +479,7 @@ export default function DashboardPage() {
     }
     const fallback = [
       { label: "Highly Trusted", count: followersCount, color: "#059669" },
-      { label: "Trusted", count: followingCount, color: "#0d9488" },
+      { label: "Trusted", count: followingCount, color: "#0ea5e9" },
       { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#6366f1" },
       { label: "Low Trust", count: mutedByCount + mutingCount, color: "#f59e0b" },
       { label: "Unverified", count: Math.max(10, mutedByCount), color: "#94a3b8" },
@@ -500,7 +500,7 @@ export default function DashboardPage() {
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
-    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0d9488" },
+    { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0ea5e9" },
     { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#6366f1" },
     {
       name: "Dormant (1+ year)",

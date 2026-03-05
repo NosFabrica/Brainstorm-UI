@@ -1544,7 +1544,7 @@ export default function NetworkPage() {
                 {([
                   { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
                   { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9 },
-                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-teal-500", ringFill: 0.65 },
+                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-sky-500", ringFill: 0.65 },
                   { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
                   { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-slate-400", ringFill: 0 },

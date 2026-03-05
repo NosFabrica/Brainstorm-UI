@@ -362,7 +362,7 @@ export default function ProfilePage() {
 
   const TIER_THRESHOLDS = [
     { key: "high", name: "Highly Trusted", min: 0.50, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
-    { key: "trusted", name: "Trusted", min: 0.20, color: "#0d9488", bg: "bg-teal-50", text: "text-teal-700", border: "border-teal-200", ring: "stroke-teal-500" },
+    { key: "trusted", name: "Trusted", min: 0.20, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
     { key: "neutral", name: "Neutral", min: 0.07, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#94a3b8", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
@@ -455,7 +455,7 @@ export default function ProfilePage() {
     });
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
-      { tier: "trusted", label: "Trusted", color: "text-teal-500" },
+      { tier: "trusted", label: "Trusted", color: "text-sky-500" },
       { tier: "neutral", label: "Neutral", color: "text-indigo-400" },
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-slate-400" },
@@ -631,7 +631,7 @@ export default function ProfilePage() {
     { value: "all", label: "All", color: "bg-slate-100 text-slate-600" },
     { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
     { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
-    { value: "trusted", label: "Trusted", color: "bg-teal-50 text-teal-600" },
+    { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
     { value: "neutral", label: "Neutral", color: "bg-indigo-50 text-indigo-500" },
     { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
     { value: "unverified", label: "Unverified", color: "bg-slate-50 text-slate-500" },
@@ -698,7 +698,7 @@ export default function ProfilePage() {
                         className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
                         data-testid={`filter-${opt.value}-${key}`}
                       >
-                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-teal-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
+                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
                         {opt.label}
                       </button>
                     ))}
