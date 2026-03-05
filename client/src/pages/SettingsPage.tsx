@@ -525,7 +525,7 @@ export default function SettingsPage() {
                                     Update NIP-85 Event?
                                   </AlertDialogTitle>
                                   <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-nip85-desc">
-                                    This will re-sign and publish your NIP-85 service provider event, replacing the current one on relays. Your existing trust data and settings will be preserved.
+                                    This will re-sign and republish your Brainstorm service provider event to Nostr relays. This is useful if your previous event wasn't picked up by all relays, or if you want to refresh your service provider status.
                                   </AlertDialogDescription>
                                 </div>
                               </div>
