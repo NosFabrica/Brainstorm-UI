@@ -816,64 +816,46 @@ export default function DashboardPage() {
                 className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] hover:shadow-[0_8px_24px_-6px_rgba(124,134,255,0.18)] transition-shadow duration-300 self-start md:self-end max-w-xs"
                 data-testid="badge-nip85-active"
               >
-                <div className="px-3 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <div className="relative shrink-0">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-sm">
-                        <div className="h-full w-full rounded-full bg-white flex items-center justify-center">
-                          <div className="relative">
-                            <BrainLogo size={18} className="text-[#333286]" />
-                            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-[1.5px] border-white flex items-center justify-center">
-                              <Check className="h-1.5 w-1.5 text-white" strokeWidth={3} />
-                            </div>
+                <div className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative shrink-0">
+                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-sm">
+                          <div className="h-full w-full rounded-xl bg-white flex items-center justify-center">
+                            <BrainLogo size={16} className="text-[#333286]" />
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#333286] block leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                        Certified WoT
-                      </span>
-                      <span className="text-xs font-bold text-slate-900 tracking-tight block mt-0.5 leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                        Service Provider Active
-                      </span>
-                      <div className="flex items-center gap-1 mt-1">
-                        {user?.picture ? (
-                          <img src={user.picture} alt="" className="h-3.5 w-3.5 rounded-full object-cover border border-slate-200" />
-                        ) : (
-                          <div className="h-3.5 w-3.5 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                            <span className="text-[6px] font-bold text-[#333286]">{(user?.displayName?.charAt(0) || "U").toUpperCase()}</span>
-                          </div>
-                        )}
-                        <span className="text-[9px] font-semibold text-slate-600 truncate max-w-[80px]">{user?.displayName || "Anonymous"}</span>
-                        {selfData?.history?.last_time_calculated_graperank && (
-                          <>
-                            <span className="text-[9px] text-slate-300 mx-0.5">·</span>
-                            <span className="text-[9px] font-mono text-slate-400">
-                              {new Date(selfData.history.last_time_calculated_graperank).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="shrink-0">
-                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 tracking-tight block leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                          WoT Service Provider
                         </span>
-                        <span className="text-[8px] font-extrabold uppercase tracking-widest text-emerald-700">Active</span>
+                        <span className="text-[10px] font-medium text-slate-500 block mt-0.5 leading-none">
+                          NIP-85 Declaration
+                        </span>
                       </div>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
                     </div>
                   </div>
 
-                  <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center gap-1.5 ml-[52px]">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
-                    <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
-                    <span className="text-[10px] text-slate-400">·</span>
-                    <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
+                  {selfData?.history?.last_time_calculated_graperank && (
+                    <div className="text-[10px] text-slate-400 font-medium mb-3">
+                      Last updated {new Date(selfData.history.last_time_calculated_graperank).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </div>
+                  )}
+
+                  <div className="pt-2.5 border-t border-slate-100">
+                    <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 block mb-1.5">Compatible Clients</span>
+                    <div className="flex items-center gap-1.5">
+                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200/60 text-[10px] font-semibold text-purple-700 hover:bg-purple-100 transition-colors" data-testid="link-compatible-amethyst">Amethyst</a>
+                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200/60 text-[10px] font-semibold text-orange-700 hover:bg-orange-100 transition-colors" data-testid="link-compatible-nostria">Nostria</a>
+                    </div>
                   </div>
                 </div>
               </div>
