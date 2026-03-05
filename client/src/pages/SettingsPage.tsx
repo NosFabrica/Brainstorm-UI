@@ -36,7 +36,6 @@ import {
   Loader2,
   ArrowRight,
   Clock,
-  Lock,
   RefreshCw,
 } from "lucide-react";
 import { getCurrentUser, logout, signNip85, publishToRelays, type NostrUser } from "@/services/nostr";
@@ -760,13 +759,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden relative" data-testid="card-settings-presets-teaser">
-            <div className="absolute inset-0 pointer-events-none bg-white/60 z-10 flex items-center justify-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#3730a3] backdrop-blur-sm shadow-lg" data-testid="badge-coming-soon">
-                <Lock className="h-3.5 w-3.5 text-slate-300" />
-                <span className="text-xs font-bold uppercase tracking-widest text-white">Coming Soon</span>
-              </div>
-            </div>
+          <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden relative" data-testid="card-settings-presets">
 
             <div className="px-5 py-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
