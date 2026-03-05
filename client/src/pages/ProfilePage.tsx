@@ -365,7 +365,7 @@ export default function ProfilePage() {
     { key: "trusted", name: "Trusted", min: 0.20, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
     { key: "neutral", name: "Neutral", min: 0.07, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", min: 0, color: "#94a3b8", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", ring: "stroke-slate-400" },
+    { key: "unverified", name: "Unverified", min: 0, color: "#a1a1aa", bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", ring: "stroke-zinc-400" },
   ];
 
   const profileTier = useMemo(() => {
@@ -458,7 +458,7 @@ export default function ProfilePage() {
       { tier: "trusted", label: "Trusted", color: "text-sky-500" },
       { tier: "neutral", label: "Neutral", color: "text-indigo-400" },
       { tier: "low", label: "Low", color: "text-amber-500" },
-      { tier: "unverified", label: "Unverified", color: "text-slate-400" },
+      { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
     return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
   }, [profileResult]);
@@ -634,7 +634,7 @@ export default function ProfilePage() {
     { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
     { value: "neutral", label: "Neutral", color: "bg-indigo-50 text-indigo-500" },
     { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
-    { value: "unverified", label: "Unverified", color: "bg-slate-50 text-slate-500" },
+    { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
   ];
 
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {

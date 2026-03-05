@@ -1547,7 +1547,7 @@ export default function NetworkPage() {
                   { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-sky-500", ringFill: 0.65 },
                   { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37 },
                   { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
-                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-slate-400", ringFill: 0 },
+                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-zinc-400", ringFill: 0 },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
