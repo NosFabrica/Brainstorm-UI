@@ -806,7 +806,7 @@ export default function DashboardPage() {
                 </h1>
                 <div className="flex items-center gap-3">
                   <p className="text-slate-600 font-medium" data-testid="text-dashboard-header-subtitle">
-                    Your trust network is active and growing.
+                    {hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
                   </p>
                 </div>
               </div>
@@ -1860,6 +1860,7 @@ export default function DashboardPage() {
             </motion.div>
           </div>
 
+          {!hasNoFollowing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
               <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
@@ -1997,7 +1998,7 @@ export default function DashboardPage() {
                 </div>
               </Card>
             </motion.div>
-          </div>
+          </div>)}
 
           {false && (
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mb-8">
