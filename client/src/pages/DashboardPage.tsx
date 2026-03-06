@@ -908,23 +908,20 @@ export default function DashboardPage() {
                 <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                   <AlertDialogTrigger asChild>
                     <button
-                      disabled={triggerGrapeRankMutation.isPending}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 hover:text-[#333286] transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
+                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
                       data-testid="button-trigger-graperank"
-                      title={triggerGrapeRankMutation.isPending ? "Calculating..." : "Calculate GrapeRank"}
                     >
                       {triggerGrapeRankMutation.isPending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
+                        </>
                       ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                          <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path opacity="0.4" d="M14.4209 21.3896H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M18.0894 9.27V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M2.2998 22.0005L9.5798 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M9.5798 22.0005L2.2998 14.7305" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <>
+                          <RefreshCw className="w-3 h-3" />
+                          <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
+                        </>
                       )}
                     </button>
                   </AlertDialogTrigger>
