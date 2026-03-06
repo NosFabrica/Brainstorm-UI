@@ -39,7 +39,7 @@ import {
   RefreshCw,
   Info,
 } from "lucide-react";
-import { getCurrentUser, logout, signNip85, publishToRelays, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +54,9 @@ export default function SettingsPage() {
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
   const [republishError, setRepublishError] = useState("");
+  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
+  const [deactivateState, setDeactivateState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
+  const [deactivateError, setDeactivateError] = useState("");
   const [activePreset, setActivePresetState] = useState<TrustPreset>(getActivePreset());
   const [customValue, setCustomValue] = useState<string>(() => {
     const stored = getCustomThreshold();
@@ -189,6 +192,49 @@ export default function SettingsPage() {
     } else {
       setRepublishState("error");
       setRepublishError(result.error || "Failed to publish to relays. Please try again.");
+    }
+  };
+
+  const handleDeactivateNip85 = async () => {
+    setDeactivateState("signing");
+    setDeactivateError("");
+
+    if (!window.nostr) {
+      setDeactivateState("error");
+      setDeactivateError("No Nostr extension found. Please install a NIP-07 compatible extension.");
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    if (!currentUser?.pubkey) {
+      setDeactivateState("error");
+      setDeactivateError("Not logged in.");
+      return;
+    }
+
+    let signedEvent: Record<string, unknown>;
+    try {
+      signedEvent = await signNip85Deactivation();
+    } catch {
+      setDeactivateState("idle");
+      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      return;
+    }
+
+    setDeactivateState("publishing");
+    const result = await publishToRelays(signedEvent);
+
+    if (result.success) {
+      localStorage.removeItem("brainstorm_nip85_activated");
+      setDeactivateState("success");
+      toast({ title: "Provider deactivated", description: "Brainstorm has been removed as your WoT service provider.", duration: 4000 });
+      setTimeout(() => {
+        setDeactivateState("idle");
+        window.location.reload();
+      }, 2000);
+    } else {
+      setDeactivateState("error");
+      setDeactivateError(result.error || "Failed to publish to relays. Please try again.");
     }
   };
 
@@ -585,7 +631,74 @@ export default function SettingsPage() {
                           </div>
                         </AlertDialogContent>
                       </AlertDialog>
+
+                      <AlertDialog open={deactivateConfirmOpen} onOpenChange={setDeactivateConfirmOpen}>
+                        <button
+                          type="button"
+                          onClick={() => setDeactivateConfirmOpen(true)}
+                          disabled={deactivateState === "signing" || deactivateState === "publishing" || deactivateState === "success"}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          data-testid="button-sp-deactivate"
+                        >
+                          {deactivateState === "signing" || deactivateState === "publishing" ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              {deactivateState === "signing" ? "Signing..." : "Publishing..."}
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-3.5 w-3.5" />
+                              Deactivate Provider
+                            </>
+                          )}
+                        </button>
+                        <AlertDialogContent
+                          className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-red-200/40 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(239,68,68,0.10)] p-0 overflow-hidden"
+                          data-testid="dialog-confirm-nip85-deactivate"
+                        >
+                          <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-400 via-red-500 to-red-400" />
+                            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
+                          </div>
+                          <div className="relative p-4 sm:p-5">
+                            <AlertDialogHeader className="space-y-2">
+                              <div className="flex items-start gap-3">
+                                <div className="h-9 w-9 rounded-2xl bg-red-50 border border-red-200/60 flex items-center justify-center shrink-0" data-testid="icon-confirm-nip85-deactivate">
+                                  <X className="h-4 w-4 text-red-500" />
+                                </div>
+                                <div className="min-w-0">
+                                  <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-deactivate-title">
+                                    Deactivate Service Provider?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-deactivate-desc">
+                                    This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
+                                  </AlertDialogDescription>
+                                </div>
+                              </div>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                              <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-deactivate-cancel">Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                                onClick={() => {
+                                  setDeactivateConfirmOpen(false);
+                                  handleDeactivateNip85();
+                                }}
+                                data-testid="button-confirm-deactivate-continue"
+                              >
+                                Deactivate
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </div>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
+
+                    {deactivateState === "error" && deactivateError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2" data-testid="alert-sp-deactivate-error">
+                        <p className="text-xs text-red-700 font-medium">{deactivateError}</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">

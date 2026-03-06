@@ -239,4 +239,25 @@ export async function signNip85(
   return await window.nostr.signEvent(event);
 }
 
+export async function signNip85Deactivation(): Promise<Record<string, unknown>> {
+  if (!window.nostr) {
+    return { success: false, error: "No Nostr extension found" };
+  }
+
+  const user = getCurrentUser();
+  if (!user?.pubkey) {
+    return { success: false, error: "Not logged in" };
+  }
+
+  const event = {
+    kind: 10040,
+    tags: [],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+
+  return await window.nostr.signEvent(event);
+}
+
 export { eventStore, pool };
