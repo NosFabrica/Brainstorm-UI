@@ -1309,6 +1309,13 @@ export default function ProfilePage() {
                         </div>
                         {hexPubkey && !social.isSelf(hexPubkey) && (
                           <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
+                            {social.listsLoading ? (
+                              <>
+                                <div className="h-7 sm:h-8 w-20 sm:w-24 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-follow-button" />
+                                <div className="h-7 sm:h-8 w-16 sm:w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-mute-button" />
+                              </>
+                            ) : (
+                            <>
                             {(() => {
                               const following = social.isFollowing(hexPubkey);
                               const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
@@ -1396,6 +1403,8 @@ export default function ProfilePage() {
                               <Flag className="h-3.5 w-3.5" />
                               <span className="hidden sm:inline">Report</span>
                             </button>
+                            </>
+                            )}
                           </div>
                         )}
                       </div>

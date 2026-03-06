@@ -16,7 +16,7 @@ export function useSocialActions(myPubkey: string | undefined) {
   const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  const { data: contactList } = useQuery({
+  const { data: contactList, isPending: contactsLoading } = useQuery({
     queryKey: ["nostr-contacts", myPubkey],
     queryFn: () => fetchContactList(myPubkey!),
     enabled: !!myPubkey,
@@ -24,13 +24,15 @@ export function useSocialActions(myPubkey: string | undefined) {
     refetchOnWindowFocus: false,
   });
 
-  const { data: muteList } = useQuery({
+  const { data: muteList, isPending: mutesLoading } = useQuery({
     queryKey: ["nostr-mutes", myPubkey],
     queryFn: () => fetchMuteList(myPubkey!),
     enabled: !!myPubkey,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+
+  const listsLoading = !!myPubkey && (contactsLoading || mutesLoading);
 
   const followedSet = useMemo(() => getFollowedPubkeys(contactList ?? null), [contactList]);
   const mutedSet = useMemo(() => getMutedPubkeys(muteList ?? null), [muteList]);
@@ -120,6 +122,7 @@ export function useSocialActions(myPubkey: string | undefined) {
     report: doReport,
     isPending,
     isAnyPending,
+    listsLoading,
     contactList,
     muteList,
   };

@@ -197,13 +197,14 @@ interface NetworkProfileCardProps {
   onMute: (pk: string) => Promise<{ success: boolean; error?: string }>;
   onUnmute: (pk: string) => Promise<{ success: boolean; error?: string }>;
   socialPending: boolean;
+  socialListsLoading: boolean;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
-  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending
+  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -457,6 +458,13 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 {renderVerifiedFlags()}
                 {!isSelf && (
                   <div className="flex items-center gap-1.5" data-testid={`detail-social-actions-${pkShort}`}>
+                    {socialListsLoading ? (
+                      <>
+                        <div className="h-7 w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid={`skeleton-follow-${pkShort}`} />
+                        <div className="h-7 w-16 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid={`skeleton-mute-${pkShort}`} />
+                      </>
+                    ) : (
+                    <>
                     <button
                       type="button"
                       disabled={cardActionPending !== null || socialPending}
@@ -524,6 +532,8 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                         {cardActionPending === "mute" ? "..." : isMutedUser ? "Unmute" : "Mute"}
                       </span>
                     </button>
+                    </>
+                    )}
                   </div>
                 )}
                 <button
@@ -1705,6 +1715,7 @@ export default function NetworkPage() {
                             onMute={handleSocialMute}
                             onUnmute={handleSocialUnmute}
                             socialPending={social.isAnyPending}
+                            socialListsLoading={social.listsLoading}
                           />
                         </div>
                       ))}
