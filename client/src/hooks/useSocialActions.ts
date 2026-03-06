@@ -10,6 +10,7 @@ import {
   muteUser,
   unmuteUser,
   reportUser,
+  type NostrEvent,
 } from "@/services/socialActions";
 
 export function useSocialActions(myPubkey: string | undefined) {
@@ -46,53 +47,85 @@ export function useSocialActions(myPubkey: string | undefined) {
     queryClient.invalidateQueries({ queryKey: ["nostr-mutes", myPubkey] });
   }, [queryClient, myPubkey]);
 
+  const optimisticUpdateContacts = useCallback((targetPk: string, action: "add" | "remove") => {
+    queryClient.setQueryData(["nostr-contacts", myPubkey], (old: NostrEvent | null | undefined) => {
+      if (!old) return old;
+      const newTags = action === "add"
+        ? [...old.tags, ["p", targetPk]]
+        : old.tags.filter(t => !(t[0] === "p" && t[1] === targetPk));
+      return { ...old, tags: newTags, created_at: Math.floor(Date.now() / 1000) };
+    });
+  }, [queryClient, myPubkey]);
+
+  const optimisticUpdateMutes = useCallback((targetPk: string, action: "add" | "remove") => {
+    queryClient.setQueryData(["nostr-mutes", myPubkey], (old: NostrEvent | null | undefined) => {
+      if (!old) return old;
+      const newTags = action === "add"
+        ? [...old.tags, ["p", targetPk]]
+        : old.tags.filter(t => !(t[0] === "p" && t[1] === targetPk));
+      return { ...old, tags: newTags, created_at: Math.floor(Date.now() / 1000) };
+    });
+  }, [queryClient, myPubkey]);
+
   const doFollow = useCallback(async (targetPk: string) => {
     if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
     setPendingAction(`follow-${targetPk}`);
     try {
-      const result = await followUser(targetPk);
-      if (result.success) invalidateLists();
+      const result = await followUser(targetPk, contactList);
+      if (result.success) {
+        optimisticUpdateContacts(targetPk, "add");
+        invalidateLists();
+      }
       return result;
     } finally {
       setPendingAction(null);
     }
-  }, [myPubkey, invalidateLists]);
+  }, [myPubkey, contactList, optimisticUpdateContacts, invalidateLists]);
 
   const doUnfollow = useCallback(async (targetPk: string) => {
     if (!myPubkey) return { success: false, error: "Not logged in" };
     setPendingAction(`unfollow-${targetPk}`);
     try {
-      const result = await unfollowUser(targetPk);
-      if (result.success) invalidateLists();
+      const result = await unfollowUser(targetPk, contactList);
+      if (result.success) {
+        optimisticUpdateContacts(targetPk, "remove");
+        invalidateLists();
+      }
       return result;
     } finally {
       setPendingAction(null);
     }
-  }, [myPubkey, invalidateLists]);
+  }, [myPubkey, contactList, optimisticUpdateContacts, invalidateLists]);
 
   const doMute = useCallback(async (targetPk: string) => {
     if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
     setPendingAction(`mute-${targetPk}`);
     try {
-      const result = await muteUser(targetPk);
-      if (result.success) invalidateLists();
+      const result = await muteUser(targetPk, muteList);
+      if (result.success) {
+        optimisticUpdateMutes(targetPk, "add");
+        invalidateLists();
+      }
       return result;
     } finally {
       setPendingAction(null);
     }
-  }, [myPubkey, invalidateLists]);
+  }, [myPubkey, muteList, optimisticUpdateMutes, invalidateLists]);
 
   const doUnmute = useCallback(async (targetPk: string) => {
     if (!myPubkey) return { success: false, error: "Not logged in" };
     setPendingAction(`unmute-${targetPk}`);
     try {
-      const result = await unmuteUser(targetPk);
-      if (result.success) invalidateLists();
+      const result = await unmuteUser(targetPk, muteList);
+      if (result.success) {
+        optimisticUpdateMutes(targetPk, "remove");
+        invalidateLists();
+      }
       return result;
     } finally {
       setPendingAction(null);
     }
-  }, [myPubkey, invalidateLists]);
+  }, [myPubkey, muteList, optimisticUpdateMutes, invalidateLists]);
 
   const doReport = useCallback(async (targetPk: string, reason: string) => {
     if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };

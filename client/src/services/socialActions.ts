@@ -72,13 +72,13 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
   return set;
 }
 
-export async function followUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
 
-  const current = await fetchContactList(user.pubkey);
+  const current = cachedContactList ?? await fetchContactList(user.pubkey);
   if (!current) return { success: false, error: "Could not fetch your contact list from relays. Please try again." };
 
   const alreadyFollowing = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
@@ -101,12 +101,12 @@ export async function followUser(targetPubkey: string): Promise<{ success: boole
   }
 }
 
-export async function unfollowUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
 
-  const current = await fetchContactList(user.pubkey);
+  const current = cachedContactList ?? await fetchContactList(user.pubkey);
   if (!current) return { success: false, error: "Could not fetch your contact list" };
 
   const wasFollowing = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
@@ -129,13 +129,13 @@ export async function unfollowUser(targetPubkey: string): Promise<{ success: boo
   }
 }
 
-export async function muteUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = await fetchMuteList(user.pubkey);
+  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
   const alreadyMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
@@ -158,12 +158,12 @@ export async function muteUser(targetPubkey: string): Promise<{ success: boolean
   }
 }
 
-export async function unmuteUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
 
-  const current = await fetchMuteList(user.pubkey);
+  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
   const wasMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
