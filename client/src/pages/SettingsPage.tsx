@@ -570,7 +570,7 @@ export default function SettingsPage() {
                       </div>
                     )}
 
-                    <div className="pt-3 border-t border-slate-100">
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
                       <AlertDialog open={nip85ConfirmOpen} onOpenChange={setNip85ConfirmOpen}>
                         <button
                           type="button"
@@ -637,7 +637,7 @@ export default function SettingsPage() {
                           type="button"
                           onClick={() => setDeactivateConfirmOpen(true)}
                           disabled={deactivateState === "signing" || deactivateState === "publishing" || deactivateState === "success"}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
                           data-testid="button-sp-deactivate"
                         >
                           {deactivateState === "signing" || deactivateState === "publishing" ? (
@@ -648,7 +648,7 @@ export default function SettingsPage() {
                           ) : (
                             <>
                               <X className="h-3.5 w-3.5" />
-                              Deactivate Provider
+                              Deactivate
                             </>
                           )}
                         </button>
