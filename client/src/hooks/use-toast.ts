@@ -144,6 +144,8 @@ const dismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 function toast({ duration, ...props }: Toast) {
   const id = genId()
 
+  const effectiveDuration = duration ?? (props.variant === "destructive" ? 5000 : undefined)
+
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
@@ -163,14 +165,14 @@ function toast({ duration, ...props }: Toast) {
     },
   })
 
-  if (duration && duration > 0) {
+  if (effectiveDuration && effectiveDuration > 0) {
     if (dismissTimeouts.has(id)) {
       clearTimeout(dismissTimeouts.get(id)!)
     }
     const t = setTimeout(() => {
       dismissTimeouts.delete(id)
       dismiss()
-    }, duration)
+    }, effectiveDuration)
     dismissTimeouts.set(id, t)
   }
 
