@@ -699,7 +699,7 @@ export default function ProfilePage() {
                 {sortOptions.map(opt => (
                   <button
                     key={opt.value}
-                    onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
+                    onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); }}
                     className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${activeSort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
                     data-testid={`sort-${opt.value}-${key}`}
                   >
