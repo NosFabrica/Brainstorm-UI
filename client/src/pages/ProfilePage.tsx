@@ -443,11 +443,12 @@ export default function ProfilePage() {
     const map = toInfluenceMap(profileResult.followed_by);
     const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
     map.forEach((inf) => {
-      const score = inf ?? 0;
-      if (score >= 0.50) counts.high++;
-      else if (score >= 0.20) counts.trusted++;
-      else if (score >= 0.07) counts.neutral++;
-      else if (score >= getVerifiedThreshold()) counts.low++;
+      if (inf === null || inf === undefined) {
+        counts.unverified++;
+      } else if (inf >= 0.50) counts.high++;
+      else if (inf >= 0.20) counts.trusted++;
+      else if (inf >= 0.07) counts.neutral++;
+      else if (inf >= getVerifiedThreshold()) counts.low++;
       else counts.unverified++;
     });
     const total = map.size;
@@ -487,8 +488,11 @@ export default function ProfilePage() {
     if (map.size === 0) return null;
     const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
     map.forEach((inf) => {
-      const score = inf ?? 0;
-      counts[getTierKey(score)]++;
+      if (inf === null || inf === undefined) {
+        counts.unverified++;
+      } else {
+        counts[getTierKey(inf)]++;
+      }
     });
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
