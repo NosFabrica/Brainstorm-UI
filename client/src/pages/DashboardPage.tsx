@@ -85,7 +85,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfile, applyProfileToUser, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
@@ -208,6 +208,7 @@ export default function DashboardPage() {
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
+      await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
         const updates = applyProfileToUser(content);
@@ -279,6 +280,30 @@ export default function DashboardPage() {
 
   const selfData = selfQuery.data?.data;
   const network = selfData?.graph || user?.userData?.data?.graph || null;
+
+  const trustServiceProvider = useQuery({
+    queryKey: ["trustServiceProvider", user?.pubkey, selfQuery.data?.data?.history?.ta_pubkey],
+    queryFn: async () => {
+      console.log("trustServiceProvider", selfQuery.data?.data?.history?.ta_pubkey)
+      if (!user?.pubkey || !selfQuery.data?.data?.history?.ta_pubkey) return null;
+      const isBrainstormClient = await isUsingBrainstorm(user.pubkey, selfQuery.data?.data?.history?.ta_pubkey);
+
+      if (localStorage.getItem("brainstorm_nip85_activated") !== "true") {
+        localStorage.setItem("brainstorm_nip85_activated", "true");
+      }
+
+      if (nip85Activated !== isBrainstormClient) {
+        setNip85Activated(isBrainstormClient)
+      }
+      
+      return isBrainstormClient
+    },
+    enabled: !!user && hasToken,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    staleTime: Infinity,
+  });
+
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
 
