@@ -23,7 +23,7 @@ PORT = "5000"
 [deployment]
 deploymentTarget = "static"
 run = ["node", "./dist/index.cjs"]
-build = ["npm", "run", "build"]
+build = ["bash", "-c", "npm run build && cp dist/index.html dist/200.html"]
 publicDir = "dist"
 
 [workflows]
