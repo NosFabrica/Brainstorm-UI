@@ -252,6 +252,7 @@ export default function ProfilePage() {
     setSectionVisibleCount({});
     expandProfileCache.current.clear();
     expandTrustCache.current.clear();
+    prefetchedRef.current.clear();
 
     apiClient.getUserByPubkey(hexPubkey)
       .then(res => {
@@ -297,6 +298,7 @@ export default function ProfilePage() {
   };
 
   const fetchAbortRef = useRef<number>(0);
+  const prefetchedRef = useRef<Set<string>>(new Set());
 
   const fetchSectionProfiles = async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
     const fetchId = ++fetchAbortRef.current;
@@ -332,6 +334,18 @@ export default function ProfilePage() {
     ]);
     if (fetchAbortRef.current !== fetchId) return;
     setForceRender(c => c + 1);
+    const nextStart = startIdx + count;
+    if (nextStart < pubkeys.length) {
+      const nextBatch = pubkeys.slice(nextStart, nextStart + count).filter(
+        pk => !expandProfileCache.current.has(pk) && !eventStore.getReplaceable(0, pk)
+      );
+      if (nextBatch.length > 0) {
+        nextBatch.forEach(pk => prefetchedRef.current.add(pk));
+        fetchProfiles(nextBatch, (pubkey, profile) => {
+          expandProfileCache.current.set(pubkey, profile);
+        });
+      }
+    }
   };
 
   const mutualPubkeys = useMemo(() => {
@@ -359,6 +373,29 @@ export default function ProfilePage() {
     const searchedFollowing = toPubkeys(profileResult.following);
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
   }, [selfData, profileResult]);
+
+  useEffect(() => {
+    if (!profileResult) return;
+    const allPubkeys: string[] = [];
+    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
+      const pks = toPubkeys(profileResult[key]);
+      allPubkeys.push(...pks.slice(0, 10));
+    }
+    for (const pk of mutualPubkeys.slice(0, 10)) allPubkeys.push(pk);
+    for (const pk of sharedFollowerPubkeys.slice(0, 10)) allPubkeys.push(pk);
+    for (const pk of sharedFollowingPubkeys.slice(0, 10)) allPubkeys.push(pk);
+    const unique = [...new Set(allPubkeys)].filter(pk => {
+      if (prefetchedRef.current.has(pk)) return false;
+      const cached = eventStore.getReplaceable(0, pk);
+      return !cached;
+    });
+    if (unique.length > 0) {
+      unique.forEach(pk => prefetchedRef.current.add(pk));
+      fetchProfiles(unique, (pubkey, profile) => {
+        expandProfileCache.current.set(pubkey, profile);
+      });
+    }
+  }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
   const TIER_THRESHOLDS = [
     { key: "high", name: "Highly Trusted", min: 0.50, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
