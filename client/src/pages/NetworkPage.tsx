@@ -1542,8 +1542,7 @@ export default function NetworkPage() {
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
               <div className="space-y-1 sm:space-y-1.5">
               {[
-                { label: "Graph", keys: ["followed_by", "following"] },
-                { label: "Actions", keys: ["muting", "reporting"] },
+                { label: "Graph", keys: ["followed_by", "following", "muting", "reporting"] },
                 { label: "Signals", keys: ["muted_by", "reported_by", "flagged"] },
               ].map((tier) => (
                 <div key={tier.label} className="flex flex-wrap gap-1.5 sm:gap-2" data-testid={`row-group-filters-${tier.label.toLowerCase()}`}>
@@ -1561,7 +1560,7 @@ export default function NetworkPage() {
                           <button
                             type="button"
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                            className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all flex-1 sm:flex-initial ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
