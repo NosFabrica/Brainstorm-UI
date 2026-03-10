@@ -1540,7 +1540,7 @@ export default function NetworkPage() {
             </CardHeader>
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
-              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto sm:overflow-x-visible sm:flex-wrap pb-2 sm:pb-0 scrollbar-thin" data-testid="row-group-filters">
+              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin" data-testid="row-group-filters">
                 {groups.map((group) => {
                   const count = getGroupCount(group.key);
                   const totalCount = getGroupPubkeys(group.key).length;
@@ -1551,7 +1551,7 @@ export default function NetworkPage() {
                       key={group.key}
                       type="button"
                       onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 sm:shrink ${
+                      className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
                           : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
@@ -1559,8 +1559,7 @@ export default function NetworkPage() {
                       data-testid={`button-filter-${group.key}`}
                     >
                       <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                      <span className="hidden sm:inline">{group.label}</span>
-                      <span className="sm:hidden">{group.shortLabel}</span>
+                      <span>{group.shortLabel}</span>
                       <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                         isActive
                           ? "bg-white/20 text-white"
