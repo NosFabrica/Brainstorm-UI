@@ -6,6 +6,7 @@ import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
+import brainstormHeroImg from "@assets/image_1773159642605.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -2278,7 +2279,7 @@ export default function DashboardPage() {
                     aria-label="Next supported client"
                   >
                     <div className="absolute inset-0 z-0">
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-900/40 via-indigo-800/20 to-transparent" />
+                      <img src={brainstormHeroImg} alt="" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" aria-hidden="true" />
                       <div className="absolute inset-0 bg-gradient-to-r from-[#1e1b4b] via-[#1e1b4b]/90 to-transparent" />
                     </div>
 
