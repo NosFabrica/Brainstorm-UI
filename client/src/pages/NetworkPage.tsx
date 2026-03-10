@@ -1544,8 +1544,8 @@ export default function NetworkPage() {
                 { label: "Graph", keys: ["followed_by", "following", "muting", "reporting"] },
                 { label: "Risk", keys: ["muted_by", "reported_by", "flagged"] },
               ].map((tier) => (
-                <div key={tier.label} className="flex gap-1.5 sm:gap-2" data-testid={`row-group-filters-${tier.label.toLowerCase()}`}>
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-0.5 sm:mr-1 shrink-0">{tier.label}</span>
+                <div key={tier.label} className="flex flex-wrap gap-1.5 sm:gap-2" data-testid={`row-group-filters-${tier.label.toLowerCase()}`}>
+                  <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">{tier.label}</span>
                   {tier.keys.map((k) => {
                     const group = groups.find(g => g.key === k);
                     if (!group) return null;
@@ -1559,7 +1559,7 @@ export default function NetworkPage() {
                           <button
                             type="button"
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                            className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
@@ -1567,7 +1567,7 @@ export default function NetworkPage() {
                             data-testid={`button-filter-${group.key}`}
                           >
                             <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                            <span>{group.shortLabel}</span>
+                            <span className="hidden sm:inline">{group.shortLabel}</span>
                             <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                               isActive
                                 ? "bg-white/20 text-white"
@@ -1588,8 +1588,8 @@ export default function NetworkPage() {
                 </div>
               ))}
 
-              <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
-                <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-0.5 sm:mr-1 shrink-0">Trust</span>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
+                <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
                 {([
                   { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
                   { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9 },
@@ -1623,8 +1623,7 @@ export default function NetworkPage() {
                             style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
                         </svg>
                       )}
-                      <span className="hidden sm:inline">{tier.label}</span>
-                      <span className="sm:hidden">{tier.shortLabel}</span>
+                      <span className={tier.icon || tier.key === "flagged" ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
                     </button>
                   );
                 })}
