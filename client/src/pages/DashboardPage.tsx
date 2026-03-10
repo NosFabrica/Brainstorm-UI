@@ -320,6 +320,7 @@ export default function DashboardPage() {
   const mutingCount = network?.muting?.length ?? 0;
   const reportedByCount = network?.reported_by?.length ?? 0;
   const reportingCount = network?.reporting?.length ?? 0;
+  const flaggedCount = network?.low_and_reported_by_2_or_more_trusted_pubkeys?.length ?? 0;
   const influence = network?.influence ?? 0;
 
   const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
@@ -419,6 +420,7 @@ export default function DashboardPage() {
     { key: "medium", name: "Neutral", color: "#6366f1" },
     { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
     { key: "low", name: "Unverified", color: "#a1a1aa" },
+    { key: "flagged", name: "Flagged", color: "#ef4444" },
   ] as const;
 
   const countValues = useMemo(() => {
@@ -508,6 +510,7 @@ export default function DashboardPage() {
       { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#6366f1" },
       { label: "Low Trust", count: mutedByCount + mutingCount, color: "#f59e0b" },
       { label: "Unverified", count: Math.max(10, mutedByCount), color: "#a1a1aa" },
+      { label: "Flagged", count: flaggedCount, color: "#ef4444" },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
@@ -516,10 +519,11 @@ export default function DashboardPage() {
       else if (d.label === "Trusted") multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
       else if (d.label === "Neutral") multiplier = 1 + (currentHops - 1) * 0.4;
       else if (d.label === "Low Trust") multiplier = 1 + (currentHops - 1) * 0.6;
+      else if (d.label === "Flagged") multiplier = 1 + (currentHops - 1) * 0.5;
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
     }).filter(d => d.value > 0);
-  }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount]);
+  }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
   const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
@@ -550,25 +554,24 @@ export default function DashboardPage() {
     const followers = network.followed_by;
     if (!Array.isArray(followers)) return {} as Record<string, number>;
     const flaggedSet = new Set<string>();
-    const flaggedGroups = ["muted_by", "reported_by"] as const;
-    for (const gk of flaggedGroups) {
-      const members = (network as any)[gk];
-      if (!Array.isArray(members)) continue;
-      for (const m of members) flaggedSet.add(m.pubkey);
+    const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
+    if (Array.isArray(flaggedApiList)) {
+      for (const m of flaggedApiList) flaggedSet.add(typeof m === "string" ? m : m.pubkey);
     }
-    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
+    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
     for (const m of followers) {
       if (flaggedSet.has(m.pubkey)) {
         counts.flagged++;
         continue;
       }
-      const inf = typeof m.influence === "number" ? m.influence : -1;
+      const inf = typeof m.influence === "number" ? m.influence : null;
       const vt = getVerifiedThreshold();
+      if (inf === null) { counts.unverified++; continue; }
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
       else if (inf >= 0.07) counts.neutral++;
       else if (inf >= vt) counts.low++;
-      else counts.flagged++;
+      else counts.unverified++;
     }
     return counts;
   }, [network]);
@@ -578,25 +581,24 @@ export default function DashboardPage() {
     const following = network.following;
     if (!Array.isArray(following)) return {} as Record<string, number>;
     const flaggedSet = new Set<string>();
-    const flaggedGroups = ["muted_by", "reported_by"] as const;
-    for (const gk of flaggedGroups) {
-      const members = (network as any)[gk];
-      if (!Array.isArray(members)) continue;
-      for (const m of members) flaggedSet.add(m.pubkey);
+    const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
+    if (Array.isArray(flaggedApiList)) {
+      for (const m of flaggedApiList) flaggedSet.add(typeof m === "string" ? m : m.pubkey);
     }
-    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0 };
+    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
     for (const m of following) {
       if (flaggedSet.has(m.pubkey)) {
         counts.flagged++;
         continue;
       }
-      const inf = typeof m.influence === "number" ? m.influence : -1;
+      const inf = typeof m.influence === "number" ? m.influence : null;
       const vt = getVerifiedThreshold();
+      if (inf === null) { counts.unverified++; continue; }
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
       else if (inf >= 0.07) counts.neutral++;
       else if (inf >= vt) counts.low++;
-      else counts.flagged++;
+      else counts.unverified++;
     }
     return counts;
   }, [network]);
@@ -1919,7 +1921,7 @@ export default function DashboardPage() {
                     <div className="h-48 w-full md:w-5/12">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return isHop1 && healthView === "following" ? followingPieData : currentPieData; })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" }; const tier = tierMap[activePieData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
+                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return isHop1 && healthView === "following" ? followingPieData : currentPieData; })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" }; const tier = tierMap[activePieData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
                             {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; return activePieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
                             )); })()}
@@ -1969,7 +1971,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       {activePieData.map((dist, i) => {
-                        const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "flagged" };
+                        const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" };
                         const tier = tierMap[dist.name];
                         const canClick = isCalculationComplete && calcDone && !!tier;
                         const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;

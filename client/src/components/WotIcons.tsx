@@ -854,6 +854,20 @@ export function NodeReportingIcon({ className = "w-4 h-4" }: { className?: strin
   );
 }
 
+export function NodeFlaggedIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="8" cy="14" r="2.8" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="14" r="1" fill="currentColor" fillOpacity="0.3" />
+      <path d="M10.8 13.5L14 13.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.5" />
+      <path d="M16 5v14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M16 5h5l-2.5 3.5L21 12h-5" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill="currentColor" fillOpacity="0.15" />
+      <circle cx="12" cy="5" r="1" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4" />
+      <path d="M12 6v5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.3" />
+    </svg>
+  );
+}
+
 export function NodeSignIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className={className}>

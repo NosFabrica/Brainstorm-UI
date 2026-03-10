@@ -48,7 +48,7 @@ import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon } from "@/components/WotIcons";
+import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +58,7 @@ const MutedByIcon = NodeMutedByIcon;
 const MutingIcon = NodeMutingIcon;
 const ReportedByIcon = NodeReportedByIcon;
 const ReportingIcon = NodeReportingIcon;
+const FlaggedIcon = NodeFlaggedIcon;
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -148,6 +149,7 @@ const detailMetrics: { key: string; label: string; desc: string; iconBg: string;
   { key: "reported_by", label: "Reported By", desc: "Others who reported this account", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-500", countColor: "text-red-700" },
   { key: "muting", label: "Muting", desc: "Accounts this person mutes", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-slate-900" },
   { key: "reporting", label: "Reporting", desc: "Accounts this person reports", iconBg: "bg-slate-50 border-slate-200", iconColor: "text-slate-500", countColor: "text-slate-900" },
+  { key: "flagged", label: "Flagged", desc: "Low trust & reported by 2+ trusted", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-600", countColor: "text-red-700" },
 ];
 
 const metricIcons: Record<string, (cls: string) => JSX.Element> = {
@@ -157,9 +159,10 @@ const metricIcons: Record<string, (cls: string) => JSX.Element> = {
   reported_by: (cls) => <ReportedByIcon className={cls} />,
   muting: (cls) => <MutingIcon className={cls} />,
   reporting: (cls) => <ReportingIcon className={cls} />,
+  flagged: (cls) => <FlaggedIcon className={cls} />,
 };
 
-type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting";
+type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 const groups = [
   { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
@@ -168,6 +171,7 @@ const groups = [
   { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
   { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
   { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
+  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200" },
 ];
 
 interface NetworkProfileCardProps {
@@ -386,7 +390,8 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
             <div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" data-testid={`detail-metrics-${pkShort}`}>
                 {detailMetrics.map((m) => {
-                  const raw = detail[m.key];
+                  const detailApiKey = m.key === "flagged" ? "low_and_reported_by_2_or_more_trusted_pubkeys" : m.key;
+                  const raw = detail[detailApiKey];
                   const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                   const isVerifiable = m.key === "followed_by" || m.key === "following";
                   let verifiedCount = 0;
@@ -745,15 +750,15 @@ export default function NetworkPage() {
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
     const group = params.get("group");
-    const validGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    const validGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"];
     return group && validGroups.includes(group as GroupKey) ? (group as GroupKey) : "followed_by";
   });
   const [searchFilter, setSearchFilter] = useState("");
-  type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "flagged";
+  type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "unverified" | "flagged";
   const [trustFilter, setTrustFilter] = useState<TrustTier>(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("trust");
-    const valid: TrustTier[] = ["high", "medium", "neutral", "low", "flagged"];
+    const valid: TrustTier[] = ["high", "medium", "neutral", "low", "unverified", "flagged"];
     if (t && valid.includes(t as TrustTier)) return t as TrustTier;
     return "all";
   });
@@ -902,16 +907,20 @@ export default function NetworkPage() {
     }
   }, [expandedPubkey]);
 
+  const API_KEY_MAP: Record<string, string> = { flagged: "low_and_reported_by_2_or_more_trusted_pubkeys" };
+
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
-    return toPubkeys(networkData[key]);
+    const apiKey = API_KEY_MAP[key] || key;
+    return toPubkeys(networkData[apiKey]);
   }, [networkData]);
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
     const sets: Record<GroupKey, Set<string>> = {} as any;
-    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
-      sets[k] = new Set(toPubkeys(networkData[k]));
+    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"] as GroupKey[]).forEach(k => {
+      const apiKey = API_KEY_MAP[k] || k;
+      sets[k] = new Set(toPubkeys(networkData[apiKey]));
     });
     return sets;
   }, [networkData]);
@@ -919,7 +928,7 @@ export default function NetworkPage() {
   const getPubkeyGroups = useCallback((pubkey: string): GroupKey[] => {
     if (!groupPubkeySets) return [];
     const memberOf: GroupKey[] = [];
-    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
+    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"] as GroupKey[]).forEach(k => {
       if (groupPubkeySets[k].has(pubkey)) {
         memberOf.push(k);
       }
@@ -968,16 +977,12 @@ export default function NetworkPage() {
     }
     if (trustFilter !== "all") {
       if (trustFilter === "flagged") {
-        const flaggedGroups: GroupKey[] = ["muted_by", "reported_by"];
-        const flaggedSet = new Set<string>();
-        for (const gk of flaggedGroups) {
-          for (const pk of getGroupPubkeys(gk)) {
-            flaggedSet.add(pk);
-          }
-        }
+        const flaggedPubkeys = new Set(getGroupPubkeys("flagged"));
+        pubkeys = pubkeys.filter(pk => flaggedPubkeys.has(pk));
+      } else if (trustFilter === "unverified") {
         pubkeys = pubkeys.filter(pk => {
-          if (flaggedSet.has(pk)) return true;
           const influence = trustCache.current.get(pk);
+          if (influence === undefined || influence === null) return true;
           return typeof influence === "number" && influence < getVerifiedThreshold();
         });
       } else {

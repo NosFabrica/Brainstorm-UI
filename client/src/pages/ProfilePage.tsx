@@ -110,6 +110,13 @@ const ReportingIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const FlaggedIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className}>
+    <path d="M5 4v16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M5 4h10l-3 4 3 4H5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.1" />
+  </svg>
+);
+
 const MutualIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
     <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
@@ -377,7 +384,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!profileResult) return;
     const allPubkeys: string[] = [];
-    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
+    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting", "low_and_reported_by_2_or_more_trusted_pubkeys"]) {
       const pks = toPubkeys(profileResult[key]);
       allPubkeys.push(...pks.slice(0, 10));
     }
@@ -460,7 +467,7 @@ export default function ProfilePage() {
     const cached = expandTrustCache.current.get(pk);
     if (cached !== undefined && cached !== null) return cached;
     if (profileResult) {
-      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
+      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting", "low_and_reported_by_2_or_more_trusted_pubkeys"]) {
         const map = toInfluenceMap(profileResult[groupKey]);
         const val = map.get(pk);
         if (val !== undefined && val !== null) return val;
@@ -615,6 +622,7 @@ export default function ProfilePage() {
       { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
       { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
+      { key: "low_and_reported_by_2_or_more_trusted_pubkeys", label: "Flagged", colors: "bg-red-50 text-red-600 border-red-200" },
     ];
     if (!profileResult) return [];
     return groupDefs.filter(g => {
@@ -1606,6 +1614,7 @@ export default function ProfilePage() {
                   const reportedByCount = Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0);
                   const mutingCount = Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0);
                   const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
+                  const flaggedCount = Array.isArray(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys) ? toPubkeys(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys).length : (profileResult.low_and_reported_by_2_or_more_trusted_pubkeys || 0);
                   const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0;
                   const totalNegativeSignals = mutedByCount + reportedByCount;
                   const vMuted = verifiedCounts.mutedBy;
@@ -1933,6 +1942,37 @@ export default function ProfilePage() {
                               </div>
                             </div>
                             {rpExpandable && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
+                          </div>
+                          );
+                        })()}
+                        {profileResult.low_and_reported_by_2_or_more_trusted_pubkeys !== undefined && flaggedCount > 0 && (() => {
+                          const flIsArray = Array.isArray(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys);
+                          const flExpandable = flIsArray && flaggedCount > 0;
+                          return (
+                          <div>
+                            <div
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${flExpandable ? "cursor-pointer hover:bg-red-50/30 transition-all duration-200" : ""}`}
+                              onClick={flExpandable ? () => toggleSection("low_and_reported_by_2_or_more_trusted_pubkeys") : undefined}
+                              data-testid="metric-profile-flagged"
+                            >
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 bg-red-50 border-red-200`}>
+                                  <FlaggedIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600" />
+                                </div>
+                                <div>
+                                  <p className="text-xs sm:text-sm font-semibold text-red-700">Flagged</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Low trust & reported by 2+ trusted accounts</p>
+                                  {renderTierBadges("low_and_reported_by_2_or_more_trusted_pubkeys")}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-lg sm:text-xl font-bold text-red-600 font-mono tabular-nums tracking-tight" data-testid="text-profile-flagged">
+                                  {flaggedCount.toLocaleString()}
+                                </p>
+                                {flExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["low_and_reported_by_2_or_more_trusted_pubkeys"] ? "rotate-180" : ""}`} />}
+                              </div>
+                            </div>
+                            {flExpandable && renderExpandedPanel("low_and_reported_by_2_or_more_trusted_pubkeys", toPubkeys(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys))}
                           </div>
                           );
                         })()}
