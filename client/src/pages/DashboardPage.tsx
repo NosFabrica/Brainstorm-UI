@@ -847,8 +847,8 @@ export default function DashboardPage() {
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
                 <div className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div className="relative shrink-0">
                         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-sm">
                           <div className="h-full w-full rounded-xl bg-white flex items-center justify-center">
@@ -856,51 +856,50 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-xs font-bold text-slate-900 tracking-tight block leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                           WoT Service Provider
                         </span>
                         <span className="text-[10px] font-medium text-slate-500 block mt-0.5 leading-none">
                           NIP-85 Declaration
                         </span>
+                        {selfData?.history?.last_time_calculated_graperank && (
+                          <span className="text-[9px] text-slate-400 block mt-1 leading-none">
+                            Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
+                      </div>
+                      <button
+                        onClick={() => setRecalcConfirmOpen(true)}
+                        disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#333286]/8 text-[#333286] hover:bg-[#333286]/15 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none border border-[#7c86ff]/15 hover:border-[#7c86ff]/30"
+                        data-testid="button-recalculate-wot-card"
+                      >
+                        {triggerGrapeRankMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            <span className="text-[9px] font-semibold tracking-wide">Calculating</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span className="text-[9px] font-semibold tracking-wide">Recalculate</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    {selfData?.history?.last_time_calculated_graperank && (
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        Last updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => setRecalcConfirmOpen(true)}
-                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#333286]/8 text-[#333286] hover:bg-[#333286]/15 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none shrink-0 border border-[#7c86ff]/15 hover:border-[#7c86ff]/30"
-                      data-testid="button-recalculate-wot-card"
-                    >
-                      {triggerGrapeRankMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                          <span className="text-[9px] font-semibold tracking-wide">Calculating</span>
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-2.5 h-2.5" />
-                          <span className="text-[9px] font-semibold tracking-wide">Recalculate</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  <div className="pt-2.5">
+                  <div className="pt-1.5">
                     <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50 overflow-hidden">
                       <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
                         <div className="flex items-center gap-1.5 mb-2">
