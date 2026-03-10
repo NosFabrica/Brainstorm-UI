@@ -6,7 +6,7 @@ import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
-import brainstormHeroImg from "@assets/image_1773159642605.png";
+import brainstormHeroImg from "@assets/image_1773159756760.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -2279,8 +2279,17 @@ export default function DashboardPage() {
                     aria-label="Next supported client"
                   >
                     <div className="absolute inset-0 z-0">
-                      <img src={brainstormHeroImg} alt="" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" aria-hidden="true" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#1e1b4b] via-[#1e1b4b]/90 to-transparent" />
+                      <img
+                        src={brainstormHeroImg}
+                        alt=""
+                        className="absolute right-[-10%] top-[-8%] w-[75%] h-auto opacity-[0.35] mix-blend-screen saturate-[0.8] brightness-[0.9] pointer-events-none group-hover:opacity-[0.45] transition-opacity duration-700"
+                        style={{
+                          WebkitMaskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
+                          maskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
+                        }}
+                        aria-hidden="true"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#1e1b4b] via-[#1e1b4b]/85 to-transparent" />
                     </div>
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
