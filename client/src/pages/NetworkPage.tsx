@@ -1559,7 +1559,7 @@ export default function NetworkPage() {
                     const isActive = activeGroup === group.key;
                     const showVerified = verifiedOnly && isVerifiableGroup(group.key);
                     return (
-                      <UITooltip key={group.key}>
+                      <UITooltip key={group.key} delayDuration={500}>
                         <TooltipTrigger asChild>
                           <button
                             type="button"
@@ -1610,7 +1610,7 @@ export default function NetworkPage() {
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
-                    <UITooltip key={tier.key}>
+                    <UITooltip key={tier.key} delayDuration={500}>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
