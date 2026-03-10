@@ -164,13 +164,13 @@ const metricIcons: Record<string, (cls: string) => JSX.Element> = {
 type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 const groups = [
-  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
-  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100" },
-  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
-  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
-  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
-  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200" },
-  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200" },
+  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts that follow you" },
+  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts you follow" },
+  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts that have muted you" },
+  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts you have muted" },
+  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts that have reported you" },
+  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts you have reported" },
+  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Low trust accounts reported by 2+ of your trusted contacts" },
 ];
 
 interface NetworkProfileCardProps {
@@ -1580,11 +1580,12 @@ export default function NetworkPage() {
                             </span>
                           </button>
                         </TooltipTrigger>
-                        {showVerified && totalCount !== count && (
-                          <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5">
-                            <p className="text-xs">{count} verified of {totalCount} total</p>
-                          </TooltipContent>
-                        )}
+                        <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5 max-w-[220px]">
+                          <p className="text-xs font-medium">{group.tooltip}</p>
+                          {showVerified && totalCount !== count && (
+                            <p className="text-[11px] text-slate-500 mt-0.5">{count} verified of {totalCount} total</p>
+                          )}
+                        </TooltipContent>
                       </UITooltip>
                     );
                   })}
@@ -1598,40 +1599,46 @@ export default function NetworkPage() {
               <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
                 <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Trust</span>
                 {([
-                  { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0 },
-                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9 },
-                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-sky-500", ringFill: 0.65 },
-                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37 },
-                  { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12 },
-                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-zinc-400", ringFill: 0 },
+                  { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0, tooltip: "Show all trust levels" },
+                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9, tooltip: "Highest trust score in your network" },
+                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-sky-500", ringFill: 0.65, tooltip: "Above-average trust score" },
+                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37, tooltip: "Average trust score" },
+                  { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12, tooltip: "Below-average trust score" },
+                  { key: "flagged" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-zinc-400", ringFill: 0, tooltip: "No trust score calculated yet" },
                 ] as const).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
-                    <button
-                      key={tier.key}
-                      type="button"
-                      onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
-                        isActive
-                          ? "bg-indigo-800 text-white border border-indigo-800"
-                          : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
-                      }`}
-                      data-testid={`button-trust-filter-${tier.key}`}
-                    >
-                      {tier.key === "flagged" ? (
-                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                          <line x1="4" y1="22" x2="4" y2="15" />
-                        </svg>
-                      ) : tier.icon && (
-                        <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`} viewBox="0 0 44 44">
-                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.3" />
-                          <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
-                            style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
-                        </svg>
-                      )}
-                      <span className={(tier.icon || tier.key === "flagged") && !isActive ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
-                    </button>
+                    <UITooltip key={tier.key}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
+                          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                            isActive
+                              ? "bg-indigo-800 text-white border border-indigo-800"
+                              : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
+                          }`}
+                          data-testid={`button-trust-filter-${tier.key}`}
+                        >
+                          {tier.key === "flagged" ? (
+                            <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                              <line x1="4" y1="22" x2="4" y2="15" />
+                            </svg>
+                          ) : tier.icon && (
+                            <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`} viewBox="0 0 44 44">
+                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.3" />
+                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
+                                style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
+                            </svg>
+                          )}
+                          <span className={(tier.icon || tier.key === "flagged") && !isActive ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5">
+                        <p className="text-xs font-medium">{tier.tooltip}</p>
+                      </TooltipContent>
+                    </UITooltip>
                   );
                 })}
               </div>
