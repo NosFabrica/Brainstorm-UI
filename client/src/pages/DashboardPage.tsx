@@ -879,25 +879,43 @@ export default function DashboardPage() {
                   )}
 
                   <div className="pt-2.5 border-t border-slate-100">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
-                      <div className="relative group/info">
-                        <button
-                          type="button"
-                          className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
-                          aria-label="What are Compatible Clients?"
-                          data-testid="button-compatible-clients-info"
-                        >
-                          <Info className="h-2 w-2" />
-                        </button>
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                          These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                    <div className="rounded-lg border border-[#7c86ff]/15 bg-gradient-to-br from-indigo-50/40 to-white overflow-hidden">
+                      <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
+                          <div className="relative group/info">
+                            <button
+                              type="button"
+                              className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              aria-label="What are Compatible Clients?"
+                              data-testid="button-compatible-clients-info"
+                            >
+                              <Info className="h-2 w-2" />
+                            </button>
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
+                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                            <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
+                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-purple-700 transition-colors">Amethyst</span>
+                            <span className="inline-flex items-center gap-0.5 px-1 py-px rounded-full bg-purple-50 border border-purple-200/60 text-[8px] font-bold text-purple-600 uppercase tracking-wider">
+                              <CheckCircle2 className="h-2 w-2" />
+                              NIP-85
+                            </span>
+                          </a>
+                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
+                            <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
+                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
+                            <span className="inline-flex items-center gap-0.5 px-1 py-px rounded-full bg-orange-50 border border-orange-200/60 text-[8px] font-bold text-orange-600 uppercase tracking-wider">
+                              <CheckCircle2 className="h-2 w-2" />
+                              NIP-85
+                            </span>
+                          </a>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200/60 text-[10px] font-semibold text-purple-700 hover:bg-purple-100 transition-colors" data-testid="link-compatible-amethyst">Amethyst</a>
-                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200/60 text-[10px] font-semibold text-orange-700 hover:bg-orange-100 transition-colors" data-testid="link-compatible-nostria">Nostria</a>
                     </div>
                   </div>
                 </div>
