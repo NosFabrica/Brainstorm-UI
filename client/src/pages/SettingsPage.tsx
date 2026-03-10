@@ -38,6 +38,8 @@ import {
   Clock,
   RefreshCw,
   Info,
+  Code2,
+  Mail,
 } from "lucide-react";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -1000,6 +1002,71 @@ export default function SettingsPage() {
                 <p className="text-xs text-slate-500 leading-relaxed">
                   <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)}{activePreset === "custom" ? " (custom)" : ""} — accounts with a trust assertion score below this are marked as unverified.
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden" data-testid="section-contact-support">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
+                  <Mail className="h-4 w-4 text-[#333286]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-contact-support-title">Contact & Support</h2>
+                  <p className="text-xs text-slate-500" data-testid="text-contact-support-subtitle">Developer outreach and general inquiries</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5" data-testid="card-list-your-client">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                      <Code2 className="h-4 w-4 text-[#333286]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-client-title">List Your Client</h3>
+                      <p className="text-xs text-slate-500" data-testid="text-list-client-subtitle">Get featured on Brainstorm</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-list-client-description">
+                    Built a Nostr client that supports NIP-85? Get your app featured on our Supported Clients showcase — free promotion to our growing user base.
+                  </p>
+                  <a
+                    href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+                    data-testid="link-list-client-email"
+                  >
+                    <Mail className="h-4 w-4" />
+                    support@nosfabrica.com
+                  </a>
+                  <p className="text-xs text-slate-400 mt-2" data-testid="text-list-client-helper">Include your client name, platform, and a brief description</p>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5" data-testid="card-get-in-touch">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                      <Mail className="h-4 w-4 text-[#333286]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-get-in-touch-title">Get in Touch</h3>
+                      <p className="text-xs text-slate-500" data-testid="text-get-in-touch-subtitle">Questions, feedback, or support</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-get-in-touch-description">
+                    Have questions, feedback, or need help with Brainstorm? We'd love to hear from you.
+                  </p>
+                  <a
+                    href="mailto:support@nosfabrica.com?subject=Brainstorm%20Support"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+                    data-testid="link-get-in-touch-email"
+                  >
+                    <Mail className="h-4 w-4" />
+                    support@nosfabrica.com
+                  </a>
+                </div>
               </div>
             </div>
           </div>

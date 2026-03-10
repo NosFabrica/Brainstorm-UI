@@ -57,6 +57,7 @@ import {
   Ban,
   Sparkles,
   CheckCircle2,
+  Terminal,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -2102,7 +2103,7 @@ export default function DashboardPage() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-amethyst'])")) {
                         e.preventDefault();
                         const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
                         el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
@@ -2174,7 +2175,7 @@ export default function DashboardPage() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-nostria'])")) {
                         e.preventDefault();
                         const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
                         el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
@@ -2256,19 +2257,89 @@ export default function DashboardPage() {
                     </div>
                   </Card>
                 </CarouselItem>
+
+                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-developer">
+                  <Card
+                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#1e1b4b] to-[#0f172a] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
+                    onClick={() => {
+                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
+                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-developer'])")) {
+                        e.preventDefault();
+                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
+                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+                      }
+                    }}
+                    data-testid="button-supported-slide-next-from-developer"
+                    aria-label="Next supported client"
+                  >
+                    <div className="absolute inset-0 z-0">
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-900/40 via-indigo-800/20 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#1e1b4b] via-[#1e1b4b]/90 to-transparent" />
+                    </div>
+
+                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
+                      <div className="flex-1 space-y-6 text-center md:text-left">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
+                          <Terminal className="h-3 w-3" aria-hidden="true" />
+                          <span>For Developers</span>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4 justify-center md:justify-start">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1e1b4b] flex items-center justify-center" data-testid="img-developer-brainlogo">
+                              <BrainLogo size={48} />
+                            </div>
+                            <div className="space-y-1">
+                              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
+                                Get Your Client Featured
+                              </h2>
+                              <p className="text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
+                            </div>
+                          </div>
+                          <p className="text-base sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
+                          <a href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing" data-testid="link-developer-contact" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1e1b4b] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-indigo-900/20 transition-all hover:scale-105 border-none" data-testid="button-developer-contact">
+                              Contact Us
+                            </Button>
+                          </a>
+                          <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none" data-testid="button-developer-nip85">
+                              View NIP-85 Spec
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-indigo-500/20 rounded-full animate-pulse pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-indigo-400/10 rounded-full pointer-events-none" />
+                      </div>
+                    </div>
+                  </Card>
+                </CarouselItem>
               </CarouselContent>
 
               <div
                 className="absolute bottom-3 right-3 sm:top-auto sm:bottom-3 sm:right-3 flex items-center gap-2 rounded-full bg-black/20 border border-white/15 px-3 py-2 backdrop-blur-md shadow-lg"
                 data-testid="nav-supported-carousel-dots"
               >
-                {[0, 1].map((idx) => (
+                {[0, 1, 2].map((idx) => (
                   <button
                     key={idx}
                     type="button"
                     className="h-2.5 w-2.5 rounded-full bg-white/40 hover:bg-white/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                    aria-label={idx === 0 ? "Go to Amethyst slide" : "Go to Nostria slide"}
-                    data-testid={idx === 0 ? "dot-supported-amethyst" : "dot-supported-nostria"}
+                    aria-label={idx === 0 ? "Go to Amethyst slide" : idx === 1 ? "Go to Nostria slide" : "Go to developer slide"}
+                    data-testid={idx === 0 ? "dot-supported-amethyst" : idx === 1 ? "dot-supported-nostria" : "dot-supported-developer"}
                     onClick={(e) => {
                       e.stopPropagation();
                       const root = (e.currentTarget as HTMLButtonElement).closest('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
