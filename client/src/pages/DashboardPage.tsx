@@ -880,7 +880,6 @@ export default function DashboardPage() {
 
                   <div className="pt-2.5">
                     <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50 overflow-hidden">
-                      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                       <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
                         <div className="flex items-center gap-1.5 mb-2">
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
