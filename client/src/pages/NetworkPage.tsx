@@ -1541,8 +1541,9 @@ export default function NetworkPage() {
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
               {[
-                { label: "Graph", keys: ["followed_by", "following", "muting", "reporting"] },
-                { label: "Risk", keys: ["muted_by", "reported_by", "flagged"] },
+                { label: "Graph", keys: ["followed_by", "following"] },
+                { label: "Actions", keys: ["muting", "reporting"] },
+                { label: "Signals", keys: ["muted_by", "reported_by", "flagged"] },
               ].map((tier) => (
                 <div key={tier.label} className="flex flex-wrap gap-1.5 sm:gap-2" data-testid={`row-group-filters-${tier.label.toLowerCase()}`}>
                   <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">{tier.label}</span>
