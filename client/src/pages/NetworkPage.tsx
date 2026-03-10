@@ -213,6 +213,15 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
   const [cardFollowHovered, setCardFollowHovered] = useState(false);
   const [cardActionPending, setCardActionPending] = useState<string | null>(null);
 
+  const liveFilteredGroups = useMemo(() => {
+    if (socialListsLoading) return memberGroups;
+    return memberGroups.filter((gk) => {
+      if (gk === "following" && !isFollowingUser) return false;
+      if (gk === "muting" && !isMutedUser) return false;
+      return true;
+    });
+  }, [memberGroups, socialListsLoading, isFollowingUser, isMutedUser]);
+
   const getVerifiedFlagCounts = () => {
     if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
     const TA_THRESHOLD = getVerifiedThreshold();
@@ -435,7 +444,14 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
 
               <div className="flex items-center gap-2 flex-wrap">
                 {(() => {
-                  const detailGroups = getPubkeyGroups(pk);
+                  let detailGroups = getPubkeyGroups(pk);
+                  if (!socialListsLoading) {
+                    detailGroups = detailGroups.filter((gk) => {
+                      if (gk === "following" && !isFollowingUser) return false;
+                      if (gk === "muting" && !isMutedUser) return false;
+                      return true;
+                    });
+                  }
                   return detailGroups.length > 0 ? (
                     <div className="flex items-center gap-1 flex-wrap" data-testid={`detail-groups-${pkShort}`}>
                       {detailGroups.map((gk) => {
@@ -603,9 +619,9 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
               {displayNpub}
             </span>
           </div>
-          {memberGroups.length > 0 && (
+          {liveFilteredGroups.length > 0 && (
             <div className="flex items-center gap-1 shrink-0 flex-wrap" data-testid={`row-profile-groups-${pkShort}`}>
-              {memberGroups.map((gk) => {
+              {liveFilteredGroups.map((gk) => {
                 const groupDef = groups.find(g => g.key === gk);
                 if (!groupDef) return null;
                 return (
@@ -678,9 +694,9 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
             {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
           </button>
         </div>
-        {memberGroups.length > 0 && (
+        {liveFilteredGroups.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1" data-testid={`row-profile-groups-${pkShort}`}>
-            {memberGroups.map((gk) => {
+            {liveFilteredGroups.map((gk) => {
               const groupDef = groups.find(g => g.key === gk);
               if (!groupDef) return null;
               return (
