@@ -1,4 +1,4 @@
-import { pool, PROFILE_RELAYS, DEFAULT_PUBLISH_RELAYS, publishToRelays, getCurrentUser } from "./nostr";
+import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb } from "./nostr";
 
 export interface NostrEvent {
   id?: string;
@@ -10,17 +10,14 @@ export interface NostrEvent {
   sig?: string;
 }
 
-const FETCH_RELAYS = [
-  ...PROFILE_RELAYS,
-  "wss://relay.nostr.band",
-];
-
 function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
   return new Promise((resolve) => {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+
     let latest: NostrEvent | null = null;
     const timer = setTimeout(() => resolve(latest), timeoutMs);
 
-    pool.request(FETCH_RELAYS, { kinds: [kind], authors: [pubkey], limit: 5 }).subscribe({
+    pool.request(writeRelays, { kinds: [kind], authors: [pubkey], limit: 5 }).subscribe({
       next: (event: any) => {
         if (!latest || event.created_at > latest.created_at) {
           latest = {

@@ -10,6 +10,7 @@ import {
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
 import { queryClient } from "@/lib/queryClient";
+import { NostrEvent } from "applesauce-core/helpers";
 
 declare global {
   interface Window {
@@ -67,11 +68,11 @@ export function updateCurrentUser(updates: Partial<NostrUser>) {
 }
 
 export const PROFILE_RELAYS = [
-  "wss://relay.damus.io",
-  "wss://nos.lol",
-  "wss://relay.primal.net",
-  "wss://purplepag.es",
-  "wss://nostr.wine",
+  "wss://relay.damus.io/",
+  "wss://nos.lol/",
+  "wss://relay.primal.net/",
+  "wss://purplepag.es/",
+  "wss://nostr.wine/",
 ];
 
 const pool = new RelayPool();
@@ -98,10 +99,90 @@ export function fetchProfiles(
   });
 }
 
+export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+
+    const event = await Promise.race([
+      firstValueFrom(pool.request(writeRelays, { kinds: [10002], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
+
+    if (!event) return undefined;
+
+    try {
+      eventStore.add(event as any);
+    } catch {}
+
+    return event as NostrEvent;
+  } catch {}
+
+  return undefined;
+}
+
+export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+
+    const event = await Promise.race([
+      firstValueFrom(pool.request(writeRelays, { kinds: [10040], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
+
+    if (!event) return undefined;
+
+    try {
+      eventStore.add(event as any);
+    } catch {}
+
+    return event as NostrEvent;
+  } catch {}
+
+  return undefined;
+}
+
+
+export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, timeoutMs = 10000): Promise<boolean> {
+  console.log("isUsingBrainstorm", pubkey, innerPubkey)
+  const event = await fetchTrustProviderList(pubkey, timeoutMs)
+
+  let isUsingRank = false
+  let isUsingFollowers = false
+
+  if (event) {
+    for (const tag of event.tags) {
+      if (tag[0] === "30382:rank" && tag[1] === innerPubkey && tag[2] == "wss://nip85.nosfabrica.com") {
+        isUsingRank = true
+      }
+      if (tag[0] === "30382:followers" && tag[1] === innerPubkey && tag[2] == "wss://nip85.nosfabrica.com") {
+        isUsingFollowers = true
+      }
+    }
+  }
+
+  return isUsingRank && isUsingFollowers
+}
+
+export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[]): string[] {
+  const outboxEvent = eventStore.getReplaceable(10002, pubkey)
+  const writeRelays = new Set<string>(currentRelays);
+  
+  if (outboxEvent) {
+    for (const tag of outboxEvent.tags) {
+      if (tag[0] === "r" && tag[1] && (tag.length <= 2 || tag[2] === "write")) {
+        writeRelays.add(tag[1]);
+      }
+    }
+  }
+
+  return Array.from(writeRelays)
+}
+
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
   try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
     const event = await Promise.race([
-      firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [0], authors: [pubkey] })),
+      firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
     ]);
 
@@ -190,20 +271,14 @@ export function logout() {
   queryClient.clear();
 }
 
-export const DEFAULT_PUBLISH_RELAYS = [
-  "wss://relay.damus.io",
-  "wss://relay.nostr.band",
-  "wss://nos.lol",
-  "wss://relay.primal.net",
-  "wss://purplepag.es",
-];
-
 export async function publishToRelays(
   signedEvent: Record<string, unknown>,
-  relays: string[] = DEFAULT_PUBLISH_RELAYS
+  relays: string[] = PROFILE_RELAYS
 ): Promise<{ success: boolean; relay?: string; error?: string }> {
+  const writeRelays = loadOutboxRelayListFromDb((signedEvent as any).pubkey, PROFILE_RELAYS)
+
   try {
-    const responses = await pool.publish(relays, signedEvent as any);
+    const responses = await pool.publish(writeRelays, signedEvent as any);
     const succeeded = responses.find(r => r.ok);
     if (succeeded) return { success: true, relay: succeeded.from };
     return { success: false, error: responses[0]?.message || "All relays failed" };
