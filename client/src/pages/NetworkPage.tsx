@@ -1540,41 +1540,56 @@ export default function NetworkPage() {
             </CardHeader>
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
-              <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters">
-                {groups.map((group) => {
-                  const count = getGroupCount(group.key);
-                  const totalCount = getGroupPubkeys(group.key).length;
-                  const isActive = activeGroup === group.key;
-                  const showVerifiedLabel = verifiedOnly && isVerifiableGroup(group.key);
-                  return (
-                    <button
-                      key={group.key}
-                      type="button"
-                      onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
-                        isActive
-                          ? "bg-indigo-800 text-white border border-indigo-800"
-                          : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
-                      }`}
-                      data-testid={`button-filter-${group.key}`}
-                    >
-                      <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                      <span>{group.shortLabel}</span>
-                      <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : `${group.bgColor} ${group.color} ${group.borderColor} border`
-                      }`}>
-                        {showVerifiedLabel ? (
-                          <>
-                            <span className="sm:hidden">{count}</span>
-                            <span className="hidden sm:inline">{count}/{totalCount}</span>
-                          </>
-                        ) : count}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="space-y-2.5" data-testid="row-group-filters">
+                {[
+                  { label: "Connections", keys: ["followed_by", "following", "muting", "reporting"] },
+                  { label: "Risk Signals", keys: ["muted_by", "reported_by", "flagged"] },
+                ].map((tier) => (
+                  <div key={tier.label} className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider shrink-0 w-[52px] sm:w-[60px] text-right">{tier.label.split(" ")[0]}</span>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {tier.keys.map((k) => {
+                        const group = groups.find(g => g.key === k);
+                        if (!group) return null;
+                        const count = getGroupCount(group.key);
+                        const totalCount = getGroupPubkeys(group.key).length;
+                        const isActive = activeGroup === group.key;
+                        const showVerified = verifiedOnly && isVerifiableGroup(group.key);
+                        return (
+                          <UITooltip key={group.key}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
+                                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
+                                  isActive
+                                    ? "bg-indigo-800 text-white border border-indigo-800"
+                                    : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
+                                }`}
+                                data-testid={`button-filter-${group.key}`}
+                              >
+                                <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
+                                <span>{group.shortLabel}</span>
+                                <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : `${group.bgColor} ${group.color} ${group.borderColor} border`
+                                }`}>
+                                  {count}
+                                </span>
+                              </button>
+                            </TooltipTrigger>
+                            {showVerified && totalCount !== count && (
+                              <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5">
+                                <p className="text-xs">{count} verified of {totalCount} total</p>
+                              </TooltipContent>
+                            )}
+                          </UITooltip>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin" data-testid="row-trust-filters">
