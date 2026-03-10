@@ -495,10 +495,12 @@ export default function SettingsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden" data-testid="card-settings-service-provider">
-              <div className="px-5 py-4 border-b border-slate-100">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-service-provider">
+              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                     <BrainLogo size={18} className="text-[#333286]" />
                   </div>
                   <div className="min-w-0">
@@ -738,10 +740,12 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden" data-testid="card-settings-graperank">
-              <div className="px-5 py-4 border-b border-slate-100">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-graperank">
+              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#333286]">
                       <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -918,11 +922,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden relative" data-testid="card-settings-presets">
-
-            <div className="px-5 py-4 border-b border-slate-100">
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-presets">
+            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#333286]">
                     <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
                     <circle cx="12" cy="12" r="3" />
@@ -1006,10 +1011,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_4px_16px_-4px_rgba(124,134,255,0.12)] overflow-hidden" data-testid="section-contact-support">
-            <div className="px-5 py-4 border-b border-slate-100">
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="section-contact-support">
+            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
+                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
                   <Mail className="h-4 w-4 text-[#333286]" />
                 </div>
                 <div>
@@ -1021,9 +1028,9 @@ export default function SettingsPage() {
 
             <div className="p-5">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5" data-testid="card-list-your-client">
+                <div className="rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm p-5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300" data-testid="card-list-your-client">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                    <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                       <Code2 className="h-4 w-4 text-[#333286]" />
                     </div>
                     <div>
@@ -1045,9 +1052,9 @@ export default function SettingsPage() {
                   <p className="text-xs text-slate-400 mt-2" data-testid="text-list-client-helper">Include your client name, platform, and a brief description</p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5" data-testid="card-get-in-touch">
+                <div className="rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm p-5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300" data-testid="card-get-in-touch">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="h-9 w-9 rounded-xl bg-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center shrink-0">
+                    <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                       <Mail className="h-4 w-4 text-[#333286]" />
                     </div>
                     <div>
