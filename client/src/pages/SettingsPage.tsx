@@ -553,7 +553,22 @@ export default function SettingsPage() {
                         </div>
                       )}
                       <div className="flex items-center justify-between" data-testid="row-sp-supported">
-                        <span className="text-xs text-slate-500">Supported by</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-slate-500">Supported by</span>
+                          <div className="relative group/info">
+                            <button
+                              type="button"
+                              className="h-4 w-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              aria-label="What are Supported Clients?"
+                              data-testid="button-supported-by-info"
+                            >
+                              <Info className="h-2.5 w-2.5" />
+                            </button>
+                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-by">
+                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                            </div>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-1.5">
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
                           <span className="text-[10px] text-slate-400">&middot;</span>
