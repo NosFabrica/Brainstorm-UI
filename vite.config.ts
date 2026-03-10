@@ -9,9 +9,9 @@ function spaFallbackPlugin() {
     closeBundle() {
       const dist = path.resolve(import.meta.dirname, "dist");
       const index = path.join(dist, "index.html");
-      const fallback = path.join(dist, "200.html");
       if (fs.existsSync(index)) {
-        fs.copyFileSync(index, fallback);
+        fs.copyFileSync(index, path.join(dist, "200.html"));
+        fs.copyFileSync(index, path.join(dist, "404.html"));
       }
     },
   };
