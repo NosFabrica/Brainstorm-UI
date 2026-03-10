@@ -874,11 +874,31 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {selfData?.history?.last_time_calculated_graperank && (
-                    <div className="text-[10px] text-slate-400 font-medium mb-3">
-                      Last updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    {selfData?.history?.last_time_calculated_graperank && (
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Last updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setRecalcConfirmOpen(true)}
+                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#333286]/8 text-[#333286] hover:bg-[#333286]/15 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none shrink-0 border border-[#7c86ff]/15 hover:border-[#7c86ff]/30"
+                      data-testid="button-recalculate-wot-card"
+                    >
+                      {triggerGrapeRankMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                          <span className="text-[9px] font-semibold tracking-wide">Calculating</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-2.5 h-2.5" />
+                          <span className="text-[9px] font-semibold tracking-wide">Recalculate</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
                   <div className="pt-2.5">
                     <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50 overflow-hidden">
@@ -960,70 +980,70 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="w-px h-6 bg-slate-200 shrink-0" />
-                <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
-                  <AlertDialogTrigger asChild>
-                    <button
-                      disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
-                      data-testid="button-trigger-graperank"
-                    >
-                      {triggerGrapeRankMutation.isPending ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-3 h-3" />
-                          <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
-                        </>
-                      )}
-                    </button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent
-                    className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
-                    data-testid="dialog-confirm-recalculate-dashboard"
-                  >
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
-                      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
-                    </div>
-                    <div className="relative p-4 sm:p-5">
-                      <AlertDialogHeader className="space-y-2">
-                        <div className="flex items-start gap-3">
-                          <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
-                            <BrainLogo size={18} className="text-indigo-800" />
-                          </div>
-                          <div className="min-w-0">
-                            <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
-                              Recalculate GrapeRank?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
-                              This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
-                            </AlertDialogDescription>
-                          </div>
-                        </div>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
-                        <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="rounded-xl bg-indigo-800 hover:bg-indigo-900"
-                          onClick={() => {
-                            setRecalcConfirmOpen(false);
-                            triggerGrapeRankMutation.mutate();
-                          }}
-                          data-testid="button-confirm-recalculate-dashboard-continue"
-                        >
-                          Recalculate
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </div>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <button
+                  onClick={() => setRecalcConfirmOpen(true)}
+                  disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
+                  data-testid="button-trigger-graperank"
+                >
+                  {triggerGrapeRankMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="text-[10px] font-semibold tracking-wide">Calculating</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3 h-3" />
+                      <span className="text-[10px] font-semibold tracking-wide">Recalculate</span>
+                    </>
+                  )}
+                </button>
               </div>
               )}
 
             </div>
+
+            <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
+              <AlertDialogContent
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
+                data-testid="dialog-confirm-recalculate-dashboard"
+              >
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
+                </div>
+                <div className="relative p-4 sm:p-5">
+                  <AlertDialogHeader className="space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
+                        <BrainLogo size={18} className="text-indigo-800" />
+                      </div>
+                      <div className="min-w-0">
+                        <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                          Recalculate GrapeRank?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
+                          This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
+                        </AlertDialogDescription>
+                      </div>
+                    </div>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                    <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="rounded-xl bg-indigo-800 hover:bg-indigo-900"
+                      onClick={() => {
+                        setRecalcConfirmOpen(false);
+                        triggerGrapeRankMutation.mutate();
+                      }}
+                      data-testid="button-confirm-recalculate-dashboard-continue"
+                    >
+                      Recalculate
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </div>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <AnimatePresence>
               {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
