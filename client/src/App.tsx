@@ -45,7 +45,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <Toaster />
         <Router />
       </TooltipProvider>
