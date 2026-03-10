@@ -164,13 +164,13 @@ const metricIcons: Record<string, (cls: string) => JSX.Element> = {
 type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
 
 const groups = [
-  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts that follow you" },
-  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts you follow" },
-  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts that have muted you" },
-  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts you have muted" },
-  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts that have reported you" },
-  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts you have reported" },
-  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Low trust accounts reported by 2+ of your trusted contacts" },
+  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts that follow you", tooltipAccent: "border-l-blue-400" },
+  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts you follow", tooltipAccent: "border-l-blue-400" },
+  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts that have muted you", tooltipAccent: "border-l-amber-400" },
+  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts you have muted", tooltipAccent: "border-l-amber-400" },
+  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts that have reported you", tooltipAccent: "border-l-red-400" },
+  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts you have reported", tooltipAccent: "border-l-red-400" },
+  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Low trust accounts reported by 2+ of your trusted contacts", tooltipAccent: "border-l-red-400" },
 ];
 
 interface NetworkProfileCardProps {
@@ -1580,7 +1580,7 @@ export default function NetworkPage() {
                             </span>
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5 max-w-[220px]">
+                        <TooltipContent side="bottom" className={`bg-white backdrop-blur-xl border border-slate-300 text-slate-700 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}>
                           <p className="text-xs font-medium">{group.tooltip}</p>
                           {showVerified && totalCount !== count && (
                             <p className="text-[11px] text-slate-500 mt-0.5">{count} verified of {totalCount} total</p>
@@ -1635,7 +1635,7 @@ export default function NetworkPage() {
                           <span className={(tier.icon || tier.key === "flagged") && !isActive ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl px-2.5 py-1.5">
+                      <TooltipContent side="bottom" className="bg-white backdrop-blur-xl border border-slate-300 border-l-2 border-l-indigo-400 text-slate-700 shadow-lg px-2.5 py-1.5">
                         <p className="text-xs font-medium">{tier.tooltip}</p>
                       </TooltipContent>
                     </UITooltip>
