@@ -2292,7 +2292,7 @@ export default function DashboardPage() {
                         <div className="space-y-4">
                           <div className="flex items-center gap-4 justify-center md:justify-start">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1e1b4b] flex items-center justify-center" data-testid="img-developer-brainlogo">
-                              <BrainLogo size={48} />
+                              <BrainLogo size={48} className="text-white" />
                             </div>
                             <div className="space-y-1">
                               <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
