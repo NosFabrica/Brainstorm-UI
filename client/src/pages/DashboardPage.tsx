@@ -876,7 +876,7 @@ export default function DashboardPage() {
 
                   {selfData?.history?.last_time_calculated_graperank && (
                     <div className="text-[10px] text-slate-400 font-medium mb-3">
-                      Last updated {new Date(selfData.history.last_time_calculated_graperank).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      Last updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
                     </div>
                   )}
 
