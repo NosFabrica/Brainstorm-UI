@@ -2282,7 +2282,7 @@ export default function DashboardPage() {
                       <img
                         src={brainstormHeroImg}
                         alt=""
-                        className="absolute right-[-10%] top-[-8%] w-[75%] h-auto opacity-[0.35] mix-blend-screen saturate-[0.8] brightness-[0.9] pointer-events-none group-hover:opacity-[0.45] transition-opacity duration-700"
+                        className="absolute right-[-10%] top-[5%] w-[75%] h-auto opacity-[0.45] mix-blend-screen saturate-[0.8] brightness-[0.95] pointer-events-none group-hover:opacity-[0.55] transition-opacity duration-700"
                         style={{
                           WebkitMaskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
                           maskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
