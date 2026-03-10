@@ -2341,7 +2341,7 @@ export default function DashboardPage() {
               </CarouselContent>
 
               <div
-                className="absolute bottom-3 right-3 sm:top-auto sm:bottom-3 sm:right-3 flex items-center gap-2 rounded-full bg-black/20 border border-white/15 px-3 py-2 backdrop-blur-md shadow-lg"
+                className="flex justify-center mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-3 items-center gap-2 rounded-full bg-black/20 border border-white/15 px-3 py-2 backdrop-blur-md shadow-lg w-fit mx-auto sm:mx-0 sm:w-auto"
                 data-testid="nav-supported-carousel-dots"
               >
                 {[0, 1, 2].map((idx) => (
