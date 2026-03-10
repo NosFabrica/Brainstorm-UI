@@ -59,6 +59,7 @@ import {
   Sparkles,
   CheckCircle2,
   Terminal,
+  Mail,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -2261,7 +2262,7 @@ export default function DashboardPage() {
 
                 <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-developer">
                   <Card
-                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#1e1b4b] to-[#0f172a] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
+                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#1a1033] to-[#0f172a] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
                     onClick={() => {
                       const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
                       el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
@@ -2289,7 +2290,7 @@ export default function DashboardPage() {
                         }}
                         aria-hidden="true"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#1e1b4b] via-[#1e1b4b]/85 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#1a1033] via-[#1a1033]/85 to-transparent" />
                     </div>
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
@@ -2301,7 +2302,7 @@ export default function DashboardPage() {
 
                         <div className="space-y-4">
                           <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1e1b4b] flex items-center justify-center" data-testid="img-developer-brainlogo">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
                               <BrainLogo size={48} className="text-white" />
                             </div>
                             <div className="space-y-1">
@@ -2316,7 +2317,8 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
                           <a href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing" data-testid="link-developer-contact" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1e1b4b] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-indigo-900/20 transition-all hover:scale-105 border-none" data-testid="button-developer-contact">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-developer-contact">
+                              <Mail className="mr-2 h-4 w-4" />
                               Contact Us
                             </Button>
                           </a>
@@ -2330,9 +2332,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-indigo-500/20 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-indigo-400/10 rounded-full pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/15 rounded-full blur-[90px] pointer-events-none" />
                       </div>
                     </div>
                   </Card>
