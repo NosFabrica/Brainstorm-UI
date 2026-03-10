@@ -1573,7 +1573,7 @@ export default function NetworkPage() {
                                 ? "bg-white/20 text-white"
                                 : `${group.bgColor} ${group.color} ${group.borderColor} border`
                             }`}>
-                              {count}
+                              {showVerified ? `${count}/${totalCount}` : count}
                             </span>
                           </button>
                         </TooltipTrigger>
