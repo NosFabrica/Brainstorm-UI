@@ -288,7 +288,7 @@ export default function DashboardPage() {
       if (!user?.pubkey || !selfQuery.data?.data?.history?.ta_pubkey) return null;
       const isBrainstormClient = await isUsingBrainstorm(user.pubkey, selfQuery.data?.data?.history?.ta_pubkey);
 
-      if (localStorage.getItem("brainstorm_nip85_activated") !== "true") {
+      if (isBrainstormClient && localStorage.getItem("brainstorm_nip85_activated") !== "true") {
         localStorage.setItem("brainstorm_nip85_activated", "true");
       }
 
@@ -1417,7 +1417,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {publishDone && !nip85Activated && !nip85Dismissed && (
+          {publishDone && !nip85Activated && !nip85Dismissed && trustServiceProvider.isFetched && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
