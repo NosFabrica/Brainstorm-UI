@@ -879,7 +879,22 @@ export default function DashboardPage() {
                   )}
 
                   <div className="pt-2.5 border-t border-slate-100">
-                    <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 block mb-1.5">Compatible Clients</span>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
+                      <div className="relative group/info">
+                        <button
+                          type="button"
+                          className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                          aria-label="What are Compatible Clients?"
+                          data-testid="button-compatible-clients-info"
+                        >
+                          <Info className="h-2 w-2" />
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
+                          These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200/60 text-[10px] font-semibold text-purple-700 hover:bg-purple-100 transition-colors" data-testid="link-compatible-amethyst">Amethyst</a>
                       <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200/60 text-[10px] font-semibold text-orange-700 hover:bg-orange-100 transition-colors" data-testid="link-compatible-nostria">Nostria</a>
