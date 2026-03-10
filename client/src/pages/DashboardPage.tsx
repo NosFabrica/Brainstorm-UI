@@ -2116,11 +2116,11 @@ export default function DashboardPage() {
                   >
                     <div className="absolute inset-0 z-0">
                       <img src={amethystHeroImg} alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-[#1a1033]/60 sm:to-transparent" />
                     </div>
 
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
-                      <div className="flex-1 space-y-6 text-center md:text-left">
+                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
+                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                             <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
@@ -2129,28 +2129,28 @@ export default function DashboardPage() {
                           <span>Supported Clients</span>
                         </div>
 
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <img src={amethystLogoImg} alt="Amethyst Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
-                            <div className="space-y-1">
-                              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-amethyst-title">
+                        <div className="space-y-3 sm:space-y-4">
+                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                            <img src={amethystLogoImg} alt="Amethyst Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
+                            <div className="space-y-0.5 sm:space-y-1">
+                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-amethyst-title">
                                 Amethyst
                               </h2>
-                              <p className="text-sm font-medium text-purple-300/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
+                              <p className="text-xs sm:text-sm font-medium text-purple-300/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
                             </div>
                           </div>
-                          <p className="text-base sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-amethyst-description">Experience true freedom with the premier Android client for Nostr. Direct, intermediary-free communication in a beautiful, feature-rich interface.</p>
+                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-amethyst-description">Experience true freedom with the premier Android client for Nostr. Direct, intermediary-free communication in a beautiful, feature-rich interface.</p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
                           <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-android">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
                           </a>
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none" data-testid="button-supported-amethyst-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -2187,7 +2187,7 @@ export default function DashboardPage() {
                     aria-label="Next supported client"
                   >
                     <div
-                      className="absolute -right-16 top-[1.1rem] z-20 rotate-45 bg-[#333286] px-16 py-2 text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                      className="absolute -right-14 sm:-right-16 top-[0.7rem] sm:top-[1.1rem] z-20 rotate-45 bg-[#333286] px-12 sm:px-16 py-1.5 sm:py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
                       data-testid="ribbon-nostria-coming-soon"
                       aria-label="Coming soon"
                     >
@@ -2199,7 +2199,7 @@ export default function DashboardPage() {
                       <img
                         src={nostriaTeaserImg}
                         alt=""
-                        className="absolute right-[-24%] top-[-14%] w-[80%] h-auto opacity-[0.52] mix-blend-soft-light saturate-[0.92] contrast-[1.04] brightness-[1.06] rotate-[-2deg] blur-[0.35px] pointer-events-none"
+                        className="absolute right-[-24%] top-[-14%] w-[80%] h-auto opacity-[0.52] mix-blend-soft-light saturate-[0.92] contrast-[1.04] brightness-[1.06] rotate-[-2deg] blur-[0.35px] pointer-events-none hidden sm:block"
                         style={{
                           WebkitMaskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
                           maskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
@@ -2207,11 +2207,11 @@ export default function DashboardPage() {
                         aria-hidden="true"
                         data-testid="img-nostria-ui-teaser"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#3a1606] via-[#3a1606]/85 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#3a1606] via-[#3a1606]/85 to-[#3a1606]/60 sm:to-transparent" />
                     </div>
 
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
-                      <div className="flex-1 space-y-6 text-center md:text-left">
+                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
+                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients-nostria">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                             <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
@@ -2220,30 +2220,30 @@ export default function DashboardPage() {
                           <span>Supported Clients</span>
                         </div>
 
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <img src={nostriaIconImg} alt="Nostria Logo" className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
-                            <div className="space-y-1">
-                              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-nostria-title">
+                        <div className="space-y-3 sm:space-y-4">
+                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                            <img src={nostriaIconImg} alt="Nostria Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
+                            <div className="space-y-0.5 sm:space-y-1">
+                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-nostria-title">
                                 Nostria
                               </h2>
-                              <p className="text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
+                              <p className="text-xs sm:text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
                             </div>
                           </div>
-                          <p className="text-base sm:text-lg text-orange-50/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-nostria-description">
+                          <p className="text-sm sm:text-lg text-orange-50/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-nostria-description">
                             Get started in seconds. No email. No phone. Just you. A clean, scalable Nostr client focused on ownership, privacy, and a calmer social experience.
                           </p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
                           <a href="https://play.google.com/store/apps/details?id=app.nostria.twa" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none" data-testid="button-supported-nostria-android">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-nostria-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
                           </a>
                           <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-orange-900/10 transition-all hover:scale-105 border border-white/15" style={{ backgroundColor: '#ffffff26', color: 'white' }} data-testid="button-supported-nostria-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/10 transition-all hover:scale-105 border border-white/15 text-sm sm:text-base" style={{ backgroundColor: '#ffffff26', color: 'white' }} data-testid="button-supported-nostria-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -2283,47 +2283,48 @@ export default function DashboardPage() {
                       <img
                         src={brainstormHeroImg}
                         alt=""
-                        className="absolute right-[-10%] top-[5%] w-[75%] h-auto opacity-[0.45] mix-blend-screen saturate-[0.8] brightness-[0.95] pointer-events-none group-hover:opacity-[0.55] transition-opacity duration-700"
+                        className="absolute right-[-10%] top-[5%] w-[75%] h-auto opacity-[0.45] mix-blend-screen saturate-[0.8] brightness-[0.95] pointer-events-none group-hover:opacity-[0.55] transition-opacity duration-700 hidden sm:block"
                         style={{
                           WebkitMaskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
                           maskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
                         }}
                         aria-hidden="true"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-r from-[#1a1033] via-[#1a1033]/85 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/85 to-[#1a1033]/60 sm:to-transparent" />
                     </div>
 
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8 min-h-[440px] sm:min-h-[420px] pb-10">
-                      <div className="flex-1 space-y-6 text-center md:text-left">
+                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
+                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
                           <Terminal className="h-3 w-3" aria-hidden="true" />
                           <span>For Developers</span>
                         </div>
 
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-4 justify-center md:justify-start">
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
-                              <BrainLogo size={48} className="text-white" />
+                        <div className="space-y-3 sm:space-y-4">
+                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
+                              <BrainLogo size={32} className="text-white sm:hidden" />
+                              <BrainLogo size={48} className="text-white hidden sm:block" />
                             </div>
-                            <div className="space-y-1">
-                              <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
+                            <div className="space-y-0.5 sm:space-y-1">
+                              <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
                                 Get Your Client Featured
                               </h2>
-                              <p className="text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
+                              <p className="text-xs sm:text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
                             </div>
                           </div>
-                          <p className="text-base sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
+                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
                           <a href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing" data-testid="link-developer-contact" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none" data-testid="button-developer-contact">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-contact">
                               <Mail className="mr-2 h-4 w-4" />
                               Contact Us
                             </Button>
                           </a>
                           <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-11 px-6 rounded-2xl sm:rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none" data-testid="button-developer-nip85">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
                               View NIP-85 Spec
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
