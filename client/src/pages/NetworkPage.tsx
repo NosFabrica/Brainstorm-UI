@@ -1539,7 +1539,8 @@ export default function NetworkPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
+            <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
+              <div className="space-y-1 sm:space-y-1.5">
               {[
                 { label: "Graph", keys: ["followed_by", "following"] },
                 { label: "Actions", keys: ["muting", "reporting"] },
@@ -1588,6 +1589,7 @@ export default function NetworkPage() {
                   })}
                 </div>
               ))}
+              </div>
 
               <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
                 <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0">Trust</span>
