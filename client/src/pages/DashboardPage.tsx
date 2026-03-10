@@ -2121,12 +2121,28 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                            <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                            <line x1="12" y1="18" x2="12.01" y2="18" />
-                          </svg>
-                          <span>Supported Clients</span>
+                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
+                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+                              <line x1="12" y1="18" x2="12.01" y2="18" />
+                            </svg>
+                            <span>Supported Clients</span>
+                          </div>
+                          <div className="relative group/info">
+                            <button
+                              type="button"
+                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-purple-300 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="What are Supported Clients?"
+                              data-testid="button-supported-clients-info"
+                            >
+                              <Info className="h-3 w-3" />
+                            </button>
+                            <div className="absolute left-0 top-full mt-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
+                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                            </div>
+                          </div>
                         </div>
 
                         <div className="space-y-3 sm:space-y-4">
@@ -2137,6 +2153,10 @@ export default function DashboardPage() {
                                 Amethyst
                               </h2>
                               <p className="text-xs sm:text-sm font-medium text-purple-300/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/25 text-purple-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
+                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                <span>NIP-85</span>
+                              </div>
                             </div>
                           </div>
                           <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-amethyst-description">Experience true freedom with the premier Android client for Nostr. Direct, intermediary-free communication in a beautiful, feature-rich interface.</p>
@@ -2212,12 +2232,28 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-supported-clients-nostria">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                            <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                            <line x1="12" y1="18" x2="12.01" y2="18" />
-                          </svg>
-                          <span>Supported Clients</span>
+                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients-nostria">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
+                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
+                              <line x1="12" y1="18" x2="12.01" y2="18" />
+                            </svg>
+                            <span>Supported Clients</span>
+                          </div>
+                          <div className="relative group/info">
+                            <button
+                              type="button"
+                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-orange-100 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-orange-300/50"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="What are Supported Clients?"
+                              data-testid="button-supported-clients-info-nostria"
+                            >
+                              <Info className="h-3 w-3" />
+                            </button>
+                            <div className="absolute left-0 top-full mt-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
+                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                            </div>
+                          </div>
                         </div>
 
                         <div className="space-y-3 sm:space-y-4">
@@ -2228,6 +2264,10 @@ export default function DashboardPage() {
                                 Nostria
                               </h2>
                               <p className="text-xs sm:text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-200/15 border border-orange-200/25 text-orange-100 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-nostria-nip85">
+                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                <span>NIP-85</span>
+                              </div>
                             </div>
                           </div>
                           <p className="text-sm sm:text-lg text-orange-50/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-nostria-description">
