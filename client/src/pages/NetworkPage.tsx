@@ -1540,7 +1540,7 @@ export default function NetworkPage() {
             </CardHeader>
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-3 sm:space-y-4">
-              <div className="grid grid-cols-4 sm:grid-cols-4 gap-1.5 sm:gap-2" data-testid="row-group-filters">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters">
                 {groups.map((group) => {
                   const count = getGroupCount(group.key);
                   const totalCount = getGroupPubkeys(group.key).length;
@@ -1551,7 +1551,7 @@ export default function NetworkPage() {
                       key={group.key}
                       type="button"
                       onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                      className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
+                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
                         isActive
                           ? "bg-indigo-800 text-white border border-indigo-800"
                           : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
