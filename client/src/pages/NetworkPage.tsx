@@ -1567,7 +1567,7 @@ export default function NetworkPage() {
                             data-testid={`button-filter-${group.key}`}
                           >
                             <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                            <span className="hidden sm:inline">{group.shortLabel}</span>
+                            <span className={isActive ? "" : "hidden sm:inline"}>{group.shortLabel}</span>
                             <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                               isActive
                                 ? "bg-white/20 text-white"
@@ -1623,7 +1623,7 @@ export default function NetworkPage() {
                             style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
                         </svg>
                       )}
-                      <span className={tier.icon || tier.key === "flagged" ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
+                      <span className={(tier.icon || tier.key === "flagged") && !isActive ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
                     </button>
                   );
                 })}
