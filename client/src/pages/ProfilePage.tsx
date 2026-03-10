@@ -381,10 +381,21 @@ export default function ProfilePage() {
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
   }, [selfData, profileResult]);
 
+  const selfFlaggedSet = useMemo(() => {
+    if (!selfData) return new Set<string>();
+    const selfGraph = selfData?.graph || selfData;
+    return new Set(toPubkeys(selfGraph?.low_and_reported_by_2_or_more_trusted_pubkeys));
+  }, [selfData]);
+
+  const isProfileFlagged = useMemo(() => {
+    if (!hexPubkey) return false;
+    return selfFlaggedSet.has(hexPubkey);
+  }, [selfFlaggedSet, hexPubkey]);
+
   useEffect(() => {
     if (!profileResult) return;
     const allPubkeys: string[] = [];
-    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting", "low_and_reported_by_2_or_more_trusted_pubkeys"]) {
+    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
       const pks = toPubkeys(profileResult[key]);
       allPubkeys.push(...pks.slice(0, 10));
     }
@@ -467,7 +478,7 @@ export default function ProfilePage() {
     const cached = expandTrustCache.current.get(pk);
     if (cached !== undefined && cached !== null) return cached;
     if (profileResult) {
-      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting", "low_and_reported_by_2_or_more_trusted_pubkeys"]) {
+      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
         const map = toInfluenceMap(profileResult[groupKey]);
         const val = map.get(pk);
         if (val !== undefined && val !== null) return val;
@@ -622,7 +633,6 @@ export default function ProfilePage() {
       { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
       { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
       { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
-      { key: "low_and_reported_by_2_or_more_trusted_pubkeys", label: "Flagged", colors: "bg-red-50 text-red-600 border-red-200" },
     ];
     if (!profileResult) return [];
     return groupDefs.filter(g => {
@@ -1614,12 +1624,12 @@ export default function ProfilePage() {
                   const reportedByCount = Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0);
                   const mutingCount = Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0);
                   const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
-                  const flaggedCount = Array.isArray(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys) ? toPubkeys(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys).length : (profileResult.low_and_reported_by_2_or_more_trusted_pubkeys || 0);
-                  const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0;
+                  const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
                   const totalNegativeSignals = mutedByCount + reportedByCount;
                   const vMuted = verifiedCounts.mutedBy;
                   const vReported = verifiedCounts.reportedBy;
-                  const riskLevel = vReported > 3 || reportedByCount > 10 ? "High"
+                  const riskLevel = isProfileFlagged ? "High"
+                    : vReported > 3 || reportedByCount > 10 ? "High"
                     : vReported > 0 || reportedByCount > 0 || vMuted > 5 || mutedByCount > 30 ? "Medium"
                     : mutedByCount > 0 ? "Low" : "None";
                   const riskColor = riskLevel === "High" ? "text-red-600" : riskLevel === "Medium" ? "text-amber-600" : riskLevel === "Low" ? "text-amber-500" : "text-emerald-600";
@@ -1813,6 +1823,17 @@ export default function ProfilePage() {
                         <span className={`text-[11px] sm:text-xs font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
                       </div>
                       <div className="divide-y divide-slate-100">
+                        {isProfileFlagged && (
+                          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3.5 bg-red-50/60" data-testid="metric-profile-flagged-indicator">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+                              <FlaggedIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs sm:text-sm font-semibold text-red-700">Flagged</p>
+                              <p className="text-[10px] sm:text-xs text-red-500 leading-tight">Low trust & reported by 2+ of your trusted contacts</p>
+                            </div>
+                          </div>
+                        )}
                         {profileResult.muted_by !== undefined && (() => {
                           const mbIsArray = Array.isArray(profileResult.muted_by);
                           const mbExpandable = mbIsArray && mutedByCount > 0;
@@ -1945,63 +1966,42 @@ export default function ProfilePage() {
                           </div>
                           );
                         })()}
-                        {profileResult.low_and_reported_by_2_or_more_trusted_pubkeys !== undefined && flaggedCount > 0 && (() => {
-                          const flIsArray = Array.isArray(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys);
-                          const flExpandable = flIsArray && flaggedCount > 0;
-                          return (
-                          <div>
-                            <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${flExpandable ? "cursor-pointer hover:bg-red-50/30 transition-all duration-200" : ""}`}
-                              onClick={flExpandable ? () => toggleSection("low_and_reported_by_2_or_more_trusted_pubkeys") : undefined}
-                              data-testid="metric-profile-flagged"
-                            >
-                              <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 bg-red-50 border-red-200`}>
-                                  <FlaggedIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600" />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-red-700">Flagged</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Low trust & reported by 2+ trusted accounts</p>
-                                  {renderTierBadges("low_and_reported_by_2_or_more_trusted_pubkeys")}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-red-600 font-mono tabular-nums tracking-tight" data-testid="text-profile-flagged">
-                                  {flaggedCount.toLocaleString()}
-                                </p>
-                                {flExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["low_and_reported_by_2_or_more_trusted_pubkeys"] ? "rotate-180" : ""}`} />}
-                              </div>
-                            </div>
-                            {flExpandable && renderExpandedPanel("low_and_reported_by_2_or_more_trusted_pubkeys", toPubkeys(profileResult.low_and_reported_by_2_or_more_trusted_pubkeys))}
-                          </div>
-                          );
-                        })()}
                       </div>
                     </div>
 
-                    {hasRiskSignals && (
-                      <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-amber-50/50 overflow-hidden" data-testid="alert-profile-trust-warning">
+                    {hasRiskSignals && (() => {
+                      const advisoryColor = isProfileFlagged ? "border-red-200/80 from-red-50 to-red-50/50" : "border-amber-200/80 from-amber-50 to-amber-50/50";
+                      const advisoryIconBg = isProfileFlagged ? "bg-red-100 border-red-200" : "bg-amber-100 border-amber-200";
+                      const advisoryIconColor = isProfileFlagged ? "text-red-600" : "text-amber-600";
+                      const advisoryTitleColor = isProfileFlagged ? "text-red-900" : "text-amber-900";
+                      const advisoryTextColor = isProfileFlagged ? "text-red-800/70" : "text-amber-800/70";
+                      const totalSignals = totalNegativeSignals + (isProfileFlagged ? 1 : 0);
+                      const parts: string[] = [];
+                      if (isProfileFlagged) parts.push("flagged in your trust graph (low trust & reported by 2+ of your trusted contacts)");
+                      if (mutedByCount > 0) parts.push(`muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}`);
+                      if (reportedByCount > 0) parts.push(`reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}`);
+                      return (
+                      <div className={`rounded-xl border bg-gradient-to-r overflow-hidden ${advisoryColor}`} data-testid="alert-profile-trust-warning">
                         <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
-                            <RiskAdvisoryIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600" />
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${advisoryIconBg}`}>
+                            {isProfileFlagged ? <FlaggedIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${advisoryIconColor}`} /> : <RiskAdvisoryIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${advisoryIconColor}`} />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <p className="text-sm font-semibold text-amber-900">Risk Advisory</p>
+                              <p className={`text-sm font-semibold ${advisoryTitleColor}`}>Risk Advisory</p>
                               <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${riskLevel === "High" ? "bg-red-100 text-red-700" : riskLevel === "Medium" ? "bg-amber-100 text-amber-700" : "bg-amber-50 text-amber-600"}`}>
-                                {totalNegativeSignals.toLocaleString()} signal{totalNegativeSignals !== 1 ? "s" : ""} detected
+                                {totalSignals.toLocaleString()} signal{totalSignals !== 1 ? "s" : ""} detected
                               </span>
                             </div>
-                            <p className="text-xs text-amber-800/70 leading-relaxed mt-1">
-                              This account has been {mutedByCount > 0 ? `muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}` : ""}
-                              {mutedByCount > 0 && reportedByCount > 0 ? " and " : ""}
-                              {reportedByCount > 0 ? `reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}` : ""}.
+                            <p className={`text-xs leading-relaxed mt-1 ${advisoryTextColor}`}>
+                              This account has been {parts.join(" and ")}.
                               Exercise due diligence when evaluating this identity.
                             </p>
                           </div>
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                   );
                 })()}

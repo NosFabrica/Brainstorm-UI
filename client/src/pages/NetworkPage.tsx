@@ -149,7 +149,6 @@ const detailMetrics: { key: string; label: string; desc: string; iconBg: string;
   { key: "reported_by", label: "Reported By", desc: "Others who reported this account", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-500", countColor: "text-red-700" },
   { key: "muting", label: "Muting", desc: "Accounts this person mutes", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-slate-900" },
   { key: "reporting", label: "Reporting", desc: "Accounts this person reports", iconBg: "bg-slate-50 border-slate-200", iconColor: "text-slate-500", countColor: "text-slate-900" },
-  { key: "flagged", label: "Flagged", desc: "Low trust & reported by 2+ trusted", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-600", countColor: "text-red-700" },
 ];
 
 const metricIcons: Record<string, (cls: string) => JSX.Element> = {
@@ -202,13 +201,15 @@ interface NetworkProfileCardProps {
   onUnmute: (pk: string) => Promise<{ success: boolean; error?: string }>;
   socialPending: boolean;
   socialListsLoading: boolean;
+  isFlagged: boolean;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
-  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading
+  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading,
+  isFlagged
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -375,6 +376,14 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
             </div>
           </div>
 
+          {isFlagged && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200" data-testid={`detail-flagged-badge-${pkShort}`}>
+              <FlaggedIcon className="h-4 w-4 text-red-600" />
+              <span className="text-xs font-semibold text-red-700">Flagged</span>
+              <span className="text-[10px] text-red-500">Low trust & reported by 2+ trusted accounts</span>
+            </div>
+          )}
+
           {profile?.about && (
             <p className="text-xs text-slate-600 leading-relaxed mb-4 line-clamp-3" data-testid={`detail-about-${pkShort}`}>
               {profile.about}
@@ -390,8 +399,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
             <div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" data-testid={`detail-metrics-${pkShort}`}>
                 {detailMetrics.map((m) => {
-                  const detailApiKey = m.key === "flagged" ? "low_and_reported_by_2_or_more_trusted_pubkeys" : m.key;
-                  const raw = detail[detailApiKey];
+                  const raw = detail[m.key];
                   const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                   const isVerifiable = m.key === "followed_by" || m.key === "following";
                   let verifiedCount = 0;
@@ -1737,6 +1745,7 @@ export default function NetworkPage() {
                             onUnmute={handleSocialUnmute}
                             socialPending={social.isAnyPending}
                             socialListsLoading={social.listsLoading}
+                            isFlagged={groupPubkeySets?.flagged?.has(pk) ?? false}
                           />
                         </div>
                       ))}
