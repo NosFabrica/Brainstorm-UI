@@ -1,35 +1,124 @@
 const BRAINSTORM_API = "https://brainstormserver.nosfabrica.com";
 
+let isReauthenticating = false;
+let reauthPromise: Promise<boolean> | null = null;
+let isRedirectingToLogin = false;
+
+export function isAuthRedirecting(): boolean {
+  return isRedirectingToLogin;
+}
+
 function handleUnauthorized() {
+  isRedirectingToLogin = true;
   localStorage.removeItem("brainstorm_session_token");
   localStorage.removeItem("nostr_user");
   window.location.href = "/";
 }
 
+async function waitForNostrExtension(maxWait = 3000): Promise<boolean> {
+  if (window.nostr) return true;
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    await new Promise(r => setTimeout(r, 100));
+    if (window.nostr) return true;
+  }
+  return false;
+}
+
+async function silentReauth(): Promise<boolean> {
+  if (isReauthenticating && reauthPromise) return reauthPromise;
+
+  isReauthenticating = true;
+  reauthPromise = (async () => {
+    try {
+      const storedUser = localStorage.getItem("nostr_user");
+      if (!storedUser) return false;
+
+      const user = JSON.parse(storedUser);
+      if (!user?.pubkey) return false;
+
+      const extensionReady = await waitForNostrExtension();
+      if (!extensionReady) return false;
+
+      const challengeResponse = await fetch(`${BRAINSTORM_API}/authChallenge/${user.pubkey}`);
+      if (!challengeResponse.ok) return false;
+      const challengeData = await challengeResponse.json();
+      const challenge = challengeData?.data?.challenge;
+      if (!challenge) return false;
+
+      const event = {
+        kind: 22242,
+        tags: [
+          ["t", "brainstorm_login"],
+          ["challenge", challenge]
+        ],
+        content: "",
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: user.pubkey
+      };
+
+      const signedEvent = await window.nostr!.signEvent(event);
+
+      const verifyResponse = await fetch(`${BRAINSTORM_API}/authChallenge/${user.pubkey}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signed_event: signedEvent })
+      });
+      if (!verifyResponse.ok) return false;
+      const verifyData = await verifyResponse.json();
+      const token = verifyData?.data?.token;
+      if (!token) return false;
+
+      localStorage.setItem("brainstorm_session_token", token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      isReauthenticating = false;
+      reauthPromise = null;
+    }
+  })();
+
+  return reauthPromise;
+}
+
 async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = localStorage.getItem('brainstorm_session_token');
+  let token = localStorage.getItem('brainstorm_session_token');
   if (!token) {
-    handleUnauthorized();
-    throw new Error("No session token found");
+    const reauthOk = await silentReauth();
+    if (!reauthOk) {
+      handleUnauthorized();
+      throw new Error("No session token found");
+    }
+    token = localStorage.getItem('brainstorm_session_token');
   }
   const response = await fetch(url, {
     ...options,
-    headers: { ...options.headers, 'access_token': token }
+    headers: { ...options.headers, 'access_token': token! }
   });
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     const data = await response.json().catch(() => null);
     const detail = data?.detail || data?.message || "";
-    const isExpired = response.status === 401 ||
-      detail.toLowerCase().includes("expired") ||
-      detail.toLowerCase().includes("invalid token") ||
-      detail.toLowerCase().includes("unauthorized");
-    if (isExpired && response.status === 401) {
-      handleUnauthorized();
-      throw new Error("Session expired. Please log in again.");
+    const reauthOk = await silentReauth();
+    if (reauthOk) {
+      const newToken = localStorage.getItem('brainstorm_session_token');
+      const retryResponse = await fetch(url, {
+        ...options,
+        headers: { ...options.headers, 'access_token': newToken! }
+      });
+      if (retryResponse.status === 401 || retryResponse.status === 403) {
+        handleUnauthorized();
+        throw new Error("Session expired. Please log in again.");
+      }
+      return retryResponse;
     }
-    if (response.status === 403) {
-      throw new Error(detail || `Request forbidden (${response.status})`);
-    }
+    handleUnauthorized();
+    throw new Error(detail || "Session expired. Please log in again.");
+  }
+  if (response.status === 403) {
+    const data = await response.json().catch(() => null);
+    const detail = data?.detail || data?.message || "";
+    throw new Error(detail || `Request forbidden (${response.status})`);
   }
   return response;
 }

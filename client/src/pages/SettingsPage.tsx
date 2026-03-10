@@ -40,7 +40,7 @@ import {
   Info,
 } from "lucide-react";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
-import { apiClient } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
@@ -248,7 +248,7 @@ export default function SettingsPage() {
   const settingsNetwork = selfData?.graph || null;
   const hasNoFollowing = !selfLoading && selfData !== undefined && settingsNetwork !== null && Array.isArray(settingsNetwork?.following) && settingsNetwork.following.length === 0;
 
-  if (!user) return null;
+  if (!user || isAuthRedirecting()) return null;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-settings">

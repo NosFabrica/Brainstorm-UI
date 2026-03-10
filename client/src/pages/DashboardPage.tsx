@@ -86,7 +86,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
-import { apiClient } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 
@@ -224,12 +224,10 @@ export default function DashboardPage() {
     staleTime: Infinity,
   });
 
-  const hasToken = !!localStorage.getItem("brainstorm_session_token");
-
   const selfQuery = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf(),
-    enabled: !!user && hasToken,
+    enabled: !!user,
     retry: false,
     refetchInterval: () => {
       const grData = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
@@ -243,7 +241,7 @@ export default function DashboardPage() {
   const grapeRankQuery = useQuery({
     queryKey: ["/api/auth/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!user && hasToken,
+    enabled: !!user,
     retry: false,
     refetchInterval: (query) => {
       const d = query.state.data?.data;
@@ -298,7 +296,7 @@ export default function DashboardPage() {
       
       return isBrainstormClient
     },
-    enabled: !!user && hasToken,
+    enabled: !!user,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     staleTime: Infinity,
@@ -656,7 +654,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate, user]);
 
-  if (!user) return null;
+  if (!user || isAuthRedirecting()) return null;
 
   const isCalculationComplete = calcDone;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing;

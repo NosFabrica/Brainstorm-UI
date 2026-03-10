@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
-import { apiClient } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 
@@ -258,7 +258,7 @@ export default function SearchPage() {
     navigate(`/profile/${displayNpub}`);
   };
 
-  if (!user) return null;
+  if (!user || isAuthRedirecting()) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 

@@ -53,7 +53,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -905,7 +905,7 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
-  if (!user) return null;
+  if (!user || isAuthRedirecting()) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 

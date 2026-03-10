@@ -44,7 +44,7 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
-import { apiClient } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -1185,6 +1185,8 @@ export default function NetworkPage() {
       </div>
     );
   }
+
+  if (!user || isAuthRedirecting()) return null;
 
   return (
     <div
