@@ -901,18 +901,10 @@ export default function DashboardPage() {
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
                             <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-purple-700 transition-colors">Amethyst</span>
-                            <span className="inline-flex items-center gap-0.5 px-1 py-px rounded-full bg-purple-50 border border-purple-200/60 text-[8px] font-bold text-purple-600 uppercase tracking-wider">
-                              <CheckCircle2 className="h-2 w-2" />
-                              NIP-85
-                            </span>
                           </a>
                           <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
                             <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
-                            <span className="inline-flex items-center gap-0.5 px-1 py-px rounded-full bg-orange-50 border border-orange-200/60 text-[8px] font-bold text-orange-600 uppercase tracking-wider">
-                              <CheckCircle2 className="h-2 w-2" />
-                              NIP-85
-                            </span>
                           </a>
                         </div>
                       </div>
