@@ -1510,18 +1510,20 @@ export default function NetworkPage() {
           <Card className="bg-white/90 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative" data-testid="card-network-filters">
             <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
-            <CardHeader className="bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
-              <div className="flex flex-row flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100">
+            <CardHeader className="relative bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
+              {/* Title row — shared across mobile and desktop */}
+              <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100 shrink-0">
                     <Filter className="h-4 w-4" />
                   </div>
-                  <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
+                  <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm min-w-0">
                     <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Filters</CardTitle>
                     <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">Social Graph</CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                {/* Desktop: Verified + NOSTR inline on the right */}
+                <div className="hidden sm:flex items-center gap-3 shrink-0">
                   <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="toggle-verified-only">
                     <Switch
                       checked={verifiedOnly}
@@ -1538,6 +1540,27 @@ export default function NetworkPage() {
                     <span>NOSTR</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Mobile: NOSTR badge pinned to top-right corner */}
+              <div className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5" data-testid="badge-nostr-network-mobile">
+                <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                <span>NOSTR</span>
+              </div>
+
+              {/* Mobile: Verified toggle on its own row below the title */}
+              <div className="sm:hidden mt-3 flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="toggle-verified-only-mobile">
+                  <Switch
+                    checked={verifiedOnly}
+                    onCheckedChange={(checked) => { setVerifiedOnly(checked); setCurrentPage(1); }}
+                    className="data-[state=checked]:bg-indigo-600"
+                    data-testid="switch-verified-only-mobile"
+                  />
+                  <span className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
+                    Verified
+                  </span>
+                </label>
               </div>
             </CardHeader>
 
