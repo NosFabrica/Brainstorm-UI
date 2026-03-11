@@ -2387,12 +2387,12 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="space-y-3 sm:space-y-4">
-                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
                             <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
                               <BrainLogo size={32} className="text-white sm:hidden" />
                               <BrainLogo size={48} className="text-white hidden sm:block" />
                             </div>
-                            <div className="space-y-0.5 sm:space-y-1">
+                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
                               <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
                                 Get Your Client Featured
                               </h2>
