@@ -1608,8 +1608,8 @@ export default function NetworkPage() {
 
               {/* Desktop pill rows — hidden on mobile */}
               <div>
-                <div className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters-graph">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Graph</span>
+                <div className="hidden sm:flex sm:flex-nowrap gap-1" data-testid="row-group-filters-graph">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60">Graph</span>
                   {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
                     const group = groups.find(g => g.key === k);
                     if (!group) return null;
@@ -1623,7 +1623,7 @@ export default function NetworkPage() {
                           <button
                             type="button"
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                            className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                            className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
