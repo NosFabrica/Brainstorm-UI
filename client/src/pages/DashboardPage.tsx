@@ -1022,7 +1022,7 @@ export default function DashboardPage() {
                           Recalculate GrapeRank?
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
-                          This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
+                          This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
                         </AlertDialogDescription>
                       </div>
                     </div>
@@ -1193,10 +1193,10 @@ export default function DashboardPage() {
                       </h2>
                       <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
                         {isRecalculation
-                          ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
+                          ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
                           : isErrorState
                             ? <>Your {isGrapeRankFailed ? "trust score calculation" : "trusted assertion publishing"} didn't complete successfully. You can retry below, or head to <span className="font-semibold text-white">Settings</span> to try again later.</>
-                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">5-10 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
+                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
                         }
                       </p>
                     </div>

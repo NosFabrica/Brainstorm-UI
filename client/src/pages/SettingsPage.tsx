@@ -852,7 +852,7 @@ export default function SettingsPage() {
 
                 {triggerGrapeRankMutation.isSuccess && (
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2" data-testid="alert-gr-success">
-                    <p className="text-xs text-emerald-700 font-medium">Recalculation triggered. This typically takes 5-10 minutes.</p>
+                    <p className="text-xs text-emerald-700 font-medium">Recalculation triggered. This typically takes 10-20 minutes.</p>
                   </div>
                 )}
 
@@ -909,7 +909,7 @@ export default function SettingsPage() {
                                 Recalculate GrapeRank?
                               </AlertDialogTitle>
                               <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-settings-desc">
-                                This re-runs your full network trust calculation. It typically takes 5-10 minutes and your current scores will be replaced with updated results.
+                                This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
                               </AlertDialogDescription>
                             </div>
                           </div>
