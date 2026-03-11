@@ -1545,7 +1545,7 @@ export default function NetworkPage() {
               <div className="space-y-1.5 sm:space-y-2">
               {[
                 { label: "Graph", keys: ["followed_by", "following", "muting", "reporting"] },
-                { label: "Signals", keys: ["muted_by", "reported_by", "flagged"] },
+                { label: "Signals", keys: ["muted_by", "reported_by"] },
               ].map((tier, idx) => (
                 <div key={tier.label}>
                   {idx > 0 && <div className="border-t border-slate-200/60 mb-1.5 sm:mb-2" />}
