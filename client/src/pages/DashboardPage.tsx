@@ -2002,8 +2002,8 @@ export default function DashboardPage() {
                       const activeGroup = isHop1 && healthView === "following" ? "following" : "followed_by";
                       const totalActive = activePieData.reduce((acc, curr) => acc + curr.value, 0);
                       return (
-                    <div className="w-full md:w-7/12 grid grid-cols-2 gap-x-6 gap-y-3">
-                      <div className="col-span-2 mb-1">
+                    <div className="w-full md:w-7/12 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 sm:gap-y-3">
+                      <div className="col-span-1 sm:col-span-2 mb-1">
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
@@ -2026,12 +2026,12 @@ export default function DashboardPage() {
                         <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center mb-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex justify-between items-center mb-1 gap-2">
+                              <div className="flex flex-col min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 shrink-0">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
-                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0 ml-1" data-testid={`text-network-composition-percent-${i}`}>
+                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
                                 {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
