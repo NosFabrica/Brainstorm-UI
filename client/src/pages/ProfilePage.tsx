@@ -207,7 +207,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
-      navigate("/");
+      navigate("/", { replace: true });
       return;
     }
     setUser(u);

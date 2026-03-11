@@ -560,7 +560,7 @@ export default function WhatIsWoT() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <motion.button
-                onClick={() => setLocation('/')}
+                onClick={() => setLocation('/dashboard')}
                 className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors text-sm"
                 whileHover={{ x: -4 }}
                 data-testid="button-back"
@@ -2414,7 +2414,7 @@ export default function WhatIsWoT() {
                     : "Compute your personalized trust scores with full parameter control"}
                 </p>
                 <motion.button
-                  onClick={() => setLocation('/')}
+                  onClick={() => setLocation('/dashboard')}
                   className="px-5 py-2 text-sm font-medium text-indigo-300 rounded-lg transition-all inline-flex items-center gap-2 border border-indigo-500/40 hover:border-indigo-400/60 hover:text-white hover:bg-indigo-500/10"
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}

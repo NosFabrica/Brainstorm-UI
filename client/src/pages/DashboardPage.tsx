@@ -200,7 +200,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
-      navigate("/");
+      navigate("/", { replace: true });
       return;
     }
     setUser(u);
@@ -645,7 +645,7 @@ export default function DashboardPage() {
           handleExport();
           break;
         case "h":
-          navigate("/");
+          navigate("/dashboard");
           break;
         case "?":
           setShowShortcuts((prev) => !prev);
