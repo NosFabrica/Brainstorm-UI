@@ -865,7 +865,7 @@ export default function DashboardPage() {
                         </span>
                         {selfData?.history?.last_time_calculated_graperank && (
                           <span className="text-[9px] text-slate-400 block mt-1 leading-none">
-                            Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank))}
+                            Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank.endsWith("Z") ? selfData.history.last_time_calculated_graperank : selfData.history.last_time_calculated_graperank + "Z"))}
                           </span>
                         )}
                       </div>

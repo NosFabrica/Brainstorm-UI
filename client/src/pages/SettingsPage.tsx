@@ -820,7 +820,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between" data-testid="row-gr-last-calculated">
                       <span className="text-xs text-slate-500">Last calculated</span>
                       <span className="text-xs text-slate-600">
-                        {new Date(lastCalculated).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {new Date(typeof lastCalculated === "string" && !lastCalculated.endsWith("Z") ? lastCalculated + "Z" : lastCalculated).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </div>
                   )}
@@ -828,7 +828,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between" data-testid="row-gr-last-triggered">
                       <span className="text-xs text-slate-500">Last triggered</span>
                       <span className="text-xs text-slate-600">
-                        {new Date(lastTriggered).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {new Date(typeof lastTriggered === "string" && !lastTriggered.endsWith("Z") ? lastTriggered + "Z" : lastTriggered).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </div>
                   )}
