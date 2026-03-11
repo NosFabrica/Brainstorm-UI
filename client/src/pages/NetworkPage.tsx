@@ -25,6 +25,8 @@ import {
   UserMinus,
   VolumeX,
   Volume2,
+  ShieldCheck,
+  Network,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1548,18 +1550,24 @@ export default function NetworkPage() {
                 <span>NOSTR</span>
               </div>
 
-              {/* Mobile: Verified toggle on its own row below the title */}
-              <div className="sm:hidden mt-3 flex items-center gap-2">
-                <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="toggle-verified-only-mobile">
+              {/* Mobile: Verified toggle — full-width settings-style row */}
+              <div className="sm:hidden mt-3">
+                <label className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100" data-testid="toggle-verified-only-mobile">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"}`}>
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600"}`}>Verified</div>
+                      <div className="text-[10px] text-slate-400 leading-tight">Show only WoT-verified accounts</div>
+                    </div>
+                  </div>
                   <Switch
                     checked={verifiedOnly}
                     onCheckedChange={(checked) => { setVerifiedOnly(checked); setCurrentPage(1); }}
-                    className="data-[state=checked]:bg-indigo-600"
+                    className="data-[state=checked]:bg-indigo-600 shrink-0"
                     data-testid="switch-verified-only-mobile"
                   />
-                  <span className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
-                    Verified
-                  </span>
                 </label>
               </div>
             </CardHeader>
@@ -1568,7 +1576,9 @@ export default function NetworkPage() {
               {/* Mobile dropdowns — hidden on sm+ */}
               <div className="sm:hidden flex gap-2">
                 <div className="flex-1 min-w-0">
-                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Graph</label>
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                    <Network className="h-3 w-3" />Graph
+                  </label>
                   <select
                     value={activeGroup}
                     onChange={(e) => { setActiveGroup(e.target.value as GroupKey); setCurrentPage(1); }}
@@ -1586,7 +1596,9 @@ export default function NetworkPage() {
                   </select>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Trust</label>
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                    <ShieldCheck className="h-3 w-3" />Trust
+                  </label>
                   <select
                     value={trustFilter}
                     onChange={(e) => { setTrustFilter(e.target.value as TrustTier); setCurrentPage(1); }}
