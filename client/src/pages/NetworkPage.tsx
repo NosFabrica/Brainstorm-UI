@@ -1542,9 +1542,51 @@ export default function NetworkPage() {
             </CardHeader>
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
+              {/* Mobile dropdowns — hidden on sm+ */}
+              <div className="sm:hidden flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Graph</label>
+                  <select
+                    value={activeGroup}
+                    onChange={(e) => { setActiveGroup(e.target.value as GroupKey); setCurrentPage(1); }}
+                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    data-testid="select-group-filter-mobile"
+                  >
+                    {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
+                      const group = groups.find(g => g.key === k);
+                      if (!group) return null;
+                      const count = getGroupCount(group.key);
+                      return (
+                        <option key={k} value={k}>{group.label} — {count}</option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Trust</label>
+                  <select
+                    value={trustFilter}
+                    onChange={(e) => { setTrustFilter(e.target.value as TrustTier); setCurrentPage(1); }}
+                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    data-testid="select-trust-filter-mobile"
+                  >
+                    <option value="all">All</option>
+                    <option value="high">Highly Trusted</option>
+                    <option value="medium">Trusted</option>
+                    <option value="neutral">Neutral</option>
+                    <option value="low">Low Trust</option>
+                    <option value="unverified">Unverified</option>
+                    {getGroupPubkeys("flagged").length > 0 && (
+                      <option value="flagged">Flagged</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Desktop pill rows — hidden on mobile */}
               <div>
-                <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters-graph">
-                  <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Graph</span>
+                <div className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters-graph">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Graph</span>
                   {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
                     const group = groups.find(g => g.key === k);
                     if (!group) return null;
@@ -1558,16 +1600,16 @@ export default function NetworkPage() {
                           <button
                             type="button"
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
+                            className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
                             }`}
                             data-testid={`button-filter-${group.key}`}
                           >
-                            <group.Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
-                            <span className={isActive ? "" : "hidden sm:inline"}>{group.shortLabel}</span>
-                            <span className={`text-[10px] sm:text-xs font-bold px-1 sm:px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                            <group.Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
+                            <span>{group.shortLabel}</span>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                               isActive
                                 ? "bg-white/20 text-white"
                                 : `${group.bgColor} ${group.color} ${group.borderColor} border`
@@ -1588,10 +1630,10 @@ export default function NetworkPage() {
                 </div>
               </div>
 
-              <div className="border-t border-slate-200/60 my-0.5" />
+              <div className="hidden sm:block border-t border-slate-200/60 my-0.5" />
 
-              <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
-                <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Trust</span>
+              <div className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Trust</span>
                 {([
                   { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0, tooltip: "Show all trust levels" },
                   { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9, tooltip: "Highest trust score in your network" },
@@ -1608,7 +1650,7 @@ export default function NetworkPage() {
                         <button
                           type="button"
                           onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
-                          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                             isActive
                               ? tier.key === "flagged" ? "bg-red-600 text-white border border-red-600" : "bg-indigo-800 text-white border border-indigo-800"
                               : tier.key === "flagged" ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300" : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
@@ -1627,7 +1669,7 @@ export default function NetworkPage() {
                                 style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
                             </svg>
                           )}
-                          <span className={(tier.icon && tier.icon !== "flagged") && !isActive ? "hidden sm:inline" : ""}>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
+                          <span>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className={`bg-white backdrop-blur-xl border border-slate-300 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 shadow-lg px-2.5 py-1.5`}>
