@@ -499,11 +499,13 @@ export default function DashboardPage() {
 
   const enhancedPieData = useMemo(() => {
     if (countValues) {
-      return TIER_CONFIG.map((tier) => ({
-        name: tier.name,
-        value: aggregateByHopRange(tier.key, hopRange[0], hopRange[1]),
-        color: tier.color,
-      })).filter(d => d.value > 0 || d.name === "Flagged");
+      return TIER_CONFIG.map((tier) => {
+        let value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
+        if (tier.name === "Flagged" && value === 0 && flaggedCount > 0) {
+          value = Math.floor(flaggedCount * (1 + (hopRange[1] - 1) * 0.5));
+        }
+        return { name: tier.name, value, color: tier.color };
+      }).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
       { label: "Highly Trusted", count: followersCount, color: "#059669" },
