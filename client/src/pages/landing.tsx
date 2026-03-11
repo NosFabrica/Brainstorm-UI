@@ -82,12 +82,19 @@ export default function Landing() {
   const [, setLocation] = useLocation();
   const [signingIn, setSigningIn] = useState(false);
 
+  useEffect(() => {
+    const token = localStorage.getItem("brainstorm_token");
+    if (token) {
+      setLocation('/dashboard', { replace: true });
+    }
+  }, [setLocation]);
+
   const onSignIn = async () => {
     if (signingIn) return;
     setSigningIn(true);
     try {
       await handleLogin();
-      setLocation('/dashboard');
+      setLocation('/dashboard', { replace: true });
     } catch {
       setSigningIn(false);
     }
