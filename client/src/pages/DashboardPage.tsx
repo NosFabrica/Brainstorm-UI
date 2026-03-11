@@ -2192,9 +2192,9 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="space-y-3 sm:space-y-4">
-                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
                             <img src={amethystLogoImg} alt="Amethyst Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
-                            <div className="space-y-0.5 sm:space-y-1">
+                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
                               <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-amethyst-title">
                                 Amethyst
                               </h2>
@@ -2303,9 +2303,9 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="space-y-3 sm:space-y-4">
-                          <div className="flex items-center gap-3 sm:gap-4 justify-center md:justify-start">
+                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
                             <img src={nostriaIconImg} alt="Nostria Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
-                            <div className="space-y-0.5 sm:space-y-1">
+                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
                               <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-nostria-title">
                                 Nostria
                               </h2>
