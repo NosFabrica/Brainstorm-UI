@@ -2027,7 +2027,7 @@ export default function DashboardPage() {
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1 gap-2">
-                              <div className="flex flex-col min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 min-w-0">
                                 <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
                                 {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
