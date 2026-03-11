@@ -503,7 +503,7 @@ export default function DashboardPage() {
         name: tier.name,
         value: aggregateByHopRange(tier.key, hopRange[0], hopRange[1]),
         color: tier.color,
-      })).filter(d => d.value > 0);
+      })).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
       { label: "Highly Trusted", count: followersCount, color: "#059669" },
@@ -523,7 +523,7 @@ export default function DashboardPage() {
       else if (d.label === "Flagged") multiplier = 1 + (currentHops - 1) * 0.5;
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
-    }).filter(d => d.value > 0);
+    }).filter(d => d.value > 0 || d.name === "Flagged");
   }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
   const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
@@ -609,7 +609,7 @@ export default function DashboardPage() {
       name: tier.name,
       value: directFollowingTierCounts[tier.key] ?? 0,
       color: tier.color,
-    })).filter(d => d.value > 0);
+    })).filter(d => d.value > 0 || d.name === "Flagged");
   }, [directFollowingTierCounts]);
 
   const handleExport = () => {
@@ -1968,8 +1968,8 @@ export default function DashboardPage() {
                     <div className="h-48 w-full md:w-5/12">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return isHop1 && healthView === "following" ? followingPieData : currentPieData; })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" }; const tier = tierMap[activePieData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
-                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData; return activePieData.map((entry, index) => (
+                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" }; const tier = tierMap[sliceData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
+                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); return sliceData.map((entry: { color: string }, index: number) => (
                               <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
                             )); })()}
                           </Pie>
