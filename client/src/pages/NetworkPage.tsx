@@ -1542,16 +1542,10 @@ export default function NetworkPage() {
             </CardHeader>
 
             <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
-              <div className="space-y-1.5 sm:space-y-2">
-              {[
-                { label: "Graph", keys: ["followed_by", "following", "muting", "reporting"] },
-                { label: "Signals", keys: ["muted_by", "reported_by"] },
-              ].map((tier, idx) => (
-                <div key={tier.label}>
-                  {idx > 0 && <div className="border-t border-slate-200/60 mb-1.5 sm:mb-2" />}
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2" data-testid={`row-group-filters-${tier.label.toLowerCase()}`}>
-                  <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">{tier.label}</span>
-                  {tier.keys.map((k) => {
+              <div>
+                <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-group-filters-graph">
+                  <span className="hidden sm:inline text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Graph</span>
+                  {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
                     const group = groups.find(g => g.key === k);
                     if (!group) return null;
                     const count = getGroupCount(group.key);
@@ -1564,7 +1558,7 @@ export default function NetworkPage() {
                           <button
                             type="button"
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
-                            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all flex-1 sm:flex-initial ${
+                            className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
@@ -1591,9 +1585,7 @@ export default function NetworkPage() {
                       </UITooltip>
                     );
                   })}
-                  </div>
                 </div>
-              ))}
               </div>
 
               <div className="border-t border-slate-200/60 my-0.5" />
