@@ -564,6 +564,9 @@ export default function DashboardPage() {
     if (!network) return {} as Record<string, number>;
     const followers = network.followed_by;
     if (!Array.isArray(followers)) return {} as Record<string, number>;
+    // When API returns an object (aggregate counts by hop), flaggedSet stays empty
+    // because individual pubkeys aren't available — per-contact flagged detection
+    // only works when API returns an array of pubkeys.
     const flaggedSet = new Set<string>();
     const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
     if (Array.isArray(flaggedApiList)) {
@@ -591,6 +594,9 @@ export default function DashboardPage() {
     if (!network) return {} as Record<string, number>;
     const following = network.following;
     if (!Array.isArray(following)) return {} as Record<string, number>;
+    // When API returns an object (aggregate counts by hop), flaggedSet stays empty
+    // because individual pubkeys aren't available — per-contact flagged detection
+    // only works when API returns an array of pubkeys.
     const flaggedSet = new Set<string>();
     const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
     if (Array.isArray(flaggedApiList)) {
