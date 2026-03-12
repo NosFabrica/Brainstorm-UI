@@ -47,7 +47,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
+import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
@@ -917,23 +917,26 @@ export default function NetworkPage() {
     }
   }, [expandedPubkey]);
 
-  const API_KEY_MAP: Record<string, string> = { flagged: "low_and_reported_by_2_or_more_trusted_pubkeys" };
+  const flaggedPubkeySet = useMemo(() => {
+    if (!networkData) return new Set<string>();
+    return getFlaggedPubkeys(networkData, getVerifiedThreshold());
+  }, [networkData]);
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
-    const apiKey = API_KEY_MAP[key] || key;
-    return toPubkeys(networkData[apiKey]);
-  }, [networkData]);
+    if (key === "flagged") return Array.from(flaggedPubkeySet);
+    return toPubkeys(networkData[key]);
+  }, [networkData, flaggedPubkeySet]);
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
     const sets: Record<GroupKey, Set<string>> = {} as any;
-    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"] as GroupKey[]).forEach(k => {
-      const apiKey = API_KEY_MAP[k] || k;
-      sets[k] = new Set(toPubkeys(networkData[apiKey]));
+    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
+      sets[k] = new Set(toPubkeys(networkData[k]));
     });
+    sets["flagged"] = flaggedPubkeySet;
     return sets;
-  }, [networkData]);
+  }, [networkData, flaggedPubkeySet]);
 
   const getPubkeyGroups = useCallback((pubkey: string): GroupKey[] => {
     if (!groupPubkeySets) return [];
