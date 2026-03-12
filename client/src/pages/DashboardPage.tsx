@@ -429,7 +429,7 @@ export default function DashboardPage() {
     { key: "medium", name: "Neutral", color: "#6366f1" },
     { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
     { key: "low", name: "Unverified", color: "#a1a1aa" },
-    { key: "flagged", name: "Flagged", color: "#ef4444" },
+    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: "#ef4444" },
   ] as const;
 
   const countValues = useMemo(() => {
