@@ -508,10 +508,7 @@ export default function DashboardPage() {
   const enhancedPieData = useMemo(() => {
     if (countValues) {
       return TIER_CONFIG.map((tier) => {
-        let value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
-        if (tier.name === "Flagged" && value === 0 && flaggedCount > 0) {
-          value = Math.floor(flaggedCount * (1 + (hopRange[1] - 1) * 0.5));
-        }
+        const value = aggregateByHopRange(tier.key, hopRange[0], hopRange[1]);
         return { name: tier.name, value, color: tier.color };
       }).filter(d => d.value > 0 || d.name === "Flagged");
     }
@@ -530,7 +527,7 @@ export default function DashboardPage() {
       else if (d.label === "Trusted") multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
       else if (d.label === "Neutral") multiplier = 1 + (currentHops - 1) * 0.4;
       else if (d.label === "Low Trust") multiplier = 1 + (currentHops - 1) * 0.6;
-      else if (d.label === "Flagged") multiplier = 1 + (currentHops - 1) * 0.5;
+      else if (d.label === "Flagged") multiplier = 1;
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
     }).filter(d => d.value > 0 || d.name === "Flagged");
