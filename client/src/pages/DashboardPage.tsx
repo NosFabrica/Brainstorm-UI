@@ -561,22 +561,14 @@ export default function DashboardPage() {
     if (!network) return {} as Record<string, number>;
     const followers = network.followed_by;
     if (!Array.isArray(followers)) return {} as Record<string, number>;
-    // When API returns an object (aggregate counts by hop), flaggedSet stays empty
-    // because individual pubkeys aren't available — per-contact flagged detection
-    // only works when API returns an array of pubkeys.
-    const flaggedSet = new Set<string>();
-    const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
-    if (Array.isArray(flaggedApiList)) {
-      for (const m of flaggedApiList) flaggedSet.add(typeof m === "string" ? m : m.pubkey);
-    }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
+    const vt = getVerifiedThreshold();
     for (const m of followers) {
-      if (flaggedSet.size > 0 && flaggedSet.has(m.pubkey)) {
+      const inf = typeof m.influence === "number" ? m.influence : null;
+      if (inf !== null && inf < vt && typeof m.trusted_reporters === "number" && m.trusted_reporters >= 2) {
         counts.flagged++;
         continue;
       }
-      const inf = typeof m.influence === "number" ? m.influence : null;
-      const vt = getVerifiedThreshold();
       if (inf === null) { counts.unverified++; continue; }
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
@@ -591,22 +583,14 @@ export default function DashboardPage() {
     if (!network) return {} as Record<string, number>;
     const following = network.following;
     if (!Array.isArray(following)) return {} as Record<string, number>;
-    // When API returns an object (aggregate counts by hop), flaggedSet stays empty
-    // because individual pubkeys aren't available — per-contact flagged detection
-    // only works when API returns an array of pubkeys.
-    const flaggedSet = new Set<string>();
-    const flaggedApiList = (network as any).low_and_reported_by_2_or_more_trusted_pubkeys;
-    if (Array.isArray(flaggedApiList)) {
-      for (const m of flaggedApiList) flaggedSet.add(typeof m === "string" ? m : m.pubkey);
-    }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
+    const vt = getVerifiedThreshold();
     for (const m of following) {
-      if (flaggedSet.size > 0 && flaggedSet.has(m.pubkey)) {
+      const inf = typeof m.influence === "number" ? m.influence : null;
+      if (inf !== null && inf < vt && typeof m.trusted_reporters === "number" && m.trusted_reporters >= 2) {
         counts.flagged++;
         continue;
       }
-      const inf = typeof m.influence === "number" ? m.influence : null;
-      const vt = getVerifiedThreshold();
       if (inf === null) { counts.unverified++; continue; }
       if (inf >= 0.50) counts.high++;
       else if (inf >= 0.20) counts.medium++;
