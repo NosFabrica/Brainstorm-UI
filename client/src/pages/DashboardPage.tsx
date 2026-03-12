@@ -321,7 +321,15 @@ export default function DashboardPage() {
   const mutingCount = network?.muting?.length ?? 0;
   const reportedByCount = network?.reported_by?.length ?? 0;
   const reportingCount = network?.reporting?.length ?? 0;
-  const flaggedCount = network?.low_and_reported_by_2_or_more_trusted_pubkeys?.length ?? 0;
+  const flaggedCount = (() => {
+    const raw = network?.low_and_reported_by_2_or_more_trusted_pubkeys;
+    if (!raw) return 0;
+    if (Array.isArray(raw)) return raw.length;
+    if (typeof raw === "object") {
+      return Object.values(raw).reduce((sum: number, v: any) => sum + (typeof v === "number" ? v : 0), 0);
+    }
+    return 0;
+  })();
   const influence = network?.influence ?? 0;
 
   const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
@@ -563,7 +571,7 @@ export default function DashboardPage() {
     }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
     for (const m of followers) {
-      if (flaggedSet.has(m.pubkey)) {
+      if (flaggedSet.size > 0 && flaggedSet.has(m.pubkey)) {
         counts.flagged++;
         continue;
       }
@@ -590,7 +598,7 @@ export default function DashboardPage() {
     }
     const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
     for (const m of following) {
-      if (flaggedSet.has(m.pubkey)) {
+      if (flaggedSet.size > 0 && flaggedSet.has(m.pubkey)) {
         counts.flagged++;
         continue;
       }
