@@ -1,0 +1,533 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import {
+  Home,
+  LogOut,
+  Menu,
+  X,
+  Settings as SettingsIcon,
+  BookOpen,
+  Search,
+  Users,
+  HelpCircle,
+  ChevronDown,
+  ArrowLeft,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { motion, AnimatePresence } from "framer-motion";
+import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { isAuthRedirecting } from "@/services/api";
+import { BrainLogo } from "@/components/BrainLogo";
+import PageBackground from "@/components/PageBackground";
+import { Footer } from "@/components/Footer";
+
+const userFaqs = [
+  {
+    question: "What does my trust score mean?",
+    answer: "Your trust score reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
+  },
+  {
+    question: "What do the trust tiers mean?",
+    answer: "Highly Trusted (50%+) means strong trust signal from multiple paths in your network. Trusted (20-49%) means solid connections with meaningful trust flow. Neutral (7-19%) means known in your network but without strong signal either way. Low Trust (2-6%) means minimal trust signal, on the edges of your network. Unverified (below threshold) means no meaningful trust data available yet. These tiers are relative to your network — someone Highly Trusted to you might be Neutral to someone else.",
+  },
+  {
+    question: 'What does "Flagged" mean?',
+    answer: "A flagged account has a trust score below the verified threshold AND has been reported by 2 or more of your trusted contacts. Think of it as a community signal — people you trust have independently identified this account as potentially problematic. It's not a ban — it's information for you to make your own decision.",
+  },
+  {
+    question: "How does GrapeRank calculate trust?",
+    answer: "GrapeRank is a graph-based algorithm that propagates trust through your social network. Starting from you (the observer), it follows connections outward — your follows, their follows, and so on. Each hop reduces the trust signal (attenuation), and negative signals like mutes and reports reduce scores further. The result is a personalized trust map unique to your perspective.",
+  },
+  {
+    question: "Why is my score different from what someone else sees?",
+    answer: "Every score is calculated from the observer's point of view. Your network is different from everyone else's, so the trust paths are different. This is by design — there's no central authority deciding who is trusted. You are your own trust anchor.",
+  },
+  {
+    question: 'What are "hops" in the Network Health chart?',
+    answer: "Hops represent degrees of separation. Hop 1 is your direct connections (people you follow). Hop 2 is people they follow. Hop 3 goes one step further, and so on. The slider lets you expand or narrow how far into the network you're looking.",
+  },
+  {
+    question: "Can I change how my trust scores are calculated?",
+    answer: "The algorithm parameters (like how much trust attenuates per hop) can be adjusted. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
+  },
+];
+
+const devFaqs = [
+  {
+    question: "What is NIP-85?",
+    answer: "NIP-85 (Trust Attestations) is a Nostr protocol extension that defines how trust signals are published and consumed. It allows any Nostr client to read and write trust data in a standard format, making trust portable across the ecosystem.",
+  },
+  {
+    question: "What does it take to get my client listed on Brainstorm?",
+    answer: "Your client needs to implement NIP-85 Trust Attestations with full support for observer-relative trust. This means: (1) Trust Anchor selection — users must be able to choose their own Trust Anchor. Hardwiring a single Trust Anchor defeats the purpose of decentralized trust. (2) Score consumption — your client reads Trust Attestation events and uses them to filter, sort, or annotate content and profiles. (3) Observer-relative display — scores should be presented as relative to the viewing user, not as universal ratings.",
+  },
+  {
+    question: "What's the difference between full and partial NIP-85 support?",
+    answer: "Full support means users can select their Trust Anchor, and scores are observer-relative. Partial support typically means the client hardwires a single Trust Anchor, showing one point of view as if it were \"the\" trust score. Partial implementations are a good starting point, but they miss the key value of NIP-85: that trust is personal and pluralistic.",
+  },
+  {
+    question: "Why does Trust Anchor selection matter?",
+    answer: "The Trust Anchor is the service that computes trust scores using a specific algorithm (like GrapeRank). Different Trust Anchors may use different algorithms, different parameters, or weigh different signals. Letting users choose their Trust Anchor means they control whose math they trust — which is the entire point of sovereign trust. A client that hardwires a single TA is essentially making that choice for the user.",
+  },
+  {
+    question: "How do I integrate with Brainstorm as a Trust Anchor?",
+    answer: "Brainstorm publishes Trust Attestation events (NIP-85) to Nostr relays. Your client can: (1) Query for kind 30382 events from the Brainstorm Trust Anchor pubkey. (2) Parse the attestation data to get trust scores for profiles. (3) Display scores in your UI relative to the observing user. Contact support@nosfabrica.com for integration guidance and to get your client reviewed for listing.",
+  },
+  {
+    question: "Can my client use a different trust algorithm?",
+    answer: "Absolutely. NIP-85 is algorithm-agnostic. Brainstorm uses GrapeRank, but any Trust Anchor can implement any algorithm. The protocol defines how scores are published, not how they're computed. This is a feature, not a bug — algorithmic diversity strengthens the ecosystem.",
+  },
+];
+
+export default function FaqPage() {
+  const [location, navigate] = useLocation();
+  const [user, setUser] = useState<NostrUser | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialTab = searchParams.get("tab") === "developers" ? "developers" : "users";
+  const [activeTab, setActiveTab] = useState<"users" | "developers">(initialTab);
+
+  useEffect(() => {
+    const u = getCurrentUser();
+    if (u) setUser(u);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
+
+  const handleTabChange = (tab: "users" | "developers") => {
+    setActiveTab(tab);
+    setExpandedFaq(null);
+    const url = new URL(window.location.href);
+    if (tab === "developers") {
+      url.searchParams.set("tab", "developers");
+    } else {
+      url.searchParams.delete("tab");
+    }
+    window.history.replaceState({}, "", url.toString());
+  };
+
+  const faqs = activeTab === "users" ? userFaqs : devFaqs;
+
+  if (isAuthRedirecting()) return null;
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-faq">
+      <PageBackground />
+
+      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate(user ? "/dashboard" : "/")}>
+                <BrainLogo size={28} className="text-indigo-500" />
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
+                  Brainstorm
+                </h1>
+              </div>
+              {user && (
+                <div className="hidden lg:flex gap-2">
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
+                    <Home className="h-4 w-4" />
+                    Dashboard
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5" onClick={() => navigate("/network")} data-testid="button-nav-network">
+                    <Users className="h-4 w-4" />
+                    Network
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-4">
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
+                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                        {user.picture ? (
+                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                          {user.displayName?.charAt(0) || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="hidden md:flex flex-col items-start mr-2">
+                        <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
+                        <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                      </div>
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
+                        <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="bg-indigo-100" />
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
+                      <HelpCircle className="mr-2 h-4 w-4" />
+                      <span>FAQ</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
+                      <SettingsIcon className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-indigo-100" />
+                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Sign out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  onClick={() => navigate("/")}
+                  data-testid="button-back-home"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {mobileMenuOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/60 z-50 lg:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} data-testid="overlay-mobile-menu" />
+          <div className="fixed top-0 left-0 bottom-0 w-[84%] max-w-sm z-50 lg:hidden shadow-xl flex flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950" data-testid="panel-mobile-menu">
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
+              <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/18 blur-[110px]" />
+            </div>
+
+            <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center">
+                  <BrainLogo size={22} className="text-indigo-200" />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
+                  <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-mobile-menu-title">Menu</h2>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-slate-200/80 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-close-mobile-menu">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
+              <div className="space-y-2">
+                <p className="px-3 text-xs font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
+                {user && (
+                  <>
+                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/dashboard"); }} data-testid="button-mobile-nav-dashboard">
+                      <Home className="h-5 w-5 text-slate-200/80" />
+                      Dashboard
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
+                      <Search className="h-5 w-5 text-slate-200/80" />
+                      Search
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
+                      <Users className="h-5 w-5 text-slate-200/80" />
+                      Network
+                    </Button>
+                  </>
+                )}
+                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-faq">
+                  <HelpCircle className="h-5 w-5 text-indigo-200" />
+                  FAQ
+                </Button>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
+                  <BookOpen className="h-5 w-5 text-slate-200/80" />
+                  What is WoT?
+                </Button>
+              </div>
+              {user && (
+                <div className="mt-auto pt-4 px-0">
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
+                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
+                    Settings
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {user && (
+              <div className="relative p-4 border-t border-white/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar className="h-10 w-10 border-2 border-white ring-2 ring-white/20 shadow-md">
+                    {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
+                    <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{user.displayName || "Anon"}</p>
+                    <p className="text-xs text-indigo-300 font-mono">{user.npub.slice(0, 12)}...</p>
+                  </div>
+                </div>
+                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-400/20 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={handleLogout} data-testid="button-mobile-signout">
+                  <LogOut className="h-5 w-5" />
+                  Sign out
+                </Button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <main className="flex-1 relative z-10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-8 sm:mb-12"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md mb-4" data-testid="badge-faq">
+              <HelpCircle className="h-3 w-3" />
+              <span>Help Center</span>
+            </div>
+            <h1
+              className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent mb-3"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              data-testid="text-faq-title"
+            >
+              Frequently Asked Questions
+            </h1>
+            <p className="text-sm sm:text-base text-slate-400 max-w-xl mx-auto" data-testid="text-faq-subtitle">
+              {activeTab === "users"
+                ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
+                : "Technical details for client developers implementing NIP-85 Trust Attestations."}
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex justify-center mb-8"
+          >
+            <div className="inline-flex rounded-full p-1 bg-slate-800/60 border border-slate-700/50 backdrop-blur-md" data-testid="tabs-faq">
+              <button
+                onClick={() => handleTabChange("users")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  activeTab === "users"
+                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                data-testid="tab-users"
+              >
+                Using Brainstorm
+              </button>
+              <button
+                onClick={() => handleTabChange("developers")}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  activeTab === "developers"
+                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                data-testid="tab-developers"
+              >
+                For Developers
+              </button>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="relative"
+          >
+            <div
+              className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-4 sm:p-6 backdrop-blur-md overflow-hidden"
+              style={{
+                boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-950/60 to-slate-950/80" />
+              <motion.div
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent rounded-full"
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+
+              <div className="relative z-10 space-y-3 max-w-3xl mx-auto">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-3"
+                  >
+                    {faqs.map((faq, i) => (
+                      <motion.div
+                        key={`${activeTab}-${i}`}
+                        className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
+                          expandedFaq === i
+                            ? 'bg-gradient-to-br from-indigo-500/10 via-violet-500/10 to-purple-500/10 border-2 border-indigo-400/40'
+                            : 'bg-slate-800/40 border border-slate-700/50 hover:border-indigo-400/30 hover:bg-slate-800/60'
+                        }`}
+                        initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.05 + i * 0.06 }}
+                        style={{
+                          boxShadow: expandedFaq === i
+                            ? '0 4px 20px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
+                            : 'inset 0 1px 0 rgba(255,255,255,0.02)'
+                        }}
+                      >
+                        {expandedFaq !== i && (
+                          <motion.div
+                            className="absolute inset-0 rounded-xl pointer-events-none"
+                            animate={{
+                              boxShadow: ['inset 0 0 0 1px rgba(99, 102, 241, 0)', 'inset 0 0 0 1px rgba(99, 102, 241, 0.2)', 'inset 0 0 0 1px rgba(99, 102, 241, 0)']
+                            }}
+                            transition={{ duration: 3, repeat: Infinity, delay: i * 0.3 }}
+                          />
+                        )}
+
+                        {expandedFaq === i && (
+                          <motion.div
+                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent"
+                            initial={{ opacity: 0, scaleX: 0 }}
+                            animate={{ opacity: 1, scaleX: 1 }}
+                          />
+                        )}
+
+                        <button
+                          onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
+                          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between text-left group"
+                          data-testid={`faq-item-${i}`}
+                        >
+                          <div className="flex items-center gap-3 pr-4">
+                            <motion.div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all relative ${
+                                expandedFaq === i
+                                  ? 'bg-gradient-to-br from-indigo-500/40 to-violet-500/40 border border-indigo-400/60'
+                                  : 'bg-slate-700/50 border border-slate-600/50 group-hover:bg-indigo-500/20 group-hover:border-indigo-400/30'
+                              }`}
+                              animate={expandedFaq === i
+                                ? { rotateY: [0, 180, 360], scale: [1, 1.15, 1] }
+                                : { scale: [1, 1.05, 1] }
+                              }
+                              transition={expandedFaq === i
+                                ? { duration: 0.5, ease: "easeOut" }
+                                : { duration: 2, repeat: Infinity, delay: i * 0.2 }
+                              }
+                              style={{ transformStyle: 'preserve-3d' }}
+                            >
+                              {expandedFaq === i && (
+                                <motion.div
+                                  className="absolute inset-0 rounded-lg pointer-events-none"
+                                  initial={{ scale: 1, opacity: 0.8 }}
+                                  animate={{ scale: 2, opacity: 0 }}
+                                  transition={{ duration: 0.6, ease: "easeOut" }}
+                                  style={{
+                                    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%)',
+                                  }}
+                                />
+                              )}
+                              <AnimatePresence mode="wait">
+                                {expandedFaq === i ? (
+                                  <motion.div
+                                    key="brain-icon"
+                                    initial={{ opacity: 0, scale: 0.5 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.5 }}
+                                    transition={{ duration: 0.2, delay: 0.15 }}
+                                  >
+                                    <BrainLogo size={16} className="text-indigo-300" />
+                                  </motion.div>
+                                ) : (
+                                  <motion.span
+                                    key="number"
+                                    className="text-xs font-bold text-slate-400 font-mono"
+                                    initial={{ opacity: 0, scale: 0.5 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.5 }}
+                                  >
+                                    {String(i + 1).padStart(2, '0')}
+                                  </motion.span>
+                                )}
+                              </AnimatePresence>
+                            </motion.div>
+                            <span className={`text-sm sm:text-base font-semibold transition-colors ${
+                              expandedFaq === i ? 'text-white' : 'text-slate-200 group-hover:text-white'
+                            }`}>
+                              {faq.question}
+                            </span>
+                          </div>
+                          <motion.div
+                            animate={{ rotate: expandedFaq === i ? 180 : 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="flex-shrink-0"
+                          >
+                            <ChevronDown className={`h-5 w-5 transition-colors ${
+                              expandedFaq === i ? 'text-indigo-400' : 'text-slate-500 group-hover:text-indigo-400'
+                            }`} />
+                          </motion.div>
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedFaq === i && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3, ease: "easeInOut" }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 sm:px-6 pb-5 pl-[60px] sm:pl-[72px]">
+                                <p className="text-sm sm:text-[15px] text-slate-300/90 leading-relaxed" data-testid={`faq-answer-${i}`}>
+                                  {faq.answer}
+                                </p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}

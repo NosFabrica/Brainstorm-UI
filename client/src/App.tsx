@@ -13,6 +13,7 @@ import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
+import FaqPage from "@/pages/FaqPage";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/network" component={NetworkPage} />
         <Route path="/what-is-wot" component={WhatIsWotPage} />
+        <Route path="/faq" component={FaqPage} />
         <Route component={NotFound} />
       </Switch>
     </>

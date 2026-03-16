@@ -29,6 +29,7 @@ import {
   Volume2,
   Flag,
   MoreVertical,
+  HelpCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1020,6 +1021,10 @@ export default function ProfilePage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    <span>FAQ</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
@@ -1108,6 +1113,15 @@ export default function ProfilePage() {
                 >
                   <User className={`h-5 w-5 ${calcDone ? "text-slate-200/80" : "text-slate-500"}`} />
                   Network
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => { setMobileMenuOpen(false); navigate("/faq"); }}
+                  data-testid="button-mobile-nav-faq"
+                >
+                  <HelpCircle className="h-5 w-5 text-slate-200/80" />
+                  FAQ
                 </Button>
                 <Button
                   variant="ghost"

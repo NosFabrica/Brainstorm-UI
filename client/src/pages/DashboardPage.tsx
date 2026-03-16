@@ -60,6 +60,7 @@ import {
   CheckCircle2,
   Terminal,
   Mail,
+  HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -723,6 +724,10 @@ export default function DashboardPage() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-indigo-100" />
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
+                      <HelpCircle className="mr-2 h-4 w-4" />
+                      <span>FAQ</span>
+                    </DropdownMenuItem>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
                       <SettingsIcon className="mr-2 h-4 w-4" />
                       <span>Settings</span>
@@ -777,6 +782,10 @@ export default function DashboardPage() {
                   <Button variant="ghost" className={`w-full justify-start gap-3 text-base font-medium border border-transparent rounded-2xl no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-200/90 hover:text-white hover:bg-white/10 hover:border-white/10" : "text-slate-500 opacity-40 cursor-not-allowed"}`} onClick={() => { if (calcDone) { setMobileMenuOpen(false); navigate("/network"); } }} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-mobile-nav-network">
                     <Users className={`h-5 w-5 ${calcDone ? "text-slate-200/80" : "text-slate-500"}`} />
                     Network
+                  </Button>
+                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/faq"); }} data-testid="button-mobile-nav-faq">
+                    <HelpCircle className="h-5 w-5 text-slate-200/80" />
+                    FAQ
                   </Button>
                   <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
                     <BookOpen className="h-5 w-5 text-slate-200/80" />
@@ -2400,12 +2409,12 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
-                          <a href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing" data-testid="link-developer-contact" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-contact">
-                              <Mail className="mr-2 h-4 w-4" />
-                              Contact Us
+                          <div data-testid="link-developer-contact" onClick={(e) => { e.stopPropagation(); navigate("/faq?tab=developers"); }}>
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base cursor-pointer" data-testid="button-developer-contact">
+                              <HelpCircle className="mr-2 h-4 w-4" />
+                              Learn More
                             </Button>
-                          </a>
+                          </div>
                           <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
                               View NIP-85 Spec

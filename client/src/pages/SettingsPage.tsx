@@ -40,6 +40,7 @@ import {
   Info,
   Code2,
   Mail,
+  HelpCircle,
 } from "lucide-react";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -355,6 +356,10 @@ export default function SettingsPage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    <span>FAQ</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
@@ -420,6 +425,7 @@ export default function SettingsPage() {
                   { path: "/search", label: "Search", icon: Search },
                   { path: "/network", label: "Network", icon: Users },
                   { path: "/settings", label: "Settings", icon: SettingsIcon },
+                  { path: "/faq", label: "FAQ", icon: HelpCircle },
                   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
                 ].map((item) => {
                   const active = location === item.path;
