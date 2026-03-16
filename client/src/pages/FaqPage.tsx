@@ -37,7 +37,7 @@ const userFaqs = [
   },
   {
     question: "What do the trust tiers mean?",
-    answer: "Highly Trusted (50%+) means strong trust signal from multiple paths in your network. Trusted (20-49%) means solid connections with meaningful trust flow. Neutral (7-19%) means known in your network but without strong signal either way. Low Trust (2-6%) means minimal trust signal, on the edges of your network. Unverified (below threshold) means no meaningful trust data available yet. These tiers are relative to your network — someone Highly Trusted to you might be Neutral to someone else.",
+    answer: "Highly Trusted (50%+) means strong trust signal from multiple paths in your network. Trusted (20–49%) means solid connections with meaningful trust flow. Neutral (7–19%) means known in your network but without strong signal either way. Low Trust (below 7%, above your verified threshold) means minimal trust signal, on the edges of your network. Unverified (below your verified threshold) means no meaningful trust data available yet. You can adjust the verified threshold in Settings — choosing Relax (0%), Default (2%), or Strict (15%). These tiers are relative to your network — someone Highly Trusted to you might be Neutral to someone else.",
   },
   {
     question: 'What does "Flagged" mean?',
@@ -57,7 +57,7 @@ const userFaqs = [
   },
   {
     question: "Can I change how my trust scores are calculated?",
-    answer: "The algorithm parameters (like how much trust attenuates per hop) can be adjusted. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
+    answer: "You can adjust your verified threshold in Settings — this controls the cutoff between Low Trust and Unverified tiers. Choose Relax (0%), Default (2%), or Strict (15%), or set a custom value. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
   },
 ];
 
@@ -80,7 +80,7 @@ const devFaqs = [
   },
   {
     question: "How do I integrate with Brainstorm as a Trust Anchor?",
-    answer: "Brainstorm publishes Trust Attestation events (NIP-85) to Nostr relays. Your client can: (1) Query for kind 30382 events from the Brainstorm Trust Anchor pubkey. (2) Parse the attestation data to get trust scores for profiles. (3) Display scores in your UI relative to the observing user. Contact support@nosfabrica.com for integration guidance and to get your client reviewed for listing.",
+    answer: "Brainstorm publishes Trust Attestation events (NIP-85) to Nostr relays. Your client can: (1) Query for kind 30382 events from the Brainstorm Trust Anchor pubkey. (2) Parse the attestation data to get trust scores for profiles. (3) Display scores in your UI relative to the observing user. Visit nosfabrica.com for integration guidance and to get your client reviewed for listing.",
   },
   {
     question: "Can my client use a different trust algorithm?",
