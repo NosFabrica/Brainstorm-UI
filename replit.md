@@ -31,3 +31,6 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 - **Brainstorm Backend API:** `https://brainstormserver.nosfabrica.com` for authentication, user data, GrapeRank results, and NIP-05 proxying.
 - **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
+
+## Shared Components
+- **MobileMenu (`client/src/components/MobileMenu.tsx`):** Unified mobile navigation drawer used by all 6 authenticated pages (Dashboard, Settings, Network, Search, Profile, FAQ). Organized into grouped sections: Navigation (Dashboard/Search/Network), Help & Info (FAQ/What is WoT?), Account (Settings). Navigation and Account sections are auth-gated (hidden when user is null). Network button disabled when `calcDone` is false. User avatar + Sign Out in footer.

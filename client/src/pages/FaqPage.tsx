@@ -27,6 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
+import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 
@@ -220,89 +221,14 @@ export default function FaqPage() {
         </div>
       </nav>
 
-      {mobileMenuOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/60 z-50 lg:hidden backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} data-testid="overlay-mobile-menu" />
-          <div className="fixed top-0 left-0 bottom-0 w-[84%] max-w-sm z-50 lg:hidden shadow-xl flex flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950" data-testid="panel-mobile-menu">
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
-              <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/18 blur-[110px]" />
-            </div>
-
-            <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center">
-                  <BrainLogo size={22} className="text-indigo-200" />
-                </div>
-                <div className="leading-tight">
-                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-mobile-menu-kicker">Brainstorm</p>
-                  <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-mobile-menu-title">Menu</h2>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} className="text-slate-200/80 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-close-mobile-menu">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-
-            <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
-              <div className="space-y-2">
-                <p className="px-3 text-xs font-semibold text-slate-300/70 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
-                {user && (
-                  <>
-                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/dashboard"); }} data-testid="button-mobile-nav-dashboard">
-                      <Home className="h-5 w-5 text-slate-200/80" />
-                      Dashboard
-                    </Button>
-                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/search"); }} data-testid="button-mobile-nav-search">
-                      <Search className="h-5 w-5 text-slate-200/80" />
-                      Search
-                    </Button>
-                    <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/network"); }} data-testid="button-mobile-nav-network">
-                      <Users className="h-5 w-5 text-slate-200/80" />
-                      Network
-                    </Button>
-                  </>
-                )}
-                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-semibold text-white bg-white/10 border border-white/10 rounded-2xl shadow-[0_12px_26px_-18px_rgba(124,134,255,0.35)] no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(false)} data-testid="button-mobile-nav-faq">
-                  <HelpCircle className="h-5 w-5 text-indigo-200" />
-                  FAQ
-                </Button>
-                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/what-is-wot"); }} data-testid="button-mobile-nav-wot">
-                  <BookOpen className="h-5 w-5 text-slate-200/80" />
-                  What is WoT?
-                </Button>
-              </div>
-              {user && (
-                <div className="mt-auto pt-4 px-0">
-                  <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-slate-200/90 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={() => { setMobileMenuOpen(false); navigate("/settings"); }} data-testid="button-mobile-nav-settings">
-                    <SettingsIcon className="h-5 w-5 text-slate-200/80" />
-                    Settings
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {user && (
-              <div className="relative p-4 border-t border-white/10">
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar className="h-10 w-10 border-2 border-white ring-2 ring-white/20 shadow-md">
-                    {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
-                    <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{user.displayName || "Anon"}</p>
-                    <p className="text-xs text-indigo-300 font-mono">{user.npub.slice(0, 12)}...</p>
-                  </div>
-                </div>
-                <Button variant="ghost" className="w-full justify-start gap-3 text-base font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-400/20 rounded-2xl no-default-hover-elevate no-default-active-elevate" onClick={handleLogout} data-testid="button-mobile-signout">
-                  <LogOut className="h-5 w-5" />
-                  Sign out
-                </Button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      <MobileMenu
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        currentPath={location}
+        navigate={navigate}
+        user={user}
+        onLogout={handleLogout}
+      />
 
       <main className="flex-1 relative z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
