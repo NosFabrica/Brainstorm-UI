@@ -467,6 +467,7 @@ export default function ProfilePage() {
     const reporterCorrection = verifiedFollowerCount * ADVISORY_REPORT_CORRECTION / 100;
     const verifiedMuterCorrected = verifiedMuterCount - muterCorrection;
     const verifiedReporterCorrected = verifiedReporterCount - reporterCorrection;
+    console.log("ADVISORY_DEBUG", { verifiedFollowerCount, verifiedMuterCount, verifiedReporterCount, muterCorrection, reporterCorrection, verifiedMuterCorrected, verifiedReporterCorrected, muteAdvisory: verifiedMuterCorrected > ADVISORY_MUTE_CUTOFF, reportAdvisory: verifiedReporterCorrected > ADVISORY_REPORT_CUTOFF });
     return {
       muteAdvisory: verifiedMuterCorrected > ADVISORY_MUTE_CUTOFF,
       reportAdvisory: verifiedReporterCorrected > ADVISORY_REPORT_CUTOFF,
