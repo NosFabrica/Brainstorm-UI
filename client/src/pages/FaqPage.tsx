@@ -414,17 +414,13 @@ export default function FaqPage() {
                             <div
                               className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                                 expandedFaq === i
-                                  ? 'bg-gradient-to-br from-[#7c86ff] to-[#333286] shadow-sm'
-                                  : 'bg-slate-100 border border-slate-200 group-hover:bg-[#7c86ff]/10 group-hover:border-[#7c86ff]/20'
+                                  ? 'bg-[#7c86ff]/15 border border-[#7c86ff]/30 shadow-sm'
+                                  : 'bg-white border border-[#7c86ff]/12 shadow-sm group-hover:bg-[#7c86ff]/10 group-hover:border-[#7c86ff]/25'
                               }`}
                             >
-                              {expandedFaq === i ? (
-                                <BrainLogo size={14} className="text-white" />
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-400 font-mono">
-                                  {String(i + 1).padStart(2, '0')}
-                                </span>
-                              )}
+                              <BrainLogo size={14} className={`transition-colors ${
+                                expandedFaq === i ? 'text-[#333286]' : 'text-[#7c86ff]/70 group-hover:text-[#333286]'
+                              }`} />
                             </div>
                             <span className={`text-sm font-semibold transition-colors ${
                               expandedFaq === i ? 'text-[#333286]' : 'text-slate-700 group-hover:text-slate-900'
