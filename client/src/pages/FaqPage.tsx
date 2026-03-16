@@ -418,9 +418,13 @@ export default function FaqPage() {
                                   : 'bg-white border border-[#7c86ff]/12 shadow-sm group-hover:bg-[#7c86ff]/10 group-hover:border-[#7c86ff]/25'
                               }`}
                             >
-                              <BrainLogo size={14} className={`transition-colors ${
-                                expandedFaq === i ? 'text-[#333286]' : 'text-[#7c86ff]/70 group-hover:text-[#333286]'
-                              }`} />
+                              {expandedFaq === i ? (
+                                <BrainLogo size={14} className="text-[#333286]" />
+                              ) : (
+                                <span className="text-[10px] font-bold text-[#7c86ff]/70 font-mono group-hover:text-[#333286]">
+                                  {String(i + 1).padStart(2, '0')}
+                                </span>
+                              )}
                             </div>
                             <span className={`text-sm font-semibold transition-colors ${
                               expandedFaq === i ? 'text-[#333286]' : 'text-slate-700 group-hover:text-slate-900'
