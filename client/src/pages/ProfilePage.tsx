@@ -463,11 +463,10 @@ export default function ProfilePage() {
 
   const advisories = useMemo(() => {
     const { followers: verifiedFollowerCount, mutedBy: verifiedMuterCount, reportedBy: verifiedReporterCount } = verifiedCounts;
-    const muterCorrection = verifiedFollowerCount * ADVISORY_MUTE_CORRECTION / 100;
-    const reporterCorrection = verifiedFollowerCount * ADVISORY_REPORT_CORRECTION / 100;
+    const muterCorrection = Math.sqrt(verifiedFollowerCount) * ADVISORY_MUTE_CORRECTION / 10;
+    const reporterCorrection = Math.sqrt(verifiedFollowerCount) * ADVISORY_REPORT_CORRECTION / 10;
     const verifiedMuterCorrected = verifiedMuterCount - muterCorrection;
     const verifiedReporterCorrected = verifiedReporterCount - reporterCorrection;
-    console.log("ADVISORY_DEBUG", { verifiedFollowerCount, verifiedMuterCount, verifiedReporterCount, muterCorrection, reporterCorrection, verifiedMuterCorrected, verifiedReporterCorrected, muteAdvisory: verifiedMuterCorrected > ADVISORY_MUTE_CUTOFF, reportAdvisory: verifiedReporterCorrected > ADVISORY_REPORT_CUTOFF });
     return {
       muteAdvisory: verifiedMuterCorrected > ADVISORY_MUTE_CUTOFF,
       reportAdvisory: verifiedReporterCorrected > ADVISORY_REPORT_CUTOFF,
