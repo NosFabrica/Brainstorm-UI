@@ -463,8 +463,8 @@ export default function ProfilePage() {
 
   const advisories = useMemo(() => {
     const { followers: verifiedFollowerCount, mutedBy: verifiedMuterCount, reportedBy: verifiedReporterCount } = verifiedCounts;
-    const muterCorrection = Math.sqrt(verifiedFollowerCount) * ADVISORY_MUTE_CORRECTION / 10;
-    const reporterCorrection = Math.sqrt(verifiedFollowerCount) * ADVISORY_REPORT_CORRECTION / 10;
+    const muterCorrection = verifiedFollowerCount / ADVISORY_MUTE_CORRECTION;
+    const reporterCorrection = verifiedFollowerCount / ADVISORY_REPORT_CORRECTION;
     const verifiedMuterCorrected = verifiedMuterCount - muterCorrection;
     const verifiedReporterCorrected = verifiedReporterCount - reporterCorrection;
     return {
