@@ -672,7 +672,7 @@ export default function SearchPage() {
                         <span className="hidden sm:inline lg:hidden">Keyword</span>
                         <span className="hidden lg:inline">Keyword Search</span>
                       </span>
-                      <span className="rounded-full bg-indigo-800 text-white border border-indigo-800/40 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-bold tracking-wider uppercase shadow-sm">
+                      <span className="rounded-full bg-[#6366f1] text-white border border-[#6366f1]/40 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-xs font-bold tracking-wider uppercase shadow-sm">
                         Soon
                       </span>
                     </span>
@@ -722,7 +722,7 @@ export default function SearchPage() {
                       <Button
                         onClick={handleSearch}
                         disabled={isSearching}
-                        className="h-10 sm:h-11 px-6 bg-[#3730a3] hover:bg-[#312e81] text-white shadow-lg shadow-[#3730a3]/20 font-bold tracking-wide text-xs gap-2 w-full sm:w-auto"
+                        className="h-10 sm:h-11 px-6 bg-[#6366f1] hover:bg-[#4f46e5] text-white shadow-lg shadow-[#6366f1]/20 font-bold tracking-wide text-xs gap-2 w-full sm:w-auto"
                         data-testid="button-npub-lookup"
                       >
                         {isSearching ? (
@@ -785,7 +785,7 @@ export default function SearchPage() {
                           data-testid="input-keyword"
                         />
                       </div>
-                      <Button disabled className="h-11 px-6 bg-[#3730a3] text-white font-bold tracking-wide text-xs opacity-50" data-testid="button-keyword-lookup">
+                      <Button disabled className="h-11 px-6 bg-[#6366f1] text-white font-bold tracking-wide text-xs opacity-50" data-testid="button-keyword-lookup">
                         LOOKUP
                       </Button>
                     </div>

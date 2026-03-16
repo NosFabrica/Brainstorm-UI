@@ -518,7 +518,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                           ? cardFollowHovered
                             ? "bg-red-50 border border-red-200 text-red-600"
                             : "bg-white border border-slate-200 text-slate-600"
-                          : "bg-[#3730a3] text-white hover:bg-[#312e81]"
+                          : "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
                       }`}
                       data-testid={`button-follow-${pkShort}`}
                     >
@@ -569,7 +569,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                   </div>
                 )}
                 <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
+                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#6366f1] text-white shadow-md hover:shadow-lg hover:bg-[#4f46e5] transition-all duration-200"
                   onClick={(e) => { e.stopPropagation(); onNavigate(`/profile/${npub}?fromGroup=${activeGroup}`); }}
                   data-testid={`button-view-full-${pkShort}`}
                 >
@@ -1180,7 +1180,7 @@ export default function NetworkPage() {
           </p>
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
             onClick={() => navigate("/dashboard")}
             data-testid="button-back-to-dashboard"
           >
@@ -1654,7 +1654,7 @@ export default function NetworkPage() {
                             onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
                             className={`flex items-center justify-center gap-1 px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                               isActive
-                                ? "bg-indigo-800 text-white border border-indigo-800"
+                                ? "bg-[#6366f1] text-white border border-[#6366f1]"
                                 : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
                             }`}
                             data-testid={`button-filter-${group.key}`}
@@ -1704,7 +1704,7 @@ export default function NetworkPage() {
                           onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
                           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                             isActive
-                              ? tier.key === "flagged" ? "bg-red-600 text-white border border-red-600" : "bg-indigo-800 text-white border border-indigo-800"
+                              ? tier.key === "flagged" ? "bg-red-600 text-white border border-red-600" : "bg-[#6366f1] text-white border border-[#6366f1]"
                               : tier.key === "flagged" ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300" : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
                           }`}
                           data-testid={`button-trust-filter-${tier.key}`}
@@ -1763,7 +1763,7 @@ export default function NetworkPage() {
                   <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-[#6366f1] text-white" : "text-slate-400"}`}
                       onClick={() => setViewMode("grid")}
                       data-testid="button-view-grid"
                     >
@@ -1771,7 +1771,7 @@ export default function NetworkPage() {
                     </button>
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-[#6366f1] text-white" : "text-slate-400"}`}
                       onClick={() => setViewMode("list")}
                       data-testid="button-view-list"
                     >
