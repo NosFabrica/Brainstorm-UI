@@ -333,7 +333,7 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("users")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "users"
-                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
+                    ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30"
                     : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-users"
@@ -344,7 +344,7 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("developers")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "developers"
-                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
+                    ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30"
                     : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-developers"
