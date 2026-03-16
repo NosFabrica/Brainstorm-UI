@@ -456,6 +456,28 @@ export default function ProfilePage() {
     return { followers: fb.verified, followersTotal: fb.total, following: fg.verified, followingTotal: fg.total, mutedBy: mb.verified, mutedByTotal: mb.total, reportedBy: rb.verified, reportedByTotal: rb.total };
   }, [profileResult]);
 
+  const ADVISORY_MUTE_CUTOFF = 5;
+  const ADVISORY_MUTE_CORRECTION = 5;
+  const ADVISORY_REPORT_CUTOFF = 5;
+  const ADVISORY_REPORT_CORRECTION = 1;
+
+  const advisories = useMemo(() => {
+    const { followers: verifiedFollowerCount, mutedBy: verifiedMuterCount, reportedBy: verifiedReporterCount } = verifiedCounts;
+    const muterCorrection = verifiedFollowerCount * ADVISORY_MUTE_CORRECTION / 100;
+    const reporterCorrection = verifiedFollowerCount * ADVISORY_REPORT_CORRECTION / 100;
+    const verifiedMuterCorrected = verifiedMuterCount - muterCorrection;
+    const verifiedReporterCorrected = verifiedReporterCount - reporterCorrection;
+    return {
+      muteAdvisory: verifiedMuterCorrected > ADVISORY_MUTE_CUTOFF,
+      reportAdvisory: verifiedReporterCorrected > ADVISORY_REPORT_CUTOFF,
+      verifiedMuterCount,
+      verifiedReporterCount,
+      verifiedFollowerCount,
+      verifiedMuterCorrected: Math.round(verifiedMuterCorrected),
+      verifiedReporterCorrected: Math.round(verifiedReporterCorrected),
+    };
+  }, [verifiedCounts]);
+
   const followerTierBreakdown = useMemo(() => {
     if (!profileResult || !Array.isArray(profileResult.followed_by)) return null;
     const map = toInfluenceMap(profileResult.followed_by);
@@ -2005,6 +2027,51 @@ export default function ProfilePage() {
                   </div>
                   );
                 })()}
+
+                {(advisories.muteAdvisory || advisories.reportAdvisory) && (
+                  <div className="mt-4 space-y-3" data-testid="section-advisories">
+                    {advisories.muteAdvisory && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4" data-testid="advisory-mute">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+                            <VolumeX className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-amber-700">Mute Advisory</p>
+                              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">
+                                {advisories.verifiedMuterCount} verified mute{advisories.verifiedMuterCount !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <p className="text-xs leading-relaxed mt-1 text-amber-600">
+                              This account has been muted by {advisories.verifiedMuterCount} verified account{advisories.verifiedMuterCount !== 1 ? "s" : ""}, which exceeds the expected rate for an account with {advisories.verifiedFollowerCount} verified follower{advisories.verifiedFollowerCount !== 1 ? "s" : ""}.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {advisories.reportAdvisory && (
+                      <div className="rounded-xl border border-red-200 bg-red-50/80 p-4" data-testid="advisory-report">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100">
+                            <Flag className="h-4 w-4 text-red-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-red-700">Report Advisory</p>
+                              <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-md bg-red-100 text-red-700">
+                                {advisories.verifiedReporterCount} verified report{advisories.verifiedReporterCount !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <p className="text-xs leading-relaxed mt-1 text-red-600">
+                              This account has been reported by {advisories.verifiedReporterCount} verified account{advisories.verifiedReporterCount !== 1 ? "s" : ""}, which exceeds the expected rate for an account with {advisories.verifiedFollowerCount} verified follower{advisories.verifiedFollowerCount !== 1 ? "s" : ""}.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <details className="mt-4">
                   <summary className="text-xs text-slate-400 font-medium uppercase tracking-wide cursor-pointer hover:text-slate-600 transition-colors" data-testid="button-profile-raw">Raw API Data</summary>
