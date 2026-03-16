@@ -305,44 +305,36 @@ export default function FaqPage() {
       )}
 
       <main className="flex-1 relative z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-8 sm:mb-12"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md mb-4" data-testid="badge-faq">
-              <HelpCircle className="h-3 w-3" />
-              <span>Help Center</span>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          <div className="space-y-6 animate-fade-up">
+            <div className="space-y-2" data-testid="section-faq-header">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="badge-faq">
+                <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
+                <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Brainstorm FAQ</p>
+              </div>
+              <h1
+                className="text-3xl font-bold text-slate-900 tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+                data-testid="text-faq-title"
+              >
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                  Frequently Asked Questions
+                </span>
+              </h1>
+              <p className="text-slate-600 font-medium" data-testid="text-faq-subtitle">
+                {activeTab === "users"
+                  ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
+                  : "Technical details for client developers implementing NIP-85 Trust Attestations."}
+              </p>
             </div>
-            <h1
-              className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent mb-3"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              data-testid="text-faq-title"
-            >
-              Frequently Asked Questions
-            </h1>
-            <p className="text-sm sm:text-base text-slate-400 max-w-xl mx-auto" data-testid="text-faq-subtitle">
-              {activeTab === "users"
-                ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
-                : "Technical details for client developers implementing NIP-85 Trust Attestations."}
-            </p>
-          </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex justify-center mb-8"
-          >
-            <div className="inline-flex rounded-full p-1 bg-slate-800/60 border border-slate-700/50 backdrop-blur-md" data-testid="tabs-faq">
+            <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
               <button
                 onClick={() => handleTabChange("users")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "users"
-                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#7c86ff] text-white shadow-lg shadow-[#7c86ff]/30"
+                    : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-users"
               >
@@ -352,36 +344,38 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("developers")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "developers"
-                    ? "bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-[#7c86ff] text-white shadow-lg shadow-[#7c86ff]/30"
+                    : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-developers"
               >
                 For Developers
               </button>
             </div>
-          </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="relative"
-          >
             <div
-              className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-4 sm:p-6 backdrop-blur-md overflow-hidden"
-              style={{
-                boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
-              }}
+              className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative group"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-950/60 to-slate-950/80" />
-              <motion.div
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent rounded-full"
-                animate={{ opacity: [0.3, 0.7, 0.3] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
+              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
 
-              <div className="relative z-10 space-y-3 max-w-3xl mx-auto">
+              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                    <HelpCircle className="h-4 w-4 text-[#333286]" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                      {activeTab === "users" ? "Using Brainstorm" : "For Developers"}
+                    </h2>
+                    <p className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                      {activeTab === "users" ? "Trust & Scores" : "NIP-85 Integration"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative p-4 sm:p-5 space-y-2">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={activeTab}
@@ -389,38 +383,23 @@ export default function FaqPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="space-y-3"
+                    className="space-y-2"
                   >
                     {faqs.map((faq, i) => (
                       <motion.div
                         key={`${activeTab}-${i}`}
                         className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
                           expandedFaq === i
-                            ? 'bg-gradient-to-br from-indigo-500/10 via-violet-500/10 to-purple-500/10 border-2 border-indigo-400/40'
-                            : 'bg-slate-800/40 border border-slate-700/50 hover:border-indigo-400/30 hover:bg-slate-800/60'
+                            ? 'bg-gradient-to-br from-[#7c86ff]/8 via-indigo-50/60 to-[#7c86ff]/5 border border-[#7c86ff]/30 shadow-[0_4px_20px_rgba(124,134,255,0.1)]'
+                            : 'bg-white/60 border border-slate-200/80 hover:border-[#7c86ff]/25 hover:bg-white/80 hover:shadow-sm'
                         }`}
-                        initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.05 + i * 0.06 }}
-                        style={{
-                          boxShadow: expandedFaq === i
-                            ? '0 4px 20px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
-                            : 'inset 0 1px 0 rgba(255,255,255,0.02)'
-                        }}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 + i * 0.04 }}
                       >
-                        {expandedFaq !== i && (
-                          <motion.div
-                            className="absolute inset-0 rounded-xl pointer-events-none"
-                            animate={{
-                              boxShadow: ['inset 0 0 0 1px rgba(99, 102, 241, 0)', 'inset 0 0 0 1px rgba(99, 102, 241, 0.2)', 'inset 0 0 0 1px rgba(99, 102, 241, 0)']
-                            }}
-                            transition={{ duration: 3, repeat: Infinity, delay: i * 0.3 }}
-                          />
-                        )}
-
                         {expandedFaq === i && (
                           <motion.div
-                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-indigo-400 to-transparent"
+                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#7c86ff] to-transparent"
                             initial={{ opacity: 0, scaleX: 0 }}
                             animate={{ opacity: 1, scaleX: 1 }}
                           />
@@ -428,63 +407,27 @@ export default function FaqPage() {
 
                         <button
                           onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
-                          className="w-full px-4 sm:px-6 py-4 flex items-center justify-between text-left group"
+                          className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between text-left group"
                           data-testid={`faq-item-${i}`}
                         >
                           <div className="flex items-center gap-3 pr-4">
-                            <motion.div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all relative ${
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                                 expandedFaq === i
-                                  ? 'bg-gradient-to-br from-indigo-500/40 to-violet-500/40 border border-indigo-400/60'
-                                  : 'bg-slate-700/50 border border-slate-600/50 group-hover:bg-indigo-500/20 group-hover:border-indigo-400/30'
+                                  ? 'bg-gradient-to-br from-[#7c86ff] to-[#333286] shadow-sm'
+                                  : 'bg-slate-100 border border-slate-200 group-hover:bg-[#7c86ff]/10 group-hover:border-[#7c86ff]/20'
                               }`}
-                              animate={expandedFaq === i
-                                ? { rotateY: [0, 180, 360], scale: [1, 1.15, 1] }
-                                : { scale: [1, 1.05, 1] }
-                              }
-                              transition={expandedFaq === i
-                                ? { duration: 0.5, ease: "easeOut" }
-                                : { duration: 2, repeat: Infinity, delay: i * 0.2 }
-                              }
-                              style={{ transformStyle: 'preserve-3d' }}
                             >
-                              {expandedFaq === i && (
-                                <motion.div
-                                  className="absolute inset-0 rounded-lg pointer-events-none"
-                                  initial={{ scale: 1, opacity: 0.8 }}
-                                  animate={{ scale: 2, opacity: 0 }}
-                                  transition={{ duration: 0.6, ease: "easeOut" }}
-                                  style={{
-                                    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%)',
-                                  }}
-                                />
+                              {expandedFaq === i ? (
+                                <BrainLogo size={14} className="text-white" />
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                  {String(i + 1).padStart(2, '0')}
+                                </span>
                               )}
-                              <AnimatePresence mode="wait">
-                                {expandedFaq === i ? (
-                                  <motion.div
-                                    key="brain-icon"
-                                    initial={{ opacity: 0, scale: 0.5 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.5 }}
-                                    transition={{ duration: 0.2, delay: 0.15 }}
-                                  >
-                                    <BrainLogo size={16} className="text-indigo-300" />
-                                  </motion.div>
-                                ) : (
-                                  <motion.span
-                                    key="number"
-                                    className="text-xs font-bold text-slate-400 font-mono"
-                                    initial={{ opacity: 0, scale: 0.5 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.5 }}
-                                  >
-                                    {String(i + 1).padStart(2, '0')}
-                                  </motion.span>
-                                )}
-                              </AnimatePresence>
-                            </motion.div>
-                            <span className={`text-sm sm:text-base font-semibold transition-colors ${
-                              expandedFaq === i ? 'text-white' : 'text-slate-200 group-hover:text-white'
+                            </div>
+                            <span className={`text-sm font-semibold transition-colors ${
+                              expandedFaq === i ? 'text-[#333286]' : 'text-slate-700 group-hover:text-slate-900'
                             }`}>
                               {faq.question}
                             </span>
@@ -494,8 +437,8 @@ export default function FaqPage() {
                             transition={{ duration: 0.3 }}
                             className="flex-shrink-0"
                           >
-                            <ChevronDown className={`h-5 w-5 transition-colors ${
-                              expandedFaq === i ? 'text-indigo-400' : 'text-slate-500 group-hover:text-indigo-400'
+                            <ChevronDown className={`h-4 w-4 transition-colors ${
+                              expandedFaq === i ? 'text-[#7c86ff]' : 'text-slate-400 group-hover:text-[#7c86ff]'
                             }`} />
                           </motion.div>
                         </button>
@@ -509,8 +452,8 @@ export default function FaqPage() {
                               transition={{ duration: 0.3, ease: "easeInOut" }}
                               className="overflow-hidden"
                             >
-                              <div className="px-4 sm:px-6 pb-5 pl-[60px] sm:pl-[72px]">
-                                <p className="text-sm sm:text-[15px] text-slate-300/90 leading-relaxed" data-testid={`faq-answer-${i}`}>
+                              <div className="px-4 sm:px-5 pb-4 pl-[52px] sm:pl-[56px]">
+                                <p className="text-sm text-slate-600 leading-relaxed" data-testid={`faq-answer-${i}`}>
                                   {faq.answer}
                                 </p>
                               </div>
@@ -523,7 +466,7 @@ export default function FaqPage() {
                 </AnimatePresence>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </main>
 
