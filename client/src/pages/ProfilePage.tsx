@@ -140,13 +140,7 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const RiskAdvisoryIcon = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className}>
-    <path d="M12 3l9 16H3L12 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="currentColor" fillOpacity="0.08" />
-    <path d="M12 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="12" cy="17" r="1" fill="currentColor" />
-  </svg>
-);
+
 
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
@@ -1527,11 +1521,6 @@ export default function ProfilePage() {
                   const totalNegativeSignals = mutedByCount + reportedByCount;
                   const vMuted = verifiedCounts.mutedBy;
                   const vReported = verifiedCounts.reportedBy;
-                  const riskLevel = isProfileFlagged ? "High"
-                    : vReported > 3 || reportedByCount > 10 ? "High"
-                    : vReported > 0 || reportedByCount > 0 || vMuted > 5 || mutedByCount > 30 ? "Medium"
-                    : mutedByCount > 0 ? "Low" : "None";
-                  const riskColor = riskLevel === "High" ? "text-red-600" : riskLevel === "Medium" ? "text-amber-600" : riskLevel === "Low" ? "text-amber-500" : "text-emerald-600";
 
                   return (
                   <div className="space-y-5">
@@ -1716,10 +1705,10 @@ export default function ProfilePage() {
                     <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-amber-500" : "bg-slate-300"}`} />
-                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-risk-assessment">Risk Assessment</h4>
+                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-indigo-500" : "bg-slate-300"}`} />
+                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
                         </div>
-                        <span className={`text-[11px] sm:text-xs font-semibold font-mono ${riskColor}`}>{riskLevel} Risk</span>
+                        <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">{totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}</span>
                       </div>
                       <div className="divide-y divide-slate-100">
                         {isProfileFlagged && (
@@ -1869,34 +1858,20 @@ export default function ProfilePage() {
                     </div>
 
                     {hasRiskSignals && (() => {
-                      const advisoryColor = isProfileFlagged ? "border-red-200/80 from-red-50 to-red-50/50" : "border-amber-200/80 from-amber-50 to-amber-50/50";
-                      const advisoryIconBg = isProfileFlagged ? "bg-red-100 border-red-200" : "bg-amber-100 border-amber-200";
-                      const advisoryIconColor = isProfileFlagged ? "text-red-600" : "text-amber-600";
-                      const advisoryTitleColor = isProfileFlagged ? "text-red-900" : "text-amber-900";
-                      const advisoryTextColor = isProfileFlagged ? "text-red-800/70" : "text-amber-800/70";
-                      const totalSignals = totalNegativeSignals + (isProfileFlagged ? 1 : 0);
                       const parts: string[] = [];
-                      if (isProfileFlagged) parts.push("flagged in your trust graph (low trust & reported by 2+ of your trusted contacts)");
-                      if (mutedByCount > 0) parts.push(`muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}`);
-                      if (reportedByCount > 0) parts.push(`reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}`);
+                      if (mutedByCount > 0) parts.push(`Muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}`);
+                      if (reportedByCount > 0) parts.push(`Reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}`);
                       return (
-                      <div className={`rounded-xl border bg-gradient-to-r overflow-hidden ${advisoryColor}`} data-testid="alert-profile-trust-warning">
-                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-start gap-2 sm:gap-3">
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${advisoryIconBg}`}>
-                            {isProfileFlagged ? <FlaggedIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${advisoryIconColor}`} /> : <RiskAdvisoryIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${advisoryIconColor}`} />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <p className={`text-sm font-semibold ${advisoryTitleColor}`}>Risk Advisory</p>
-                              <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${riskLevel === "High" ? "bg-red-100 text-red-700" : riskLevel === "Medium" ? "bg-amber-100 text-amber-700" : "bg-amber-50 text-amber-600"}`}>
-                                {totalSignals.toLocaleString()} signal{totalSignals !== 1 ? "s" : ""} detected
-                              </span>
-                            </div>
-                            <p className={`text-xs leading-relaxed mt-1 ${advisoryTextColor}`}>
-                              This account has been {parts.join(" and ")}.
-                              Exercise due diligence when evaluating this identity.
-                            </p>
-                          </div>
+                      <div className="rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/80 to-indigo-50/30 overflow-hidden" data-testid="alert-profile-trust-warning">
+                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
+                          {parts.map((part, i) => (
+                            <span key={i} className="text-xs sm:text-sm text-slate-600 font-medium">
+                              {part}{i < parts.length - 1 ? <span className="text-slate-300 mx-1">·</span> : ""}
+                            </span>
+                          ))}
+                          {isProfileFlagged && (
+                            <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-md">Flagged in your trust graph</span>
+                          )}
                         </div>
                       </div>
                       );
