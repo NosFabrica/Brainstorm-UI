@@ -1738,18 +1738,20 @@ export default function ProfilePage() {
                                   <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Muted By</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.mutedBy > 0 ? "Verified Muted By" : "Muted By"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Others who muted this account</p>
-                                  {verifiedCounts.mutedByTotal > 0 && verifiedCounts.mutedBy > 0 && (
-                                    <p className="text-[10px] text-amber-600 font-medium mt-0.5" data-testid="text-verified-muted-by">{verifiedCounts.mutedBy.toLocaleString()} verified</p>
-                                  )}
                                   {renderTierBadges("muted_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-profile-muted-by">
-                                  {mutedByCount.toLocaleString()}
-                                </p>
+                                <div className="text-right">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-profile-muted-by">
+                                    {verifiedCounts.mutedBy > 0 ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
+                                  </p>
+                                  {verifiedCounts.mutedBy > 0 && (
+                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-muted-by">of {mutedByCount.toLocaleString()} total</p>
+                                  )}
+                                </div>
                                 {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
@@ -1773,18 +1775,20 @@ export default function ProfilePage() {
                                   <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Reported By</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.reportedBy > 0 ? "Verified Reported By" : "Reported By"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed against this account</p>
-                                  {verifiedCounts.reportedByTotal > 0 && verifiedCounts.reportedBy > 0 && (
-                                    <p className="text-[10px] text-red-600 font-medium mt-0.5" data-testid="text-verified-reported-by">{verifiedCounts.reportedBy.toLocaleString()} verified</p>
-                                  )}
                                   {renderTierBadges("reported_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-profile-reported-by">
-                                  {reportedByCount.toLocaleString()}
-                                </p>
+                                <div className="text-right">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-profile-reported-by">
+                                    {verifiedCounts.reportedBy > 0 ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
+                                  </p>
+                                  {verifiedCounts.reportedBy > 0 && (
+                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-reported-by">of {reportedByCount.toLocaleString()} total</p>
+                                  )}
+                                </div>
                                 {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
