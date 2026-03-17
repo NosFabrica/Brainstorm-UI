@@ -1899,16 +1899,28 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
                                 <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#f59e0b" }} />
                                 <span className="text-[10px] text-slate-500 font-medium">Muted by</span>
-                                <span className="text-[10px] text-slate-900 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
-                                {vMuted > 0 && <span className="text-[10px] text-amber-600 font-medium">({vMuted} verified)</span>}
+                                {vMuted > 0 ? (
+                                  <>
+                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{vMuted} verified</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">of {mutedByCount.toLocaleString()}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
+                                )}
                               </div>
                             )}
                             {reportedByCount > 0 && (
                               <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
                                 <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#ef4444" }} />
                                 <span className="text-[10px] text-slate-500 font-medium">Reported by</span>
-                                <span className="text-[10px] text-slate-900 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
-                                {vReported > 0 && <span className="text-[10px] text-red-600 font-medium">({vReported} verified)</span>}
+                                {vReported > 0 ? (
+                                  <>
+                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{vReported} verified</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">of {reportedByCount.toLocaleString()}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
+                                )}
                               </div>
                             )}
                           </div>
