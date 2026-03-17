@@ -405,7 +405,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 {detailMetrics.map((m) => {
                   const raw = detail[m.key];
                   const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
-                  const isVerifiable = m.key === "followed_by" || m.key === "following";
+                  const isVerifiable = m.key === "followed_by" || m.key === "following" || m.key === "muted_by" || m.key === "reported_by";
                   let verifiedCount = 0;
                   let hasVerifiedData = false;
                   if (isVerifiable && Array.isArray(raw)) {
