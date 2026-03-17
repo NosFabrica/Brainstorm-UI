@@ -1901,8 +1901,8 @@ export default function ProfilePage() {
                                 <span className="text-[10px] text-slate-500 font-medium">Muted by</span>
                                 {vMuted > 0 ? (
                                   <>
-                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{vMuted} verified</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">of {mutedByCount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-amber-600 font-bold font-mono">{vMuted} verified</span>
+                                    <span className="text-[10px] text-slate-300 font-medium">of {mutedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
                                   <span className="text-[10px] text-slate-900 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
@@ -1915,8 +1915,8 @@ export default function ProfilePage() {
                                 <span className="text-[10px] text-slate-500 font-medium">Reported by</span>
                                 {vReported > 0 ? (
                                   <>
-                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{vReported} verified</span>
-                                    <span className="text-[10px] text-slate-400 font-medium">of {reportedByCount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-red-600 font-bold font-mono">{vReported} verified</span>
+                                    <span className="text-[10px] text-slate-300 font-medium">of {reportedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
                                   <span className="text-[10px] text-slate-900 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
