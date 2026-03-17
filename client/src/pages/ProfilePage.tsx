@@ -1858,20 +1858,60 @@ export default function ProfilePage() {
                     </div>
 
                     {hasRiskSignals && (() => {
-                      const parts: string[] = [];
-                      if (mutedByCount > 0) parts.push(`Muted by ${mutedByCount.toLocaleString()} ${mutedByCount === 1 ? "person" : "people"}${vMuted > 0 ? ` (${vMuted} verified)` : ""}`);
-                      if (reportedByCount > 0) parts.push(`Reported by ${reportedByCount.toLocaleString()} ${reportedByCount === 1 ? "person" : "people"}${vReported > 0 ? ` (${vReported} verified)` : ""}`);
+                      const barTotal = mutedByCount + reportedByCount;
+                      const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
+                      const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
                       return (
-                      <div className="rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/80 to-indigo-50/30 overflow-hidden" data-testid="alert-profile-trust-warning">
-                        <div className="px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3 flex-wrap">
-                          {parts.map((part, i) => (
-                            <span key={i} className="text-xs sm:text-sm text-slate-600 font-medium">
-                              {part}{i < parts.length - 1 ? <span className="text-slate-300 mx-1">·</span> : ""}
-                            </span>
-                          ))}
-                          {isProfileFlagged && (
-                            <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-md">Flagged in your trust graph</span>
+                      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm" data-testid="alert-profile-trust-warning">
+                        <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Social Context</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isProfileFlagged && (
+                                <span className="text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md">Flagged</span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono">{barTotal.toLocaleString()} total</span>
+                            </div>
+                          </div>
+                          {barTotal > 0 && (
+                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-social-context">
+                              {mutedByCount > 0 && (
+                                <div
+                                  className="h-full transition-all duration-500"
+                                  style={{ width: `${mutedPct}%`, backgroundColor: "#f59e0b", minWidth: "2px" }}
+                                  title={`Muted by: ${mutedByCount}`}
+                                />
+                              )}
+                              {reportedByCount > 0 && (
+                                <div
+                                  className="h-full transition-all duration-500"
+                                  style={{ width: `${reportedPct}%`, backgroundColor: "#ef4444", minWidth: "2px" }}
+                                  title={`Reported by: ${reportedByCount}`}
+                                />
+                              )}
+                            </div>
                           )}
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                            {mutedByCount > 0 && (
+                              <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
+                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#f59e0b" }} />
+                                <span className="text-[10px] text-slate-500 font-medium">Muted by</span>
+                                <span className="text-[10px] text-slate-900 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
+                                {vMuted > 0 && <span className="text-[10px] text-amber-600 font-medium">({vMuted} verified)</span>}
+                              </div>
+                            )}
+                            {reportedByCount > 0 && (
+                              <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
+                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#ef4444" }} />
+                                <span className="text-[10px] text-slate-500 font-medium">Reported by</span>
+                                <span className="text-[10px] text-slate-900 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
+                                {vReported > 0 && <span className="text-[10px] text-red-600 font-medium">({vReported} verified)</span>}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       );
