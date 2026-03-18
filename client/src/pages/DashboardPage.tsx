@@ -854,7 +854,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-2 w-2" />
                             </button>
-                            <div className="absolute right-0 top-full mt-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:top-auto sm:bottom-full sm:mt-0 sm:mb-2 w-[calc(100vw-4rem)] sm:w-80 max-w-[280px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
+                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
@@ -2126,7 +2126,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-3 w-3" />
                             </button>
-                            <div className="absolute right-0 sm:left-0 top-full mt-2 w-[calc(100vw-6rem)] sm:w-80 max-w-[260px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
+                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
@@ -2239,7 +2239,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-3 w-3" />
                             </button>
-                            <div className="absolute right-0 sm:left-0 top-full mt-2 w-[calc(100vw-6rem)] sm:w-80 max-w-[260px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
+                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
