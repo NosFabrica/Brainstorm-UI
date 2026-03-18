@@ -854,7 +854,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-2 w-2" />
                             </button>
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
+                            <div className="absolute right-0 sm:left-1/2 sm:-translate-x-1/2 bottom-full mb-2 w-[calc(100vw-4rem)] sm:w-80 max-w-[280px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
@@ -2084,7 +2084,7 @@ export default function DashboardPage() {
               <CarouselContent className="-ml-4">
                 <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-amethyst">
                   <Card
-                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#2a1b4e] to-[#1a1638] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
+                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#2a1b4e] to-[#1a1638] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
                     onClick={() => {
                       const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
                       el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
@@ -2101,7 +2101,7 @@ export default function DashboardPage() {
                     data-testid="button-supported-slide-next-from-amethyst"
                     aria-label="Next supported client"
                   >
-                    <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
                       <img src={amethystHeroImg} alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
                       <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-[#1a1033]/60 sm:to-transparent" />
                     </div>
@@ -2126,7 +2126,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-3 w-3" />
                             </button>
-                            <div className="absolute left-0 top-full mt-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
+                            <div className="absolute right-0 sm:left-0 top-full mt-2 w-[calc(100vw-6rem)] sm:w-80 max-w-[260px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
@@ -2176,7 +2176,7 @@ export default function DashboardPage() {
 
                 <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-nostria">
                   <Card
-                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#f26b1d] via-[#f59f2e] to-[#f7b24a] ring-1 ring-white/15 shadow-[0_24px_80px_-44px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_28px_90px_-46px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
+                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#f26b1d] via-[#f59f2e] to-[#f7b24a] ring-1 ring-white/15 shadow-[0_24px_80px_-44px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_28px_90px_-46px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
                     onClick={() => {
                       const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
                       el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
@@ -2193,14 +2193,16 @@ export default function DashboardPage() {
                     data-testid="button-supported-slide-next-from-nostria"
                     aria-label="Next supported client"
                   >
-                    <div
-                      className="absolute -right-14 sm:-right-16 top-[0.7rem] sm:top-[1.1rem] z-20 rotate-45 bg-[#333286] px-12 sm:px-16 py-1.5 sm:py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
-                      data-testid="ribbon-nostria-coming-soon"
-                      aria-label="Coming soon"
-                    >
-                      Coming soon
+                    <div className="absolute inset-0 overflow-hidden rounded-3xl z-20 pointer-events-none">
+                      <div
+                        className="absolute -right-14 sm:-right-16 top-[0.7rem] sm:top-[1.1rem] rotate-45 bg-[#333286] px-12 sm:px-16 py-1.5 sm:py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                        data-testid="ribbon-nostria-coming-soon"
+                        aria-label="Coming soon"
+                      >
+                        Coming soon
+                      </div>
                     </div>
-                    <div className="absolute inset-0 z-0">
+                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
                       <img src={nostriaHeroImg} alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
                       <img src={nostriaManifestoImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
                       <img
@@ -2237,7 +2239,7 @@ export default function DashboardPage() {
                             >
                               <Info className="h-3 w-3" />
                             </button>
-                            <div className="absolute left-0 top-full mt-2 w-64 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
+                            <div className="absolute right-0 sm:left-0 top-full mt-2 w-[calc(100vw-6rem)] sm:w-80 max-w-[260px] sm:max-w-none p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50 pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
                               These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
                             </div>
                           </div>
