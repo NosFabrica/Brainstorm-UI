@@ -299,7 +299,7 @@ export default function SettingsPage() {
                 <span className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</span>
               </button>
 
-              <div className="hidden lg:flex gap-1 bg-white/[0.04] rounded-lg p-1" data-testid="nav-settings-tabs">
+              <div className="hidden lg:flex gap-1" data-testid="nav-settings-tabs">
                 <Button
                   variant="ghost"
                   size="sm"

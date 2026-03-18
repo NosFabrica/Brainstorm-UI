@@ -145,7 +145,7 @@ export default function FaqPage() {
                 </h1>
               </div>
               {user && (
-                <div className="hidden lg:flex gap-1 bg-white/[0.04] rounded-lg p-1">
+                <div className="hidden lg:flex gap-1">
                   <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
                     <Home className="h-4 w-4" />
                     Dashboard

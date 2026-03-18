@@ -1293,7 +1293,7 @@ export default function NetworkPage() {
                   Brainstorm
                 </h1>
               </button>
-              <div className="hidden lg:flex gap-1 bg-white/[0.04] rounded-lg p-1" data-testid="row-nav-links">
+              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
                 <Button
                   variant="ghost"
                   size="sm"
