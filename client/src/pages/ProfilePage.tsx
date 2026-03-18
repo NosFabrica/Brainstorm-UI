@@ -947,11 +947,11 @@ export default function ProfilePage() {
                   Brainstorm
                 </h1>
               </button>
-              <div className="hidden lg:flex gap-2" data-testid="row-nav-links">
+              <div className="hidden lg:flex gap-1 bg-white/[0.04] rounded-lg p-1" data-testid="row-nav-links">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
                   onClick={() => navigate("/dashboard")}
                   data-testid="button-nav-dashboard"
                 >
@@ -961,7 +961,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
                   onClick={() => navigate("/search")}
                   data-testid="button-nav-search"
                 >
@@ -971,7 +971,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`gap-2 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/5" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
+                  className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
                   onClick={() => calcDone && navigate("/network")}
                   disabled={!calcDone}
                   title={!calcDone ? "Available after calculation completes" : undefined}
