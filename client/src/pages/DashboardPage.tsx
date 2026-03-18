@@ -684,7 +684,7 @@ export default function DashboardPage() {
                   </h1>
                 </div>
                 <div className="hidden lg:flex gap-1 bg-white/[0.04] rounded-lg p-1">
-                  <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.10] shadow-[inset_0_1.5px_0_0_#818cf8] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
+                  <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
                     <Home className="h-4 w-4" />
                     Dashboard
                   </Button>
