@@ -849,6 +849,7 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Compatible Clients?"
                               data-testid="button-compatible-clients-info"
                             >
@@ -2120,7 +2121,7 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-purple-300 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50"
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
                               aria-label="What are Supported Clients?"
                               data-testid="button-supported-clients-info"
                             >
@@ -2233,7 +2234,7 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-orange-100 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
                               aria-label="What are Supported Clients?"
                               data-testid="button-supported-clients-info-nostria"
                             >

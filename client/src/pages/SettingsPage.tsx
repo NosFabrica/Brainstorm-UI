@@ -476,6 +476,7 @@ export default function SettingsPage() {
                             <button
                               type="button"
                               className="h-4 w-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Supported Clients?"
                               data-testid="button-supported-by-info"
                             >
