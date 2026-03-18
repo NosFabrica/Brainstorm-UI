@@ -402,7 +402,7 @@ export default function SearchPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-white bg-white/[0.12] shadow-[inset_0_-2px_0_0_#6366f1] rounded-md no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-white bg-white/[0.10] shadow-[inset_0_1.5px_0_0_#818cf8] rounded-md no-default-hover-elevate no-default-active-elevate"
                   data-testid="button-nav-search"
                 >
                   <SearchIcon className="h-4 w-4" />
