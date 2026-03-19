@@ -6,7 +6,7 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 3000
 
 type ToasterToast = ToastProps & {
   id: string
@@ -137,10 +137,14 @@ function dispatch(action: Action) {
   })
 }
 
-type Toast = Omit<ToasterToast, "id">
+type Toast = Omit<ToasterToast, "id"> & { duration?: number }
 
-function toast({ ...props }: Toast) {
+const dismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+function toast({ duration, ...props }: Toast) {
   const id = genId()
+
+  const effectiveDuration = duration ?? (props.variant === "destructive" ? 5000 : undefined)
 
   const update = (props: ToasterToast) =>
     dispatch({
@@ -160,6 +164,17 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+
+  if (effectiveDuration && effectiveDuration > 0) {
+    if (dismissTimeouts.has(id)) {
+      clearTimeout(dismissTimeouts.get(id)!)
+    }
+    const t = setTimeout(() => {
+      dismissTimeouts.delete(id)
+      dismiss()
+    }, effectiveDuration)
+    dismissTimeouts.set(id, t)
+  }
 
   return {
     id: id,

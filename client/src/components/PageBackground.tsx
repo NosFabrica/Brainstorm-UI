@@ -1,0 +1,172 @@
+const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
+  id: i,
+  x: 8 + Math.random() * 84,
+  y: 8 + Math.random() * 84,
+  size: Math.random() * 2.5 + 1.5,
+  popDelay: i * 1.2 + Math.random() * 2,
+  floatDuration: Math.random() * 20 + 22,
+  floatDelay: Math.random() * 6,
+}));
+
+const connectionPairs: [number, number][] = [
+  [0, 3], [1, 4], [2, 5], [3, 7], [4, 8],
+  [5, 9], [0, 6], [1, 7], [2, 8], [6, 9],
+];
+
+const decorativeText = [
+  "trust_score: 0.847",
+  "npub1qd9...k7a2",
+  "hops: 3",
+  "relay: wss://nos.lol",
+  "verify(sig)",
+  "WOT(u) = f(G, seeds)",
+  "muted_by: 0",
+  "followers: 142",
+  "influence: 1.0",
+  "kind: 22242",
+  "relay: wss://damus.io",
+  "G = (V, E, W)",
+  "score = f(hops)",
+  "compute(graperank)",
+  "npub1z8f...m4c9",
+  "following: 87",
+  "attenuation: 0.5",
+  "rigor: 0.25",
+];
+
+function estimateLineLength(a: number, b: number): number {
+  const dx = (floatingNodes[a].x - floatingNodes[b].x);
+  const dy = (floatingNodes[a].y - floatingNodes[b].y);
+  return Math.sqrt(dx * dx + dy * dy) * 12;
+}
+
+export default function PageBackground() {
+  return (
+    <>
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]"
+          style={{ animation: "pageBlobA 28s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]"
+          style={{ animation: "pageBlobB 32s ease-in-out infinite 2s" }}
+        />
+        <div
+          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/15 blur-[110px]"
+          style={{ animation: "pageBlobC 24s ease-in-out infinite 5s" }}
+        />
+      </div>
+
+      <div className="absolute top-0 left-0 right-0 h-[600px] overflow-hidden pointer-events-none z-0">
+        <svg className="absolute inset-0 w-full h-full">
+          {connectionPairs.map(([a, b], i) => {
+            const len = estimateLineLength(a, b);
+            const drawDelay = i * 0.8 + 0.3;
+            return (
+              <line
+                key={i}
+                x1={`${floatingNodes[a].x}%`}
+                y1={`${floatingNodes[a].y}%`}
+                x2={`${floatingNodes[b].x}%`}
+                y2={`${floatingNodes[b].y}%`}
+                stroke="url(#pageBgLineGrad)"
+                strokeWidth="0.5"
+                strokeDasharray={len}
+                strokeDashoffset={len}
+                style={{
+                  ["--dash" as string]: len,
+                  animation: `pageLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${drawDelay}s forwards, pageLinePulse 12s ease-in-out ${drawDelay + 1.5}s infinite`,
+                } as React.CSSProperties}
+              />
+            );
+          })}
+          <defs>
+            <linearGradient id="pageBgLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0.14" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        {floatingNodes.map((node) => (
+          <div
+            key={node.id}
+            className="absolute rounded-full bg-white/80 border border-slate-200/40"
+            style={{
+              left: `${node.x}%`,
+              top: `${node.y}%`,
+              width: node.size + 5,
+              height: node.size + 5,
+              opacity: 0,
+              transform: "scale(0)",
+              animation: `pageNodePop 0.6s ease-out ${node.popDelay}s forwards, pageNodeFloat ${node.floatDuration}s ease-in-out ${node.popDelay + 0.6}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[5]">
+        {decorativeText.map((text, i) => {
+          const col = i % 4;
+          const row = Math.floor(i / 4);
+          const left = 3 + col * 24 + ((row % 2) * 10);
+          const top = 80 + row * 220;
+          return (
+            <div
+              key={i}
+              className="absolute text-[11px] font-mono text-indigo-400/50 select-none whitespace-nowrap"
+              style={{
+                left: `${left}%`,
+                top: `${top}px`,
+                opacity: 0,
+                animation: `pageCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
+              }}
+              data-testid={`text-bg-decorative-${i}`}
+            >
+              {text}
+            </div>
+          );
+        })}
+      </div>
+
+      <style>{`
+        @keyframes pageBlobA {
+          0%, 100% { transform: translateX(0) scale(1); }
+          50% { transform: translateX(15px) scale(1.03); }
+        }
+        @keyframes pageBlobB {
+          0%, 100% { transform: translateX(0) scale(1); }
+          50% { transform: translateX(-20px) scale(1.05); }
+        }
+        @keyframes pageBlobC {
+          0%, 100% { transform: translateY(0); opacity: 0.15; }
+          50% { transform: translateY(-25px); opacity: 0.35; }
+        }
+        @keyframes pageLineDraw {
+          0% { stroke-dashoffset: var(--dash); opacity: 0; }
+          100% { stroke-dashoffset: 0; opacity: 0.18; }
+        }
+        @keyframes pageLinePulse {
+          0%, 100% { opacity: 0.12; }
+          50% { opacity: 0.2; }
+        }
+        @keyframes pageNodePop {
+          0% { opacity: 0; transform: scale(0); }
+          60% { opacity: 0.25; transform: scale(1.15); }
+          100% { opacity: 0.18; transform: scale(1); }
+        }
+        @keyframes pageNodeFloat {
+          0%, 100% { transform: translateY(0); opacity: 0.15; }
+          50% { transform: translateY(-12px); opacity: 0.25; }
+        }
+        @keyframes pageCalcFloat {
+          0%, 100% { opacity: 0; transform: translateY(0); }
+          20%, 80% { opacity: 0.45; transform: translateY(-6px); }
+        }
+      `}</style>
+    </>
+  );
+}
