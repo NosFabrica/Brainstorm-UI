@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
+import nostrLogo from "@assets/219900773-d6d02038-e2a0-4334-9f28-c14d40ab6fe7_1774042494476.png";
 import { MobileMenu } from "@/components/MobileMenu";
 
 export default function SettingsPage() {
@@ -1060,8 +1061,8 @@ export default function SettingsPage() {
                   className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
                   data-testid="link-nostr"
                 >
-                  <div className="h-9 w-9 rounded-xl bg-purple-600 flex items-center justify-center shrink-0 group-hover/link:bg-purple-500 transition-colors">
-                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-white" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0">
+                    <img src={nostrLogo} alt="Nostr" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
