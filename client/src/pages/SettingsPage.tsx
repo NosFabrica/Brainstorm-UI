@@ -1090,7 +1090,7 @@ export default function SettingsPage() {
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-[11px] text-slate-400" data-testid="text-about-copyright">
-                  <span className="font-semibold text-slate-500">Brainstorm</span> by NosFabrica — open-source under MIT license
+                  <span className="font-semibold text-slate-500">Brainstorm</span> by NosFabrica — open-source under AGPL-3.0 license
                 </p>
                 <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100" data-testid="text-about-version">v1.0</span>
               </div>
