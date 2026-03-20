@@ -51,6 +51,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import { MobileMenu } from "@/components/MobileMenu";
 
 export default function SettingsPage() {
@@ -1019,18 +1020,39 @@ export default function SettingsPage() {
             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
             <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                  <BrainLogo size={18} className="text-[#333286]" />
+                <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 shadow-sm ring-1 ring-slate-100 shrink-0 bg-slate-900">
+                  <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">About Brainstorm</h2>
-                  <p className="text-xs text-slate-500" data-testid="text-about-subtitle">Open-source Web of Trust by NosFabrica</p>
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">NosFabrica</h2>
+                  <p className="text-xs text-slate-500" data-testid="text-about-subtitle">Weaving the fabric of Nostr</p>
                 </div>
               </div>
             </div>
 
             <div className="p-5">
+              <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-about-description">
+                NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals — follows, zaps, mutes, and reports — and turn them into clear, reliable trust scores.
+              </p>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <a
+                  href="https://nosfabrica.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+                  data-testid="link-website"
+                >
+                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
+                    <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
+                    <span className="text-[11px] text-slate-400">nosfabrica.com</span>
+                  </div>
+                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+                </a>
+
                 <a
                   href="https://github.com/NosFabrica"
                   target="_blank"
@@ -1043,30 +1065,13 @@ export default function SettingsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-bold text-slate-900 block" data-testid="text-github-label">GitHub</span>
-                    <span className="text-[11px] text-slate-400">Source code & contributions</span>
+                    <span className="text-[11px] text-slate-400">Open-source projects</span>
                   </div>
                   <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
                 </a>
 
                 <a
-                  href="https://brainstorm.nosfabrica.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
-                  data-testid="link-website"
-                >
-                  <div className="h-9 w-9 rounded-xl bg-[#333286] flex items-center justify-center shrink-0 group-hover/link:bg-[#7c86ff] transition-colors">
-                    <Globe className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
-                    <span className="text-[11px] text-slate-400">Learn about Brainstorm</span>
-                  </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
-                </a>
-
-                <a
-                  href="https://njump.me/npub1qlkwmzmrhzpuak7c2g9akvcrh8wt0grczp5rz0af5v9wmwlnz8pszfhsev"
+                  href="https://njump.me/npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
@@ -1077,7 +1082,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
-                    <span className="text-[11px] text-slate-400">Follow us on Nostr</span>
+                    <span className="text-[11px] text-slate-400">Follow on Nostr</span>
                   </div>
                   <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
                 </a>
@@ -1085,7 +1090,7 @@ export default function SettingsPage() {
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-[11px] text-slate-400" data-testid="text-about-copyright">
-                  Built by <span className="font-semibold text-slate-500">NosFabrica</span> — open-source under MIT license
+                  <span className="font-semibold text-slate-500">Brainstorm</span> by NosFabrica — open-source under MIT license
                 </p>
                 <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100" data-testid="text-about-version">v1.0</span>
               </div>
