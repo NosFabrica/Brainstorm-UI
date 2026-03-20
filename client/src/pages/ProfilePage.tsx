@@ -423,12 +423,17 @@ export default function ProfilePage() {
   const formatRelativeTime = useCallback((timestamp: number) => {
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
-    if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
-    return `${Math.floor(diff / 31536000)}y ago`;
+    let relative: string;
+    if (diff < 60) relative = "just now";
+    else if (diff < 3600) relative = `${Math.floor(diff / 60)}m ago`;
+    else if (diff < 86400) relative = `${Math.floor(diff / 3600)}h ago`;
+    else if (diff < 2592000) relative = `${Math.floor(diff / 86400)}d ago`;
+    else if (diff < 31536000) relative = `${Math.floor(diff / 2592000)}mo ago`;
+    else relative = `${Math.floor(diff / 31536000)}y ago`;
+
+    const date = new Date(timestamp * 1000);
+    const absolute = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return `${relative} · ${absolute}`;
   }, []);
 
   const reportTypeBadgeColors: Record<string, string> = {
