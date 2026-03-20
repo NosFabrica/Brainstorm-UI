@@ -51,7 +51,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import nosFabricaLogo from "@assets/image_1774042366522.png";
+import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import { MobileMenu } from "@/components/MobileMenu";
 
 export default function SettingsPage() {
@@ -1020,8 +1020,8 @@ export default function SettingsPage() {
             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
             <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 shadow-sm ring-1 ring-slate-100 shrink-0 bg-[#1e1155] p-1">
-                  <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-contain" />
+                <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 shadow-sm ring-1 ring-slate-100 shrink-0 bg-slate-900">
+                  <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">NosFabrica</h2>
@@ -1077,8 +1077,8 @@ export default function SettingsPage() {
                   className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
                   data-testid="link-website"
                 >
-                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-[#1e1155] group-hover/link:bg-[#2a1a6e] transition-colors p-1">
-                    <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-contain" />
+                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
+                    <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
