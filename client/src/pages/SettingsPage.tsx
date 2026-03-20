@@ -51,7 +51,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
+import nosFabricaLogo from "@assets/image_1774042366522.png";
 import { MobileMenu } from "@/components/MobileMenu";
 
 export default function SettingsPage() {
