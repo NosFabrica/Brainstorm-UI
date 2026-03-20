@@ -1033,7 +1033,7 @@ export default function SettingsPage() {
 
             <div className="p-5">
               <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-about-description">
-                NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals — follows, zaps, mutes, and reports — and turn them into clear, reliable trust scores.
+                NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable trust scores.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
