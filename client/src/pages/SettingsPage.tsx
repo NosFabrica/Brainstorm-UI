@@ -1037,23 +1037,6 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <a
-                  href="https://nosfabrica.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
-                  data-testid="link-website"
-                >
-                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
-                    <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
-                    <span className="text-[11px] text-slate-400">nosfabrica.com</span>
-                  </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
-                </a>
-
-                <a
                   href="https://github.com/NosFabrica"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1083,6 +1066,23 @@ export default function SettingsPage() {
                   <div className="min-w-0 flex-1">
                     <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
                     <span className="text-[11px] text-slate-400">Follow on Nostr</span>
+                  </div>
+                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+                </a>
+
+                <a
+                  href="https://nosfabrica.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+                  data-testid="link-website"
+                >
+                  <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
+                    <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
+                    <span className="text-[11px] text-slate-400">nosfabrica.com</span>
                   </div>
                   <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
                 </a>
