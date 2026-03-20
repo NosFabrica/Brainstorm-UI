@@ -41,7 +41,10 @@ import {
   Code2,
   Mail,
   HelpCircle,
+  ExternalLink,
+  Globe,
 } from "lucide-react";
+import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
@@ -1007,6 +1010,84 @@ export default function SettingsPage() {
                     support@nosfabrica.com
                   </a>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="section-about">
+            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
+                  <BrainLogo size={18} className="text-[#333286]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">About Brainstorm</h2>
+                  <p className="text-xs text-slate-500" data-testid="text-about-subtitle">Open-source Web of Trust by NosFabrica</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <a
+                  href="https://github.com/NosFabrica"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+                  data-testid="link-github"
+                >
+                  <div className="h-9 w-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 group-hover/link:bg-slate-800 transition-colors">
+                    <SiGithub className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-github-label">GitHub</span>
+                    <span className="text-[11px] text-slate-400">Source code & contributions</span>
+                  </div>
+                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+                </a>
+
+                <a
+                  href="https://brainstorm.nosfabrica.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+                  data-testid="link-website"
+                >
+                  <div className="h-9 w-9 rounded-xl bg-[#333286] flex items-center justify-center shrink-0 group-hover/link:bg-[#7c86ff] transition-colors">
+                    <Globe className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
+                    <span className="text-[11px] text-slate-400">Learn about Brainstorm</span>
+                  </div>
+                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+                </a>
+
+                <a
+                  href="https://njump.me/npub1qlkwmzmrhzpuak7c2g9akvcrh8wt0grczp5rz0af5v9wmwlnz8pszfhsev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+                  data-testid="link-nostr"
+                >
+                  <div className="h-9 w-9 rounded-xl bg-purple-600 flex items-center justify-center shrink-0 group-hover/link:bg-purple-500 transition-colors">
+                    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-white" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
+                    <span className="text-[11px] text-slate-400">Follow us on Nostr</span>
+                  </div>
+                  <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+                </a>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-[11px] text-slate-400" data-testid="text-about-copyright">
+                  Built by <span className="font-semibold text-slate-500">NosFabrica</span> — open-source under MIT license
+                </p>
+                <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100" data-testid="text-about-version">v1.0</span>
               </div>
             </div>
           </div>
