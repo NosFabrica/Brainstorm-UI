@@ -335,4 +335,113 @@ export async function signNip85Deactivation(): Promise<Record<string, unknown>> 
   return await window.nostr.signEvent(event);
 }
 
+export interface ReportMetadata {
+  reporterPubkey: string;
+  targetPubkey: string;
+  reportType: string;
+  timestamp: number;
+  reason: string;
+}
+
+export interface MuteMetadata {
+  muterPubkey: string;
+  timestamp: number;
+}
+
+export async function fetchReportsForPubkey(
+  targetPubkey: string,
+  timeoutMs = 12000
+): Promise<ReportMetadata[]> {
+  const reports: ReportMetadata[] = [];
+  const seen = new Set<string>();
+
+  return new Promise<ReportMetadata[]>((resolve) => {
+    const timer = setTimeout(() => resolve(reports), timeoutMs);
+
+    pool.request(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }).subscribe({
+      next: (event) => {
+        try {
+          const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
+          if (seen.has(eventId)) return;
+          seen.add(eventId);
+
+          let reportType = "other";
+          for (const tag of event.tags) {
+            if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) {
+              reportType = tag[2];
+              break;
+            }
+          }
+
+          reports.push({
+            reporterPubkey: event.pubkey,
+            targetPubkey,
+            reportType,
+            timestamp: event.created_at,
+            reason: event.content || "",
+          });
+        } catch {}
+      },
+      error: () => { clearTimeout(timer); resolve(reports); },
+      complete: () => { clearTimeout(timer); resolve(reports); },
+    });
+  });
+}
+
+export async function fetchReportsByPubkey(
+  reporterPubkey: string,
+  timeoutMs = 12000
+): Promise<ReportMetadata[]> {
+  const reports: ReportMetadata[] = [];
+  const seen = new Set<string>();
+
+  return new Promise<ReportMetadata[]>((resolve) => {
+    const timer = setTimeout(() => resolve(reports), timeoutMs);
+
+    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [reporterPubkey] }).subscribe({
+      next: (event) => {
+        try {
+          const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
+          if (seen.has(eventId)) return;
+          seen.add(eventId);
+
+          for (const tag of event.tags) {
+            if (tag[0] === "p" && tag[1]) {
+              reports.push({
+                reporterPubkey: event.pubkey,
+                targetPubkey: tag[1],
+                reportType: tag[2] || "other",
+                timestamp: event.created_at,
+                reason: event.content || "",
+              });
+            }
+          }
+        } catch {}
+      },
+      error: () => { clearTimeout(timer); resolve(reports); },
+      complete: () => { clearTimeout(timer); resolve(reports); },
+    });
+  });
+}
+
+export async function fetchMuteListTimestamp(
+  muterPubkey: string,
+  timeoutMs = 10000
+): Promise<MuteMetadata | undefined> {
+  try {
+    const event = await Promise.race([
+      firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [10000], authors: [muterPubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
+
+    if (!event) return undefined;
+
+    return {
+      muterPubkey,
+      timestamp: event.created_at,
+    };
+  } catch {}
+  return undefined;
+}
+
 export { eventStore, pool };

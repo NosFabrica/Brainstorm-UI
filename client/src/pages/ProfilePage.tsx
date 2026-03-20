@@ -44,7 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -163,6 +163,9 @@ export default function ProfilePage() {
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
   const expandProfileCache = useRef<Map<string, any>>(new Map());
   const expandTrustCache = useRef<Map<string, number | null>>(new Map());
+  const reportMetadataCache = useRef<Map<string, ReportMetadata[]>>(new Map());
+  const muteMetadataCache = useRef<Map<string, MuteMetadata>>(new Map());
+  const [reportMetadataLoading, setReportMetadataLoading] = useState<Record<string, boolean>>({});
   const [forceRender, setForceRender] = useState(0);
 
   type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
@@ -255,6 +258,10 @@ export default function ProfilePage() {
     setSectionVisibleCount({});
     expandProfileCache.current.clear();
     expandTrustCache.current.clear();
+    reportMetadataCache.current.clear();
+    muteMetadataCache.current.clear();
+    metadataFetchedRef.current.clear();
+    setReportMetadataLoading({});
     prefetchedRef.current.clear();
 
     apiClient.getUserByPubkey(hexPubkey)
@@ -349,6 +356,88 @@ export default function ProfilePage() {
         });
       }
     }
+  };
+
+  const metadataFetchedRef = useRef<Set<string>>(new Set());
+
+  const fetchSectionMetadata = useCallback(async (sectionKey: string, extraPubkeys?: string[]) => {
+    if (!hexPubkey) return;
+    const cacheKey = `${sectionKey}:${hexPubkey}`;
+
+    if (sectionKey === "reported_by" || sectionKey === "reporting") {
+      if (metadataFetchedRef.current.has(cacheKey)) return;
+      metadataFetchedRef.current.add(cacheKey);
+    }
+
+    if (sectionKey === "muting") {
+      if (muteMetadataCache.current.has(hexPubkey)) return;
+    }
+
+    setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: true }));
+
+    try {
+      if (sectionKey === "reported_by") {
+        const reports = await fetchReportsForPubkey(hexPubkey);
+        reportMetadataCache.current.set(cacheKey, reports);
+      } else if (sectionKey === "reporting") {
+        const reports = await fetchReportsByPubkey(hexPubkey);
+        reportMetadataCache.current.set(cacheKey, reports);
+      } else if (sectionKey === "muted_by") {
+        const pubkeysToFetch = extraPubkeys || toPubkeys(profileResult?.[sectionKey]).slice(0, 50);
+        const unfetched = pubkeysToFetch.filter(pk => !muteMetadataCache.current.has(pk));
+        if (unfetched.length > 0) {
+          const results = await Promise.allSettled(
+            unfetched.map(pk => fetchMuteListTimestamp(pk))
+          );
+          for (const r of results) {
+            if (r.status === "fulfilled" && r.value) {
+              muteMetadataCache.current.set(r.value.muterPubkey, r.value);
+            }
+          }
+        }
+      } else if (sectionKey === "muting") {
+        const result = await fetchMuteListTimestamp(hexPubkey);
+        if (result) {
+          muteMetadataCache.current.set(hexPubkey, result);
+        }
+      }
+    } catch {}
+
+    setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: false }));
+    setForceRender(c => c + 1);
+  }, [hexPubkey, profileResult]);
+
+  const getReportForPubkey = useCallback((sectionKey: string, pubkey: string): ReportMetadata | undefined => {
+    const cacheKey = `${sectionKey}:${hexPubkey}`;
+    const reports = reportMetadataCache.current.get(cacheKey);
+    if (!reports) return undefined;
+    const matching = sectionKey === "reported_by"
+      ? reports.filter(r => r.reporterPubkey === pubkey)
+      : sectionKey === "reporting"
+      ? reports.filter(r => r.targetPubkey === pubkey)
+      : [];
+    if (matching.length === 0) return undefined;
+    return matching.reduce((latest, r) => r.timestamp > latest.timestamp ? r : latest, matching[0]);
+  }, [hexPubkey]);
+
+  const formatRelativeTime = useCallback((timestamp: number) => {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - timestamp;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+    if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
+    return `${Math.floor(diff / 31536000)}y ago`;
+  }, []);
+
+  const reportTypeBadgeColors: Record<string, string> = {
+    spam: "bg-amber-50 text-amber-700 border-amber-200",
+    impersonation: "bg-red-50 text-red-700 border-red-200",
+    nudity: "bg-pink-50 text-pink-700 border-pink-200",
+    illegal: "bg-red-50 text-red-800 border-red-300",
+    profanity: "bg-orange-50 text-orange-700 border-orange-200",
+    other: "bg-slate-50 text-slate-600 border-slate-200",
   };
 
   const mutualPubkeys = useMemo(() => {
@@ -585,6 +674,9 @@ export default function ProfilePage() {
           });
           fetchSectionProfiles(key, pubkeys);
         }
+        if (["reported_by", "reporting", "muted_by", "muting"].includes(key)) {
+          fetchSectionMetadata(key);
+        }
       } else {
         setSectionVisibleCount(vc => {
           const copy = { ...vc };
@@ -762,8 +854,14 @@ export default function ProfilePage() {
               )}
             </div>
 
+            {reportMetadataLoading[key] && (
+              <span className="flex items-center gap-1 text-[10px] text-indigo-400 ml-auto">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                <span>fetching relay data</span>
+              </span>
+            )}
             {isFiltered && (
-              <span className="text-[10px] text-slate-400 ml-auto" data-testid={`filter-count-${key}`}>
+              <span className={`text-[10px] text-slate-400 ${reportMetadataLoading[key] ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
                 {processed.length} of {pubkeys.length}
               </span>
             )}
@@ -792,6 +890,16 @@ export default function ProfilePage() {
         </div>
 
         <div className={`border-l-2 ${borderColor} ml-4`}>
+          {key === "muting" && muteMetadataCache.current.get(hexPubkey) && (
+            <div className="px-4 py-1.5 flex items-center gap-1.5" data-testid="muting-list-timestamp">
+              <span className="text-[10px] text-slate-400">Mute list last updated {formatRelativeTime(muteMetadataCache.current.get(hexPubkey)!.timestamp)}</span>
+            </div>
+          )}
+          {key === "muting" && !muteMetadataCache.current.get(hexPubkey) && reportMetadataLoading["muting"] && (
+            <div className="px-4 py-1.5">
+              <div className="h-2 w-32 bg-slate-100 rounded animate-pulse" />
+            </div>
+          )}
           {visiblePubkeys.map(pk => {
             const profile = expandProfileCache.current.get(pk);
             const trustScore = expandTrustCache.current.get(pk);
@@ -815,6 +923,12 @@ export default function ProfilePage() {
               );
             }
 
+            const isReportSection = key === "reported_by" || key === "reporting";
+            const isMuteSection = key === "muted_by" || key === "muting";
+            const reportMeta = isReportSection ? getReportForPubkey(key, pk) : undefined;
+            const muteMeta = isMuteSection ? muteMetadataCache.current.get(pk) : undefined;
+            const metaLoading = reportMetadataLoading[key];
+
             return (
               <div
                 key={pk}
@@ -831,6 +945,29 @@ export default function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
                   {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
+                  {isReportSection && reportMeta && (
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${reportTypeBadgeColors[reportMeta.reportType] || reportTypeBadgeColors.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
+                        {reportMeta.reportType}
+                      </Badge>
+                      <span className="text-[10px] text-slate-400" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
+                      {reportMeta.reason && (
+                        <span className="text-[10px] text-slate-400 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
+                      )}
+                    </div>
+                  )}
+                  {isReportSection && !reportMeta && metaLoading && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="h-2 w-10 bg-slate-100 rounded animate-pulse" />
+                      <div className="h-2 w-8 bg-slate-100 rounded animate-pulse" />
+                    </div>
+                  )}
+                  {key === "muted_by" && muteMeta && (
+                    <span className="text-[10px] text-slate-400 mt-0.5 block" data-testid={`mute-time-${pk.slice(0,8)}`}>mute list updated {formatRelativeTime(muteMeta.timestamp)}</span>
+                  )}
+                  {key === "muted_by" && !muteMeta && metaLoading && (
+                    <div className="h-2 w-16 bg-slate-100 rounded animate-pulse mt-0.5" />
+                  )}
                 </div>
                 {overlappingGroups.length > 0 && (
                   <div className="flex gap-1 flex-wrap">
@@ -863,6 +1000,10 @@ export default function ProfilePage() {
                   const newCount = (sectionVisibleCount[key] || 10) + 10;
                   setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
                   fetchSectionProfiles(key, processed, visibleCount, 10);
+                  if (key === "muted_by") {
+                    const nextBatch = processed.slice(visibleCount, visibleCount + 10);
+                    if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
+                  }
                 }}
                 className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
                 data-testid={`button-show-more-${key}`}
