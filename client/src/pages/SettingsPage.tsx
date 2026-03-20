@@ -52,7 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
-import nostrLogo from "@assets/219900773-d6d02038-e2a0-4334-9f28-c14d40ab6fe7_1774042494476.png";
+import nostrLogo from "@assets/download_1774042580188.png";
 import { MobileMenu } from "@/components/MobileMenu";
 
 export default function SettingsPage() {
