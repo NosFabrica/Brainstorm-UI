@@ -962,6 +962,9 @@ export default function ProfilePage() {
                       <div className="h-2 w-8 bg-slate-100 rounded animate-pulse" />
                     </div>
                   )}
+                  {isReportSection && !reportMeta && !metaLoading && (
+                    <span className="text-[10px] text-slate-300 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
+                  )}
                   {key === "muted_by" && muteMeta && (
                     <span className="text-[10px] text-slate-400 mt-0.5 block" data-testid={`mute-time-${pk.slice(0,8)}`}>mute list active {formatRelativeTime(muteMeta.timestamp)}</span>
                   )}
