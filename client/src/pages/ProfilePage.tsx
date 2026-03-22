@@ -895,16 +895,6 @@ export default function ProfilePage() {
         </div>
 
         <div className={`border-l-2 ${borderColor} ml-4`}>
-          {key === "muting" && muteMetadataCache.current.get(hexPubkey) && (
-            <div className="px-4 py-1.5 flex items-center gap-1.5" data-testid="muting-list-timestamp">
-              <span className="text-[10px] text-slate-400">Mute list active {formatRelativeTime(muteMetadataCache.current.get(hexPubkey)!.timestamp)}</span>
-            </div>
-          )}
-          {key === "muting" && !muteMetadataCache.current.get(hexPubkey) && reportMetadataLoading["muting"] && (
-            <div className="px-4 py-1.5">
-              <div className="h-2 w-32 bg-slate-100 rounded animate-pulse" />
-            </div>
-          )}
           {visiblePubkeys.map(pk => {
             const profile = expandProfileCache.current.get(pk);
             const trustScore = expandTrustCache.current.get(pk);
@@ -969,12 +959,6 @@ export default function ProfilePage() {
                   )}
                   {isReportSection && !reportMeta && !metaLoading && (
                     <span className="text-[10px] text-slate-300 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
-                  )}
-                  {key === "muted_by" && muteMeta && (
-                    <span className="text-[10px] text-slate-400 mt-0.5 block" data-testid={`mute-time-${pk.slice(0,8)}`}>mute list active {formatRelativeTime(muteMeta.timestamp)}</span>
-                  )}
-                  {key === "muted_by" && !muteMeta && metaLoading && (
-                    <div className="h-2 w-16 bg-slate-100 rounded animate-pulse mt-0.5" />
                   )}
                 </div>
                 {overlappingGroups.length > 0 && (
