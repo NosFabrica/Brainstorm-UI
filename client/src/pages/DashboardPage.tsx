@@ -2194,15 +2194,6 @@ export default function DashboardPage() {
                     data-testid="button-supported-slide-next-from-nostria"
                     aria-label="Next supported client"
                   >
-                    <div className="absolute inset-0 overflow-hidden rounded-3xl z-20 pointer-events-none">
-                      <div
-                        className="absolute -right-14 sm:-right-16 top-[0.7rem] sm:top-[1.1rem] rotate-45 bg-[#333286] px-12 sm:px-16 py-1.5 sm:py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
-                        data-testid="ribbon-nostria-coming-soon"
-                        aria-label="Coming soon"
-                      >
-                        Coming soon
-                      </div>
-                    </div>
                     <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
                       <img src={nostriaHeroImg} alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
                       <img src={nostriaManifestoImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
