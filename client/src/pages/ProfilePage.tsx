@@ -170,10 +170,13 @@ export default function ProfilePage() {
 
   type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
   type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
+  type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
   const [sectionSort, setSectionSort] = useState<Record<string, SortMode>>({});
   const [sectionFilter, setSectionFilter] = useState<Record<string, FilterMode>>({});
   const [sectionSearch, setSectionSearch] = useState<Record<string, string>>({});
   const [filterDropdownOpen, setFilterDropdownOpen] = useState<Record<string, boolean>>({});
+  const [reportTypeFilterState, setReportTypeFilterState] = useState<Record<string, ReportTypeFilter>>({});
+  const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -616,6 +619,7 @@ export default function ProfilePage() {
     const filter = sectionFilter[key] || "all";
     const sort = sectionSort[key] || "trust-desc";
     const search = (sectionSearch[key] || "").toLowerCase().trim();
+    const reportTypeFilter = reportTypeFilterState[key] || "all";
 
     let filtered = pubkeys;
     if (filter !== "all") {
@@ -624,6 +628,14 @@ export default function ProfilePage() {
         if (score < 0) return filter === "unverified";
         if (filter === "verified") return score >= getVerifiedThreshold();
         return getTierKey(score) === filter;
+      });
+    }
+
+    if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
+      filtered = filtered.filter(pk => {
+        const report = getReportForPubkey(key, pk);
+        if (reportTypeFilter === "unavailable") return !report;
+        return report?.reportType === reportTypeFilter;
       });
     }
 
@@ -659,7 +671,7 @@ export default function ProfilePage() {
       });
     }
     return sorted;
-  }, [sectionFilter, sectionSort, sectionSearch, getTrustForPk, getNameForPk]);
+  }, [sectionFilter, sectionSort, sectionSearch, reportTypeFilterState, getTrustForPk, getNameForPk, getReportForPubkey]);
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
@@ -797,7 +809,10 @@ export default function ProfilePage() {
     const activeFilter = sectionFilter[key] || "all";
     const activeSort = sectionSort[key] || "trust-desc";
     const activeSearch = sectionSearch[key] || "";
-    const isFiltered = activeFilter !== "all" || activeSearch.trim().length > 0;
+    const activeReportTypeFilter = reportTypeFilterState[key] || "all";
+    const isReportFilterSection = key === "reported_by" || key === "reporting";
+    const isReportTypeFilterOpen = reportTypeDropdownOpen[key] || false;
+    const isFiltered = activeFilter !== "all" || activeSearch.trim().length > 0 || activeReportTypeFilter !== "all";
 
     const visibleCount = sectionVisibleCount[key] || 10;
     const visiblePubkeys = processed.slice(0, visibleCount);
@@ -858,6 +873,52 @@ export default function ProfilePage() {
                 </>
               )}
             </div>
+
+            {isReportFilterSection && (
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setReportTypeDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${activeReportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                  data-testid={`report-type-filter-toggle-${key}`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-current opacity-50" />
+                  {activeReportTypeFilter !== "all" ? activeReportTypeFilter : "Type"}
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
+                {isReportTypeFilterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setReportTypeDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
+                    <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                      {([
+                        { value: "all" as ReportTypeFilter, label: "All Types", dotColor: "bg-slate-300" },
+                        { value: "spam" as ReportTypeFilter, label: "Spam", dotColor: "bg-amber-500" },
+                        { value: "impersonation" as ReportTypeFilter, label: "Impersonation", dotColor: "bg-red-500" },
+                        { value: "nudity" as ReportTypeFilter, label: "Nudity", dotColor: "bg-pink-500" },
+                        { value: "illegal" as ReportTypeFilter, label: "Illegal", dotColor: "bg-red-700" },
+                        { value: "profanity" as ReportTypeFilter, label: "Profanity", dotColor: "bg-orange-500" },
+                        { value: "other" as ReportTypeFilter, label: "Other", dotColor: "bg-slate-400" },
+                        { value: "unavailable" as ReportTypeFilter, label: "Unavailable", dotColor: "bg-slate-300" },
+                      ]).map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReportTypeFilterState(prev => ({ ...prev, [key]: opt.value }));
+                            setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
+                            setReportTypeDropdownOpen(prev => ({ ...prev, [key]: false }));
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeReportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 hover:bg-slate-50"}`}
+                          data-testid={`report-type-filter-${opt.value}-${key}`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {reportMetadataLoading[key] && (
               <span className="flex items-center gap-1 text-[10px] text-indigo-400 ml-auto">
@@ -1008,7 +1069,7 @@ export default function ProfilePage() {
             <div className="px-4 py-6 text-center">
               <p className="text-xs text-slate-400">No users match this filter</p>
               <button
-                onClick={(e) => { e.stopPropagation(); setSectionFilter(prev => ({ ...prev, [key]: "all" })); }}
+                onClick={(e) => { e.stopPropagation(); setSectionFilter(prev => ({ ...prev, [key]: "all" })); setReportTypeFilterState(prev => ({ ...prev, [key]: "all" })); }}
                 className="text-xs text-[#3730a3] font-medium mt-1.5 hover:underline"
                 data-testid={`filter-clear-${key}`}
               >
