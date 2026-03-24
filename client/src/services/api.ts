@@ -1,5 +1,5 @@
 const BRAINSTORM_API =
-  import.meta.env.VITE_API_URL || "https://brainstormserver.nosfabrica.com";
+  import.meta.env.VITE_API_URL || "https://brainstormserver-staging.nosfabrica.com";
 
 let isReauthenticating = false;
 let reauthPromise: Promise<boolean> | null = null;
