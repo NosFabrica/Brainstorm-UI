@@ -842,10 +842,57 @@ function ListDetailContent() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-9 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
+                          <Button variant="ghost" size="sm" className="gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
+                            <Eye className="h-3 w-3" />
+                            <span className="truncate max-w-[80px]">{povDisplayName}</span>
+                            {isDemoPov && <span className="text-[9px] text-amber-600 bg-amber-50 px-1 py-px rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                          <DropdownMenuLabel className="text-xs text-slate-500">Point of View</DropdownMenuLabel>
+                          <DropdownMenuSeparator className="bg-slate-100" />
+                          <div className="px-2 py-2 flex flex-col gap-1.5">
+                            <p className="text-[11px] text-slate-600"><span className="font-medium text-indigo-600" data-testid="text-pov-name">{povDisplayName}</span></p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {!isEffectivelySelf && (
+                                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-600 hover:text-slate-900 gap-1 border border-slate-200 rounded-md no-default-hover-elevate no-default-active-elevate" onClick={handleResetPov} data-testid="button-reset-pov">
+                                  <RotateCcw className="h-2.5 w-2.5" /> Reset to me
+                                </Button>
+                              )}
+                              {isDwarves && !isDemoPov && (
+                                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-amber-600 hover:text-amber-800 gap-1 border border-amber-200 rounded-md no-default-hover-elevate no-default-active-elevate" onClick={handleResetToDemo} data-testid="button-reset-demo-pov">
+                                  <RotateCcw className="h-2.5 w-2.5" /> Reset to demo
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-slate-900 gap-1 border border-slate-200 rounded-md no-default-hover-elevate no-default-active-elevate" onClick={() => setShowPovInput(!showPovInput)} data-testid="button-switch-pov">
+                                Switch
+                              </Button>
+                            </div>
+                            {showPovInput && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <Input
+                                  value={povInput}
+                                  onChange={(e) => setPovInput(e.target.value)}
+                                  placeholder="npub or hex pubkey..."
+                                  className="h-7 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-md flex-1 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                                  onKeyDown={(e) => { if (e.key === "Enter") handlePovSwitch(); }}
+                                  data-testid="input-pov-pubkey"
+                                />
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md no-default-hover-elevate no-default-active-elevate" onClick={handlePovSwitch} data-testid="button-apply-pov">
+                                  Apply
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
                             <span className="hidden sm:inline">{TRUST_METHOD_LABELS[trustMethod]}</span>
                           </Button>
@@ -871,70 +918,6 @@ function ListDetailContent() {
                       </DropdownMenu>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70" data-testid="pov-indicator">
-                    <Eye className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                    <span className="text-xs text-slate-500">PoV:</span>
-                    <span className="text-xs font-medium text-indigo-600" data-testid="text-pov-name">{povDisplayName}</span>
-                    {isDemoPov && (
-                      <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>
-                    )}
-                    {!isEffectivelySelf && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1.5 text-[10px] text-slate-500 hover:text-slate-900 gap-1 no-default-hover-elevate no-default-active-elevate"
-                        onClick={handleResetPov}
-                        data-testid="button-reset-pov"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        Reset to me
-                      </Button>
-                    )}
-                    {isDwarves && !isDemoPov && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1.5 text-[10px] text-amber-600 hover:text-amber-800 gap-1 no-default-hover-elevate no-default-active-elevate"
-                        onClick={handleResetToDemo}
-                        data-testid="button-reset-demo-pov"
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        Reset to demo
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 px-1.5 text-[10px] text-slate-500 hover:text-slate-900 ml-auto no-default-hover-elevate no-default-active-elevate"
-                      onClick={() => setShowPovInput(!showPovInput)}
-                      data-testid="button-switch-pov"
-                    >
-                      Switch
-                    </Button>
-                  </div>
-
-                  {showPovInput && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50/50">
-                      <Input
-                        value={povInput}
-                        onChange={(e) => setPovInput(e.target.value)}
-                        placeholder="Enter npub or hex pubkey..."
-                        className="h-7 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-md flex-1 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
-                        onKeyDown={(e) => { if (e.key === "Enter") handlePovSwitch(); }}
-                        data-testid="input-pov-pubkey"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-3 text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md no-default-hover-elevate no-default-active-elevate"
-                        onClick={handlePovSwitch}
-                        data-testid="button-apply-pov"
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  )}
 
                   <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
                     {([
