@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -24,8 +24,6 @@ import {
   Loader2,
   ChevronRight,
   Inbox,
-  HelpCircle,
-  BookOpen,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -41,9 +39,8 @@ import {
   fetchDListHeaders,
   fetchDListItems,
   type NostrUser,
-  type DListHeader,
 } from "@/services/nostr";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { apiClient } from "@/services/api";
 
 function formatAge(ts: number): string {
   if (!ts) return "";

@@ -23,8 +23,6 @@ import {
   Loader2,
   ArrowLeft,
   Inbox,
-  HelpCircle,
-  BookOpen,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
