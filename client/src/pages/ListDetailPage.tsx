@@ -347,7 +347,7 @@ function ListDetailContent() {
         if (i.id && i.id !== i.aTag) tags.push(i.id);
         return tags;
       });
-      return fetchDListReactions(aTags);
+      return fetchDListReactions(aTags, 15000, false, listId);
     },
     enabled: items.length > 0,
     staleTime: 5 * 60 * 1000,

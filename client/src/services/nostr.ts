@@ -697,7 +697,8 @@ const dcoslReactionCache = new Map<string, DListReaction[]>();
 export async function fetchDListReactions(
   itemATags: string[],
   timeoutMs = 15000,
-  forceRefresh = false
+  forceRefresh = false,
+  parentListATag?: string
 ): Promise<DListReaction[]> {
   const cacheKey = [...itemATags].sort().join("|");
   if (!forceRefresh && dcoslReactionCache.has(cacheKey)) return dcoslReactionCache.get(cacheKey)!;
@@ -705,8 +706,9 @@ export async function fetchDListReactions(
   const reactions: DListReaction[] = [];
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
-  const hasDwarvesItems = itemATags.some(a => a.startsWith(DWARVES_ATAG_PREFIX));
-  const relays = hasDwarvesItems ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
+  const isDwarves = (parentListATag && parentListATag.startsWith(DWARVES_ATAG_PREFIX)) ||
+    itemATags.some(a => a.includes(":" + DWARVES_PUBKEY + ":"));
+  const relays = isDwarves ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
 
   const filters: Array<{ kinds: number[]; "#e"?: string[]; "#a"?: string[]; _tagType: string }> = [];
   const nonReplaceableIds = itemATags.filter(a => !a.includes(":"));
