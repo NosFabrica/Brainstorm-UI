@@ -444,7 +444,27 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-export const DCOSL_RELAY = "wss://dcosl.brainstorm.world";
+const DCOSL_RELAY_DEFAULT = "wss://dcosl.brainstorm.world";
+const DCOSL_RELAY_KEY = "brainstorm_dcosl_relay";
+
+export function getDcoslRelay(): string {
+  return localStorage.getItem(DCOSL_RELAY_KEY) || DCOSL_RELAY_DEFAULT;
+}
+
+export function setDcoslRelay(url: string) {
+  if (!url || url === DCOSL_RELAY_DEFAULT) {
+    localStorage.removeItem(DCOSL_RELAY_KEY);
+  } else {
+    localStorage.setItem(DCOSL_RELAY_KEY, url);
+  }
+  clearDcoslCache();
+}
+
+export function getDcoslRelayDefault(): string {
+  return DCOSL_RELAY_DEFAULT;
+}
+
+export const DCOSL_RELAY = DCOSL_RELAY_DEFAULT;
 
 export interface DListHeader {
   id: string;
@@ -560,7 +580,7 @@ export async function fetchDListHeaders(timeoutMs = 15000, forceRefresh = false)
       resolve(headers);
     }, timeoutMs);
 
-    pool.request([DCOSL_RELAY], { kinds: [9998, 39998] }).subscribe({
+    pool.request([getDcoslRelay()], { kinds: [9998, 39998] }).subscribe({
       next: (event) => {
         try {
           const parsed = parseDListHeader(event);
@@ -596,7 +616,7 @@ export async function fetchDListItems(parentATag: string, timeoutMs = 15000, for
       resolve(items);
     }, timeoutMs);
 
-    pool.request([DCOSL_RELAY], { kinds: [9999, 39999], "#z": [parentATag] }).subscribe({
+    pool.request([getDcoslRelay()], { kinds: [9999, 39999], "#z": [parentATag] }).subscribe({
       next: (event) => {
         try {
           const parsed = parseDListItem(event);
@@ -678,7 +698,7 @@ export async function fetchDListReactions(
     for (const filter of filters) {
       const expectedTagType = filter._tagType as string;
       const { _tagType, ...relayFilter } = filter;
-      pool.request([DCOSL_RELAY], relayFilter).subscribe({
+      pool.request([getDcoslRelay()], relayFilter).subscribe({
         next: (event) => {
           try {
             const eventWithId = event as NostrEvent & { id?: string };
@@ -713,6 +733,53 @@ export async function fetchDListReactions(
         complete: finish,
       });
     }
+  });
+}
+
+export async function fetchDListReactionsByPubkey(
+  pubkey: string,
+  timeoutMs = 15000
+): Promise<DListReaction[]> {
+  const reactions: DListReaction[] = [];
+  const seen = new Set<string>();
+
+  return new Promise<DListReaction[]>((resolve) => {
+    const timer = setTimeout(() => resolve(reactions), timeoutMs);
+
+    pool.request([getDcoslRelay()], { kinds: [7], authors: [pubkey] }).subscribe({
+      next: (event) => {
+        try {
+          const eventWithId = event as NostrEvent & { id?: string };
+          const eventId = eventWithId.id || `${event.pubkey}-${event.created_at}`;
+          if (seen.has(eventId)) return;
+          seen.add(eventId);
+
+          const content = (event.content || "").trim();
+          const isUpvote = content === "+" || content === "";
+          const isDownvote = content === "-";
+          if (!isUpvote && !isDownvote) return;
+
+          let targetItemATag = "";
+          for (const tag of event.tags || []) {
+            if ((tag[0] === "a" || tag[0] === "e") && tag[1]) {
+              targetItemATag = tag[1];
+              break;
+            }
+          }
+          if (!targetItemATag) return;
+
+          reactions.push({
+            id: eventId,
+            pubkey: event.pubkey,
+            createdAt: event.created_at,
+            targetItemATag,
+            isUpvote,
+          });
+        } catch {}
+      },
+      error: () => { clearTimeout(timer); resolve(reactions); },
+      complete: () => { clearTimeout(timer); resolve(reactions); },
+    });
   });
 }
 

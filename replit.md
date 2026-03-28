@@ -56,3 +56,8 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 - **Trust weight services:** `fetchFollowList(pubkey)` returns kind 3 follow set; `fetchTrustedList(pubkey)` returns kind 30392 trusted pubkey set; `fetchGrapeRankScores(povPubkey, targetPubkeys)` fetches kind 30382 trust assertions via 10040 Treasure Map lookup
 - **TrustContext (`client/src/contexts/TrustContext.tsx`):** React context provider for trust method and PoV pubkey state (available for future PoV switching features)
 - **a-tag pattern:** Replaceable events (39998/39999) use `${kind}:${pubkey}:${dTag}`; non-replaceable (9998/9999) use `event.id`
+- **Configurable relay:** DCoSL relay URL stored in `localStorage` key `brainstorm_dcosl_relay`, defaults to `wss://dcosl.brainstorm.world`. Functions: `getDcoslRelay()`, `setDcoslRelay(url)`, `getDcoslRelayDefault()`. All DCoSL fetchers use dynamic relay URL.
+- **Settings DCoSL card:** New "DCoSL Relay" settings card with text input, save/reset buttons, URL validation (must start with `wss://` or `ws://`). Resets cache on relay change.
+- **Dashboard DCoSL card:** Summary card showing all available DCoSL lists with item counts and quick-link navigation to each list detail page.
+- **Profile List Activity:** Expandable "List Activity" section in Profile page showing which DCoSL lists a pubkey appears on and which items they've voted on. Lazy-fetched on expand. Service: `fetchDListReactionsByPubkey(pubkey)`.
+- **Chain indicator:** Visual trust chain indicator on ListDetailPage when "Trusted List" method is selected, showing trust flow arrow: "[Trusted List Name] → [Current List Name]"

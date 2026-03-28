@@ -44,9 +44,11 @@ import {
   ExternalLink,
   Globe,
   List,
+  Link2,
+  RotateCcw,
 } from "lucide-react";
 import { SiGithub } from "react-icons/si";
-import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getDcoslRelay, setDcoslRelay, getDcoslRelayDefault, clearDcoslCache, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -72,7 +74,28 @@ export default function SettingsPage() {
     const stored = getCustomThreshold();
     return stored !== null ? stored.toFixed(2) : "0.05";
   });
+  const [dcoslRelayUrl, setDcoslRelayUrl] = useState(() => getDcoslRelay());
+  const [dcoslRelayDirty, setDcoslRelayDirty] = useState(false);
   const { toast } = useToast();
+
+  const handleDcoslRelaySave = useCallback(() => {
+    const trimmed = dcoslRelayUrl.trim();
+    if (!trimmed.startsWith("wss://") && !trimmed.startsWith("ws://")) {
+      toast({ title: "Invalid relay URL", description: "Relay URL must start with wss:// or ws://", variant: "destructive", duration: 3000 });
+      return;
+    }
+    setDcoslRelay(trimmed);
+    setDcoslRelayDirty(false);
+    toast({ title: "DCoSL relay updated", description: `Now using ${trimmed}`, duration: 2000 });
+  }, [dcoslRelayUrl, toast]);
+
+  const handleDcoslRelayReset = useCallback(() => {
+    const defaultUrl = getDcoslRelayDefault();
+    setDcoslRelayUrl(defaultUrl);
+    setDcoslRelay(defaultUrl);
+    setDcoslRelayDirty(false);
+    toast({ title: "DCoSL relay reset", description: `Restored default relay`, duration: 2000 });
+  }, [toast]);
 
   const currentThreshold = activePreset === "custom"
     ? (getCustomThreshold() ?? PRESET_THRESHOLDS.default)
@@ -955,6 +978,73 @@ export default function SettingsPage() {
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-presets-detail">
                 <p className="text-xs text-slate-500 leading-relaxed">
                   <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)}{activePreset === "custom" ? " (custom)" : ""} — accounts with a trust assertion score below this are marked as unverified.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-dcosl-relay">
+            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
+            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                  <Link2 className="h-4 w-4 text-[#333286]" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-dcosl-relay-title">DCoSL Relay</h2>
+                  <p className="text-xs text-slate-500" data-testid="text-dcosl-relay-subtitle">Decentralized Curation of Simple Lists relay endpoint</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-dcosl-relay-desc">
+                Configure the Nostr relay used for fetching DCoSL list headers, items, and reactions. Change this if you're running your own DCoSL relay.
+              </p>
+
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3" data-testid="input-dcosl-relay-section">
+                <label className="text-xs font-semibold text-slate-700 block mb-2">Relay URL</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={dcoslRelayUrl}
+                    onChange={(e) => { setDcoslRelayUrl(e.target.value); setDcoslRelayDirty(true); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleDcoslRelaySave(); }}
+                    placeholder="wss://dcosl.brainstorm.world"
+                    className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-mono text-slate-600 transition-all outline-none focus:border-[#7c86ff]/40 focus:ring-1 focus:ring-[#7c86ff]/20"
+                    data-testid="input-dcosl-relay"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDcoslRelaySave}
+                    disabled={!dcoslRelayDirty}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                    data-testid="button-dcosl-relay-save"
+                  >
+                    Save
+                  </button>
+                  {dcoslRelayUrl !== getDcoslRelayDefault() && (
+                    <button
+                      type="button"
+                      onClick={handleDcoslRelayReset}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition-colors"
+                      data-testid="button-dcosl-relay-reset"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-dcosl-relay-detail">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  <span className="font-semibold text-slate-700">Current relay:</span>{" "}
+                  <span className="font-mono text-[11px]">{getDcoslRelay()}</span>
+                  {getDcoslRelay() !== getDcoslRelayDefault() && (
+                    <span className="ml-1.5 text-amber-600 font-medium">(custom)</span>
+                  )}
                 </p>
               </div>
             </div>

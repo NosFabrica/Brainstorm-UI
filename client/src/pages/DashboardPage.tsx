@@ -91,7 +91,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm, fetchDListHeaders, fetchDListItems, type DListHeader } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
@@ -199,6 +199,31 @@ export default function DashboardPage() {
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
   const [nip85Dismissed, setNip85Dismissed] = useState(false);
+  const [dcoslHeaders, setDcoslHeaders] = useState<DListHeader[]>([]);
+  const [dcoslItemCounts, setDcoslItemCounts] = useState<Record<string, number>>({});
+  const [dcoslLoading, setDcoslLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await fetchDListHeaders(12000);
+        if (cancelled) return;
+        setDcoslHeaders(headers);
+        setDcoslLoading(false);
+        const counts: Record<string, number> = {};
+        for (const h of headers) {
+          const items = await fetchDListItems(h.aTag, 10000);
+          if (cancelled) return;
+          counts[h.aTag] = items.length;
+        }
+        setDcoslItemCounts(counts);
+      } catch {
+        if (!cancelled) setDcoslLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -1864,6 +1889,81 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
           </div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mb-6">
+            <Card
+              className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative"
+              data-testid="card-dcosl-summary"
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
+
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                      <List className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                      DCoSL Lists
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2.5 text-xs gap-1 text-[#333286] hover:text-[#7c86ff] no-default-hover-elevate no-default-active-elevate"
+                    onClick={() => navigate("/lists")}
+                    data-testid="button-dcosl-view-all"
+                  >
+                    View All
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {dcoslLoading ? (
+                  <div className="flex items-center gap-2 py-3">
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-300" />
+                    <span className="text-xs text-slate-400">Loading curated lists...</span>
+                  </div>
+                ) : dcoslHeaders.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-2" data-testid="text-dcosl-empty">No DCoSL lists found on the relay.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" data-testid="grid-dcosl-lists">
+                    {dcoslHeaders.map((header) => (
+                      <div
+                        key={header.aTag}
+                        className="relative rounded-xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden cursor-pointer hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5"
+                        onClick={() => navigate(`/lists/${encodeURIComponent(header.aTag)}`)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(`/lists/${encodeURIComponent(header.aTag)}`); }}
+                        data-testid={`card-dcosl-list-${header.dTag || header.id}`}
+                      >
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#7c86ff] to-[#333286]" />
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                            <List className="h-3 w-3" />
+                          </div>
+                          <span className="text-xs font-bold text-slate-800 truncate">{header.name}</span>
+                        </div>
+                        {header.description && (
+                          <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 mb-1.5">{header.description}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {dcoslItemCounts[header.aTag] !== undefined
+                              ? `${dcoslItemCounts[header.aTag]} items`
+                              : "Loading..."}
+                          </span>
+                          <ChevronRight className="h-2.5 w-2.5 text-[#333286]/60" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </motion.div>
 
           {!hasNoFollowing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

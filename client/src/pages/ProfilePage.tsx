@@ -45,7 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, fetchDListHeaders, fetchDListItems, fetchDListReactionsByPubkey, type NostrUser, type ReportMetadata, type MuteMetadata, type DListHeader, type DListItem, type DListReaction } from "@/services/nostr";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -178,6 +178,11 @@ export default function ProfilePage() {
   const [filterDropdownOpen, setFilterDropdownOpen] = useState<Record<string, boolean>>({});
   const [reportTypeFilterState, setReportTypeFilterState] = useState<Record<string, ReportTypeFilter>>({});
   const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
+
+  const [listActivityLoading, setListActivityLoading] = useState(false);
+  const [listActivityFetched, setListActivityFetched] = useState(false);
+  const [listActivityAppearsOn, setListActivityAppearsOn] = useState<{ listName: string; itemName: string; aTag: string }[]>([]);
+  const [listActivityVotedOn, setListActivityVotedOn] = useState<{ listName: string; itemName: string; isUpvote: boolean; aTag: string }[]>([]);
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -674,6 +679,49 @@ export default function ProfilePage() {
     return sorted;
   }, [sectionFilter, sectionSort, sectionSearch, reportTypeFilterState, getTrustForPk, getNameForPk, getReportForPubkey]);
 
+  const fetchListActivity = useCallback(async () => {
+    if (!hexPubkey || listActivityFetched) return;
+    setListActivityLoading(true);
+    try {
+      const headers = await fetchDListHeaders(12000);
+      const appearsOn: { listName: string; itemName: string; aTag: string }[] = [];
+      for (const header of headers) {
+        const items = await fetchDListItems(header.aTag, 10000);
+        for (const item of items) {
+          const contentLower = (item.content || "").toLowerCase();
+          const nameLower = (item.name || "").toLowerCase();
+          const pk = hexPubkey.toLowerCase();
+          let npubStr = "";
+          try { npubStr = nip19.npubEncode(hexPubkey); } catch {}
+          if (contentLower.includes(pk) || (npubStr && contentLower.includes(npubStr)) || nameLower.includes(pk)) {
+            appearsOn.push({ listName: header.name, itemName: item.name || item.content.slice(0, 40), aTag: header.aTag });
+          }
+        }
+      }
+      setListActivityAppearsOn(appearsOn);
+
+      const reactions = await fetchDListReactionsByPubkey(hexPubkey, 12000);
+      const allItems = new Map<string, { name: string; listName: string; listATag: string }>();
+      for (const header of headers) {
+        const items = await fetchDListItems(header.aTag, 10000);
+        for (const item of items) {
+          allItems.set(item.aTag, { name: item.name || item.content.slice(0, 40), listName: header.name, listATag: header.aTag });
+          allItems.set(item.id, { name: item.name || item.content.slice(0, 40), listName: header.name, listATag: header.aTag });
+        }
+      }
+      const votedOn: { listName: string; itemName: string; isUpvote: boolean; aTag: string }[] = [];
+      for (const r of reactions) {
+        const info = allItems.get(r.targetItemATag);
+        if (info) {
+          votedOn.push({ listName: info.listName, itemName: info.name, isUpvote: r.isUpvote, aTag: info.listATag });
+        }
+      }
+      setListActivityVotedOn(votedOn);
+      setListActivityFetched(true);
+    } catch {}
+    setListActivityLoading(false);
+  }, [hexPubkey, listActivityFetched]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
@@ -694,6 +742,9 @@ export default function ProfilePage() {
         }
         if (["reported_by", "reporting", "muted_by", "muting"].includes(key)) {
           fetchSectionMetadata(key);
+        }
+        if (key === "list_activity" && !listActivityFetched) {
+          fetchListActivity();
         }
       } else {
         setSectionVisibleCount(vc => {
@@ -2063,6 +2114,99 @@ export default function ProfilePage() {
                           </div>
                           );
                         })()}
+
+                        <div className="border-t border-slate-100">
+                          <div
+                            className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 cursor-pointer hover:bg-indigo-50/30 transition-all duration-200"
+                            onClick={() => toggleSection("list_activity")}
+                            data-testid="metric-profile-list-activity"
+                          >
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                <List className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-indigo-500" />
+                              </div>
+                              <div>
+                                <p className="text-xs sm:text-sm font-semibold text-slate-700">List Activity</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">DCoSL list appearances & votes</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {listActivityFetched && (
+                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-list-activity-count">
+                                  {listActivityAppearsOn.length + listActivityVotedOn.length}
+                                </p>
+                              )}
+                              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["list_activity"] ? "rotate-180" : ""}`} />
+                            </div>
+                          </div>
+
+                          {expandedSections["list_activity"] && (
+                            <div className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-3" data-testid="panel-list-activity">
+                              {listActivityLoading ? (
+                                <div className="flex items-center gap-2 py-3">
+                                  <Loader2 className="h-4 w-4 animate-spin text-indigo-300" />
+                                  <span className="text-xs text-slate-400">Scanning DCoSL lists...</span>
+                                </div>
+                              ) : (
+                                <>
+                                  {listActivityAppearsOn.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Appears On</span>
+                                      </div>
+                                      {listActivityAppearsOn.map((entry, i) => (
+                                        <div
+                                          key={`appears-${i}`}
+                                          className="flex items-center justify-between px-3 py-2 rounded-lg bg-indigo-50/50 border border-indigo-100/60 cursor-pointer hover:bg-indigo-100/50 transition-colors"
+                                          onClick={() => navigate(`/lists/${encodeURIComponent(entry.aTag)}`)}
+                                          data-testid={`row-list-appears-${i}`}
+                                        >
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-slate-700 truncate">{entry.itemName}</p>
+                                            <p className="text-[10px] text-slate-400">in {entry.listName}</p>
+                                          </div>
+                                          <List className="h-3 w-3 text-indigo-400 shrink-0" />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {listActivityVotedOn.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Voted On</span>
+                                      </div>
+                                      {listActivityVotedOn.map((entry, i) => (
+                                        <div
+                                          key={`voted-${i}`}
+                                          className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100/80 transition-colors"
+                                          onClick={() => navigate(`/lists/${encodeURIComponent(entry.aTag)}`)}
+                                          data-testid={`row-list-voted-${i}`}
+                                        >
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-slate-700 truncate">{entry.itemName}</p>
+                                            <p className="text-[10px] text-slate-400">in {entry.listName}</p>
+                                          </div>
+                                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${entry.isUpvote ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"}`}>
+                                            {entry.isUpvote ? "+1" : "-1"}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {listActivityAppearsOn.length === 0 && listActivityVotedOn.length === 0 && (
+                                    <p className="text-xs text-slate-400 py-2" data-testid="text-list-activity-empty">
+                                      No DCoSL list activity found for this profile.
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 

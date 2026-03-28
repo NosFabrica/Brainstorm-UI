@@ -41,6 +41,7 @@ import {
   Eye,
   HelpCircle,
   RotateCcw,
+  ArrowRight,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -721,6 +722,21 @@ function ListDetailContent() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {trustMethod === "trusted_list" && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5" data-testid="chain-indicator">
+                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Chain:</span>
+                      <span className="text-[10px] font-semibold text-indigo-300">
+                        {(() => {
+                          if (!trustedListId) return "All Trusted Lists";
+                          const match = availableTrustedLists.find(tl => tl.dTag === trustedListId);
+                          return match ? `${trustedListId} (${match.pubkeys.size})` : trustedListId;
+                        })()}
+                      </span>
+                      <ArrowRight className="h-2.5 w-2.5 text-indigo-400/60" />
+                      <span className="text-[10px] font-semibold text-white">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
                     </div>
                   )}
 
