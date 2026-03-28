@@ -314,15 +314,19 @@ function ListDetailContent() {
   const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf, isSelf: isSelfPov } = useTrust();
 
   const [dwarvesPovOverride, setDwarvesPovOverride] = useState<string | null>(null);
-  const userHasManuallySetPov = useRef(false);
+  const savedGlobalPov = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isDwarves && !userHasManuallySetPov.current) {
+    if (isDwarves) {
+      savedGlobalPov.current = povPubkey;
       setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
     }
     return () => {
+      if (savedGlobalPov.current !== null && savedGlobalPov.current !== povPubkey) {
+        setPovPubkey(savedGlobalPov.current);
+      }
       setDwarvesPovOverride(null);
-      userHasManuallySetPov.current = false;
+      savedGlobalPov.current = null;
     };
   }, [isDwarves]);
 
@@ -601,7 +605,6 @@ function ListDetailContent() {
       } catch { return; }
     }
     if (!/^[0-9a-f]{64}$/.test(pk)) return;
-    userHasManuallySetPov.current = true;
     setDwarvesPovOverride(null);
     setPovPubkey(pk);
     setShowPovInput(false);
@@ -609,13 +612,15 @@ function ListDetailContent() {
   }, [povInput, setPovPubkey]);
 
   const handleResetPov = useCallback(() => {
-    if (isDwarves) {
-      userHasManuallySetPov.current = false;
-      setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
-    }
     resetToSelf();
+    setDwarvesPovOverride(null);
     setPovProfile(null);
-  }, [resetToSelf, isDwarves]);
+  }, [resetToSelf]);
+
+  const handleResetToDemo = useCallback(() => {
+    setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
+    setPovProfile(null);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -919,7 +924,7 @@ function ListDetailContent() {
                     {isDemoPov && (
                       <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>
                     )}
-                    {(isDwarves ? !isDemoPov : !isEffectivelySelf) && (
+                    {!isEffectivelySelf && !isDemoPov && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -928,7 +933,19 @@ function ListDetailContent() {
                         data-testid="button-reset-pov"
                       >
                         <RotateCcw className="h-3 w-3" />
-                        {isDwarves ? "Reset to demo" : "Reset to me"}
+                        Reset to me
+                      </Button>
+                    )}
+                    {isDwarves && !isDemoPov && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 px-1.5 text-[10px] text-amber-600 hover:text-amber-800 gap-1 no-default-hover-elevate no-default-active-elevate"
+                        onClick={handleResetToDemo}
+                        data-testid="button-reset-demo-pov"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Reset to demo
                       </Button>
                     )}
                     <Button
