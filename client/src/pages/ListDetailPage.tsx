@@ -185,12 +185,13 @@ function isPubkey(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
 }
 
-function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays }: VoterInfo & { isUpvote: boolean; extraRelays?: string[] }) {
+function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPubkey }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
   const contribution = isUpvote ? weight : -weight;
   const hasWeight = weight > 0;
+  const isAuthor = itemAuthorPubkey === pubkey;
 
   useEffect(() => {
     let cancelled = false;
@@ -229,9 +230,11 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays }: VoterInfo 
       </div>
 
       <div className="min-w-0">
-        {!hasWeight && (
+        {isAuthor && isUpvote ? (
+          <span className="text-[10px] text-indigo-500 italic">Author (implicit upvote)</span>
+        ) : !hasWeight ? (
           <span className="text-[10px] text-slate-400 italic">Trust weight unknown</span>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -1086,12 +1089,15 @@ function ListDetailContent() {
                           return (
                           <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
                             <div className="flex items-center justify-between mb-3">
-                              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  {score.upvoters.length} up / {score.downvoters.length} down
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
+                                <span className={`text-sm font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                  {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
                                 </span>
                               </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {score.upvoters.length} up / {score.downvoters.length} down
+                              </span>
                             </div>
 
                             <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
@@ -1108,7 +1114,7 @@ function ListDetailContent() {
                                   <p className="text-xs text-slate-400 px-3 py-3 text-center">No votes yet</p>
                                 ) : (
                                   allVoters.map((v) => (
-                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} />
+                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} itemAuthorPubkey={item.pubkey} />
                                   ))
                                 )}
                               </div>
