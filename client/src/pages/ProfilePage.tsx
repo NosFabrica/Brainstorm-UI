@@ -697,7 +697,9 @@ export default function ProfilePage() {
           const pk = hexPubkey.toLowerCase();
           let npubStr = "";
           try { npubStr = nip19.npubEncode(hexPubkey); } catch {}
-          if (contentLower.includes(pk) || (npubStr && contentLower.includes(npubStr)) || nameLower.includes(pk)) {
+          const jsonPubkey = item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string"
+            ? ((item.jsonData as Record<string, unknown>).pubkey as string).toLowerCase() : "";
+          if (contentLower.includes(pk) || (npubStr && contentLower.includes(npubStr)) || nameLower.includes(pk) || jsonPubkey === pk) {
             appearsOn.push({ listName: header.name, itemName: item.name || item.content.slice(0, 40), aTag: header.aTag });
           }
         }

@@ -379,11 +379,17 @@ function ListDetailContent() {
     queryFn: async () => {
       const headers = await fetchDListHeaders(10000);
       const sources: { dTag: string; label: string; pubkeys: Set<string>; isDcosl: boolean }[] = [];
-      for (const header of headers) {
-        if (header.aTag === listId) continue;
-        const items = await fetchDListItems(header.aTag, 10000);
+      const otherHeaders = headers.filter(h => h.aTag !== listId);
+      const itemResults = await Promise.all(otherHeaders.map(h => fetchDListItems(h.aTag, 10000)));
+      for (let i = 0; i < otherHeaders.length; i++) {
+        const header = otherHeaders[i];
+        const items = itemResults[i];
         const pubkeys = new Set<string>();
         for (const item of items) {
+          if (item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string") {
+            const pk = (item.jsonData as Record<string, unknown>).pubkey as string;
+            if (/^[0-9a-f]{64}$/i.test(pk)) pubkeys.add(pk.toLowerCase());
+          }
           const hexMatch = item.content.match(/\b([0-9a-f]{64})\b/i);
           if (hexMatch) pubkeys.add(hexMatch[1].toLowerCase());
           const npubMatch = item.content.match(/\b(npub1[02-9ac-hj-np-z]{20,})\b/i);
