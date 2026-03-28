@@ -361,14 +361,14 @@ function ListDetailContent() {
 
   const followListQuery = useQuery({
     queryKey: ["follow-list", povPubkey],
-    queryFn: () => fetchFollowList(povPubkey),
+    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchFollowList(povPubkey); },
     enabled: !!povPubkey && trustMethod === "follow_list",
     staleTime: 10 * 60 * 1000,
   });
 
   const trustedListsQuery = useQuery({
     queryKey: ["trusted-lists-available", povPubkey],
-    queryFn: () => fetchTrustedLists(povPubkey),
+    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchTrustedLists(povPubkey); },
     enabled: !!povPubkey && trustMethod === "trusted_list",
     staleTime: 10 * 60 * 1000,
   });
