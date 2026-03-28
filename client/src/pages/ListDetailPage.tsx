@@ -313,24 +313,18 @@ function ListDetailContent() {
 
   const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf, isSelf: isSelfPov } = useTrust();
 
-  const [dwarvesPovOverride, setDwarvesPovOverride] = useState<string | null>(null);
-  const savedGlobalPov = useRef<string | null>(null);
+  const [dwarvesPovOverride, setDwarvesPovOverride] = useState<string | null>(() =>
+    isDwarves ? NOUS_DEMO_PUBKEY : null
+  );
 
   useEffect(() => {
     if (isDwarves) {
-      savedGlobalPov.current = povPubkey;
       setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
     }
-    return () => {
-      if (savedGlobalPov.current !== null && savedGlobalPov.current !== povPubkey) {
-        setPovPubkey(savedGlobalPov.current);
-      }
-      setDwarvesPovOverride(null);
-      savedGlobalPov.current = null;
-    };
+    return () => { setDwarvesPovOverride(null); };
   }, [isDwarves]);
 
-  const effectivePovPubkey = dwarvesPovOverride || povPubkey;
+  const effectivePovPubkey = isDwarves ? (dwarvesPovOverride || povPubkey) : povPubkey;
   const isDemoPov = isDwarves && dwarvesPovOverride === NOUS_DEMO_PUBKEY;
 
   useEffect(() => {
@@ -605,17 +599,23 @@ function ListDetailContent() {
       } catch { return; }
     }
     if (!/^[0-9a-f]{64}$/.test(pk)) return;
-    setDwarvesPovOverride(null);
-    setPovPubkey(pk);
+    if (isDwarves) {
+      setDwarvesPovOverride(pk);
+    } else {
+      setPovPubkey(pk);
+    }
     setShowPovInput(false);
     setPovInput("");
-  }, [povInput, setPovPubkey]);
+  }, [povInput, setPovPubkey, isDwarves]);
 
   const handleResetPov = useCallback(() => {
-    resetToSelf();
-    setDwarvesPovOverride(null);
+    if (isDwarves) {
+      setDwarvesPovOverride(null);
+    } else {
+      resetToSelf();
+    }
     setPovProfile(null);
-  }, [resetToSelf]);
+  }, [resetToSelf, isDwarves]);
 
   const handleResetToDemo = useCallback(() => {
     setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
