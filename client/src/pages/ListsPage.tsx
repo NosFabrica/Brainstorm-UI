@@ -24,6 +24,7 @@ import {
   Loader2,
   ChevronRight,
   Inbox,
+  HelpCircle,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -166,77 +167,89 @@ export default function ListsPage() {
   if (!user) return null;
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950 text-white">
+    <div className="relative min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 overflow-hidden">
       <PageBackground />
 
-      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="lg:hidden text-slate-200 no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(true)} data-testid="button-mobile-menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-            <button className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate("/dashboard")} data-testid="button-logo-home">
-              <BrainLogo size={28} className="text-indigo-500" />
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
-                Brainstorm
-              </h1>
-            </button>
-            <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-              <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                <Search className="h-4 w-4" />
-                Search
-              </Button>
-              <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
-                <Users className="h-4 w-4" />
-                Network
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-nav-lists">
-                <List className="h-4 w-4" />
-                Lists
-              </Button>
+      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-lists">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" onClick={() => setMobileMenuOpen(true)} data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </div>
+              <button type="button" className="flex items-center gap-2" onClick={() => navigate("/dashboard")} data-testid="button-logo-home">
+                <BrainLogo size={28} className="text-indigo-500" />
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">
+                  Brainstorm
+                </h1>
+              </button>
+              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                  <Search className="h-4 w-4" />
+                  Search
+                </Button>
+                <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
+                  <Users className="h-4 w-4" />
+                  Network
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-nav-lists">
+                  <List className="h-4 w-4" />
+                  Lists
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
+                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                      {user.picture ? (
+                        <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                        {(user.displayName?.charAt(0) || "U")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden md:flex flex-col items-start mr-2">
+                      <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
+                      <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
+                      <p className="text-xs leading-none text-slate-500">{truncatedNpub}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="menuitem-profile">
+                    <Users className="h-4 w-4" /> My Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/faq")} data-testid="menuitem-faq">
+                    <HelpCircle className="h-4 w-4" /> FAQ
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/settings")} data-testid="menuitem-settings">
+                    <SettingsIcon className="h-4 w-4" /> Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer gap-2 text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="menuitem-logout">
+                    <LogOut className="h-4 w-4" /> Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                  <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                    {user.picture ? (
-                      <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                    ) : null}
-                    <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                      {(user.displayName?.charAt(0) || "U")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden md:flex flex-col items-start mr-2">
-                    <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                    <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                  </div>
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
-                <DropdownMenuLabel className="text-xs text-slate-500 font-mono truncate">{truncatedNpub}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="menuitem-profile">
-                  <Users className="h-4 w-4" /> My Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/settings")} data-testid="menuitem-settings">
-                  <SettingsIcon className="h-4 w-4" /> Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer gap-2 text-red-600" onClick={handleLogout} data-testid="menuitem-logout">
-                  <LogOut className="h-4 w-4" /> Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
-      </header>
+      </nav>
 
       <MobileMenu
         open={mobileMenuOpen}
@@ -248,17 +261,17 @@ export default function ListsPage() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <List className="h-5 w-5 text-indigo-300" />
+            <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm text-[#333286]">
+              <List className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-page-title">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-page-title">
                 Curated Lists
               </h2>
-              <p className="text-sm text-slate-400" data-testid="text-page-subtitle">
+              <p className="text-sm text-slate-500" data-testid="text-page-subtitle">
                 Decentralized lists curated by the Nostr community
               </p>
             </div>
@@ -267,23 +280,25 @@ export default function ListsPage() {
 
         {listsQuery.isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3" data-testid="loading-lists">
-            <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
-            <p className="text-sm text-slate-400">Fetching lists from relay...</p>
+            <div className="p-3 rounded-2xl bg-white border border-slate-100 shadow-sm">
+              <Loader2 className="h-8 w-8 text-[#7c86ff] animate-spin" />
+            </div>
+            <p className="text-sm text-slate-500 font-medium">Fetching lists from relay...</p>
           </div>
         ) : lists.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4" data-testid="empty-lists">
-            <div className="h-16 w-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <Inbox className="h-8 w-8 text-slate-500" />
+            <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+              <Inbox className="h-8 w-8 text-slate-400" />
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold text-white mb-1">No lists available</p>
-              <p className="text-sm text-slate-400 max-w-md">
+              <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No lists available</p>
+              <p className="text-sm text-slate-500 max-w-md">
                 No decentralized lists were found on the DCoSL relay. Lists will appear here as they are created by the community.
               </p>
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2" data-testid="grid-lists">
+          <div className="grid gap-5 sm:grid-cols-2" data-testid="grid-lists">
             {lists.map((list) => {
               const author = authorProfiles[list.pubkey];
               const count = itemCounts[list.aTag];
@@ -292,71 +307,77 @@ export default function ListsPage() {
               return (
                 <Card
                   key={list.aTag}
-                  className="group relative overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-sm hover:bg-white/[0.07] hover:border-white/20 transition-all duration-300 cursor-pointer rounded-2xl"
+                  className="group relative overflow-hidden bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 cursor-pointer rounded-xl"
                   onClick={() => navigate(`/lists/${listIdEncoded}`)}
                   data-testid={`card-list-${list.dTag || list.id.slice(0, 8)}`}
                 >
-                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] opacity-60 group-hover:opacity-100 transition-opacity" />
-                  <CardContent className="p-5">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
+                  <CardContent className="p-5 pt-4">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-white truncate mb-1" data-testid={`text-list-name-${list.dTag || list.id.slice(0, 8)}`}>
-                          {list.namePlural || list.name}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                            <List className="h-3.5 w-3.5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900 truncate" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-list-name-${list.dTag || list.id.slice(0, 8)}`}>
+                            {list.namePlural || list.name}
+                          </h3>
+                        </div>
                         {list.description && (
-                          <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed" data-testid={`text-list-desc-${list.dTag || list.id.slice(0, 8)}`}>
+                          <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed" data-testid={`text-list-desc-${list.dTag || list.id.slice(0, 8)}`}>
                             {list.description}
                           </p>
                         )}
                       </div>
-                      <ChevronRight className="h-5 w-5 text-slate-500 group-hover:text-indigo-300 transition-colors shrink-0 mt-1" />
+                      <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-[#7c86ff] transition-colors shrink-0 mt-1" />
                     </div>
 
-                    <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
                       <div className="flex items-center gap-2">
                         {author?.picture ? (
-                          <Avatar className="h-6 w-6 border border-white/10">
+                          <Avatar className="h-6 w-6 border border-slate-200">
                             <AvatarImage src={author.picture} alt={author.name} className="object-cover" />
-                            <AvatarFallback className="bg-indigo-900/50 text-indigo-300 text-[10px] font-bold">
+                            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
                               {(author.name || "?").charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                         ) : (
-                          <div className="h-6 w-6 rounded-full bg-indigo-900/50 border border-white/10 flex items-center justify-center">
-                            <span className="text-[10px] text-indigo-300 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
+                          <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                            <span className="text-[10px] text-indigo-700 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
                           </div>
                         )}
-                        <span className="text-xs text-slate-400 truncate max-w-[120px]" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
+                        <span className="text-xs text-slate-500 truncate max-w-[120px] font-medium" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
                           {author?.name || nip19.npubEncode(list.pubkey).slice(0, 12) + "..."}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
                         {count !== undefined ? (
-                          <span data-testid={`text-list-count-${list.dTag || list.id.slice(0, 8)}`}>
+                          <span className="font-mono tabular-nums text-[#333286] font-semibold" data-testid={`text-list-count-${list.dTag || list.id.slice(0, 8)}`}>
                             {count} {count === 1 ? "item" : "items"}
                           </span>
                         ) : (
-                          <Loader2 className="h-3 w-3 animate-spin text-slate-600" />
+                          <Loader2 className="h-3 w-3 animate-spin text-indigo-300" />
                         )}
-                        <span className="text-slate-600">·</span>
-                        <span data-testid={`text-list-age-${list.dTag || list.id.slice(0, 8)}`}>
+                        <span className="text-slate-300">·</span>
+                        <span className="text-slate-400" data-testid={`text-list-age-${list.dTag || list.id.slice(0, 8)}`}>
                           {formatAge(list.createdAt)}
                         </span>
                       </div>
                     </div>
 
                     {list.propertyTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-white/5">
+                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100">
                         {list.propertyTags.slice(0, 4).map((pt, i) => (
                           <span
                             key={i}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                            className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
                               pt.requirement === "required"
-                                ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                                 : pt.requirement === "recommended"
-                                  ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
-                                  : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-slate-50 text-slate-500 border-slate-200"
                             }`}
                             data-testid={`badge-property-${i}`}
                           >
@@ -364,7 +385,7 @@ export default function ListsPage() {
                           </span>
                         ))}
                         {list.propertyTags.length > 4 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-500 border border-white/10">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 font-medium">
                             +{list.propertyTags.length - 4} more
                           </span>
                         )}
