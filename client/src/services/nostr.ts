@@ -641,7 +641,7 @@ export async function fetchDListReactions(
   timeoutMs = 15000,
   forceRefresh = false
 ): Promise<DListReaction[]> {
-  const cacheKey = itemATags.sort().join("|");
+  const cacheKey = [...itemATags].sort().join("|");
   if (!forceRefresh && dcoslReactionCache.has(cacheKey)) return dcoslReactionCache.get(cacheKey)!;
 
   const reactions: DListReaction[] = [];
