@@ -14,6 +14,8 @@ import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
 import FaqPage from "@/pages/FaqPage";
+import ListsPage from "@/pages/ListsPage";
+import ListDetailPage from "@/pages/ListDetailPage";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -36,6 +38,8 @@ function Router() {
         <Route path="/profile/:npub" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/network" component={NetworkPage} />
+        <Route path="/lists" component={ListsPage} />
+        <Route path="/lists/:listId" component={ListDetailPage} />
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/faq" component={FaqPage} />
         <Route component={NotFound} />

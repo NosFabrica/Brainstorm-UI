@@ -33,4 +33,13 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
 
 ## Shared Components
-- **MobileMenu (`client/src/components/MobileMenu.tsx`):** Unified mobile navigation drawer used by all 6 authenticated pages (Dashboard, Settings, Network, Search, Profile, FAQ). Organized into grouped sections: Navigation (Dashboard/Search/Network), Help & Info (FAQ/What is WoT?), Account (Settings). Navigation and Account sections are auth-gated (hidden when user is null). Network button disabled when `calcDone` is false. User avatar + Sign Out in footer.
+- **MobileMenu (`client/src/components/MobileMenu.tsx`):** Unified mobile navigation drawer used by all 7 authenticated pages (Dashboard, Settings, Network, Search, Profile, FAQ, Lists). Organized into grouped sections: Navigation (Dashboard/Search/Network/Lists), Help & Info (FAQ/What is WoT?), Account (Settings). Navigation and Account sections are auth-gated (hidden when user is null). Network button disabled when `calcDone` is false. User avatar + Sign Out in footer.
+
+## DCoSL Integration (Decentralized Curation of Simple Lists)
+- **Relay:** `wss://dcosl.brainstorm.world` — DCoSL relay for curated lists
+- **Service functions:** Added to `client/src/services/nostr.ts` — `fetchDListHeaders()` (kinds 9998/39998), `fetchDListItems(parentATag)` (kinds 9999/39999 via `#z` filter), `clearDcoslCache()`, types `DListHeader`/`DListItem`
+- **ListsPage (`client/src/pages/ListsPage.tsx`):** Card grid of community-curated lists fetched from DCoSL relay, showing name, description, author profile, item count, age, and property tags. Route: `/lists`
+- **ListDetailPage (`client/src/pages/ListDetailPage.tsx`):** Detail view for a single list showing items with back navigation. Route: `/lists/:listId` (URL-encoded a-tag)
+- **Navigation:** "Lists" button added to desktop nav bar on all authenticated pages (Dashboard, Search, Network, Profile, Settings, FAQ, Lists, ListDetail) and mobile drawer
+- **Cache:** Session-level caching via `dcoslListCache` and `dcoslItemCache` Maps in nostr.ts; `clearDcoslCache()` exported for manual refresh
+- **a-tag pattern:** Replaceable events (39998/39999) use `${kind}:${pubkey}:${dTag}`; non-replaceable (9998/9999) use `event.id`

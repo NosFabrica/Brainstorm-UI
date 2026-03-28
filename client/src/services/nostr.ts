@@ -444,4 +444,185 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
+export const DCOSL_RELAY = "wss://dcosl.brainstorm.world";
+
+export interface DListHeader {
+  id: string;
+  kind: number;
+  pubkey: string;
+  createdAt: number;
+  dTag: string;
+  aTag: string;
+  name: string;
+  namePlural: string;
+  description: string;
+  propertyTags: { requirement: string; value: string }[];
+}
+
+export interface DListItem {
+  id: string;
+  kind: number;
+  pubkey: string;
+  createdAt: number;
+  dTag: string;
+  aTag: string;
+  parentRef: string;
+  name: string;
+  content: string;
+  jsonData: Record<string, unknown> | null;
+}
+
+const dcoslListCache = new Map<string, DListHeader[]>();
+const dcoslItemCache = new Map<string, DListItem[]>();
+
+function getTag(event: any, name: string, index = 1): string | null {
+  const tag = event.tags?.find((t: string[]) => t[0] === name);
+  return tag ? tag[index] || null : null;
+}
+
+function parseDListHeader(event: any): DListHeader | null {
+  const kind = event.kind;
+  if (kind !== 9998 && kind !== 39998) return null;
+
+  const dTag = kind === 39998 ? (getTag(event, "d") || "") : "";
+  const aTag = kind === 39998
+    ? `${kind}:${event.pubkey}:${dTag}`
+    : event.id;
+
+  const namesTag = event.tags?.find((t: string[]) => t[0] === "names");
+  const name = namesTag ? (namesTag[1] || "") : (getTag(event, "name") || "Untitled List");
+  const namePlural = namesTag ? (namesTag[2] || namesTag[1] || name) : name;
+  const description = getTag(event, "description") || "";
+
+  const propertyTags: { requirement: string; value: string }[] = [];
+  for (const tag of event.tags || []) {
+    if (tag[0] === "required" || tag[0] === "optional" || tag[0] === "recommended") {
+      propertyTags.push({ requirement: tag[0], value: tag[1] || "" });
+    }
+  }
+
+  return {
+    id: event.id || `${event.pubkey}-${event.created_at}`,
+    kind,
+    pubkey: event.pubkey,
+    createdAt: event.created_at,
+    dTag,
+    aTag,
+    name,
+    namePlural,
+    description,
+    propertyTags,
+  };
+}
+
+function parseDListItem(event: any): DListItem | null {
+  const kind = event.kind;
+  if (kind !== 9999 && kind !== 39999) return null;
+
+  const dTag = kind === 39999 ? (getTag(event, "d") || "") : "";
+  const aTag = kind === 39999
+    ? `${kind}:${event.pubkey}:${dTag}`
+    : event.id;
+
+  const parentRef = getTag(event, "z") || "";
+  const name = getTag(event, "name") || getTag(event, "title") || "";
+
+  let jsonData: Record<string, unknown> | null = null;
+  const jsonTag = getTag(event, "json");
+  if (jsonTag) {
+    try { jsonData = JSON.parse(jsonTag); } catch {}
+  }
+
+  return {
+    id: event.id || `${event.pubkey}-${event.created_at}`,
+    kind,
+    pubkey: event.pubkey,
+    createdAt: event.created_at,
+    dTag,
+    aTag,
+    parentRef,
+    name,
+    content: event.content || "",
+    jsonData,
+  };
+}
+
+export async function fetchDListHeaders(timeoutMs = 15000, forceRefresh = false): Promise<DListHeader[]> {
+  const cacheKey = "all";
+  if (!forceRefresh && dcoslListCache.has(cacheKey)) return dcoslListCache.get(cacheKey)!;
+
+  const headers: DListHeader[] = [];
+  const seen = new Set<string>();
+
+  return new Promise<DListHeader[]>((resolve) => {
+    const timer = setTimeout(() => {
+      dcoslListCache.set(cacheKey, headers);
+      resolve(headers);
+    }, timeoutMs);
+
+    pool.request([DCOSL_RELAY], { kinds: [9998, 39998] }).subscribe({
+      next: (event) => {
+        try {
+          const parsed = parseDListHeader(event);
+          if (!parsed) return;
+          const key = parsed.aTag;
+          if (seen.has(key)) {
+            const existing = headers.find(h => h.aTag === key);
+            if (existing && parsed.createdAt > existing.createdAt) {
+              const idx = headers.indexOf(existing);
+              headers[idx] = parsed;
+            }
+            return;
+          }
+          seen.add(key);
+          headers.push(parsed);
+        } catch {}
+      },
+      error: () => { clearTimeout(timer); dcoslListCache.set(cacheKey, headers); resolve(headers); },
+      complete: () => { clearTimeout(timer); dcoslListCache.set(cacheKey, headers); resolve(headers); },
+    });
+  });
+}
+
+export async function fetchDListItems(parentATag: string, timeoutMs = 15000, forceRefresh = false): Promise<DListItem[]> {
+  if (!forceRefresh && dcoslItemCache.has(parentATag)) return dcoslItemCache.get(parentATag)!;
+
+  const items: DListItem[] = [];
+  const seen = new Set<string>();
+
+  return new Promise<DListItem[]>((resolve) => {
+    const timer = setTimeout(() => {
+      dcoslItemCache.set(parentATag, items);
+      resolve(items);
+    }, timeoutMs);
+
+    pool.request([DCOSL_RELAY], { kinds: [9999, 39999], "#z": [parentATag] }).subscribe({
+      next: (event) => {
+        try {
+          const parsed = parseDListItem(event);
+          if (!parsed) return;
+          const key = parsed.aTag;
+          if (seen.has(key)) {
+            const existing = items.find(i => i.aTag === key);
+            if (existing && parsed.createdAt > existing.createdAt) {
+              const idx = items.indexOf(existing);
+              items[idx] = parsed;
+            }
+            return;
+          }
+          seen.add(key);
+          items.push(parsed);
+        } catch {}
+      },
+      error: () => { clearTimeout(timer); dcoslItemCache.set(parentATag, items); resolve(items); },
+      complete: () => { clearTimeout(timer); dcoslItemCache.set(parentATag, items); resolve(items); },
+    });
+  });
+}
+
+export function clearDcoslCache() {
+  dcoslListCache.clear();
+  dcoslItemCache.clear();
+}
+
 export { eventStore, pool };

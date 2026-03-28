@@ -43,6 +43,7 @@ import {
   HelpCircle,
   ExternalLink,
   Globe,
+  List,
 } from "lucide-react";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
@@ -336,6 +337,16 @@ export default function SettingsPage() {
                 >
                   <Users className="h-4 w-4" />
                   Network
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
+                  onClick={() => navigate("/lists")}
+                  data-testid="button-nav-lists"
+                >
+                  <List className="h-4 w-4" />
+                  Lists
                 </Button>
               </div>
             </div>

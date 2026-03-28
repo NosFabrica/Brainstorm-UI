@@ -10,6 +10,7 @@ import {
   BookOpen,
   Settings as SettingsIcon,
   LogOut,
+  List,
 } from "lucide-react";
 
 interface MobileMenuProps {
@@ -30,6 +31,7 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
+  { path: "/lists", label: "Lists", icon: List },
 ];
 
 const helpNav = [

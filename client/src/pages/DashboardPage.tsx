@@ -61,6 +61,7 @@ import {
   Terminal,
   Mail,
   HelpCircle,
+  List,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -695,6 +696,10 @@ export default function DashboardPage() {
                   <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
                     <Users className="h-4 w-4" />
                     Network
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/lists")} data-testid="button-nav-lists">
+                    <List className="h-4 w-4" />
+                    Lists
                   </Button>
                 </div>
               </div>
