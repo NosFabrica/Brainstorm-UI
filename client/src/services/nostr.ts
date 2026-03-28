@@ -731,7 +731,13 @@ export async function fetchFollowList(pubkey: string, timeoutMs = 10000): Promis
   }
 }
 
-export async function fetchTrustedList(pubkey: string, timeoutMs = 10000): Promise<Set<string>> {
+export interface TrustedListInfo {
+  dTag: string;
+  pubkeys: Set<string>;
+  createdAt: number;
+}
+
+export async function fetchTrustedLists(pubkey: string, timeoutMs = 10000): Promise<TrustedListInfo[]> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
     const events: NostrEvent[] = [];
@@ -743,16 +749,40 @@ export async function fetchTrustedList(pubkey: string, timeoutMs = 10000): Promi
         complete: () => { clearTimeout(timer); resolve(); },
       });
     });
-    const trusted = new Set<string>();
+    const byDTag = new Map<string, NostrEvent>();
     for (const event of events) {
-      for (const tag of event.tags || []) {
-        if (tag[0] === "p" && tag[1]) trusted.add(tag[1]);
+      const dTag = getTag(event, "d") || "";
+      const existing = byDTag.get(dTag);
+      if (!existing || event.created_at > existing.created_at) {
+        byDTag.set(dTag, event);
       }
     }
-    return trusted;
+    const lists: TrustedListInfo[] = [];
+    for (const [dTag, event] of byDTag) {
+      const pubkeys = new Set<string>();
+      for (const tag of event.tags || []) {
+        if (tag[0] === "p" && tag[1]) pubkeys.add(tag[1]);
+      }
+      lists.push({ dTag, pubkeys, createdAt: event.created_at });
+    }
+    return lists;
   } catch {
-    return new Set();
+    return [];
   }
+}
+
+export async function fetchTrustedList(pubkey: string, listDTag?: string, timeoutMs = 10000): Promise<Set<string>> {
+  const lists = await fetchTrustedLists(pubkey, timeoutMs);
+  if (lists.length === 0) return new Set();
+  if (listDTag) {
+    const match = lists.find(l => l.dTag === listDTag);
+    return match ? match.pubkeys : new Set();
+  }
+  const allPubkeys = new Set<string>();
+  for (const list of lists) {
+    for (const pk of list.pubkeys) allPubkeys.add(pk);
+  }
+  return allPubkeys;
 }
 
 export async function fetchGrapeRankScores(

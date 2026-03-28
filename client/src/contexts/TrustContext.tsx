@@ -17,6 +17,7 @@ const TrustContext = createContext<TrustState | null>(null);
 
 const LS_KEY_METHOD = "brainstorm_trust_method";
 const LS_KEY_POV = "brainstorm_trust_pov";
+const LS_KEY_TRUSTED_LIST = "brainstorm_trusted_list_id";
 
 const VALID_METHODS: TrustMethod[] = ["graperank", "follow_list", "trusted_list", "trust_everyone"];
 
@@ -30,7 +31,9 @@ export function TrustProvider({ selfPubkey, children }: { selfPubkey: string; ch
     if (saved && VALID_METHODS.includes(saved)) return saved;
     return "trust_everyone";
   });
-  const [trustedListId, setTrustedListIdState] = useState("");
+  const [trustedListId, setTrustedListIdState] = useState(() => {
+    return localStorage.getItem(LS_KEY_TRUSTED_LIST) || "";
+  });
 
   const setPovPubkey = useCallback((pk: string) => {
     setPovPubkeyState(pk);
@@ -40,7 +43,10 @@ export function TrustProvider({ selfPubkey, children }: { selfPubkey: string; ch
     setMethodState(m);
     localStorage.setItem(LS_KEY_METHOD, m);
   }, []);
-  const setTrustedListId = useCallback((id: string) => setTrustedListIdState(id), []);
+  const setTrustedListId = useCallback((id: string) => {
+    setTrustedListIdState(id);
+    localStorage.setItem(LS_KEY_TRUSTED_LIST, id);
+  }, []);
   const resetToSelf = useCallback(() => {
     setPovPubkeyState(selfPubkey);
     localStorage.setItem(LS_KEY_POV, selfPubkey);

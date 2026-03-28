@@ -14,6 +14,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Home,
@@ -39,6 +46,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
+import { TrustProvider, useTrust, type TrustMethod } from "@/contexts/TrustContext";
 import {
   getCurrentUser,
   logout,
@@ -51,15 +59,15 @@ import {
   fetchDListReactions,
   fetchFollowList,
   fetchTrustedList,
+  fetchTrustedLists,
   fetchGrapeRankScores,
   type NostrUser,
   type DListHeader,
   type DListItem,
   type DListReaction,
+  type TrustedListInfo,
 } from "@/services/nostr";
 import { apiClient } from "@/services/api";
-
-type TrustMethod = "graperank" | "follow_list" | "trusted_list" | "trust_everyone";
 
 const TRUST_METHOD_LABELS: Record<TrustMethod, string> = {
   trust_everyone: "Trust Everyone",
@@ -236,12 +244,8 @@ function ItemProfileBadge({ value }: { value: string }) {
   );
 }
 
-const LS_KEY_METHOD = "brainstorm_trust_method";
-const LS_KEY_POV = "brainstorm_trust_pov";
-const VALID_METHODS: TrustMethod[] = ["graperank", "follow_list", "trusted_list", "trust_everyone"];
-
-export default function ListDetailPage() {
-  const [location, navigate] = useLocation();
+function ListDetailContent() {
+  const [, navigate] = useLocation();
   const [, params] = useRoute("/lists/:listId");
   let listId = "";
   try {
@@ -258,16 +262,7 @@ export default function ListDetailPage() {
   const [povInput, setPovInput] = useState("");
   const [showPovInput, setShowPovInput] = useState(false);
 
-  const [trustMethod, setTrustMethod] = useState<TrustMethod>(() => {
-    const saved = localStorage.getItem(LS_KEY_METHOD) as TrustMethod | null;
-    if (saved && VALID_METHODS.includes(saved)) return saved;
-    return "trust_everyone";
-  });
-
-  const [povPubkey, setPovPubkey] = useState<string>(() => {
-    const saved = localStorage.getItem(LS_KEY_POV);
-    return saved && saved.length === 64 ? saved : "";
-  });
+  const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf, isSelf: isSelfPov } = useTrust();
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -276,13 +271,7 @@ export default function ListDetailPage() {
       return;
     }
     setUser(u);
-    if (!povPubkey) {
-      setPovPubkey(u.pubkey);
-      localStorage.setItem(LS_KEY_POV, u.pubkey);
-    }
   }, [navigate]);
-
-  const isSelfPov = !!user && povPubkey === user.pubkey;
 
   const needsProfile = !!user && !user.displayName && !user.picture;
   useQuery({
@@ -378,9 +367,24 @@ export default function ListDetailPage() {
     staleTime: 10 * 60 * 1000,
   });
 
+  const trustedListsQuery = useQuery({
+    queryKey: ["trusted-lists-available", povPubkey],
+    queryFn: () => fetchTrustedLists(povPubkey),
+    enabled: !!povPubkey && trustMethod === "trusted_list",
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const availableTrustedLists = trustedListsQuery.data || [];
+
+  useEffect(() => {
+    if (trustMethod === "trusted_list" && availableTrustedLists.length > 0 && !trustedListId) {
+      setTrustedListId(availableTrustedLists[0].dTag);
+    }
+  }, [trustMethod, availableTrustedLists, trustedListId, setTrustedListId]);
+
   const trustedListQuery = useQuery({
-    queryKey: ["trusted-list", povPubkey],
-    queryFn: () => fetchTrustedList(povPubkey),
+    queryKey: ["trusted-list", povPubkey, trustedListId],
+    queryFn: () => fetchTrustedList(povPubkey, trustedListId || undefined),
     enabled: !!povPubkey && trustMethod === "trusted_list",
     staleTime: 10 * 60 * 1000,
   });
@@ -449,11 +453,6 @@ export default function ListDetailPage() {
     }
   }, [sortKey]);
 
-  const handleMethodChange = useCallback((m: TrustMethod) => {
-    setTrustMethod(m);
-    localStorage.setItem(LS_KEY_METHOD, m);
-  }, []);
-
   const handlePovSwitch = useCallback(() => {
     const input = povInput.trim();
     if (!input) return;
@@ -466,17 +465,14 @@ export default function ListDetailPage() {
     }
     if (!/^[0-9a-f]{64}$/.test(pk)) return;
     setPovPubkey(pk);
-    localStorage.setItem(LS_KEY_POV, pk);
     setShowPovInput(false);
     setPovInput("");
-  }, [povInput]);
+  }, [povInput, setPovPubkey]);
 
   const handleResetPov = useCallback(() => {
-    if (!user) return;
-    setPovPubkey(user.pubkey);
-    localStorage.setItem(LS_KEY_POV, user.pubkey);
+    resetToSelf();
     setPovProfile(null);
-  }, [user]);
+  }, [resetToSelf]);
 
   const handleLogout = () => {
     logout();
@@ -487,8 +483,6 @@ export default function ListDetailPage() {
   const isLoadingWeights = (trustMethod === "follow_list" && followListQuery.isLoading) ||
     (trustMethod === "trusted_list" && trustedListQuery.isLoading) ||
     (trustMethod === "graperank" && grapeRankScoresQuery.isLoading);
-
-  const showTrustedColumns = trustMethod !== "trust_everyone";
 
   const povDisplayName = useMemo(() => {
     if (isSelfPov) return user?.displayName || "You";
@@ -666,7 +660,7 @@ export default function ListDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <div className="relative flex-1 sm:w-48 sm:flex-none">
+                      <div className="relative flex-1 sm:w-44 sm:flex-none">
                         <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                         <Input
                           value={searchTerm}
@@ -691,7 +685,7 @@ export default function ListDetailPage() {
                             <DropdownMenuItem
                               key={m}
                               className={`cursor-pointer gap-2 text-xs ${trustMethod === m ? "text-indigo-300 bg-indigo-500/10" : "text-slate-300"}`}
-                              onClick={() => handleMethodChange(m)}
+                              onClick={() => setTrustMethod(m)}
                               data-testid={`menuitem-trust-${m}`}
                             >
                               <div className="flex-1">
@@ -705,6 +699,24 @@ export default function ListDetailPage() {
                       </DropdownMenu>
                     </div>
                   </div>
+
+                  {trustMethod === "trusted_list" && availableTrustedLists.length > 1 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]">
+                      <span className="text-xs text-slate-400 shrink-0">List:</span>
+                      <Select value={trustedListId} onValueChange={setTrustedListId}>
+                        <SelectTrigger className="h-7 text-xs bg-white/5 border-white/10 text-white rounded-md flex-1" data-testid="select-trusted-list">
+                          <SelectValue placeholder="Select a trusted list" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-900/95 backdrop-blur-xl border-white/10">
+                          {availableTrustedLists.map((tl) => (
+                            <SelectItem key={tl.dTag} value={tl.dTag} className="text-xs text-slate-300">
+                              {tl.dTag || "Default"} ({tl.pubkeys.size} members)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]" data-testid="pov-indicator">
                     <Eye className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
@@ -756,8 +768,8 @@ export default function ListDetailPage() {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden">
-                  <div className={`grid items-center px-4 py-2 border-b border-white/10 bg-white/[0.03] ${showTrustedColumns ? "grid-cols-[1fr_55px_55px_65px_65px_70px]" : "grid-cols-[1fr_60px_60px_70px]"}`}>
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden overflow-x-auto">
+                  <div className="grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-2 border-b border-white/10 bg-white/[0.03]">
                     <button className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-white transition-colors text-left" onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
                       {sortKey === "name" && <ArrowUpDown className="h-3 w-3" />}
@@ -774,18 +786,14 @@ export default function ListDetailPage() {
                       </TooltipTrigger>
                       <TooltipContent side="top" className="bg-slate-800 border-slate-700 text-slate-200 text-xs">Raw downvote count</TooltipContent>
                     </UITooltip>
-                    {showTrustedColumns && (
-                      <>
-                        <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-500 hover:text-emerald-300 transition-colors" onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
-                          Trusted +
-                          {sortKey === "weighted_up" && <ArrowUpDown className="h-2.5 w-2.5" />}
-                        </button>
-                        <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 transition-colors" onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
-                          Trusted −
-                          {sortKey === "weighted_down" && <ArrowUpDown className="h-2.5 w-2.5" />}
-                        </button>
-                      </>
-                    )}
+                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-500 hover:text-emerald-300 transition-colors" onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
+                      Trusted +
+                      {sortKey === "weighted_up" && <ArrowUpDown className="h-2.5 w-2.5" />}
+                    </button>
+                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 transition-colors" onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
+                      Trusted −
+                      {sortKey === "weighted_down" && <ArrowUpDown className="h-2.5 w-2.5" />}
+                    </button>
                     <button className="flex items-center justify-center gap-1 text-xs font-medium text-slate-400 hover:text-indigo-400 transition-colors" onClick={() => handleSort("net_score")} data-testid="button-sort-score">
                       Score
                       {sortKey === "net_score" && <ArrowUpDown className="h-3 w-3" />}
@@ -797,13 +805,14 @@ export default function ListDetailPage() {
                     const isExpanded = expandedItem === item.aTag;
                     const itemKey = item.dTag || item.id.slice(0, 8);
                     const itemContentValue = item.content || "";
-                    const hasPubkeyContent = isPubkey(itemContentValue) || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string" && isPubkey((item.jsonData as Record<string, unknown>).pubkey as string));
-                    const pubkeyValue = isPubkey(itemContentValue) ? itemContentValue : (item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string" ? (item.jsonData as Record<string, unknown>).pubkey as string : "");
+                    const jsonPubkey = item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string" ? (item.jsonData as Record<string, unknown>).pubkey as string : "";
+                    const hasPubkeyContent = isPubkey(itemContentValue) || isPubkey(jsonPubkey);
+                    const pubkeyValue = isPubkey(itemContentValue) ? itemContentValue : (isPubkey(jsonPubkey) ? jsonPubkey : "");
 
                     return (
                       <div key={item.aTag}>
                         <button
-                          className={`w-full grid items-center px-4 py-3 border-b border-white/5 hover:bg-white/[0.04] transition-colors text-left ${showTrustedColumns ? "grid-cols-[1fr_55px_55px_65px_65px_70px]" : "grid-cols-[1fr_60px_60px_70px]"}`}
+                          className="w-full grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-3 border-b border-white/5 hover:bg-white/[0.04] transition-colors text-left"
                           onClick={() => setExpandedItem(isExpanded ? null : item.aTag)}
                           data-testid={`row-item-${itemKey}`}
                         >
@@ -841,24 +850,20 @@ export default function ListDetailPage() {
                             </span>
                           </div>
 
-                          {showTrustedColumns && (
-                            <>
-                              <div className="flex items-center justify-center">
-                                <span className="text-xs font-mono tabular-nums text-emerald-400" data-testid={`text-trusted-up-${itemKey}`}>
-                                  {(score?.weightedUp ?? 0).toFixed(1)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-center">
-                                <span className="text-xs font-mono tabular-nums text-red-400" data-testid={`text-trusted-down-${itemKey}`}>
-                                  {(score?.weightedDown ?? 0).toFixed(1)}
-                                </span>
-                              </div>
-                            </>
-                          )}
+                          <div className="flex items-center justify-center">
+                            <span className="text-xs font-mono tabular-nums text-emerald-400" data-testid={`text-trusted-up-${itemKey}`}>
+                              {(score?.weightedUp ?? 0).toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-center">
+                            <span className="text-xs font-mono tabular-nums text-red-400" data-testid={`text-trusted-down-${itemKey}`}>
+                              {(score?.weightedDown ?? 0).toFixed(1)}
+                            </span>
+                          </div>
 
                           <div className="flex items-center justify-center">
                             <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-400" : (score?.netScore ?? 0) < 0 ? "text-red-400" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
-                              {score ? (score.netScore >= 0 ? "+" : "") + (showTrustedColumns ? score.netScore.toFixed(1) : score.netScore.toString()) : "0"}
+                              {score ? (score.netScore >= 0 ? "+" : "") + score.netScore.toFixed(1) : "0"}
                             </span>
                           </div>
                         </button>
@@ -870,9 +875,7 @@ export default function ListDetailPage() {
                                 <div className="flex items-center gap-2 mb-2">
                                   <ThumbsUp className="h-3.5 w-3.5 text-emerald-400" />
                                   <span className="text-xs font-medium text-emerald-400">Upvotes ({score.upvoters.length})</span>
-                                  {showTrustedColumns && (
-                                    <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedUp.toFixed(2)}</span>
-                                  )}
+                                  <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedUp.toFixed(2)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.upvoters.length === 0 ? (
@@ -889,9 +892,7 @@ export default function ListDetailPage() {
                                 <div className="flex items-center gap-2 mb-2">
                                   <ThumbsDown className="h-3.5 w-3.5 text-red-400" />
                                   <span className="text-xs font-medium text-red-400">Downvotes ({score.downvoters.length})</span>
-                                  {showTrustedColumns && (
-                                    <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedDown.toFixed(2)}</span>
-                                  )}
+                                  <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedDown.toFixed(2)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.downvoters.length === 0 ? (
@@ -957,5 +958,33 @@ export default function ListDetailPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function ListDetailPage() {
+  const [user, setUser] = useState<NostrUser | null>(null);
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    const u = getCurrentUser();
+    if (u) {
+      setUser(u);
+    } else {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950">
+        <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <TrustProvider selfPubkey={user.pubkey}>
+      <ListDetailContent />
+    </TrustProvider>
   );
 }
