@@ -717,13 +717,22 @@ export async function fetchDListReactions(
 export async function fetchFollowList(pubkey: string, timeoutMs = 10000): Promise<Set<string>> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
-    const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [3], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
-    if (!event) return new Set();
+    const events: NostrEvent[] = [];
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, timeoutMs);
+      pool.request(writeRelays, { kinds: [3], authors: [pubkey] }).subscribe({
+        next: (event) => { events.push(event); },
+        error: () => { clearTimeout(timer); resolve(); },
+        complete: () => { clearTimeout(timer); resolve(); },
+      });
+    });
+    if (events.length === 0) return new Set();
+    let latest = events[0];
+    for (let i = 1; i < events.length; i++) {
+      if (events[i].created_at > latest.created_at) latest = events[i];
+    }
     const follows = new Set<string>();
-    for (const tag of event.tags || []) {
+    for (const tag of latest.tags || []) {
       if (tag[0] === "p" && tag[1]) follows.add(tag[1]);
     }
     return follows;
