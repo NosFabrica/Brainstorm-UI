@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Inbox,
   ArrowUpDown,
+  Sparkles,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -126,11 +127,20 @@ export default function ListsPage() {
 
   const lists = listsQuery.data || [];
 
+  const exampleList = useMemo(() => {
+    return lists.find(l => {
+      const name = (l.namePlural || l.name || "").toLowerCase();
+      return name.includes("dwarf") || name.includes("dwarves");
+    }) || null;
+  }, [lists]);
+
   const filteredAndSorted = useMemo(() => {
-    let filtered = lists;
+    let filtered = searchTerm.trim()
+      ? lists
+      : lists.filter(l => !exampleList || l.aTag !== exampleList.aTag);
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      filtered = lists.filter(l => {
+      filtered = filtered.filter(l => {
         const name = (l.namePlural || l.name || "").toLowerCase();
         const desc = (l.description || "").toLowerCase();
         const authorName = (authorProfiles[l.pubkey]?.name || "").toLowerCase();
@@ -154,7 +164,7 @@ export default function ListsPage() {
           return (b.createdAt || 0) - (a.createdAt || 0);
       }
     });
-  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles, authorTrustScores]);
+  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles, authorTrustScores, exampleList]);
 
   useEffect(() => {
     if (lists.length === 0) return;
@@ -406,7 +416,95 @@ export default function ListsPage() {
               </div>
             </div>
 
-            {filteredAndSorted.length === 0 ? (
+            {exampleList && !searchTerm.trim() && (() => {
+              const exAuthor = authorProfiles[exampleList.pubkey];
+              const exCount = itemCounts[exampleList.aTag];
+              const exIdEncoded = encodeURIComponent(exampleList.aTag);
+              return (
+                <div className="mb-6" data-testid="pinned-example-card">
+                  <Card
+                    className="group relative overflow-hidden bg-gradient-to-br from-white/95 via-white/80 to-emerald-50/40 backdrop-blur-xl border-emerald-400/30 shadow-[0_0_20px_rgba(16,185,129,0.08)] hover:shadow-[0_20px_40px_-12px_rgba(16,185,129,0.2)] hover:border-emerald-400/50 hover:-translate-y-1 transition-all duration-500 cursor-pointer rounded-xl"
+                    onClick={() => navigate(`/lists/${exIdEncoded}`)}
+                    data-testid={`card-example-${exampleList.dTag || exampleList.id.slice(0, 8)}`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400 animate-gradient-x absolute top-0 left-0" />
+                    <CardContent className="p-5 pt-4">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/30" data-testid="badge-example">
+                              <Sparkles className="h-3 w-3 text-emerald-600" />
+                              <span className="text-[10px] font-bold tracking-[0.1em] text-emerald-700 uppercase">Example</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="p-1 rounded-md bg-emerald-600/8 text-emerald-700">
+                              <List className="h-3.5 w-3.5" />
+                            </div>
+                            <h3 className="text-base font-bold text-slate-900 truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-example-list-name">
+                              {exampleList.namePlural || exampleList.name}
+                            </h3>
+                          </div>
+                          {exampleList.description && (
+                            <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed mb-2" data-testid="text-example-list-desc">
+                              {exampleList.description}
+                            </p>
+                          )}
+                          <p className="text-xs text-emerald-600/80 leading-relaxed" data-testid="text-example-helper">
+                            Pre-built demo with 14 dwarves (7 spam), test accounts with bad actors, and community reactions. Explore all 4 trust methods.
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-emerald-300 group-hover:text-emerald-500 transition-colors shrink-0 mt-1" />
+                      </div>
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-emerald-100/60">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="relative shrink-0">
+                            {exAuthor?.picture ? (
+                              <Avatar className="h-7 w-7 border border-slate-200">
+                                <AvatarImage src={exAuthor.picture} alt={exAuthor.name} className="object-cover" />
+                                <AvatarFallback className="bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                                  {(exAuthor.name || "?").charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            ) : (
+                              <div className="h-7 w-7 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                                <span className="text-[10px] text-emerald-700 font-bold">{(exAuthor?.name || "?").charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs text-slate-600 truncate block max-w-[130px] font-medium" data-testid="text-example-author">
+                              {exAuthor?.name || nip19.npubEncode(exampleList.pubkey).slice(0, 12) + "..."}
+                            </span>
+                            {exAuthor?.nip05 && (
+                              <span className="text-[10px] text-emerald-500 truncate block max-w-[130px]" data-testid="text-example-nip05">
+                                {exAuthor.nip05}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
+                          {exCount !== undefined ? (
+                            <span className="font-mono tabular-nums text-emerald-700 font-semibold" data-testid="text-example-count">
+                              {exCount} {exCount === 1 ? "item" : "items"}
+                            </span>
+                          ) : (
+                            <Loader2 className="h-3 w-3 animate-spin text-emerald-300" />
+                          )}
+                          <span className="text-slate-300">·</span>
+                          <span className="text-slate-400" data-testid="text-example-age">
+                            {formatAge(exampleList.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+
+            {filteredAndSorted.length === 0 && searchTerm.trim() && (
               <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-search-results">
                 <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
                   <SearchIcon className="h-8 w-8 text-slate-300" />
@@ -427,7 +525,9 @@ export default function ListsPage() {
                   Clear search
                 </Button>
               </div>
-            ) : (
+            )}
+
+            {filteredAndSorted.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2" data-testid="grid-lists">
                 {filteredAndSorted.map((list) => {
                   const author = authorProfiles[list.pubkey];
