@@ -186,6 +186,24 @@ function isPubkey(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
 }
 
+function extractPubkey(content: string, jsonData: Record<string, unknown> | null): string {
+  if (jsonData && typeof jsonData.pubkey === "string") {
+    const pk = jsonData.pubkey;
+    if (/^[0-9a-f]{64}$/i.test(pk)) return pk.toLowerCase();
+  }
+  if (/^[0-9a-f]{64}$/.test(content)) return content;
+  const hexMatch = content.match(/\b([0-9a-f]{64})\b/i);
+  if (hexMatch) return hexMatch[1].toLowerCase();
+  const npubMatch = content.match(/\b(npub1[02-9ac-hj-np-z]{20,})\b/i);
+  if (npubMatch) {
+    try {
+      const decoded = nip19.decode(npubMatch[1]);
+      if (decoded.type === "npub" && typeof decoded.data === "string") return decoded.data;
+    } catch {}
+  }
+  return "";
+}
+
 function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPubkey }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
@@ -1061,11 +1079,8 @@ function ListDetailContent() {
                     const score = itemScores.get(item.aTag);
                     const isExpanded = expandedItem === item.aTag;
                     const itemKey = item.dTag || item.id.slice(0, 8);
-                    const itemContentValue = item.content || "";
-                    const jsonPubkey = item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string" ? (item.jsonData as Record<string, unknown>).pubkey as string : "";
-                    const hasPubkeyContent = isPubkey(itemContentValue) || isPubkey(jsonPubkey);
-                    const pubkeyValue = isPubkey(itemContentValue) ? itemContentValue : (isPubkey(jsonPubkey) ? jsonPubkey : "");
-                    const jsonImage = item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "");
+                    const pubkeyValue = extractPubkey(item.content || "", item.jsonData);
+                    const jsonImage = !pubkeyValue ? (item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "")) : "";
 
                     return (
                       <div key={item.aTag}>
@@ -1075,7 +1090,7 @@ function ListDetailContent() {
                           data-testid={`row-item-${itemKey}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            {hasPubkeyContent && pubkeyValue ? (
+                            {pubkeyValue ? (
                               <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} />
                             ) : jsonImage ? (
                               <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
@@ -1095,7 +1110,7 @@ function ListDetailContent() {
                               <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
                                 {item.name || item.content?.slice(0, 50) || "Unnamed item"}
                               </p>
-                              {!hasPubkeyContent && item.content && item.content !== item.name && (
+                              {!pubkeyValue && item.content && item.content !== item.name && (
                                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
                                   {item.content.slice(0, 60)}
                                 </p>
