@@ -131,12 +131,15 @@ export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000, ex
   return undefined;
 }
 
-export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000, extraRelays: string[] = []): Promise<NostrEvent | undefined> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    const allRelays = extraRelays.length > 0
+      ? [...new Set([...writeRelays, ...extraRelays])]
+      : writeRelays;
 
     const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [10040], authors: [pubkey] })),
+      firstValueFrom(pool.request(allRelays, { kinds: [10040], authors: [pubkey] })),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
     ]);
 
@@ -470,6 +473,7 @@ const DCOSL_RELAY_KEY = "brainstorm_dcosl_relay";
 export const TAPESTRY_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
 const DWARVES_PUBKEY = "beba5587f5e570afaf6f80d5f5565b3d19c29e82f669634ab199bf050ca375f4";
 export const DWARVES_ATAG_PREFIX = "39998:" + DWARVES_PUBKEY + ":dwarf";
+export const NOUS_DEMO_PUBKEY = "15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270";
 
 export function getDcoslRelay(): string {
   return localStorage.getItem(DCOSL_RELAY_KEY) || DCOSL_RELAY_DEFAULT;
@@ -932,13 +936,14 @@ export async function fetchTrustedList(pubkey: string, listDTag?: string, timeou
 export async function fetchGrapeRankScores(
   povPubkey: string,
   targetPubkeys: string[],
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  extraRelays: string[] = []
 ): Promise<Map<string, number>> {
   const scores = new Map<string, number>();
   if (targetPubkeys.length === 0) return scores;
 
   try {
-    const treasureMap = await fetchTrustProviderList(povPubkey, timeoutMs);
+    const treasureMap = await fetchTrustProviderList(povPubkey, timeoutMs, extraRelays);
     if (!treasureMap) return scores;
 
     let grapeRankRelay = "";

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -67,6 +67,7 @@ import {
   type TrustedListInfo,
   TAPESTRY_RELAY,
   DWARVES_ATAG_PREFIX,
+  NOUS_DEMO_PUBKEY,
 } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 
@@ -312,6 +313,22 @@ function ListDetailContent() {
 
   const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf, isSelf: isSelfPov } = useTrust();
 
+  const [dwarvesPovOverride, setDwarvesPovOverride] = useState<string | null>(null);
+  const userHasManuallySetPov = useRef(false);
+
+  useEffect(() => {
+    if (isDwarves && !userHasManuallySetPov.current) {
+      setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
+    }
+    return () => {
+      setDwarvesPovOverride(null);
+      userHasManuallySetPov.current = false;
+    };
+  }, [isDwarves]);
+
+  const effectivePovPubkey = dwarvesPovOverride || povPubkey;
+  const isDemoPov = isDwarves && dwarvesPovOverride === NOUS_DEMO_PUBKEY;
+
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
@@ -343,17 +360,17 @@ function ListDetailContent() {
 
   const [povProfile, setPovProfile] = useState<ProfileContent | null>(null);
   useEffect(() => {
-    if (!povPubkey || !user) return;
-    if (povPubkey === user.pubkey) {
+    if (!effectivePovPubkey || !user) return;
+    if (effectivePovPubkey === user.pubkey) {
       setPovProfile(null);
       return;
     }
     let cancelled = false;
-    fetchOutboxRelayList(povPubkey).then(() => fetchProfile(povPubkey)).then(p => {
+    fetchOutboxRelayList(effectivePovPubkey).then(() => fetchProfile(effectivePovPubkey)).then(p => {
       if (!cancelled && p) setPovProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [povPubkey, user]);
+  }, [effectivePovPubkey, user]);
 
   const grapeRankQuery = useQuery({
     queryKey: ["/api/auth/graperankResult"],
@@ -409,16 +426,16 @@ function ListDetailContent() {
   }, [reactions]);
 
   const followListQuery = useQuery({
-    queryKey: ["follow-list", povPubkey],
-    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchFollowList(povPubkey); },
-    enabled: !!povPubkey && trustMethod === "follow_list",
+    queryKey: ["follow-list", effectivePovPubkey],
+    queryFn: async () => { await fetchOutboxRelayList(effectivePovPubkey); return fetchFollowList(effectivePovPubkey); },
+    enabled: !!effectivePovPubkey && trustMethod === "follow_list",
     staleTime: 10 * 60 * 1000,
   });
 
   const trustedListsQuery = useQuery({
-    queryKey: ["trusted-lists-available", povPubkey],
-    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchTrustedLists(povPubkey); },
-    enabled: !!povPubkey && trustMethod === "trusted_list",
+    queryKey: ["trusted-lists-available", effectivePovPubkey],
+    queryFn: async () => { await fetchOutboxRelayList(effectivePovPubkey); return fetchTrustedLists(effectivePovPubkey); },
+    enabled: !!effectivePovPubkey && trustMethod === "trusted_list",
     staleTime: 10 * 60 * 1000,
   });
 
@@ -491,9 +508,9 @@ function ListDetailContent() {
   }, [trustMethod, availableTrustedLists, trustedListId]);
 
   const grapeRankScoresQuery = useQuery({
-    queryKey: ["graperank-scores", povPubkey, [...allVoterPubkeys].sort().join(",")],
-    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchGrapeRankScores(povPubkey, allVoterPubkeys); },
-    enabled: !!povPubkey && trustMethod === "graperank" && allVoterPubkeys.length > 0,
+    queryKey: ["graperank-scores", effectivePovPubkey, [...allVoterPubkeys].sort().join(",")],
+    queryFn: async () => { await fetchOutboxRelayList(effectivePovPubkey, 10000, extraRelays); return fetchGrapeRankScores(effectivePovPubkey, allVoterPubkeys, 15000, extraRelays); },
+    enabled: !!effectivePovPubkey && trustMethod === "graperank" && allVoterPubkeys.length > 0,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -584,15 +601,21 @@ function ListDetailContent() {
       } catch { return; }
     }
     if (!/^[0-9a-f]{64}$/.test(pk)) return;
+    userHasManuallySetPov.current = true;
+    setDwarvesPovOverride(null);
     setPovPubkey(pk);
     setShowPovInput(false);
     setPovInput("");
   }, [povInput, setPovPubkey]);
 
   const handleResetPov = useCallback(() => {
+    if (isDwarves) {
+      userHasManuallySetPov.current = false;
+      setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
+    }
     resetToSelf();
     setPovProfile(null);
-  }, [resetToSelf]);
+  }, [resetToSelf, isDwarves]);
 
   const handleLogout = () => {
     logout();
@@ -604,11 +627,14 @@ function ListDetailContent() {
     (trustMethod === "trusted_list" && (trustedListsQuery.isLoading || dcoslTrustSourcesQuery.isLoading)) ||
     (trustMethod === "graperank" && grapeRankScoresQuery.isLoading);
 
+  const isEffectivelySelf = isSelfPov && !dwarvesPovOverride;
+
   const povDisplayName = useMemo(() => {
-    if (isSelfPov) return user?.displayName || "You";
+    if (isDemoPov) return "Nous (demo)";
+    if (isEffectivelySelf) return user?.displayName || "You";
     if (povProfile?.display_name || povProfile?.name) return povProfile.display_name || povProfile.name;
-    try { return nip19.npubEncode(povPubkey).slice(0, 12) + "..."; } catch { return povPubkey.slice(0, 12) + "..."; }
-  }, [isSelfPov, user, povProfile, povPubkey]);
+    try { return nip19.npubEncode(effectivePovPubkey).slice(0, 12) + "..."; } catch { return effectivePovPubkey.slice(0, 12) + "..."; }
+  }, [isDemoPov, isEffectivelySelf, user, povProfile, effectivePovPubkey]);
 
   if (!user) return null;
 
@@ -890,7 +916,10 @@ function ListDetailContent() {
                     <Eye className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                     <span className="text-xs text-slate-500">PoV:</span>
                     <span className="text-xs font-medium text-indigo-600" data-testid="text-pov-name">{povDisplayName}</span>
-                    {!isSelfPov && (
+                    {isDemoPov && (
+                      <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>
+                    )}
+                    {(isDwarves ? !isDemoPov : !isEffectivelySelf) && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -899,7 +928,7 @@ function ListDetailContent() {
                         data-testid="button-reset-pov"
                       >
                         <RotateCcw className="h-3 w-3" />
-                        Reset to me
+                        {isDwarves ? "Reset to demo" : "Reset to me"}
                       </Button>
                     )}
                     <Button

@@ -45,6 +45,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
   - Kind 7 reactions fetched from DCoSL relay (`fetchDListReactions`), parsed as +/- votes per NIP-25
   - 4 trust weighting methods selectable via dropdown: Trust Everyone (weight=1), Follow List (kind 3 follows = weight 1, else 0), Trusted List (kind 30392 = weight 1, else 0), GrapeRank (kind 30382 scores via 10040 Treasure Map)
   - PoV (Point of View) switching: indicator bar shows current PoV user, "Switch" button to enter npub/hex pubkey, "Reset to me" to revert; PoV pubkey persisted to `localStorage` key `brainstorm_trust_pov`
+  - **Dwarves demo PoV override:** When viewing the dwarves list, PoV auto-sets to the Nous/Tapestry demo pubkey (`NOUS_DEMO_PUBKEY` = `15f7dafc...` in nostr.ts) so GrapeRank scores flow from the NIP-85 relay. Shows "Nous (demo)" with an amber "demo" badge. Users can manually switch PoV and "Reset to demo" to restore. Override is local to the page — no localStorage side effects.
   - Trust method persisted to `localStorage` key `brainstorm_trust_method`
   - Expanded row detail: Trust Score breakdown (weighted up/down), individual voter list with avatars, weights, timestamps
   - Profile resolution: `ItemProfileAvatar` resolves profile pictures for items with pubkey content; `AuthorBadge` resolves and shows item submitter profiles
