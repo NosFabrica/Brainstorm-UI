@@ -688,37 +688,37 @@ export default function ProfilePage() {
     setListActivityLoading(true);
     try {
       const headers = await fetchDListHeaders(12000);
+      const itemsByHeader = await Promise.all(headers.map(h => fetchDListItems(h.aTag, 10000)));
       const appearsOn: { listName: string; itemName: string; aTag: string }[] = [];
-      for (const header of headers) {
-        const items = await fetchDListItems(header.aTag, 10000);
+      const allItems = new Map<string, { name: string; listName: string; listATag: string }>();
+      const pk = hexPubkey.toLowerCase();
+      let npubStr = "";
+      try { npubStr = nip19.npubEncode(hexPubkey); } catch {}
+      for (let hi = 0; hi < headers.length; hi++) {
+        const header = headers[hi];
+        const items = itemsByHeader[hi];
         for (const item of items) {
+          const itemLabel = item.name || item.content.slice(0, 40);
+          allItems.set(item.aTag, { name: itemLabel, listName: header.name, listATag: header.aTag });
+          allItems.set(item.id, { name: itemLabel, listName: header.name, listATag: header.aTag });
           const contentLower = (item.content || "").toLowerCase();
           const nameLower = (item.name || "").toLowerCase();
-          const pk = hexPubkey.toLowerCase();
-          let npubStr = "";
-          try { npubStr = nip19.npubEncode(hexPubkey); } catch {}
           const jsonPubkey = item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string"
             ? ((item.jsonData as Record<string, unknown>).pubkey as string).toLowerCase() : "";
           if (contentLower.includes(pk) || (npubStr && contentLower.includes(npubStr)) || nameLower.includes(pk) || jsonPubkey === pk) {
-            appearsOn.push({ listName: header.name, itemName: item.name || item.content.slice(0, 40), aTag: header.aTag });
+            appearsOn.push({ listName: header.name, itemName: itemLabel, aTag: header.aTag });
           }
         }
       }
       setListActivityAppearsOn(appearsOn);
 
       const reactions = await fetchDListReactionsByPubkey(hexPubkey, 12000);
-      const allItems = new Map<string, { name: string; listName: string; listATag: string }>();
-      for (const header of headers) {
-        const items = await fetchDListItems(header.aTag, 10000);
-        for (const item of items) {
-          allItems.set(item.aTag, { name: item.name || item.content.slice(0, 40), listName: header.name, listATag: header.aTag });
-          allItems.set(item.id, { name: item.name || item.content.slice(0, 40), listName: header.name, listATag: header.aTag });
-        }
-      }
+      const seenVoted = new Set<string>();
       const votedOn: { listName: string; itemName: string; isUpvote: boolean; aTag: string }[] = [];
       for (const r of reactions) {
         const info = allItems.get(r.targetItemATag);
-        if (info) {
+        if (info && !seenVoted.has(r.targetItemATag)) {
+          seenVoted.add(r.targetItemATag);
           votedOn.push({ listName: info.listName, itemName: info.name, isUpvote: r.isUpvote, aTag: info.listATag });
         }
       }
