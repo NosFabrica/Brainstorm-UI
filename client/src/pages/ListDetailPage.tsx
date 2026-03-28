@@ -342,6 +342,10 @@ function ListDetailContent() {
     return () => { setDwarvesPovOverride(null); };
   }, [isDwarves]);
 
+  useEffect(() => {
+    setScoreFilter("all");
+  }, [trustMethod]);
+
   const effectivePovPubkey = isDwarves ? (dwarvesPovOverride || povPubkey) : povPubkey;
   const isDemoPov = isDwarves && dwarvesPovOverride === NOUS_DEMO_PUBKEY;
 
@@ -1001,26 +1005,35 @@ function ListDetailContent() {
                 </div>
 
                 {filteredAndSorted.length === 0 && items.length > 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-filter-results">
-                    <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                      <SearchIcon className="h-8 w-8 text-slate-300" />
+                  isLoadingWeights ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3" data-testid="loading-weights">
+                      <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm">
+                        <Loader2 className="h-6 w-6 text-[#7c86ff] animate-spin" />
+                      </div>
+                      <p className="text-sm text-slate-500 font-medium">Loading trust weights...</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No items match your filters</p>
-                      <p className="text-sm text-slate-500 max-w-md">
-                        Try adjusting your search term or changing the active filter.
-                      </p>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-filter-results">
+                      <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                        <SearchIcon className="h-8 w-8 text-slate-300" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No items match your filters</p>
+                        <p className="text-sm text-slate-500 max-w-md">
+                          Try adjusting your search term or changing the active filter.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 border-slate-200 text-slate-600 hover:bg-slate-50"
+                        onClick={() => { setSearchTerm(""); setScoreFilter("all"); }}
+                        data-testid="button-clear-all-filters"
+                      >
+                        Clear all filters
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-1 border-slate-200 text-slate-600 hover:bg-slate-50"
-                      onClick={() => { setSearchTerm(""); setScoreFilter("all"); }}
-                      data-testid="button-clear-all-filters"
-                    >
-                      Clear all filters
-                    </Button>
-                  </div>
+                  )
                 ) : (
                 <>{reactions.length > 0 && (
                   <div className="flex items-center gap-4 mb-3 px-1" data-testid="reaction-summary">
