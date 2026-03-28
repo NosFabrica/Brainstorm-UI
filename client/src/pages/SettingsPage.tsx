@@ -48,7 +48,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { SiGithub } from "react-icons/si";
-import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getDcoslRelay, setDcoslRelay, getDcoslRelayDefault, clearDcoslCache, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getDcoslRelay, setDcoslRelay, getDcoslRelayDefault, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
