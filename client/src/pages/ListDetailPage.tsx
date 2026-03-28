@@ -197,20 +197,20 @@ function VoterRow({ pubkey, weight, isUpvote, createdAt }: VoterInfo & { isUpvot
   }, [pubkey]);
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors" data-testid={`voter-${pubkey.slice(0, 8)}`}>
-      <Avatar className="h-6 w-6 border border-white/10 shrink-0">
+    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors" data-testid={`voter-${pubkey.slice(0, 8)}`}>
+      <Avatar className="h-6 w-6 border border-slate-200 shrink-0">
         {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
-        <AvatarFallback className="bg-indigo-900/40 text-indigo-300 text-[10px] font-bold">
+        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
           {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-white/80 truncate">{profile?.display_name || profile?.name || displayNpub}</p>
+        <p className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-400" /> : <ThumbsDown className="h-3 w-3 text-red-400" />}
-        <span className="text-[10px] font-mono tabular-nums text-slate-400">w={weight.toFixed(2)}</span>
-        <span className="text-[10px] font-mono tabular-nums text-slate-600">{formatRelativeTime(createdAt)}</span>
+        {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-500" />}
+        <span className="text-[10px] font-mono tabular-nums text-slate-500">w={weight.toFixed(2)}</span>
+        <span className="text-[10px] font-mono tabular-nums text-slate-400">{formatRelativeTime(createdAt)}</span>
       </div>
     </div>
   );
@@ -232,14 +232,14 @@ function ItemProfileBadge({ value }: { value: string }) {
 
   return (
     <div className="flex items-center gap-2 mt-1" data-testid={`item-profile-${value.slice(0, 8)}`}>
-      <Avatar className="h-5 w-5 border border-white/10 shrink-0">
+      <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
         {profile.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
-        <AvatarFallback className="bg-indigo-900/40 text-indigo-300 text-[8px] font-bold">
+        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[8px] font-bold">
           {(profile.display_name || profile.name || "?").charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="text-[11px] text-indigo-300 truncate">{profile.display_name || profile.name}</span>
-      {profile.nip05 && <span className="text-[10px] text-slate-500 truncate">{profile.nip05}</span>}
+      <span className="text-[11px] text-indigo-600 truncate">{profile.display_name || profile.name}</span>
+      {profile.nip05 && <span className="text-[10px] text-slate-400 truncate">{profile.nip05}</span>}
     </div>
   );
 }
@@ -545,77 +545,81 @@ function ListDetailContent() {
   if (!user) return null;
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950 text-white">
+    <div className="relative min-h-screen flex flex-col bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 overflow-hidden">
       <PageBackground />
 
-      <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="lg:hidden text-slate-200 no-default-hover-elevate no-default-active-elevate" onClick={() => setMobileMenuOpen(true)} data-testid="button-mobile-menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-            <button className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate("/dashboard")} data-testid="button-logo-home">
-              <BrainLogo size={28} className="text-indigo-500" />
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
-                Brainstorm
-              </h1>
-            </button>
-            <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-              <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
-                <Home className="h-4 w-4" />
-                Dashboard
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                <SearchIcon className="h-4 w-4" />
-                Search
-              </Button>
-              <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
-                <Users className="h-4 w-4" />
-                Network
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" onClick={() => navigate("/lists")} data-testid="button-nav-lists">
-                <List className="h-4 w-4" />
-                Lists
-              </Button>
+      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-list-detail">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" onClick={() => setMobileMenuOpen(true)} data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </div>
+              <button type="button" className="flex items-center gap-2" onClick={() => navigate("/dashboard")} data-testid="button-logo-home">
+                <BrainLogo size={28} className="text-indigo-500" />
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">
+                  Brainstorm
+                </h1>
+              </button>
+              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
+                  <Home className="h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                  <SearchIcon className="h-4 w-4" />
+                  Search
+                </Button>
+                <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
+                  <Users className="h-4 w-4" />
+                  Network
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" onClick={() => navigate("/lists")} data-testid="button-nav-lists">
+                  <List className="h-4 w-4" />
+                  Lists
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
+                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                      {user.picture ? (
+                        <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                        {(user.displayName?.charAt(0) || "U")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden md:flex flex-col items-start mr-2">
+                      <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
+                      <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                    </div>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                  <DropdownMenuLabel className="text-xs text-slate-500 font-mono truncate">{truncatedNpub}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="menuitem-profile">
+                    <Users className="h-4 w-4" /> My Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/settings")} data-testid="menuitem-settings">
+                    <SettingsIcon className="h-4 w-4" /> Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer gap-2 text-red-600" onClick={handleLogout} data-testid="menuitem-logout">
+                    <LogOut className="h-4 w-4" /> Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                  <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                    {user.picture ? (
-                      <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                    ) : null}
-                    <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                      {(user.displayName?.charAt(0) || "U")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden md:flex flex-col items-start mr-2">
-                    <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                    <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                  </div>
-                </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
-                <DropdownMenuLabel className="text-xs text-slate-500 font-mono truncate">{truncatedNpub}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="menuitem-profile">
-                  <Users className="h-4 w-4" /> My Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/settings")} data-testid="menuitem-settings">
-                  <SettingsIcon className="h-4 w-4" /> Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer gap-2 text-red-600" onClick={handleLogout} data-testid="menuitem-logout">
-                  <LogOut className="h-4 w-4" /> Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
         </div>
-      </header>
+      </nav>
 
       <MobileMenu
         open={mobileMenuOpen}
@@ -627,11 +631,11 @@ function ListDetailContent() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <Button
           variant="ghost"
           size="sm"
-          className="gap-2 text-slate-400 hover:text-white mb-4 no-default-hover-elevate no-default-active-elevate"
+          className="gap-2 text-slate-500 hover:text-slate-900 mb-4 no-default-hover-elevate no-default-active-elevate"
           onClick={() => navigate("/lists")}
           data-testid="button-back-to-lists"
         >
@@ -641,32 +645,34 @@ function ListDetailContent() {
 
         {headerQuery.isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3" data-testid="loading-list-detail">
-            <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
-            <p className="text-sm text-slate-400">Loading list...</p>
+            <div className="p-3 rounded-2xl bg-white border border-slate-100 shadow-sm">
+              <Loader2 className="h-8 w-8 text-[#7c86ff] animate-spin" />
+            </div>
+            <p className="text-sm text-slate-500 font-medium">Loading list...</p>
           </div>
         ) : !listHeader ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4" data-testid="empty-list-detail">
-            <div className="h-16 w-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <Inbox className="h-8 w-8 text-slate-500" />
+            <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+              <Inbox className="h-8 w-8 text-slate-400" />
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold text-white mb-1">List not found</p>
-              <p className="text-sm text-slate-400">This list may have been removed or the link is invalid.</p>
+              <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>List not found</p>
+              <p className="text-sm text-slate-500">This list may have been removed or the link is invalid.</p>
             </div>
           </div>
         ) : (
           <div>
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <List className="h-5 w-5 text-indigo-300" />
+                <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm text-[#333286]">
+                  <List className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-list-detail-title">
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-detail-title">
                     {listHeader.namePlural || listHeader.name}
                   </h2>
                   {listHeader.description && (
-                    <p className="text-sm text-slate-400" data-testid="text-list-detail-desc">
+                    <p className="text-sm text-slate-500" data-testid="text-list-detail-desc">
                       {listHeader.description}
                     </p>
                   )}
@@ -676,17 +682,19 @@ function ListDetailContent() {
 
             {itemsQuery.isLoading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3" data-testid="loading-items">
-                <Loader2 className="h-6 w-6 text-indigo-400 animate-spin" />
-                <p className="text-sm text-slate-400">Fetching list items...</p>
+                <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm">
+                  <Loader2 className="h-6 w-6 text-[#7c86ff] animate-spin" />
+                </div>
+                <p className="text-sm text-slate-500 font-medium">Fetching list items...</p>
               </div>
             ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-items">
-                <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <Inbox className="h-6 w-6 text-slate-500" />
+                <div className="p-3 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                  <Inbox className="h-6 w-6 text-slate-400" />
                 </div>
                 <div className="text-center">
-                  <p className="text-base font-semibold text-white mb-1">No items in this list</p>
-                  <p className="text-sm text-slate-400">Items will appear here as they are added by the community.</p>
+                  <p className="text-base font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No items in this list</p>
+                  <p className="text-sm text-slate-500">Items will appear here as they are added by the community.</p>
                 </div>
               </div>
             ) : (
@@ -694,19 +702,19 @@ function ListDetailContent() {
                 <div className="flex flex-col gap-3 mb-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <p className="text-sm text-slate-400" data-testid="text-items-count">
+                      <p className="text-sm text-slate-500" data-testid="text-items-count">
                         {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
                       </p>
                       {reactionsQuery.isLoading && (
                         <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
-                          <span className="text-xs text-slate-500">Loading reactions...</span>
+                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                          <span className="text-xs text-slate-400">Loading reactions...</span>
                         </div>
                       )}
                       {isLoadingWeights && (
                         <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
-                          <span className="text-xs text-slate-500">Loading trust weights...</span>
+                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                          <span className="text-xs text-slate-400">Loading trust weights...</span>
                         </div>
                       )}
                     </div>
@@ -718,33 +726,33 @@ function ListDetailContent() {
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           placeholder="Search items..."
-                          className="pl-8 h-8 text-xs bg-white/5 border-white/10 text-white placeholder:text-slate-500 rounded-lg"
+                          className="pl-8 h-8 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-lg focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                           data-testid="input-search-items"
                         />
                       </div>
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-400 hover:text-white border border-white/10 bg-white/5 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
+                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
                             <span className="hidden sm:inline">{TRUST_METHOD_LABELS[trustMethod]}</span>
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-64 bg-slate-900/95 backdrop-blur-xl border-white/10 shadow-xl">
-                          <DropdownMenuLabel className="text-xs text-slate-400">Trust Weighting Method</DropdownMenuLabel>
-                          <DropdownMenuSeparator className="bg-white/10" />
+                        <DropdownMenuContent align="end" className="w-64 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                          <DropdownMenuLabel className="text-xs text-slate-500">Trust Weighting Method</DropdownMenuLabel>
+                          <DropdownMenuSeparator className="bg-slate-100" />
                           {(["trust_everyone", "follow_list", "trusted_list", "graperank"] as TrustMethod[]).map((m) => (
                             <DropdownMenuItem
                               key={m}
-                              className={`cursor-pointer gap-2 text-xs ${trustMethod === m ? "text-indigo-300 bg-indigo-500/10" : "text-slate-300"}`}
+                              className={`cursor-pointer gap-2 text-xs ${trustMethod === m ? "text-indigo-700 bg-indigo-50" : "text-slate-700"}`}
                               onClick={() => setTrustMethod(m)}
                               data-testid={`menuitem-trust-${m}`}
                             >
                               <div className="flex-1">
                                 <p className="font-medium">{TRUST_METHOD_LABELS[m]}</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">{TRUST_METHOD_DESCS[m]}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{TRUST_METHOD_DESCS[m]}</p>
                               </div>
-                              {trustMethod === m && <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />}
+                              {trustMethod === m && <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />}
                             </DropdownMenuItem>
                           ))}
                         </DropdownMenuContent>
@@ -753,15 +761,15 @@ function ListDetailContent() {
                   </div>
 
                   {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]">
-                      <span className="text-xs text-slate-400 shrink-0">List:</span>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70">
+                      <span className="text-xs text-slate-500 shrink-0">List:</span>
                       <Select value={trustedListId || "__default__"} onValueChange={(v) => setTrustedListId(v === "__default__" ? "" : v)}>
-                        <SelectTrigger className="h-7 text-xs bg-white/5 border-white/10 text-white rounded-md flex-1" data-testid="select-trusted-list">
+                        <SelectTrigger className="h-7 text-xs bg-white border-slate-200 text-slate-900 rounded-md flex-1" data-testid="select-trusted-list">
                           <SelectValue placeholder="Select a trusted list" />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-900/95 backdrop-blur-xl border-white/10">
+                        <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200">
                           {availableTrustedLists.map((tl) => (
-                            <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-300">
+                            <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-700">
                               {tl.isDcosl ? `📋 ${tl.label}` : tl.label || "Default"} ({tl.pubkeys.size} members)
                             </SelectItem>
                           ))}
@@ -771,9 +779,9 @@ function ListDetailContent() {
                   )}
 
                   {trustMethod === "trusted_list" && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5" data-testid="chain-indicator">
-                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Chain:</span>
-                      <span className="text-[10px] font-semibold text-indigo-300">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/50" data-testid="chain-indicator">
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Chain:</span>
+                      <span className="text-[10px] font-semibold text-indigo-500">
                         {(() => {
                           if (!trustedListId) return "All Trusted Lists";
                           const match = availableTrustedLists.find(tl => tl.dTag === trustedListId);
@@ -781,20 +789,20 @@ function ListDetailContent() {
                           return `${match.label} (${match.pubkeys.size})`;
                         })()}
                       </span>
-                      <ArrowRight className="h-2.5 w-2.5 text-indigo-400/60" />
-                      <span className="text-[10px] font-semibold text-white">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
+                      <ArrowRight className="h-2.5 w-2.5 text-indigo-400" />
+                      <span className="text-[10px] font-semibold text-slate-900">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]" data-testid="pov-indicator">
-                    <Eye className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-                    <span className="text-xs text-slate-400">PoV:</span>
-                    <span className="text-xs font-medium text-indigo-300" data-testid="text-pov-name">{povDisplayName}</span>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70" data-testid="pov-indicator">
+                    <Eye className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    <span className="text-xs text-slate-500">PoV:</span>
+                    <span className="text-xs font-medium text-indigo-600" data-testid="text-pov-name">{povDisplayName}</span>
                     {!isSelfPov && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-5 px-1.5 text-[10px] text-slate-400 hover:text-white gap-1 no-default-hover-elevate no-default-active-elevate"
+                        className="h-5 px-1.5 text-[10px] text-slate-500 hover:text-slate-900 gap-1 no-default-hover-elevate no-default-active-elevate"
                         onClick={handleResetPov}
                         data-testid="button-reset-pov"
                       >
@@ -805,7 +813,7 @@ function ListDetailContent() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-5 px-1.5 text-[10px] text-slate-400 hover:text-white ml-auto no-default-hover-elevate no-default-active-elevate"
+                      className="h-5 px-1.5 text-[10px] text-slate-500 hover:text-slate-900 ml-auto no-default-hover-elevate no-default-active-elevate"
                       onClick={() => setShowPovInput(!showPovInput)}
                       data-testid="button-switch-pov"
                     >
@@ -814,19 +822,19 @@ function ListDetailContent() {
                   </div>
 
                   {showPovInput && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/20 bg-indigo-500/5">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50/50">
                       <Input
                         value={povInput}
                         onChange={(e) => setPovInput(e.target.value)}
                         placeholder="Enter npub or hex pubkey..."
-                        className="h-7 text-xs bg-white/5 border-white/10 text-white placeholder:text-slate-500 rounded-md flex-1"
+                        className="h-7 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-md flex-1 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                         onKeyDown={(e) => { if (e.key === "Enter") handlePovSwitch(); }}
                         data-testid="input-pov-pubkey"
                       />
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-3 text-xs bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 rounded-md no-default-hover-elevate no-default-active-elevate"
+                        className="h-7 px-3 text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-md no-default-hover-elevate no-default-active-elevate"
                         onClick={handlePovSwitch}
                         data-testid="button-apply-pov"
                       >
@@ -836,33 +844,33 @@ function ListDetailContent() {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden overflow-x-auto">
-                  <div className="grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-2 border-b border-white/10 bg-white/[0.03]">
-                    <button className="flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-white transition-colors text-left" onClick={() => handleSort("name")} data-testid="button-sort-name">
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden overflow-x-auto shadow-sm">
+                  <div className="grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
+                    <button className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors text-left" onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
                       {sortKey === "name" && <ArrowUpDown className="h-3 w-3" />}
                     </button>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[10px] font-medium text-slate-500 text-center cursor-help">Raw +</span>
+                        <span className="text-[10px] font-medium text-slate-400 text-center cursor-help">Raw +</span>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-slate-800 border-slate-700 text-slate-200 text-xs">Raw upvote count</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw upvote count</TooltipContent>
                     </UITooltip>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[10px] font-medium text-slate-500 text-center cursor-help">Raw −</span>
+                        <span className="text-[10px] font-medium text-slate-400 text-center cursor-help">Raw −</span>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-slate-800 border-slate-700 text-slate-200 text-xs">Raw downvote count</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw downvote count</TooltipContent>
                     </UITooltip>
-                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-500 hover:text-emerald-300 transition-colors" onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
+                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-500 transition-colors" onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
                       Trusted +
                       {sortKey === "weighted_up" && <ArrowUpDown className="h-2.5 w-2.5" />}
                     </button>
-                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 transition-colors" onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
+                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-red-500 hover:text-red-400 transition-colors" onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
                       Trusted −
                       {sortKey === "weighted_down" && <ArrowUpDown className="h-2.5 w-2.5" />}
                     </button>
-                    <button className="flex items-center justify-center gap-1 text-xs font-medium text-slate-400 hover:text-indigo-400 transition-colors" onClick={() => handleSort("net_score")} data-testid="button-sort-score">
+                    <button className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => handleSort("net_score")} data-testid="button-sort-score">
                       Score
                       {sortKey === "net_score" && <ArrowUpDown className="h-3 w-3" />}
                     </button>
@@ -880,18 +888,18 @@ function ListDetailContent() {
                     return (
                       <div key={item.aTag}>
                         <button
-                          className="w-full grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-3 border-b border-white/5 hover:bg-white/[0.04] transition-colors text-left"
+                          className="w-full grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
                           onClick={() => setExpandedItem(isExpanded ? null : item.aTag)}
                           data-testid={`row-item-${itemKey}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-8 w-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
-                              <span className="text-xs text-indigo-300 font-bold">
+                            <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                              <span className="text-xs text-indigo-600 font-bold">
                                 {(item.name || "?").charAt(0).toUpperCase()}
                               </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-white truncate" data-testid={`text-item-name-${itemKey}`}>
+                              <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
                                 {item.name || item.content?.slice(0, 50) || "Unnamed item"}
                               </p>
                               {hasPubkeyContent && pubkeyValue && (
@@ -907,47 +915,47 @@ function ListDetailContent() {
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-slate-400" data-testid={`text-raw-up-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-slate-500" data-testid={`text-raw-up-${itemKey}`}>
                               {score?.rawUp ?? 0}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-slate-400" data-testid={`text-raw-down-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-slate-500" data-testid={`text-raw-down-${itemKey}`}>
                               {score?.rawDown ?? 0}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-emerald-400" data-testid={`text-trusted-up-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-emerald-600" data-testid={`text-trusted-up-${itemKey}`}>
                               {(score?.weightedUp ?? 0).toFixed(1)}
                             </span>
                           </div>
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-red-400" data-testid={`text-trusted-down-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-red-500" data-testid={`text-trusted-down-${itemKey}`}>
                               {(score?.weightedDown ?? 0).toFixed(1)}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-400" : (score?.netScore ?? 0) < 0 ? "text-red-400" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
+                            <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
                               {score ? (score.netScore >= 0 ? "+" : "") + score.netScore.toFixed(1) : "0"}
                             </span>
                           </div>
                         </button>
 
                         {isExpanded && score && (
-                          <div className="px-4 py-4 border-b border-white/10 bg-white/[0.02]" data-testid={`detail-panel-${itemKey}`}>
+                          <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <div className="flex items-center gap-2 mb-2">
-                                  <ThumbsUp className="h-3.5 w-3.5 text-emerald-400" />
-                                  <span className="text-xs font-medium text-emerald-400">Upvotes ({score.upvoters.length})</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedUp.toFixed(2)}</span>
+                                  <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
+                                  <span className="text-xs font-medium text-emerald-600">Upvotes ({score.upvoters.length})</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">trusted: {score.weightedUp.toFixed(2)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.upvoters.length === 0 ? (
-                                    <p className="text-xs text-slate-600 px-3 py-2">No upvotes yet</p>
+                                    <p className="text-xs text-slate-400 px-3 py-2">No upvotes yet</p>
                                   ) : (
                                     score.upvoters.map((v) => (
                                       <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={true} />
@@ -958,13 +966,13 @@ function ListDetailContent() {
 
                               <div>
                                 <div className="flex items-center gap-2 mb-2">
-                                  <ThumbsDown className="h-3.5 w-3.5 text-red-400" />
-                                  <span className="text-xs font-medium text-red-400">Downvotes ({score.downvoters.length})</span>
-                                  <span className="text-[10px] text-slate-500 font-mono">trusted: {score.weightedDown.toFixed(2)}</span>
+                                  <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
+                                  <span className="text-xs font-medium text-red-500">Downvotes ({score.downvoters.length})</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">trusted: {score.weightedDown.toFixed(2)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.downvoters.length === 0 ? (
-                                    <p className="text-xs text-slate-600 px-3 py-2">No downvotes yet</p>
+                                    <p className="text-xs text-slate-400 px-3 py-2">No downvotes yet</p>
                                   ) : (
                                     score.downvoters.map((v) => (
                                       <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={false} />
@@ -975,11 +983,11 @@ function ListDetailContent() {
                             </div>
 
                             {item.jsonData && (
-                              <div className="mt-4 pt-3 border-t border-white/5">
+                              <div className="mt-4 pt-3 border-t border-slate-100">
                                 <p className="text-[10px] text-slate-500 font-medium mb-1.5">Properties</p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {Object.entries(item.jsonData).map(([k, v]) => (
-                                    <Badge key={k} variant="outline" className="text-[10px] border-white/10 text-slate-400 bg-white/[0.03] no-default-hover-elevate no-default-active-elevate">
+                                    <Badge key={k} variant="outline" className="text-[10px] border-slate-200 text-slate-600 bg-white no-default-hover-elevate no-default-active-elevate">
                                       {k}: {String(v)}
                                     </Badge>
                                   ))}
@@ -993,24 +1001,24 @@ function ListDetailContent() {
                   })}
                 </div>
 
-                <div className="mt-6 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+                <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <Eye className="h-4 w-4 text-indigo-400" />
-                    <p className="text-sm font-semibold text-indigo-300">Trust Method: {TRUST_METHOD_LABELS[trustMethod]}</p>
+                    <Eye className="h-4 w-4 text-indigo-500" />
+                    <p className="text-sm font-semibold text-indigo-700" style={{ fontFamily: "var(--font-display)" }}>Trust Method: {TRUST_METHOD_LABELS[trustMethod]}</p>
                   </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     {TRUST_METHOD_DESCS[trustMethod]}
                     {trustMethod === "trust_everyone" && " — Switch to Follow List, Trusted List, or GrapeRank to weight reactions by your Web of Trust."}
                   </p>
                   <div className="flex items-center gap-3 mt-3">
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-slate-400">
                       {reactions.length} total reactions from {allVoterPubkeys.length} unique voters
                     </p>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <HelpCircle className="h-3.5 w-3.5 text-slate-600 cursor-help" />
+                        <HelpCircle className="h-3.5 w-3.5 text-slate-400 cursor-help" />
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-slate-800 border-slate-700 text-slate-200 max-w-xs">
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 max-w-xs shadow-lg">
                         <p className="text-xs leading-relaxed">
                           Reactions are kind 7 Nostr events from the DCoSL relay. Each voter's reaction is weighted according to the selected trust method and PoV to produce the final scores.
                         </p>
@@ -1044,8 +1052,8 @@ export default function ListDetailPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950">
-        <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 className="h-8 w-8 text-[#7c86ff] animate-spin" />
       </div>
     );
   }
