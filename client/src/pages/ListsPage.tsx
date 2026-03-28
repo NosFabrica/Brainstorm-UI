@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -14,8 +15,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Home,
-  Search,
+  Search as SearchIcon,
   Users,
   LogOut,
   Menu,
@@ -24,6 +32,7 @@ import {
   Loader2,
   ChevronRight,
   Inbox,
+  ArrowUpDown,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -59,6 +68,8 @@ export default function ListsPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
   const [authorProfiles, setAuthorProfiles] = useState<Record<string, { name: string; picture?: string }>>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState("newest");
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -107,6 +118,34 @@ export default function ListsPage() {
   });
 
   const lists = listsQuery.data || [];
+
+  const filteredAndSorted = useMemo(() => {
+    let filtered = lists;
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      filtered = lists.filter(l => {
+        const name = (l.namePlural || l.name || "").toLowerCase();
+        const desc = (l.description || "").toLowerCase();
+        const authorName = (authorProfiles[l.pubkey]?.name || "").toLowerCase();
+        return name.includes(q) || desc.includes(q) || authorName.includes(q);
+      });
+    }
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case "oldest":
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        case "most_items":
+          return (itemCounts[b.aTag] ?? 0) - (itemCounts[a.aTag] ?? 0);
+        case "name_az":
+          return (a.namePlural || a.name || "").localeCompare(b.namePlural || b.name || "");
+        case "name_za":
+          return (b.namePlural || b.name || "").localeCompare(a.namePlural || a.name || "");
+        case "newest":
+        default:
+          return (b.createdAt || 0) - (a.createdAt || 0);
+      }
+    });
+  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles]);
 
   useEffect(() => {
     if (lists.length === 0) return;
@@ -190,7 +229,7 @@ export default function ListsPage() {
                   Dashboard
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                  <Search className="h-4 w-4" />
+                  <SearchIcon className="h-4 w-4" />
                   Search
                 </Button>
                 <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
@@ -291,104 +330,160 @@ export default function ListsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2" data-testid="grid-lists">
-            {lists.map((list) => {
-              const author = authorProfiles[list.pubkey];
-              const count = itemCounts[list.aTag];
-              const listIdEncoded = encodeURIComponent(list.aTag);
+          <>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/60 shadow-sm" data-testid="toolbar-lists">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <Input
+                  placeholder="Search lists by name, description, or author..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 bg-white/80 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
+                  data-testid="input-search-lists"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <Select value={sortKey} onValueChange={setSortKey}>
+                    <SelectTrigger className="h-9 w-[160px] bg-white/80 border-slate-200 text-sm focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40" data-testid="select-sort-lists">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                      <SelectItem value="newest" data-testid="sort-newest">Newest First</SelectItem>
+                      <SelectItem value="oldest" data-testid="sort-oldest">Oldest First</SelectItem>
+                      <SelectItem value="most_items" data-testid="sort-most-items">Most Items</SelectItem>
+                      <SelectItem value="name_az" data-testid="sort-name-az">Name (A–Z)</SelectItem>
+                      <SelectItem value="name_za" data-testid="sort-name-za">Name (Z–A)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {searchTerm.trim() && (
+                  <span className="text-xs text-slate-400 font-medium whitespace-nowrap" data-testid="text-results-count">
+                    {filteredAndSorted.length} of {lists.length} {lists.length === 1 ? "list" : "lists"}
+                  </span>
+                )}
+              </div>
+            </div>
 
-              return (
-                <Card
-                  key={list.aTag}
-                  className="group relative overflow-hidden bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 cursor-pointer rounded-xl"
-                  onClick={() => navigate(`/lists/${listIdEncoded}`)}
-                  data-testid={`card-list-${list.dTag || list.id.slice(0, 8)}`}
+            {filteredAndSorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-search-results">
+                <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                  <SearchIcon className="h-8 w-8 text-slate-300" />
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No lists match your search</p>
+                  <p className="text-sm text-slate-500 max-w-md">
+                    Try adjusting your search term or clearing the filter.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-1 border-slate-200 text-slate-600 hover:bg-slate-50"
+                  onClick={() => setSearchTerm("")}
+                  data-testid="button-clear-search"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
-                  <CardContent className="p-5 pt-4">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
-                            <List className="h-3.5 w-3.5" />
+                  Clear search
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2" data-testid="grid-lists">
+                {filteredAndSorted.map((list) => {
+                  const author = authorProfiles[list.pubkey];
+                  const count = itemCounts[list.aTag];
+                  const listIdEncoded = encodeURIComponent(list.aTag);
+                  return (
+                    <Card
+                      key={list.aTag}
+                      className="group relative overflow-hidden bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 cursor-pointer rounded-xl"
+                      onClick={() => navigate(`/lists/${listIdEncoded}`)}
+                      data-testid={`card-list-${list.dTag || list.id.slice(0, 8)}`}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
+                      <CardContent className="p-5 pt-4">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                                <List className="h-3.5 w-3.5" />
+                              </div>
+                              <h3 className="text-base font-bold text-slate-900 truncate" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-list-name-${list.dTag || list.id.slice(0, 8)}`}>
+                                {list.namePlural || list.name}
+                              </h3>
+                            </div>
+                            {list.description && (
+                              <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed" data-testid={`text-list-desc-${list.dTag || list.id.slice(0, 8)}`}>
+                                {list.description}
+                              </p>
+                            )}
                           </div>
-                          <h3 className="text-base font-bold text-slate-900 truncate" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-list-name-${list.dTag || list.id.slice(0, 8)}`}>
-                            {list.namePlural || list.name}
-                          </h3>
+                          <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-[#7c86ff] transition-colors shrink-0 mt-1" />
                         </div>
-                        {list.description && (
-                          <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed" data-testid={`text-list-desc-${list.dTag || list.id.slice(0, 8)}`}>
-                            {list.description}
-                          </p>
-                        )}
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-[#7c86ff] transition-colors shrink-0 mt-1" />
-                    </div>
-
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                      <div className="flex items-center gap-2">
-                        {author?.picture ? (
-                          <Avatar className="h-6 w-6 border border-slate-200">
-                            <AvatarImage src={author.picture} alt={author.name} className="object-cover" />
-                            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
-                              {(author.name || "?").charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                            <span className="text-[10px] text-indigo-700 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            {author?.picture ? (
+                              <Avatar className="h-6 w-6 border border-slate-200">
+                                <AvatarImage src={author.picture} alt={author.name} className="object-cover" />
+                                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                                  {(author.name || "?").charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            ) : (
+                              <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                <span className="text-[10px] text-indigo-700 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                            <span className="text-xs text-slate-500 truncate max-w-[120px] font-medium" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
+                              {author?.name || nip19.npubEncode(list.pubkey).slice(0, 12) + "..."}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                            {count !== undefined ? (
+                              <span className="font-mono tabular-nums text-[#333286] font-semibold" data-testid={`text-list-count-${list.dTag || list.id.slice(0, 8)}`}>
+                                {count} {count === 1 ? "item" : "items"}
+                              </span>
+                            ) : (
+                              <Loader2 className="h-3 w-3 animate-spin text-indigo-300" />
+                            )}
+                            <span className="text-slate-300">·</span>
+                            <span className="text-slate-400" data-testid={`text-list-age-${list.dTag || list.id.slice(0, 8)}`}>
+                              {formatAge(list.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                        {list.propertyTags.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100">
+                            {list.propertyTags.slice(0, 4).map((pt, i) => (
+                              <span
+                                key={i}
+                                className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
+                                  pt.requirement === "required"
+                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                    : pt.requirement === "recommended"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      : "bg-slate-50 text-slate-500 border-slate-200"
+                                }`}
+                                data-testid={`badge-property-${i}`}
+                              >
+                                {pt.value}
+                              </span>
+                            ))}
+                            {list.propertyTags.length > 4 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 font-medium">
+                                +{list.propertyTags.length - 4} more
+                              </span>
+                            )}
                           </div>
                         )}
-                        <span className="text-xs text-slate-500 truncate max-w-[120px] font-medium" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
-                          {author?.name || nip19.npubEncode(list.pubkey).slice(0, 12) + "..."}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs text-slate-400">
-                        {count !== undefined ? (
-                          <span className="font-mono tabular-nums text-[#333286] font-semibold" data-testid={`text-list-count-${list.dTag || list.id.slice(0, 8)}`}>
-                            {count} {count === 1 ? "item" : "items"}
-                          </span>
-                        ) : (
-                          <Loader2 className="h-3 w-3 animate-spin text-indigo-300" />
-                        )}
-                        <span className="text-slate-300">·</span>
-                        <span className="text-slate-400" data-testid={`text-list-age-${list.dTag || list.id.slice(0, 8)}`}>
-                          {formatAge(list.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {list.propertyTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-slate-100">
-                        {list.propertyTags.slice(0, 4).map((pt, i) => (
-                          <span
-                            key={i}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
-                              pt.requirement === "required"
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                                : pt.requirement === "recommended"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-slate-50 text-slate-500 border-slate-200"
-                            }`}
-                            data-testid={`badge-property-${i}`}
-                          >
-                            {pt.value}
-                          </span>
-                        ))}
-                        {list.propertyTags.length > 4 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 font-medium">
-                            +{list.propertyTags.length - 4} more
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </main>
 
