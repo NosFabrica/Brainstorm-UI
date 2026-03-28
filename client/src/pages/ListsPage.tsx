@@ -39,6 +39,11 @@ import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   getCurrentUser,
   logout,
   fetchProfile,
@@ -47,6 +52,7 @@ import {
   updateCurrentUser,
   fetchDListHeaders,
   fetchDListItems,
+  fetchGrapeRankScores,
   type NostrUser,
 } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -67,7 +73,8 @@ export default function ListsPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [itemCounts, setItemCounts] = useState<Record<string, number>>({});
-  const [authorProfiles, setAuthorProfiles] = useState<Record<string, { name: string; picture?: string }>>({});
+  const [authorProfiles, setAuthorProfiles] = useState<Record<string, { name: string; picture?: string; nip05?: string }>>({});
+  const [authorTrustScores, setAuthorTrustScores] = useState<Record<string, number | null>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState("newest");
 
@@ -136,6 +143,8 @@ export default function ListsPage() {
           return (a.createdAt || 0) - (b.createdAt || 0);
         case "most_items":
           return (itemCounts[b.aTag] ?? 0) - (itemCounts[a.aTag] ?? 0);
+        case "most_trusted":
+          return (authorTrustScores[b.pubkey] ?? -1) - (authorTrustScores[a.pubkey] ?? -1);
         case "name_az":
           return (a.namePlural || a.name || "").localeCompare(b.namePlural || b.name || "");
         case "name_za":
@@ -145,7 +154,7 @@ export default function ListsPage() {
           return (b.createdAt || 0) - (a.createdAt || 0);
       }
     });
-  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles]);
+  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles, authorTrustScores]);
 
   useEffect(() => {
     if (lists.length === 0) return;
@@ -178,15 +187,15 @@ export default function ListsPage() {
           const content = await fetchProfile(pk);
           const fallback = nip19.npubEncode(pk).slice(0, 12) + "...";
           if (content) {
-            return { pk, name: content.display_name || content.name || fallback, picture: content.picture || content.image };
+            return { pk, name: content.display_name || content.name || fallback, picture: content.picture || content.image, nip05: content.nip05 };
           }
-          return { pk, name: fallback, picture: undefined };
+          return { pk, name: fallback, picture: undefined, nip05: undefined };
         })
       );
       if (cancelled) return;
-      const profiles: Record<string, { name: string; picture?: string }> = {};
+      const profiles: Record<string, { name: string; picture?: string; nip05?: string }> = {};
       for (const r of results) {
-        if (r.status === "fulfilled") profiles[r.value.pk] = { name: r.value.name, picture: r.value.picture };
+        if (r.status === "fulfilled") profiles[r.value.pk] = { name: r.value.name, picture: r.value.picture, nip05: r.value.nip05 };
       }
       setAuthorProfiles(profiles);
     }
@@ -194,6 +203,36 @@ export default function ListsPage() {
     loadAuthorProfiles();
     return () => { cancelled = true; };
   }, [lists]);
+
+  useEffect(() => {
+    if (lists.length === 0 || !user?.pubkey) return;
+    let cancelled = false;
+
+    async function loadAuthorTrustScores() {
+      const uniquePubkeys = [...new Set(lists.map(l => l.pubkey))];
+      try {
+        await fetchOutboxRelayList(user!.pubkey);
+        const scores = await fetchGrapeRankScores(user!.pubkey, uniquePubkeys);
+        if (cancelled) return;
+        const result: Record<string, number | null> = {};
+        for (const pk of uniquePubkeys) {
+          result[pk] = scores.has(pk) ? scores.get(pk)! : null;
+        }
+        setAuthorTrustScores(result);
+      } catch {
+        if (!cancelled) {
+          const result: Record<string, number | null> = {};
+          for (const pk of [...new Set(lists.map(l => l.pubkey))]) {
+            result[pk] = null;
+          }
+          setAuthorTrustScores(result);
+        }
+      }
+    }
+
+    loadAuthorTrustScores();
+    return () => { cancelled = true; };
+  }, [lists, user?.pubkey]);
 
   const handleLogout = () => {
     logout();
@@ -353,6 +392,7 @@ export default function ListsPage() {
                       <SelectItem value="newest" data-testid="sort-newest">Newest First</SelectItem>
                       <SelectItem value="oldest" data-testid="sort-oldest">Oldest First</SelectItem>
                       <SelectItem value="most_items" data-testid="sort-most-items">Most Items</SelectItem>
+                      <SelectItem value="most_trusted" data-testid="sort-most-trusted">Most Trusted</SelectItem>
                       <SelectItem value="name_az" data-testid="sort-name-az">Name (A–Z)</SelectItem>
                       <SelectItem value="name_za" data-testid="sort-name-za">Name (Z–A)</SelectItem>
                     </SelectContent>
@@ -422,24 +462,66 @@ export default function ListsPage() {
                           <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-[#7c86ff] transition-colors shrink-0 mt-1" />
                         </div>
                         <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                          <div className="flex items-center gap-2">
-                            {author?.picture ? (
-                              <Avatar className="h-6 w-6 border border-slate-200">
-                                <AvatarImage src={author.picture} alt={author.name} className="object-cover" />
-                                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
-                                  {(author.name || "?").charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                            ) : (
-                              <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                                <span className="text-[10px] text-indigo-700 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
-                              </div>
-                            )}
-                            <span className="text-xs text-slate-500 truncate max-w-[120px] font-medium" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
-                              {author?.name || nip19.npubEncode(list.pubkey).slice(0, 12) + "..."}
-                            </span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="relative shrink-0">
+                              {author?.picture ? (
+                                <Avatar className="h-7 w-7 border border-slate-200">
+                                  <AvatarImage src={author.picture} alt={author.name} className="object-cover" />
+                                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
+                                    {(author.name || "?").charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="h-7 w-7 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                  <span className="text-[10px] text-indigo-700 font-bold">{(author?.name || "?").charAt(0).toUpperCase()}</span>
+                                </div>
+                              )}
+                              {(() => {
+                                const trustScore = authorTrustScores[list.pubkey];
+                                if (trustScore === undefined) return null;
+                                if (trustScore === null) return null;
+                                const clampedScore = Math.min(1, Math.max(0, trustScore));
+                                const pct = Math.round(clampedScore * 100);
+                                const ringColor = pct >= 50 ? "stroke-emerald-500" : pct >= 20 ? "stroke-indigo-500" : pct >= 7 ? "stroke-orange-300" : "stroke-amber-500";
+                                const circumference = 2 * Math.PI * 10;
+                                const offset = circumference - (clampedScore * circumference);
+                                return (
+                                  <UITooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-slate-200 flex items-center justify-center cursor-help shadow-sm" data-testid={`badge-trust-${list.dTag || list.id.slice(0, 8)}`}>
+                                        <svg className="w-3.5 h-3.5 -rotate-90" viewBox="0 0 24 24">
+                                          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-100" />
+                                          <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" strokeLinecap="round"
+                                            className={ringColor} style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
+                                        </svg>
+                                        <span className="absolute text-[6px] font-bold font-mono text-indigo-700">{pct}</span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[220px]">
+                                      <p className="text-xs font-semibold text-slate-900 mb-0.5">Curator Trust Score: {pct}%</p>
+                                      <p className="text-[11px] leading-relaxed text-slate-500">
+                                        {pct >= 50 ? "High confidence — this curator is well-trusted in your network."
+                                          : pct >= 20 ? "Moderate confidence — some trust signals from your network."
+                                          : pct >= 7 ? "Low confidence — limited trust signals from your network."
+                                          : "Very low confidence — exercise caution."}
+                                      </p>
+                                    </TooltipContent>
+                                  </UITooltip>
+                                );
+                              })()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs text-slate-600 truncate block max-w-[130px] font-medium" data-testid={`text-list-author-${list.dTag || list.id.slice(0, 8)}`}>
+                                {author?.name || nip19.npubEncode(list.pubkey).slice(0, 12) + "..."}
+                              </span>
+                              {author?.nip05 && (
+                                <span className="text-[10px] text-indigo-500 truncate block max-w-[130px]" data-testid={`text-nip05-${list.dTag || list.id.slice(0, 8)}`}>
+                                  {author.nip05}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
                             {count !== undefined ? (
                               <span className="font-mono tabular-nums text-[#333286] font-semibold" data-testid={`text-list-count-${list.dTag || list.id.slice(0, 8)}`}>
                                 {count} {count === 1 ? "item" : "items"}
