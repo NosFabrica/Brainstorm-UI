@@ -681,7 +681,8 @@ export async function fetchDListReactions(
       pool.request([DCOSL_RELAY], relayFilter).subscribe({
         next: (event) => {
           try {
-            const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
+            const eventWithId = event as NostrEvent & { id?: string };
+            const eventId = eventWithId.id || `${event.pubkey}-${event.created_at}`;
             if (seen.has(eventId)) return;
             seen.add(eventId);
 

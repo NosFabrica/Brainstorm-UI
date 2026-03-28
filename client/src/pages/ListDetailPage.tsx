@@ -377,8 +377,10 @@ function ListDetailContent() {
   const availableTrustedLists = trustedListsQuery.data || [];
 
   useEffect(() => {
-    if (trustMethod === "trusted_list" && availableTrustedLists.length > 0 && !trustedListId) {
-      setTrustedListId(availableTrustedLists[0].dTag);
+    if (trustMethod !== "trusted_list" || availableTrustedLists.length === 0) return;
+    const validIds = availableTrustedLists.map(l => l.dTag);
+    if (!trustedListId || !validIds.includes(trustedListId)) {
+      setTrustedListId(validIds[0]);
     }
   }, [trustMethod, availableTrustedLists, trustedListId, setTrustedListId]);
 
