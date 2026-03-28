@@ -1,0 +1,31 @@
+Goal: small-scale implementation of DCoSL: decentralized curation of simple lists
+
+Reference prototype: https://github.com/nous-clawds4/tapestry, deployed at: https://nous-clawds4.tapestry.ninja/kg. Tapestry is a fork of the brainstorm prototype at https://GitHub.com/pretty-good-freedom-tech/brainstorm, deployed at https://straycat.brainstorm.social. Tapestry currently implements DCoSL and has additional features of the tapestry protocol in progress.
+
+The existing prototype uses Decentralized Lists, Trusted Assertions, NIP-25 Reactions, and Trusted Lists to curate any arbitrary list. An example is provided in the form of the DList of dwarves, which could function very much in the same way as a DLIst of people. Multiple AI-generated nostr accounts were created for the purpose of demonstration. These include 14 dwarves, 7 of whom are intended to be spam, with multiple test accounts, half of whom are intended to represent bad actors. A large number of kind 7 reactions are submitted and tallied using one of 4 options (trust everyone, trust follows, trust based on TA rank, trust pubkeys in a TL).
+
+Like brainstorm, the prototype is a proof of concept and demonstration of the technical possibilities with very little focus on user experience. Next step is to build an app with a great user experience, solving a real user problem, without tackling issues of scaling to lists with thousands, tens of thousands or more items.
+
+Two possibilities:
+
+a generic tool that can work with any lists whatsoever (not so exciting)
+a carefully selected handful of interoperable lists that solve a specific use case, such as:
+proof of personhood:
+list of people
+list of agents (LLMs)
+list of countries
+list of cities (proof of citizenship? city could be a required or optional field on the dlist of real people)
+nostr apps
+list of nostr apps
+list of app categories
+nostr relays
+list of relays
+list of relay categories
+nostr key rotation
+Technical features that exist nowhere else that we should showcase:
+
+daisy chaining, e.g. generic verified users -> TL of nostr devs -> TL of nostr relays.
+The ability to select how a list is curated, with distinct methods for distinct lists.
+Individual lists can be recalculated and republished as TLs on a routine bases and / or recalculations can be triggered by defined events, such as a new item being submitted to the list of interest by a trusted npub. (Paid feature!)
+Aim for something that will avoid problems of scaling. Lists that will be expected to be small: thousands of items at most, ideally a lot less. Definitely not millions.
+
