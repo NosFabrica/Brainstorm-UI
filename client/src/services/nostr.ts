@@ -648,7 +648,7 @@ export async function fetchDListReactions(
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
 
-  const filters: Array<Record<string, unknown> & { _tagType: string }> = [];
+  const filters: Array<{ kinds: number[]; "#e"?: string[]; "#a"?: string[]; _tagType: string }> = [];
   const nonReplaceableIds = itemATags.filter(a => !a.includes(":"));
   const replaceableATags = itemATags.filter(a => a.includes(":"));
   if (nonReplaceableIds.length > 0) filters.push({ kinds: [7], "#e": nonReplaceableIds, _tagType: "e" });
