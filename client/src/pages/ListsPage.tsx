@@ -24,7 +24,6 @@ import {
   Loader2,
   ChevronRight,
   Inbox,
-  HelpCircle,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -223,25 +222,17 @@ export default function ListsPage() {
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                      <p className="text-xs leading-none text-slate-500">{truncatedNpub}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
+                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                  <DropdownMenuLabel className="text-xs text-slate-500 font-mono truncate">{truncatedNpub}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="menuitem-profile">
                     <Users className="h-4 w-4" /> My Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/faq")} data-testid="menuitem-faq">
-                    <HelpCircle className="h-4 w-4" /> FAQ
                   </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => navigate("/settings")} data-testid="menuitem-settings">
                     <SettingsIcon className="h-4 w-4" /> Settings
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem className="cursor-pointer gap-2 text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="menuitem-logout">
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer gap-2 text-red-600" onClick={handleLogout} data-testid="menuitem-logout">
                     <LogOut className="h-4 w-4" /> Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -298,7 +289,7 @@ export default function ListsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2" data-testid="grid-lists">
+          <div className="grid gap-4 sm:grid-cols-2" data-testid="grid-lists">
             {lists.map((list) => {
               const author = authorProfiles[list.pubkey];
               const count = itemCounts[list.aTag];
