@@ -42,14 +42,17 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 - **ListDetailPage (`client/src/pages/ListDetailPage.tsx`):** Full detail view for a single list with trust-weighted reactions. Route: `/lists/:listId` (URL-encoded a-tag). Features:
   - Sortable table with columns: Item name, Upvotes (thumbs up), Downvotes (thumbs down), Net Score
   - Kind 7 reactions fetched from DCoSL relay (`fetchDListReactions`), parsed as +/- votes per NIP-25
-  - 3 trust weighting methods selectable via dropdown: Trust Everyone (weight=1), Follow List (kind 3 follows = weight 1, else 0), GrapeRank (kind 30382 scores via 10040 Treasure Map)
+  - 4 trust weighting methods selectable via dropdown: Trust Everyone (weight=1), Follow List (kind 3 follows = weight 1, else 0), Trusted List (kind 30392 = weight 1, else 0), GrapeRank (kind 30382 scores via 10040 Treasure Map)
+  - PoV (Point of View) switching: indicator bar shows current PoV user, "Switch" button to enter npub/hex pubkey, "Reset to me" to revert; PoV pubkey persisted to `localStorage` key `brainstorm_trust_pov`
   - Trust method persisted to `localStorage` key `brainstorm_trust_method`
-  - Expandable rows showing individual upvoters/downvoters with profile avatars and trust weights
+  - Columns: Raw +, Raw −, and (when trust method ≠ trust_everyone) Trusted +, Trusted −, Net Score
+  - Expandable rows showing individual upvoters/downvoters with profile avatars, trust weights, and reaction timestamps
   - Search/filter toolbar for items
+  - Profile display for pubkey items: when list item content is a valid hex pubkey, resolves and shows Nostr profile (avatar, name, NIP-05)
   - Voter deduplication: latest `createdAt` wins per voter per item
   - Reaction target validation: only counts reactions targeting known item a-tags/event IDs
 - **Navigation:** "Lists" button added to desktop nav bar on all authenticated pages (Dashboard, Search, Network, Profile, Settings, FAQ, Lists, ListDetail) and mobile drawer
 - **Cache:** Session-level caching via `dcoslListCache`, `dcoslItemCache`, and `dcoslReactionCache` Maps in nostr.ts; `clearDcoslCache()` exported for manual refresh
-- **Trust weight services:** `fetchFollowList(pubkey)` returns kind 3 follow set; `fetchGrapeRankScores(povPubkey, targetPubkeys)` fetches kind 30382 trust assertions via 10040 Treasure Map lookup
+- **Trust weight services:** `fetchFollowList(pubkey)` returns kind 3 follow set; `fetchTrustedList(pubkey)` returns kind 30392 trusted pubkey set; `fetchGrapeRankScores(povPubkey, targetPubkeys)` fetches kind 30382 trust assertions via 10040 Treasure Map lookup
 - **TrustContext (`client/src/contexts/TrustContext.tsx`):** React context provider for trust method and PoV pubkey state (available for future PoV switching features)
 - **a-tag pattern:** Replaceable events (39998/39999) use `${kind}:${pubkey}:${dTag}`; non-replaceable (9998/9999) use `event.id`

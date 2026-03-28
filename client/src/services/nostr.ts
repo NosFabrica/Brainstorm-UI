@@ -648,7 +648,7 @@ export async function fetchDListReactions(
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
 
-  const filters: any[] = [];
+  const filters: Array<Record<string, unknown> & { _tagType: string }> = [];
   const nonReplaceableIds = itemATags.filter(a => !a.includes(":"));
   const replaceableATags = itemATags.filter(a => a.includes(":"));
   if (nonReplaceableIds.length > 0) filters.push({ kinds: [7], "#e": nonReplaceableIds, _tagType: "e" });
@@ -726,6 +726,30 @@ export async function fetchFollowList(pubkey: string, timeoutMs = 10000): Promis
       if (tag[0] === "p" && tag[1]) follows.add(tag[1]);
     }
     return follows;
+  } catch {
+    return new Set();
+  }
+}
+
+export async function fetchTrustedList(pubkey: string, timeoutMs = 10000): Promise<Set<string>> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const events: NostrEvent[] = [];
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, timeoutMs);
+      pool.request(writeRelays, { kinds: [30392], authors: [pubkey] }).subscribe({
+        next: (event) => { events.push(event); },
+        error: () => { clearTimeout(timer); resolve(); },
+        complete: () => { clearTimeout(timer); resolve(); },
+      });
+    });
+    const trusted = new Set<string>();
+    for (const event of events) {
+      for (const tag of event.tags || []) {
+        if (tag[0] === "p" && tag[1]) trusted.add(tag[1]);
+      }
+    }
+    return trusted;
   } catch {
     return new Set();
   }
