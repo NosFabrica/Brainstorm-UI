@@ -398,7 +398,7 @@ function ListDetailContent() {
 
   const grapeRankScoresQuery = useQuery({
     queryKey: ["graperank-scores", povPubkey, allVoterPubkeys.sort().join(",")],
-    queryFn: () => fetchGrapeRankScores(povPubkey, allVoterPubkeys),
+    queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchGrapeRankScores(povPubkey, allVoterPubkeys); },
     enabled: !!povPubkey && trustMethod === "graperank" && allVoterPubkeys.length > 0,
     staleTime: 10 * 60 * 1000,
   });
@@ -709,13 +709,13 @@ function ListDetailContent() {
                   {trustMethod === "trusted_list" && availableTrustedLists.length > 1 && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]">
                       <span className="text-xs text-slate-400 shrink-0">List:</span>
-                      <Select value={trustedListId} onValueChange={setTrustedListId}>
+                      <Select value={trustedListId || "__default__"} onValueChange={(v) => setTrustedListId(v === "__default__" ? "" : v)}>
                         <SelectTrigger className="h-7 text-xs bg-white/5 border-white/10 text-white rounded-md flex-1" data-testid="select-trusted-list">
                           <SelectValue placeholder="Select a trusted list" />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-900/95 backdrop-blur-xl border-white/10">
                           {availableTrustedLists.map((tl) => (
-                            <SelectItem key={tl.dTag} value={tl.dTag} className="text-xs text-slate-300">
+                            <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-300">
                               {tl.dTag || "Default"} ({tl.pubkeys.size} members)
                             </SelectItem>
                           ))}

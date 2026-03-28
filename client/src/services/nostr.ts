@@ -686,8 +686,10 @@ export async function fetchDListReactions(
             if (seen.has(eventId)) return;
             seen.add(eventId);
 
-            const content = (event.content || "+").trim();
-            const isUpvote = content !== "-";
+            const content = (event.content || "").trim();
+            const isUpvote = content === "+" || content === "";
+            const isDownvote = content === "-";
+            if (!isUpvote && !isDownvote) return;
 
             let targetItemATag = "";
             for (const tag of event.tags || []) {
