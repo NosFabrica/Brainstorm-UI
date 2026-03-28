@@ -86,6 +86,7 @@ export default function SettingsPage() {
     }
     setDcoslRelay(trimmed);
     setDcoslRelayDirty(false);
+    queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("dcosl") });
     toast({ title: "DCoSL relay updated", description: `Now using ${trimmed}`, duration: 2000 });
   }, [dcoslRelayUrl, toast]);
 
@@ -94,6 +95,7 @@ export default function SettingsPage() {
     setDcoslRelayUrl(defaultUrl);
     setDcoslRelay(defaultUrl);
     setDcoslRelayDirty(false);
+    queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith("dcosl") });
     toast({ title: "DCoSL relay reset", description: `Restored default relay`, duration: 2000 });
   }, [toast]);
 
