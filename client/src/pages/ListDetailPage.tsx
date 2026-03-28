@@ -58,7 +58,6 @@ import {
   fetchDListItems,
   fetchDListReactions,
   fetchFollowList,
-  fetchTrustedList,
   fetchTrustedLists,
   fetchGrapeRankScores,
   type NostrUser,
@@ -384,12 +383,18 @@ function ListDetailContent() {
     }
   }, [trustMethod, availableTrustedLists, trustedListId, setTrustedListId]);
 
-  const trustedListQuery = useQuery({
-    queryKey: ["trusted-list", povPubkey, trustedListId],
-    queryFn: () => fetchTrustedList(povPubkey, trustedListId || undefined),
-    enabled: !!povPubkey && trustMethod === "trusted_list",
-    staleTime: 10 * 60 * 1000,
-  });
+  const selectedTrustedPubkeys = useMemo(() => {
+    if (trustMethod !== "trusted_list" || availableTrustedLists.length === 0) return new Set<string>();
+    if (trustedListId) {
+      const match = availableTrustedLists.find(l => l.dTag === trustedListId);
+      return match ? match.pubkeys : new Set<string>();
+    }
+    const all = new Set<string>();
+    for (const list of availableTrustedLists) {
+      for (const pk of list.pubkeys) all.add(pk);
+    }
+    return all;
+  }, [trustMethod, availableTrustedLists, trustedListId]);
 
   const grapeRankScoresQuery = useQuery({
     queryKey: ["graperank-scores", povPubkey, allVoterPubkeys.sort().join(",")],
@@ -406,14 +411,13 @@ function ListDetailContent() {
       const follows = followListQuery.data || new Set<string>();
       for (const pk of allVoterPubkeys) weights.set(pk, follows.has(pk) ? 1 : 0);
     } else if (trustMethod === "trusted_list") {
-      const trusted = trustedListQuery.data || new Set<string>();
-      for (const pk of allVoterPubkeys) weights.set(pk, trusted.has(pk) ? 1 : 0);
+      for (const pk of allVoterPubkeys) weights.set(pk, selectedTrustedPubkeys.has(pk) ? 1 : 0);
     } else if (trustMethod === "graperank") {
       const scores = grapeRankScoresQuery.data || new Map<string, number>();
       for (const pk of allVoterPubkeys) weights.set(pk, scores.get(pk) ?? 0);
     }
     return weights;
-  }, [trustMethod, allVoterPubkeys, followListQuery.data, trustedListQuery.data, grapeRankScoresQuery.data]);
+  }, [trustMethod, allVoterPubkeys, followListQuery.data, selectedTrustedPubkeys, grapeRankScoresQuery.data]);
 
   const itemScores = useMemo(
     () => computeItemScores(items, reactions, trustWeights),
@@ -483,7 +487,7 @@ function ListDetailContent() {
 
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
   const isLoadingWeights = (trustMethod === "follow_list" && followListQuery.isLoading) ||
-    (trustMethod === "trusted_list" && trustedListQuery.isLoading) ||
+    (trustMethod === "trusted_list" && trustedListsQuery.isLoading) ||
     (trustMethod === "graperank" && grapeRankScoresQuery.isLoading);
 
   const povDisplayName = useMemo(() => {
