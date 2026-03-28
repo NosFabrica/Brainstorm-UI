@@ -82,7 +82,7 @@ const TRUST_METHOD_DESCS: Record<TrustMethod, string> = {
   graperank: "Reactions weighted by GrapeRank trust scores",
 };
 
-type SortKey = "name" | "raw_up" | "raw_down" | "weighted_up" | "weighted_down" | "net_score";
+type SortKey = "name" | "raw_up" | "raw_down" | "net_score";
 type SortDir = "asc" | "desc";
 type ScoreFilter = "all" | "has_votes" | "positive" | "negative";
 
@@ -216,30 +216,51 @@ function VoterRow({ pubkey, weight, isUpvote, createdAt }: VoterInfo & { isUpvot
   );
 }
 
-function ItemProfileBadge({ value }: { value: string }) {
+function ItemProfileAvatar({ pubkey }: { pubkey: string }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
 
   useEffect(() => {
-    if (!isPubkey(value)) return;
+    if (!isPubkey(pubkey)) return;
     let cancelled = false;
-    fetchOutboxRelayList(value).then(() => fetchProfile(value)).then(p => {
+    fetchOutboxRelayList(pubkey).then(() => fetchProfile(pubkey)).then(p => {
       if (!cancelled && p) setProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [value]);
-
-  if (!isPubkey(value) || !profile) return null;
+  }, [pubkey]);
 
   return (
-    <div className="flex items-center gap-2 mt-1" data-testid={`item-profile-${value.slice(0, 8)}`}>
+    <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${pubkey.slice(0, 8)}`}>
+      {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
+      <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
+        {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
+function AuthorBadge({ pubkey }: { pubkey: string }) {
+  const [profile, setProfile] = useState<ProfileContent | null>(null);
+
+  useEffect(() => {
+    if (!isPubkey(pubkey)) return;
+    let cancelled = false;
+    fetchOutboxRelayList(pubkey).then(() => fetchProfile(pubkey)).then(p => {
+      if (!cancelled && p) setProfile(p as ProfileContent);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [pubkey]);
+
+  const displayName = profile?.display_name || profile?.name || pubkey.slice(0, 8) + "...";
+
+  return (
+    <div className="flex items-center gap-1.5 min-w-0" data-testid={`author-${pubkey.slice(0, 8)}`}>
       <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
-        {profile.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
-        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[8px] font-bold">
-          {(profile.display_name || profile.name || "?").charAt(0).toUpperCase()}
+        {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
+        <AvatarFallback className="bg-slate-100 text-slate-600 text-[8px] font-bold">
+          {displayName.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="text-[11px] text-indigo-600 truncate">{profile.display_name || profile.name}</span>
-      {profile.nip05 && <span className="text-[10px] text-slate-400 truncate">{profile.nip05}</span>}
+      <span className="text-[11px] text-slate-600 truncate">{displayName}</span>
     </div>
   );
 }
@@ -510,10 +531,6 @@ function ListDetailContent() {
         cmp = (scoreA?.rawUp ?? 0) - (scoreB?.rawUp ?? 0);
       } else if (sortKey === "raw_down") {
         cmp = (scoreA?.rawDown ?? 0) - (scoreB?.rawDown ?? 0);
-      } else if (sortKey === "weighted_up") {
-        cmp = (scoreA?.weightedUp ?? 0) - (scoreB?.weightedUp ?? 0);
-      } else if (sortKey === "weighted_down") {
-        cmp = (scoreA?.weightedDown ?? 0) - (scoreB?.weightedDown ?? 0);
       } else {
         cmp = (scoreA?.netScore ?? 0) - (scoreB?.netScore ?? 0);
       }
@@ -915,40 +932,55 @@ function ListDetailContent() {
                     </Button>
                   </div>
                 ) : (
+                <>{reactions.length > 0 && (
+                  <div className="flex items-center gap-4 mb-3 px-1" data-testid="reaction-summary">
+                    <div className="flex items-center gap-1.5">
+                      <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-600" data-testid="text-total-upvotes">
+                        {reactions.filter(r => r.isUpvote).length}
+                      </span>
+                      <span className="text-xs text-slate-400">upvotes</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
+                      <span className="text-sm font-semibold text-red-500" data-testid="text-total-downvotes">
+                        {reactions.filter(r => !r.isUpvote).length}
+                      </span>
+                      <span className="text-xs text-slate-400">downvotes</span>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      ({reactions.length} total from {allVoterPubkeys.length} voters)
+                    </span>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden overflow-x-auto shadow-sm">
-                  <div className="grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
+                  <div className="grid grid-cols-[1fr_120px_50px_50px_80px] min-w-[520px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
                     <button className={`flex items-center gap-1 text-xs font-medium transition-colors text-left ${sortKey === "name" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-slate-900"}`} onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
                       {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
+                    <span className="text-xs font-medium text-slate-500">Author</span>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "raw_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_up")} data-testid="button-sort-raw-up">
-                          Raw +
+                        <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "raw_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_up")} data-testid="button-sort-raw-up">
+                          <ThumbsUp className="h-3 w-3" />
                           {sortKey === "raw_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw upvote count (click to sort)</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Upvote count (click to sort)</TooltipContent>
                     </UITooltip>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "raw_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_down")} data-testid="button-sort-raw-down">
-                          Raw −
+                        <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "raw_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_down")} data-testid="button-sort-raw-down">
+                          <ThumbsDown className="h-3 w-3" />
                           {sortKey === "raw_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw downvote count (click to sort)</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Downvote count (click to sort)</TooltipContent>
                     </UITooltip>
-                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
-                      Trusted +
-                      {sortKey === "weighted_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
-                    </button>
-                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
-                      Trusted −
-                      {sortKey === "weighted_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
-                    </button>
                     <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score">
-                      Score
+                      Trust Score
                       {sortKey === "net_score" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
                   </div>
@@ -965,23 +997,24 @@ function ListDetailContent() {
                     return (
                       <div key={item.aTag}>
                         <button
-                          className="w-full grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
+                          className="w-full grid grid-cols-[1fr_120px_50px_50px_80px] min-w-[520px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
                           onClick={() => setExpandedItem(isExpanded ? null : item.aTag)}
                           data-testid={`row-item-${itemKey}`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                              <span className="text-xs text-indigo-600 font-bold">
-                                {(item.name || "?").charAt(0).toUpperCase()}
-                              </span>
-                            </div>
+                            {hasPubkeyContent && pubkeyValue ? (
+                              <ItemProfileAvatar pubkey={pubkeyValue} />
+                            ) : (
+                              <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                <span className="text-xs text-indigo-600 font-bold">
+                                  {(item.name || "?").charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
                                 {item.name || item.content?.slice(0, 50) || "Unnamed item"}
                               </p>
-                              {hasPubkeyContent && pubkeyValue && (
-                                <ItemProfileBadge value={pubkeyValue} />
-                              )}
                               {!hasPubkeyContent && item.content && item.content !== item.name && (
                                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
                                   {item.content.slice(0, 60)}
@@ -991,44 +1024,52 @@ function ListDetailContent() {
                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
                           </div>
 
+                          <div className="min-w-0">
+                            <AuthorBadge pubkey={item.pubkey} />
+                          </div>
+
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-slate-500" data-testid={`text-raw-up-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-raw-up-${itemKey}`}>
                               {score?.rawUp ?? 0}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-slate-500" data-testid={`text-raw-down-${itemKey}`}>
+                            <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-raw-down-${itemKey}`}>
                               {score?.rawDown ?? 0}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-emerald-600" data-testid={`text-trusted-up-${itemKey}`}>
-                              {(score?.weightedUp ?? 0).toFixed(1)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-red-500" data-testid={`text-trusted-down-${itemKey}`}>
-                              {(score?.weightedDown ?? 0).toFixed(1)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-center">
                             <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
-                              {score ? (score.netScore >= 0 ? "+" : "") + score.netScore.toFixed(1) : "0"}
+                              {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
                             </span>
                           </div>
                         </button>
 
                         {isExpanded && score && (
                           <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
+                            <div className="flex items-center gap-4 mb-3 pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Trust Score:</span>
+                                <span className={`text-sm font-bold font-mono ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                  {score.netScore.toFixed(3)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-slate-400">(</span>
+                                <span className="text-[10px] text-emerald-600 font-mono">+{score.weightedUp.toFixed(3)}</span>
+                                <span className="text-[10px] text-slate-400">/</span>
+                                <span className="text-[10px] text-red-500 font-mono">-{score.weightedDown.toFixed(3)}</span>
+                                <span className="text-[10px] text-slate-400">weighted)</span>
+                              </div>
+                            </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <div className="flex items-center gap-2 mb-2">
                                   <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
                                   <span className="text-xs font-medium text-emerald-600">Upvotes ({score.upvoters.length})</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">trusted: {score.weightedUp.toFixed(2)}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">weighted: {score.weightedUp.toFixed(3)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.upvoters.length === 0 ? (
@@ -1045,7 +1086,7 @@ function ListDetailContent() {
                                 <div className="flex items-center gap-2 mb-2">
                                   <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
                                   <span className="text-xs font-medium text-red-500">Downvotes ({score.downvoters.length})</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">trusted: {score.weightedDown.toFixed(2)}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">weighted: {score.weightedDown.toFixed(3)}</span>
                                 </div>
                                 <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                                   {score.downvoters.length === 0 ? (
@@ -1077,7 +1118,6 @@ function ListDetailContent() {
                     );
                   })}
                 </div>
-                )}
 
                 {filteredAndSorted.length > 0 && (
                 <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl shadow-sm">
@@ -1091,7 +1131,7 @@ function ListDetailContent() {
                   </p>
                   <div className="flex items-center gap-3 mt-3">
                     <p className="text-[10px] text-slate-400">
-                      {reactions.length} total reactions from {allVoterPubkeys.length} unique voters
+                      {reactions.length} reactions &middot; {allVoterPubkeys.length} voters &middot; {items.length} items
                     </p>
                     <UITooltip>
                       <TooltipTrigger asChild>
@@ -1105,6 +1145,8 @@ function ListDetailContent() {
                     </UITooltip>
                   </div>
                 </div>
+                )}
+                </>
                 )}
               </div>
             )}
