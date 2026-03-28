@@ -375,12 +375,12 @@ function ListDetailContent() {
   });
 
   const dcoslTrustSourcesQuery = useQuery({
-    queryKey: ["dcosl-trust-sources", aTag],
+    queryKey: ["dcosl-trust-sources", listId],
     queryFn: async () => {
       const headers = await fetchDListHeaders(10000);
       const sources: { dTag: string; label: string; pubkeys: Set<string>; isDcosl: boolean }[] = [];
       for (const header of headers) {
-        if (header.aTag === aTag) continue;
+        if (header.aTag === listId) continue;
         const items = await fetchDListItems(header.aTag, 10000);
         const pubkeys = new Set<string>();
         for (const item of items) {
@@ -392,9 +392,6 @@ function ListDetailContent() {
               const decoded = nip19.decode(npubMatch[1]);
               if (decoded.type === "npub" && typeof decoded.data === "string") pubkeys.add(decoded.data);
             } catch {}
-          }
-          for (const tag of (item as any).tags || []) {
-            if (tag[0] === "p" && tag[1]) pubkeys.add(tag[1]);
           }
         }
         if (pubkeys.size > 0) {
