@@ -517,6 +517,7 @@ export interface DListItem {
   parentRef: string;
   name: string;
   content: string;
+  image: string;
   jsonData: Record<string, unknown> | null;
 }
 
@@ -574,6 +575,7 @@ function parseDListItem(event: any): DListItem | null {
 
   const parentRef = getTag(event, "z") || "";
   const name = getTag(event, "name") || getTag(event, "title") || "";
+  const image = getTag(event, "image") || getTag(event, "thumb") || "";
 
   let jsonData: Record<string, unknown> | null = null;
   const jsonTag = getTag(event, "json");
@@ -591,6 +593,7 @@ function parseDListItem(event: any): DListItem | null {
     parentRef,
     name,
     content: event.content || "",
+    image,
     jsonData,
   };
 }

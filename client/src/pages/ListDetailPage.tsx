@@ -1065,6 +1065,7 @@ function ListDetailContent() {
                     const jsonPubkey = item.jsonData && typeof (item.jsonData as Record<string, unknown>).pubkey === "string" ? (item.jsonData as Record<string, unknown>).pubkey as string : "";
                     const hasPubkeyContent = isPubkey(itemContentValue) || isPubkey(jsonPubkey);
                     const pubkeyValue = isPubkey(itemContentValue) ? itemContentValue : (isPubkey(jsonPubkey) ? jsonPubkey : "");
+                    const jsonImage = item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "");
 
                     return (
                       <div key={item.aTag}>
@@ -1076,6 +1077,13 @@ function ListDetailContent() {
                           <div className="flex items-center gap-3 min-w-0">
                             {hasPubkeyContent && pubkeyValue ? (
                               <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} />
+                            ) : jsonImage ? (
+                              <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
+                                <AvatarImage src={jsonImage} className="object-cover" />
+                                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
+                                  {(item.name || "?").charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
                             ) : (
                               <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
                                 <span className="text-xs text-indigo-600 font-bold">
