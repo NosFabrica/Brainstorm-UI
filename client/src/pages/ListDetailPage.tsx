@@ -843,17 +843,6 @@ function ListDetailContent() {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <div className="relative flex-1 sm:w-48 sm:flex-none">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                        <Input
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder="Search items..."
-                          className="pl-9 h-9 text-sm bg-white/80 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-lg focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
-                          data-testid="input-search-items"
-                        />
-                      </div>
-
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-9 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
@@ -882,62 +871,6 @@ function ListDetailContent() {
                       </DropdownMenu>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
-                    {([
-                      { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
-                      { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
-                      { key: "positive" as ScoreFilter, label: "Positive", count: filterCounts.positive },
-                      { key: "negative" as ScoreFilter, label: "Negative", count: filterCounts.negative },
-                    ]).map((chip) => (
-                      <button
-                        key={chip.key}
-                        onClick={() => setScoreFilter(chip.key)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                          scoreFilter === chip.key
-                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
-                            : "bg-white/80 text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
-                        }`}
-                        data-testid={`chip-filter-${chip.key}`}
-                      >
-                        {chip.label} ({chip.count})
-                      </button>
-                    ))}
-                  </div>
-
-                  {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70">
-                      <span className="text-xs text-slate-500 shrink-0">List:</span>
-                      <Select value={trustedListId || "__default__"} onValueChange={(v) => setTrustedListId(v === "__default__" ? "" : v)}>
-                        <SelectTrigger className="h-7 text-xs bg-white border-slate-200 text-slate-900 rounded-md flex-1" data-testid="select-trusted-list">
-                          <SelectValue placeholder="Select a trusted list" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200">
-                          {availableTrustedLists.map((tl) => (
-                            <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-700">
-                              {tl.isDcosl ? `📋 ${tl.label}` : tl.label || "Default"} ({tl.pubkeys.size} members)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {trustMethod === "trusted_list" && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/50" data-testid="chain-indicator">
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Chain:</span>
-                      <span className="text-[10px] font-semibold text-indigo-500">
-                        {(() => {
-                          if (!trustedListId) return "All Trusted Lists";
-                          const match = availableTrustedLists.find(tl => tl.dTag === trustedListId);
-                          if (!match) return trustedListId;
-                          return `${match.label} (${match.pubkeys.size})`;
-                        })()}
-                      </span>
-                      <ArrowRight className="h-2.5 w-2.5 text-indigo-400" />
-                      <span className="text-[10px] font-semibold text-slate-900">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
-                    </div>
-                  )}
 
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70" data-testid="pov-indicator">
                     <Eye className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
@@ -1002,6 +935,73 @@ function ListDetailContent() {
                       </Button>
                     </div>
                   )}
+
+                  <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
+                    {([
+                      { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
+                      { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
+                      { key: "positive" as ScoreFilter, label: "Positive", count: filterCounts.positive },
+                      { key: "negative" as ScoreFilter, label: "Negative", count: filterCounts.negative },
+                    ]).map((chip) => (
+                      <button
+                        key={chip.key}
+                        onClick={() => setScoreFilter(chip.key)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                          scoreFilter === chip.key
+                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
+                            : "bg-white/80 text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                        }`}
+                        data-testid={`chip-filter-${chip.key}`}
+                      >
+                        {chip.label} ({chip.count})
+                      </button>
+                    ))}
+                  </div>
+
+                  {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white/70">
+                      <span className="text-xs text-slate-500 shrink-0">List:</span>
+                      <Select value={trustedListId || "__default__"} onValueChange={(v) => setTrustedListId(v === "__default__" ? "" : v)}>
+                        <SelectTrigger className="h-7 text-xs bg-white border-slate-200 text-slate-900 rounded-md flex-1" data-testid="select-trusted-list">
+                          <SelectValue placeholder="Select a trusted list" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200">
+                          {availableTrustedLists.map((tl) => (
+                            <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-700">
+                              {tl.isDcosl ? `📋 ${tl.label}` : tl.label || "Default"} ({tl.pubkeys.size} members)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {trustMethod === "trusted_list" && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/50" data-testid="chain-indicator">
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Chain:</span>
+                      <span className="text-[10px] font-semibold text-indigo-500">
+                        {(() => {
+                          if (!trustedListId) return "All Trusted Lists";
+                          const match = availableTrustedLists.find(tl => tl.dTag === trustedListId);
+                          if (!match) return trustedListId;
+                          return `${match.label} (${match.pubkeys.size})`;
+                        })()}
+                      </span>
+                      <ArrowRight className="h-2.5 w-2.5 text-indigo-400" />
+                      <span className="text-[10px] font-semibold text-slate-900">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <Input
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search items..."
+                      className="pl-9 h-9 text-sm bg-white/80 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-lg focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
+                      data-testid="input-search-items"
+                    />
+                  </div>
                 </div>
 
                 {filteredAndSorted.length === 0 && items.length > 0 ? (
