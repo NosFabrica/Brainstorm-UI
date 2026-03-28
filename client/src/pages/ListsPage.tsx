@@ -266,7 +266,7 @@ export default function ListsPage() {
               </span>
             </h1>
             <p className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light" data-testid="text-page-subtitle">
-              Discover trusted rankings powered by your network. See what your community recommends.
+              Discover what your trusted network recommends.
             </p>
           </div>
         </div>
