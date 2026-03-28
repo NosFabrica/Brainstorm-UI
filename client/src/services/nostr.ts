@@ -700,14 +700,13 @@ export async function fetchDListReactions(
   forceRefresh = false,
   parentListATag?: string
 ): Promise<DListReaction[]> {
-  const cacheKey = [...itemATags].sort().join("|");
+  const cacheKey = (parentListATag ? parentListATag + "||" : "") + [...itemATags].sort().join("|");
   if (!forceRefresh && dcoslReactionCache.has(cacheKey)) return dcoslReactionCache.get(cacheKey)!;
 
   const reactions: DListReaction[] = [];
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
-  const isDwarves = (parentListATag && parentListATag.startsWith(DWARVES_ATAG_PREFIX)) ||
-    itemATags.some(a => a.includes(":" + DWARVES_PUBKEY + ":"));
+  const isDwarves = !!(parentListATag && parentListATag.startsWith(DWARVES_ATAG_PREFIX));
   const relays = isDwarves ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
 
   const filters: Array<{ kinds: number[]; "#e"?: string[]; "#a"?: string[]; _tagType: string }> = [];
