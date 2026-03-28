@@ -1928,6 +1928,20 @@ export default function DashboardPage() {
                 ) : dcoslHeaders.length === 0 ? (
                   <p className="text-xs text-slate-400 py-2" data-testid="text-dcosl-empty">No DCoSL lists found on the relay.</p>
                 ) : (
+                  <>
+                  <div className="flex items-center gap-4 mb-3 px-1" data-testid="dcosl-aggregate-stats">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg font-bold text-[#333286]" data-testid="text-dcosl-list-count">{dcoslHeaders.length}</span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Lists</span>
+                    </div>
+                    <div className="w-px h-4 bg-slate-200" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg font-bold text-[#333286]" data-testid="text-dcosl-total-items">
+                        {Object.values(dcoslItemCounts).reduce((sum, c) => sum + c, 0)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Total Items</span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2" data-testid="grid-dcosl-lists">
                     {dcoslHeaders.map((header) => (
                       <div
@@ -1960,6 +1974,7 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
+                  </>
                 )}
               </div>
             </Card>

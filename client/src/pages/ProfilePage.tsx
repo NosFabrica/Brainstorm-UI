@@ -272,6 +272,10 @@ export default function ProfilePage() {
     metadataFetchedRef.current.clear();
     setReportMetadataLoading({});
     prefetchedRef.current.clear();
+    setListActivityFetched(false);
+    setListActivityLoading(false);
+    setListActivityAppearsOn([]);
+    setListActivityVotedOn([]);
 
     apiClient.getUserByPubkey(hexPubkey)
       .then(res => {
