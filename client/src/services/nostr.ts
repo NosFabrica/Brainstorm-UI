@@ -623,6 +623,171 @@ export async function fetchDListItems(parentATag: string, timeoutMs = 15000, for
 export function clearDcoslCache() {
   dcoslListCache.clear();
   dcoslItemCache.clear();
+  dcoslReactionCache.clear();
+}
+
+export interface DListReaction {
+  id: string;
+  pubkey: string;
+  createdAt: number;
+  targetItemATag: string;
+  isUpvote: boolean;
+}
+
+const dcoslReactionCache = new Map<string, DListReaction[]>();
+
+export async function fetchDListReactions(
+  itemATags: string[],
+  timeoutMs = 15000,
+  forceRefresh = false
+): Promise<DListReaction[]> {
+  const cacheKey = itemATags.sort().join("|");
+  if (!forceRefresh && dcoslReactionCache.has(cacheKey)) return dcoslReactionCache.get(cacheKey)!;
+
+  const reactions: DListReaction[] = [];
+  const seen = new Set<string>();
+  const validTargets = new Set(itemATags);
+
+  const filters: any[] = [];
+  const nonReplaceableIds = itemATags.filter(a => !a.includes(":"));
+  const replaceableATags = itemATags.filter(a => a.includes(":"));
+  if (nonReplaceableIds.length > 0) filters.push({ kinds: [7], "#e": nonReplaceableIds, _tagType: "e" });
+  if (replaceableATags.length > 0) filters.push({ kinds: [7], "#a": replaceableATags, _tagType: "a" });
+  if (filters.length === 0) {
+    dcoslReactionCache.set(cacheKey, []);
+    return [];
+  }
+
+  return new Promise<DListReaction[]>((resolve) => {
+    const timer = setTimeout(() => {
+      dcoslReactionCache.set(cacheKey, reactions);
+      resolve(reactions);
+    }, timeoutMs);
+
+    let completed = 0;
+    const total = filters.length;
+    const finish = () => {
+      completed++;
+      if (completed >= total) {
+        clearTimeout(timer);
+        dcoslReactionCache.set(cacheKey, reactions);
+        resolve(reactions);
+      }
+    };
+
+    for (const filter of filters) {
+      const expectedTagType = filter._tagType as string;
+      const { _tagType, ...relayFilter } = filter;
+      pool.request([DCOSL_RELAY], relayFilter).subscribe({
+        next: (event) => {
+          try {
+            const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
+            if (seen.has(eventId)) return;
+            seen.add(eventId);
+
+            const content = (event.content || "+").trim();
+            const isUpvote = content !== "-";
+
+            let targetItemATag = "";
+            for (const tag of event.tags || []) {
+              if (tag[0] === expectedTagType && tag[1] && validTargets.has(tag[1])) {
+                targetItemATag = tag[1];
+                break;
+              }
+            }
+            if (!targetItemATag) return;
+
+            reactions.push({
+              id: eventId,
+              pubkey: event.pubkey,
+              createdAt: event.created_at,
+              targetItemATag,
+              isUpvote,
+            });
+          } catch {}
+        },
+        error: finish,
+        complete: finish,
+      });
+    }
+  });
+}
+
+export async function fetchFollowList(pubkey: string, timeoutMs = 10000): Promise<Set<string>> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const event = await Promise.race([
+      firstValueFrom(pool.request(writeRelays, { kinds: [3], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
+    if (!event) return new Set();
+    const follows = new Set<string>();
+    for (const tag of event.tags || []) {
+      if (tag[0] === "p" && tag[1]) follows.add(tag[1]);
+    }
+    return follows;
+  } catch {
+    return new Set();
+  }
+}
+
+export async function fetchGrapeRankScores(
+  povPubkey: string,
+  targetPubkeys: string[],
+  timeoutMs = 15000
+): Promise<Map<string, number>> {
+  const scores = new Map<string, number>();
+  if (targetPubkeys.length === 0) return scores;
+
+  try {
+    const treasureMap = await fetchTrustProviderList(povPubkey, timeoutMs);
+    if (!treasureMap) return scores;
+
+    let grapeRankRelay = "";
+    let grapeRankAuthor = "";
+    for (const tag of treasureMap.tags || []) {
+      if (tag[0] === "30382:rank" && tag[1] && tag[2]) {
+        grapeRankAuthor = tag[1];
+        grapeRankRelay = tag[2];
+        break;
+      }
+    }
+    if (!grapeRankRelay || !grapeRankAuthor) return scores;
+
+    const batches: string[][] = [];
+    for (let i = 0; i < targetPubkeys.length; i += 50) {
+      batches.push(targetPubkeys.slice(i, i + 50));
+    }
+
+    for (const batch of batches) {
+      const dTags = batch.map(pk => `${povPubkey}:${pk}`);
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, timeoutMs);
+        pool.request([grapeRankRelay], {
+          kinds: [30382],
+          authors: [grapeRankAuthor],
+          "#d": dTags,
+        }).subscribe({
+          next: (event) => {
+            try {
+              const dTag = getTag(event, "d");
+              if (!dTag) return;
+              const parts = dTag.split(":");
+              if (parts.length < 2) return;
+              const targetPk = parts[1];
+              const scoreStr = event.content || getTag(event, "score") || "";
+              const score = parseFloat(scoreStr);
+              if (!isNaN(score)) scores.set(targetPk, score);
+            } catch {}
+          },
+          error: () => { clearTimeout(timer); resolve(); },
+          complete: () => { clearTimeout(timer); resolve(); },
+        });
+      });
+    }
+  } catch {}
+
+  return scores;
 }
 
 export { eventStore, pool };

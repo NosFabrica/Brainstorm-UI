@@ -39,7 +39,17 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 - **Relay:** `wss://dcosl.brainstorm.world` — DCoSL relay for curated lists
 - **Service functions:** Added to `client/src/services/nostr.ts` — `fetchDListHeaders()` (kinds 9998/39998), `fetchDListItems(parentATag)` (kinds 9999/39999 via `#z` filter), `clearDcoslCache()`, types `DListHeader`/`DListItem`
 - **ListsPage (`client/src/pages/ListsPage.tsx`):** Card grid of community-curated lists fetched from DCoSL relay, showing name, description, author profile, item count, age, and property tags. Route: `/lists`
-- **ListDetailPage (`client/src/pages/ListDetailPage.tsx`):** Detail view for a single list showing items with back navigation. Route: `/lists/:listId` (URL-encoded a-tag)
+- **ListDetailPage (`client/src/pages/ListDetailPage.tsx`):** Full detail view for a single list with trust-weighted reactions. Route: `/lists/:listId` (URL-encoded a-tag). Features:
+  - Sortable table with columns: Item name, Upvotes (thumbs up), Downvotes (thumbs down), Net Score
+  - Kind 7 reactions fetched from DCoSL relay (`fetchDListReactions`), parsed as +/- votes per NIP-25
+  - 3 trust weighting methods selectable via dropdown: Trust Everyone (weight=1), Follow List (kind 3 follows = weight 1, else 0), GrapeRank (kind 30382 scores via 10040 Treasure Map)
+  - Trust method persisted to `localStorage` key `brainstorm_trust_method`
+  - Expandable rows showing individual upvoters/downvoters with profile avatars and trust weights
+  - Search/filter toolbar for items
+  - Voter deduplication: latest `createdAt` wins per voter per item
+  - Reaction target validation: only counts reactions targeting known item a-tags/event IDs
 - **Navigation:** "Lists" button added to desktop nav bar on all authenticated pages (Dashboard, Search, Network, Profile, Settings, FAQ, Lists, ListDetail) and mobile drawer
-- **Cache:** Session-level caching via `dcoslListCache` and `dcoslItemCache` Maps in nostr.ts; `clearDcoslCache()` exported for manual refresh
+- **Cache:** Session-level caching via `dcoslListCache`, `dcoslItemCache`, and `dcoslReactionCache` Maps in nostr.ts; `clearDcoslCache()` exported for manual refresh
+- **Trust weight services:** `fetchFollowList(pubkey)` returns kind 3 follow set; `fetchGrapeRankScores(povPubkey, targetPubkeys)` fetches kind 30382 trust assertions via 10040 Treasure Map lookup
+- **TrustContext (`client/src/contexts/TrustContext.tsx`):** React context provider for trust method and PoV pubkey state (available for future PoV switching features)
 - **a-tag pattern:** Replaceable events (39998/39999) use `${kind}:${pubkey}:${dTag}`; non-replaceable (9998/9999) use `event.id`
