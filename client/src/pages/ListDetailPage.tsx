@@ -65,6 +65,8 @@ import {
   type DListItem,
   type DListReaction,
   type TrustedListInfo,
+  TAPESTRY_RELAY,
+  DWARVES_ATAG_PREFIX,
 } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 
@@ -183,18 +185,18 @@ function isPubkey(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
 }
 
-function VoterRow({ pubkey, weight, isUpvote, createdAt }: VoterInfo & { isUpvote: boolean }) {
+function VoterRow({ pubkey, weight, isUpvote, createdAt, extraRelays }: VoterInfo & { isUpvote: boolean; extraRelays?: string[] }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
 
   useEffect(() => {
     let cancelled = false;
-    fetchOutboxRelayList(pubkey).then(() => fetchProfile(pubkey)).then(p => {
+    fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey]);
+  }, [pubkey, extraRelays]);
 
   return (
     <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors" data-testid={`voter-${pubkey.slice(0, 8)}`}>
@@ -216,17 +218,17 @@ function VoterRow({ pubkey, weight, isUpvote, createdAt }: VoterInfo & { isUpvot
   );
 }
 
-function ItemProfileAvatar({ pubkey }: { pubkey: string }) {
+function ItemProfileAvatar({ pubkey, extraRelays }: { pubkey: string; extraRelays?: string[] }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
 
   useEffect(() => {
     if (!isPubkey(pubkey)) return;
     let cancelled = false;
-    fetchOutboxRelayList(pubkey).then(() => fetchProfile(pubkey)).then(p => {
+    fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey]);
+  }, [pubkey, extraRelays]);
 
   return (
     <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${pubkey.slice(0, 8)}`}>
@@ -238,17 +240,17 @@ function ItemProfileAvatar({ pubkey }: { pubkey: string }) {
   );
 }
 
-function AuthorBadge({ pubkey }: { pubkey: string }) {
+function AuthorBadge({ pubkey, extraRelays }: { pubkey: string; extraRelays?: string[] }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
 
   useEffect(() => {
     if (!isPubkey(pubkey)) return;
     let cancelled = false;
-    fetchOutboxRelayList(pubkey).then(() => fetchProfile(pubkey)).then(p => {
+    fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey]);
+  }, [pubkey, extraRelays]);
 
   const displayName = profile?.display_name || profile?.name || pubkey.slice(0, 8) + "...";
 
@@ -274,6 +276,8 @@ function ListDetailContent() {
   } catch {
     listId = params?.listId || "";
   }
+  const isDwarves = listId.startsWith(DWARVES_ATAG_PREFIX);
+  const extraRelays = useMemo(() => isDwarves ? [TAPESTRY_RELAY] : [], [isDwarves]);
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1003,7 +1007,7 @@ function ListDetailContent() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {hasPubkeyContent && pubkeyValue ? (
-                              <ItemProfileAvatar pubkey={pubkeyValue} />
+                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} />
                             ) : (
                               <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
                                 <span className="text-xs text-indigo-600 font-bold">
@@ -1025,7 +1029,7 @@ function ListDetailContent() {
                           </div>
 
                           <div className="min-w-0">
-                            <AuthorBadge pubkey={item.pubkey} />
+                            <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} />
                           </div>
 
                           <div className="flex items-center justify-center">
@@ -1076,7 +1080,7 @@ function ListDetailContent() {
                                     <p className="text-xs text-slate-400 px-3 py-2">No upvotes yet</p>
                                   ) : (
                                     score.upvoters.map((v) => (
-                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={true} />
+                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={true} extraRelays={extraRelays} />
                                     ))
                                   )}
                                 </div>
@@ -1093,7 +1097,7 @@ function ListDetailContent() {
                                     <p className="text-xs text-slate-400 px-3 py-2">No downvotes yet</p>
                                   ) : (
                                     score.downvoters.map((v) => (
-                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={false} />
+                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={false} extraRelays={extraRelays} />
                                     ))
                                   )}
                                 </div>

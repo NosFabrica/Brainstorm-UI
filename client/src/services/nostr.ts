@@ -99,9 +99,13 @@ export function fetchProfiles(
   });
 }
 
-export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000, extraRelays?: string[]): Promise<NostrEvent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    let writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    if (extraRelays && extraRelays.length > 0) {
+      const relaySet = new Set([...writeRelays, ...extraRelays]);
+      writeRelays = Array.from(relaySet);
+    }
 
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [10002], authors: [pubkey] })),
@@ -178,9 +182,13 @@ export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[
   return Array.from(writeRelays)
 }
 
-export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+export async function fetchProfile(pubkey: string, timeoutMs = 10000, extraRelays?: string[]): Promise<ProfileContent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    let writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    if (extraRelays && extraRelays.length > 0) {
+      const relaySet = new Set([...writeRelays, ...extraRelays]);
+      writeRelays = Array.from(relaySet);
+    }
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
@@ -447,9 +455,9 @@ export async function fetchMuteListTimestamp(
 const DCOSL_RELAY_DEFAULT = "wss://dcosl.brainstorm.world";
 const DCOSL_RELAY_KEY = "brainstorm_dcosl_relay";
 
-const TAPESTRY_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
+export const TAPESTRY_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
 const DWARVES_PUBKEY = "beba5587f5e570afaf6f80d5f5565b3d19c29e82f669634ab199bf050ca375f4";
-const DWARVES_ATAG_PREFIX = "39998:" + DWARVES_PUBKEY + ":dwarf";
+export const DWARVES_ATAG_PREFIX = "39998:" + DWARVES_PUBKEY + ":dwarf";
 
 export function getDcoslRelay(): string {
   return localStorage.getItem(DCOSL_RELAY_KEY) || DCOSL_RELAY_DEFAULT;
