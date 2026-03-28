@@ -939,15 +939,15 @@ function ListDetailContent() {
                       </TooltipTrigger>
                       <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw downvote count (click to sort)</TooltipContent>
                     </UITooltip>
-                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_up" ? "text-indigo-600 font-semibold" : "text-emerald-600 hover:text-emerald-500"}`} onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
+                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
                       Trusted +
                       {sortKey === "weighted_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                     </button>
-                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_down" ? "text-indigo-600 font-semibold" : "text-red-500 hover:text-red-400"}`} onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
+                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
                       Trusted −
                       {sortKey === "weighted_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                     </button>
-                    <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-indigo-600"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score">
+                    <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score">
                       Score
                       {sortKey === "net_score" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
