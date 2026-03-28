@@ -374,7 +374,49 @@ function ListDetailContent() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const availableTrustedLists = trustedListsQuery.data || [];
+  const dcoslTrustSourcesQuery = useQuery({
+    queryKey: ["dcosl-trust-sources", aTag],
+    queryFn: async () => {
+      const headers = await fetchDListHeaders(10000);
+      const sources: { dTag: string; label: string; pubkeys: Set<string>; isDcosl: boolean }[] = [];
+      for (const header of headers) {
+        if (header.aTag === aTag) continue;
+        const items = await fetchDListItems(header.aTag, 10000);
+        const pubkeys = new Set<string>();
+        for (const item of items) {
+          const hexMatch = item.content.match(/\b([0-9a-f]{64})\b/i);
+          if (hexMatch) pubkeys.add(hexMatch[1].toLowerCase());
+          const npubMatch = item.content.match(/\b(npub1[02-9ac-hj-np-z]{20,})\b/i);
+          if (npubMatch) {
+            try {
+              const decoded = nip19.decode(npubMatch[1]);
+              if (decoded.type === "npub" && typeof decoded.data === "string") pubkeys.add(decoded.data);
+            } catch {}
+          }
+          for (const tag of (item as any).tags || []) {
+            if (tag[0] === "p" && tag[1]) pubkeys.add(tag[1]);
+          }
+        }
+        if (pubkeys.size > 0) {
+          sources.push({ dTag: `dcosl:${header.aTag}`, label: header.name, pubkeys, isDcosl: true });
+        }
+      }
+      return sources;
+    },
+    enabled: trustMethod === "trusted_list",
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const availableTrustedLists = useMemo(() => {
+    const kind30392 = (trustedListsQuery.data || []).map(tl => ({
+      dTag: tl.dTag,
+      label: tl.dTag,
+      pubkeys: tl.pubkeys,
+      isDcosl: false,
+    }));
+    const dcoslSources = dcoslTrustSourcesQuery.data || [];
+    return [...kind30392, ...dcoslSources];
+  }, [trustedListsQuery.data, dcoslTrustSourcesQuery.data]);
 
   useEffect(() => {
     if (trustMethod !== "trusted_list" || availableTrustedLists.length === 0) return;
@@ -707,7 +749,7 @@ function ListDetailContent() {
                     </div>
                   </div>
 
-                  {trustMethod === "trusted_list" && availableTrustedLists.length > 1 && (
+                  {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/[0.02]">
                       <span className="text-xs text-slate-400 shrink-0">List:</span>
                       <Select value={trustedListId || "__default__"} onValueChange={(v) => setTrustedListId(v === "__default__" ? "" : v)}>
@@ -717,7 +759,7 @@ function ListDetailContent() {
                         <SelectContent className="bg-slate-900/95 backdrop-blur-xl border-white/10">
                           {availableTrustedLists.map((tl) => (
                             <SelectItem key={tl.dTag || "__default__"} value={tl.dTag || "__default__"} className="text-xs text-slate-300">
-                              {tl.dTag || "Default"} ({tl.pubkeys.size} members)
+                              {tl.isDcosl ? `📋 ${tl.label}` : tl.label || "Default"} ({tl.pubkeys.size} members)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -732,7 +774,8 @@ function ListDetailContent() {
                         {(() => {
                           if (!trustedListId) return "All Trusted Lists";
                           const match = availableTrustedLists.find(tl => tl.dTag === trustedListId);
-                          return match ? `${trustedListId} (${match.pubkeys.size})` : trustedListId;
+                          if (!match) return trustedListId;
+                          return `${match.label} (${match.pubkeys.size})`;
                         })()}
                       </span>
                       <ArrowRight className="h-2.5 w-2.5 text-indigo-400/60" />
