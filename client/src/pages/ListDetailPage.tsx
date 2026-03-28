@@ -338,7 +338,7 @@ function ListDetailContent() {
   const items = itemsQuery.data || [];
 
   const reactionsQuery = useQuery({
-    queryKey: ["dcosl-reactions", listId, items.map(i => i.aTag).sort().join(",")],
+    queryKey: ["dcosl-reactions", listId, items.flatMap(i => { const t = [i.aTag]; if (i.id && i.id !== i.aTag) t.push(i.id); return t; }).sort().join(",")],
     queryFn: () => {
       const aTags = items.flatMap(i => {
         const tags = [i.aTag];
