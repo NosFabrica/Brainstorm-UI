@@ -924,7 +924,7 @@ function ListDetailContent() {
                     {isDemoPov && (
                       <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>
                     )}
-                    {!isEffectivelySelf && !isDemoPov && (
+                    {!isEffectivelySelf && (
                       <Button
                         variant="ghost"
                         size="sm"
