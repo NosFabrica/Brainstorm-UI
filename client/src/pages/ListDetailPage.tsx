@@ -338,7 +338,7 @@ function ListDetailContent() {
   const items = itemsQuery.data || [];
 
   const reactionsQuery = useQuery({
-    queryKey: ["dcosl-reactions", listId, items.flatMap(i => { const t = [i.aTag]; if (i.id && i.id !== i.aTag) t.push(i.id); return t; }).sort().join(",")],
+    queryKey: ["dcosl-reactions", listId, [...items.flatMap(i => { const t = [i.aTag]; if (i.id && i.id !== i.aTag) t.push(i.id); return t; })].sort().join(",")],
     queryFn: () => {
       const aTags = items.flatMap(i => {
         const tags = [i.aTag];
@@ -397,7 +397,7 @@ function ListDetailContent() {
   }, [trustMethod, availableTrustedLists, trustedListId]);
 
   const grapeRankScoresQuery = useQuery({
-    queryKey: ["graperank-scores", povPubkey, allVoterPubkeys.sort().join(",")],
+    queryKey: ["graperank-scores", povPubkey, [...allVoterPubkeys].sort().join(",")],
     queryFn: async () => { await fetchOutboxRelayList(povPubkey); return fetchGrapeRankScores(povPubkey, allVoterPubkeys); },
     enabled: !!povPubkey && trustMethod === "graperank" && allVoterPubkeys.length > 0,
     staleTime: 10 * 60 * 1000,
