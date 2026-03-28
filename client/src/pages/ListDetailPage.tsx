@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -610,12 +610,12 @@ function ListDetailContent() {
 
   const handleResetPov = useCallback(() => {
     if (isDwarves) {
-      setDwarvesPovOverride(null);
+      setDwarvesPovOverride(user?.pubkey || null);
     } else {
       resetToSelf();
     }
     setPovProfile(null);
-  }, [resetToSelf, isDwarves]);
+  }, [resetToSelf, isDwarves, user?.pubkey]);
 
   const handleResetToDemo = useCallback(() => {
     setDwarvesPovOverride(NOUS_DEMO_PUBKEY);
@@ -632,7 +632,7 @@ function ListDetailContent() {
     (trustMethod === "trusted_list" && (trustedListsQuery.isLoading || dcoslTrustSourcesQuery.isLoading)) ||
     (trustMethod === "graperank" && grapeRankScoresQuery.isLoading);
 
-  const isEffectivelySelf = isSelfPov && !dwarvesPovOverride;
+  const isEffectivelySelf = effectivePovPubkey === user?.pubkey;
 
   const povDisplayName = useMemo(() => {
     if (isDemoPov) return "Nous (demo)";
