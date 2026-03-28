@@ -533,7 +533,7 @@ function ListDetailContent() {
 
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
   const isLoadingWeights = (trustMethod === "follow_list" && followListQuery.isLoading) ||
-    (trustMethod === "trusted_list" && trustedListsQuery.isLoading) ||
+    (trustMethod === "trusted_list" && (trustedListsQuery.isLoading || dcoslTrustSourcesQuery.isLoading)) ||
     (trustMethod === "graperank" && grapeRankScoresQuery.isLoading);
 
   const povDisplayName = useMemo(() => {
