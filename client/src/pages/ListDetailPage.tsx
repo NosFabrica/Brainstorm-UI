@@ -662,21 +662,23 @@ function ListDetailContent() {
           </div>
         ) : (
           <div>
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm text-[#333286]">
-                  <List className="h-5 w-5" />
+            <div className="mb-8 relative">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
+              <div className="flex flex-col items-start gap-3">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm" data-testid="pill-list-detail-kicker">
+                  <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
+                  <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">List Detail</span>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-detail-title">
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight relative" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-detail-title">
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
                     {listHeader.namePlural || listHeader.name}
-                  </h2>
-                  {listHeader.description && (
-                    <p className="text-sm text-slate-500" data-testid="text-list-detail-desc">
-                      {listHeader.description}
-                    </p>
-                  )}
-                </div>
+                  </span>
+                </h2>
+                {listHeader.description && (
+                  <p className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light" data-testid="text-list-detail-desc">
+                    {listHeader.description}
+                  </p>
+                )}
               </div>
             </div>
 
