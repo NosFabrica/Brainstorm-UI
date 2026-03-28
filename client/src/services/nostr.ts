@@ -447,6 +447,10 @@ export async function fetchMuteListTimestamp(
 const DCOSL_RELAY_DEFAULT = "wss://dcosl.brainstorm.world";
 const DCOSL_RELAY_KEY = "brainstorm_dcosl_relay";
 
+const TAPESTRY_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
+const DWARVES_PUBKEY = "beba5587f5e570afaf6f80d5f5565b3d19c29e82f669634ab199bf050ca375f4";
+const DWARVES_ATAG_PREFIX = "39998:" + DWARVES_PUBKEY + ":dwarf";
+
 export function getDcoslRelay(): string {
   return localStorage.getItem(DCOSL_RELAY_KEY) || DCOSL_RELAY_DEFAULT;
 }
@@ -574,32 +578,50 @@ export async function fetchDListHeaders(timeoutMs = 15000, forceRefresh = false)
   const headers: DListHeader[] = [];
   const seen = new Set<string>();
 
+  const handleEvent = (event: any) => {
+    try {
+      const parsed = parseDListHeader(event);
+      if (!parsed) return;
+      const key = parsed.aTag;
+      if (seen.has(key)) {
+        const existing = headers.find(h => h.aTag === key);
+        if (existing && parsed.createdAt > existing.createdAt) {
+          const idx = headers.indexOf(existing);
+          headers[idx] = parsed;
+        }
+        return;
+      }
+      seen.add(key);
+      headers.push(parsed);
+    } catch {}
+  };
+
   return new Promise<DListHeader[]>((resolve) => {
+    let pending = 2;
     const timer = setTimeout(() => {
       dcoslListCache.set(cacheKey, headers);
       resolve(headers);
     }, timeoutMs);
 
+    const finish = () => {
+      pending--;
+      if (pending <= 0) {
+        clearTimeout(timer);
+        dcoslListCache.set(cacheKey, headers);
+        resolve(headers);
+      }
+    };
+
     pool.request([getDcoslRelay()], { kinds: [9998, 39998] }).subscribe({
-      next: (event) => {
-        try {
-          const parsed = parseDListHeader(event);
-          if (!parsed) return;
-          const key = parsed.aTag;
-          if (seen.has(key)) {
-            const existing = headers.find(h => h.aTag === key);
-            if (existing && parsed.createdAt > existing.createdAt) {
-              const idx = headers.indexOf(existing);
-              headers[idx] = parsed;
-            }
-            return;
-          }
-          seen.add(key);
-          headers.push(parsed);
-        } catch {}
-      },
-      error: () => { clearTimeout(timer); dcoslListCache.set(cacheKey, headers); resolve(headers); },
-      complete: () => { clearTimeout(timer); dcoslListCache.set(cacheKey, headers); resolve(headers); },
+      next: handleEvent,
+      error: finish,
+      complete: finish,
+    });
+
+    pool.request([TAPESTRY_RELAY], { kinds: [39998], authors: [DWARVES_PUBKEY] }).subscribe({
+      next: handleEvent,
+      error: finish,
+      complete: finish,
     });
   });
 }
@@ -609,6 +631,26 @@ export async function fetchDListItems(parentATag: string, timeoutMs = 15000, for
 
   const items: DListItem[] = [];
   const seen = new Set<string>();
+  const isDwarves = parentATag.startsWith(DWARVES_ATAG_PREFIX);
+  const relays = isDwarves ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
+
+  const handleEvent = (event: any) => {
+    try {
+      const parsed = parseDListItem(event);
+      if (!parsed) return;
+      const key = parsed.aTag;
+      if (seen.has(key)) {
+        const existing = items.find(i => i.aTag === key);
+        if (existing && parsed.createdAt > existing.createdAt) {
+          const idx = items.indexOf(existing);
+          items[idx] = parsed;
+        }
+        return;
+      }
+      seen.add(key);
+      items.push(parsed);
+    } catch {}
+  };
 
   return new Promise<DListItem[]>((resolve) => {
     const timer = setTimeout(() => {
@@ -616,27 +658,23 @@ export async function fetchDListItems(parentATag: string, timeoutMs = 15000, for
       resolve(items);
     }, timeoutMs);
 
-    pool.request([getDcoslRelay()], { kinds: [9999, 39999], "#z": [parentATag] }).subscribe({
-      next: (event) => {
-        try {
-          const parsed = parseDListItem(event);
-          if (!parsed) return;
-          const key = parsed.aTag;
-          if (seen.has(key)) {
-            const existing = items.find(i => i.aTag === key);
-            if (existing && parsed.createdAt > existing.createdAt) {
-              const idx = items.indexOf(existing);
-              items[idx] = parsed;
-            }
-            return;
-          }
-          seen.add(key);
-          items.push(parsed);
-        } catch {}
-      },
-      error: () => { clearTimeout(timer); dcoslItemCache.set(parentATag, items); resolve(items); },
-      complete: () => { clearTimeout(timer); dcoslItemCache.set(parentATag, items); resolve(items); },
-    });
+    let pending = relays.length;
+    const finish = () => {
+      pending--;
+      if (pending <= 0) {
+        clearTimeout(timer);
+        dcoslItemCache.set(parentATag, items);
+        resolve(items);
+      }
+    };
+
+    for (const relay of relays) {
+      pool.request([relay], { kinds: [9999, 39999], "#z": [parentATag] }).subscribe({
+        next: handleEvent,
+        error: finish,
+        complete: finish,
+      });
+    }
   });
 }
 
@@ -667,6 +705,8 @@ export async function fetchDListReactions(
   const reactions: DListReaction[] = [];
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
+  const hasDwarvesItems = itemATags.some(a => a.startsWith(DWARVES_ATAG_PREFIX));
+  const relays = hasDwarvesItems ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
 
   const filters: Array<{ kinds: number[]; "#e"?: string[]; "#a"?: string[]; _tagType: string }> = [];
   const nonReplaceableIds = itemATags.filter(a => !a.includes(":"));
@@ -678,17 +718,47 @@ export async function fetchDListReactions(
     return [];
   }
 
+  const handleEvent = (expectedTagType: string) => (event: any) => {
+    try {
+      const eventWithId = event as NostrEvent & { id?: string };
+      const eventId = eventWithId.id || `${event.pubkey}-${event.created_at}`;
+      if (seen.has(eventId)) return;
+      seen.add(eventId);
+
+      const content = (event.content || "").trim();
+      const isUpvote = content === "+" || content === "";
+      const isDownvote = content === "-";
+      if (!isUpvote && !isDownvote) return;
+
+      let targetItemATag = "";
+      for (const tag of event.tags || []) {
+        if (tag[0] === expectedTagType && tag[1] && validTargets.has(tag[1])) {
+          targetItemATag = tag[1];
+          break;
+        }
+      }
+      if (!targetItemATag) return;
+
+      reactions.push({
+        id: eventId,
+        pubkey: event.pubkey,
+        createdAt: event.created_at,
+        targetItemATag,
+        isUpvote,
+      });
+    } catch {}
+  };
+
   return new Promise<DListReaction[]>((resolve) => {
     const timer = setTimeout(() => {
       dcoslReactionCache.set(cacheKey, reactions);
       resolve(reactions);
     }, timeoutMs);
 
-    let completed = 0;
-    const total = filters.length;
+    let pending = filters.length * relays.length;
     const finish = () => {
-      completed++;
-      if (completed >= total) {
+      pending--;
+      if (pending <= 0) {
         clearTimeout(timer);
         dcoslReactionCache.set(cacheKey, reactions);
         resolve(reactions);
@@ -698,40 +768,13 @@ export async function fetchDListReactions(
     for (const filter of filters) {
       const expectedTagType = filter._tagType as string;
       const { _tagType, ...relayFilter } = filter;
-      pool.request([getDcoslRelay()], relayFilter).subscribe({
-        next: (event) => {
-          try {
-            const eventWithId = event as NostrEvent & { id?: string };
-            const eventId = eventWithId.id || `${event.pubkey}-${event.created_at}`;
-            if (seen.has(eventId)) return;
-            seen.add(eventId);
-
-            const content = (event.content || "").trim();
-            const isUpvote = content === "+" || content === "";
-            const isDownvote = content === "-";
-            if (!isUpvote && !isDownvote) return;
-
-            let targetItemATag = "";
-            for (const tag of event.tags || []) {
-              if (tag[0] === expectedTagType && tag[1] && validTargets.has(tag[1])) {
-                targetItemATag = tag[1];
-                break;
-              }
-            }
-            if (!targetItemATag) return;
-
-            reactions.push({
-              id: eventId,
-              pubkey: event.pubkey,
-              createdAt: event.created_at,
-              targetItemATag,
-              isUpvote,
-            });
-          } catch {}
-        },
-        error: finish,
-        complete: finish,
-      });
+      for (const relay of relays) {
+        pool.request([relay], relayFilter).subscribe({
+          next: handleEvent(expectedTagType),
+          error: finish,
+          complete: finish,
+        });
+      }
     }
   });
 }
