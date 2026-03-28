@@ -707,7 +707,7 @@ export async function fetchDListReactions(
   const seen = new Set<string>();
   const validTargets = new Set(itemATags);
   const isDwarves = !!(parentListATag && parentListATag.startsWith(DWARVES_ATAG_PREFIX)) ||
-    itemATags.some(a => { const parts = a.split(":"); return parts.length >= 3 && parts[1] === DWARVES_PUBKEY; });
+    itemATags.some(a => a.includes(":" + DWARVES_PUBKEY + ":dwarf"));
   const relays = isDwarves ? [getDcoslRelay(), TAPESTRY_RELAY] : [getDcoslRelay()];
 
   const filters: Array<{ kinds: number[]; "#e"?: string[]; "#a"?: string[]; _tagType: string }> = [];
