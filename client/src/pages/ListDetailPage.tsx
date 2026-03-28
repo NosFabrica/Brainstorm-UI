@@ -311,7 +311,7 @@ function ListDetailContent() {
   const [povInput, setPovInput] = useState("");
   const [showPovInput, setShowPovInput] = useState(false);
 
-  const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf, isSelf: isSelfPov } = useTrust();
+  const { povPubkey, method: trustMethod, trustedListId, setPovPubkey, setMethod: setTrustMethod, setTrustedListId, resetToSelf } = useTrust();
 
   const [dwarvesPovOverride, setDwarvesPovOverride] = useState<string | null>(() =>
     isDwarves ? NOUS_DEMO_PUBKEY : null
