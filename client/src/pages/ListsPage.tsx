@@ -253,19 +253,21 @@ export default function ListsPage() {
       />
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm text-[#333286]">
-              <List className="h-5 w-5" />
+        <div className="mb-8 relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
+          <div className="flex flex-col items-start gap-3">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm" data-testid="pill-lists-kicker">
+              <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
+              <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">Curated Lists</span>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-page-title">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight relative" style={{ fontFamily: "var(--font-display)" }} data-testid="text-page-title">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
                 Curated Lists
-              </h2>
-              <p className="text-sm text-slate-500" data-testid="text-page-subtitle">
-                Decentralized lists curated by the Nostr community
-              </p>
-            </div>
+              </span>
+            </h1>
+            <p className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light" data-testid="text-page-subtitle">
+              Decentralized lists curated by the Nostr community.
+            </p>
           </div>
         </div>
 
