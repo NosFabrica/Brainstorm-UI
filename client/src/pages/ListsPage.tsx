@@ -129,8 +129,10 @@ export default function ListsPage() {
 
   const exampleList = useMemo(() => {
     return lists.find(l => {
-      const name = (l.namePlural || l.name || "").toLowerCase();
-      return name.includes("dwarf") || name.includes("dwarves");
+      const namePlural = (l.namePlural || "").toLowerCase();
+      const name = (l.name || "").toLowerCase();
+      return namePlural.includes("dwarf") || namePlural.includes("dwarves") ||
+             name.includes("dwarf") || name.includes("dwarves");
     }) || null;
   }, [lists]);
 
