@@ -100,26 +100,33 @@ export function fetchProfiles(
 }
 
 export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000, extraRelays?: string[]): Promise<NostrEvent | undefined> {
-  try {
-    let writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-    if (extraRelays && extraRelays.length > 0) {
-      const relaySet = new Set([...writeRelays, ...extraRelays]);
-      writeRelays = Array.from(relaySet);
-    }
+  const hasExtra = extraRelays && extraRelays.length > 0;
+  const primaryTimeout = hasExtra ? Math.min(timeoutMs, 3000) : timeoutMs;
 
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [10002], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), primaryTimeout)),
     ]);
-
-    if (!event) return undefined;
-
-    try {
-      eventStore.add(event as any);
-    } catch {}
-
-    return event as NostrEvent;
+    if (event) {
+      try { eventStore.add(event as any); } catch {}
+      return event as NostrEvent;
+    }
   } catch {}
+
+  if (hasExtra) {
+    try {
+      const event = await Promise.race([
+        firstValueFrom(pool.request(extraRelays!, { kinds: [10002], authors: [pubkey] })),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+      ]);
+      if (event) {
+        try { eventStore.add(event as any); } catch {}
+        return event as NostrEvent;
+      }
+    } catch {}
+  }
 
   return undefined;
 }
@@ -182,34 +189,39 @@ export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[
   return Array.from(writeRelays)
 }
 
+function parseProfileEvent(event: any): ProfileContent | undefined {
+  try { eventStore.add(event as any); } catch {}
+  if (isValidProfile(event as any)) {
+    return getProfileContent(event as any);
+  }
+  if (typeof event.content === "string") {
+    try { return JSON.parse(event.content) as ProfileContent; } catch {}
+  }
+  return undefined;
+}
+
 export async function fetchProfile(pubkey: string, timeoutMs = 10000, extraRelays?: string[]): Promise<ProfileContent | undefined> {
+  const hasExtra = extraRelays && extraRelays.length > 0;
+  const primaryTimeout = hasExtra ? Math.min(timeoutMs, 3000) : timeoutMs;
+
   try {
-    let writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-    if (extraRelays && extraRelays.length > 0) {
-      const relaySet = new Set([...writeRelays, ...extraRelays]);
-      writeRelays = Array.from(relaySet);
-    }
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), primaryTimeout)),
     ]);
-
-    if (!event) return undefined;
-
-    try {
-      eventStore.add(event as any);
-    } catch {}
-
-    if (isValidProfile(event as any)) {
-      return getProfileContent(event as any);
-    }
-
-    if (typeof event.content === "string") {
-      try {
-        return JSON.parse(event.content) as ProfileContent;
-      } catch {}
-    }
+    if (event) return parseProfileEvent(event);
   } catch {}
+
+  if (hasExtra) {
+    try {
+      const event = await Promise.race([
+        firstValueFrom(pool.request(extraRelays!, { kinds: [0], authors: [pubkey] })),
+        new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+      ]);
+      if (event) return parseProfileEvent(event);
+    } catch {}
+  }
 
   return undefined;
 }

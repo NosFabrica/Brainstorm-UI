@@ -185,10 +185,12 @@ function isPubkey(value: string): boolean {
   return /^[0-9a-f]{64}$/.test(value);
 }
 
-function VoterRow({ pubkey, weight, isUpvote, createdAt, extraRelays }: VoterInfo & { isUpvote: boolean; extraRelays?: string[] }) {
+function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays }: VoterInfo & { isUpvote: boolean; extraRelays?: string[] }) {
   const [profile, setProfile] = useState<ProfileContent | null>(null);
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
+  const contribution = isUpvote ? weight : -weight;
+  const hasWeight = weight > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -199,20 +201,37 @@ function VoterRow({ pubkey, weight, isUpvote, createdAt, extraRelays }: VoterInf
   }, [pubkey, extraRelays]);
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors" data-testid={`voter-${pubkey.slice(0, 8)}`}>
-      <Avatar className="h-6 w-6 border border-slate-200 shrink-0">
-        {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
-        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[10px] font-bold">
-          {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</p>
+    <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
+      <div className="flex items-center gap-2 min-w-0">
+        <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
+          {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
+          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[8px] font-bold">
+            {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+
+      <div className="flex justify-center">
         {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-500" />}
-        <span className="text-[10px] font-mono tabular-nums text-slate-500">w={weight.toFixed(2)}</span>
-        <span className="text-[10px] font-mono tabular-nums text-slate-400">{formatRelativeTime(createdAt)}</span>
+      </div>
+
+      <div className="text-center">
+        <span className={`text-[11px] font-mono tabular-nums ${hasWeight ? "text-slate-700" : "text-slate-400"}`}>
+          {hasWeight ? weight.toFixed(3) : "\u2014"}
+        </span>
+      </div>
+
+      <div className="text-center">
+        <span className={`text-[11px] font-mono tabular-nums font-medium ${!hasWeight ? "text-slate-400" : contribution > 0 ? "text-emerald-600" : "text-red-500"}`}>
+          {hasWeight ? (contribution > 0 ? "+" : "") + contribution.toFixed(3) : "\u2014"}
+        </span>
+      </div>
+
+      <div className="min-w-0">
+        {!hasWeight && (
+          <span className="text-[10px] text-slate-400 italic">Trust weight unknown</span>
+        )}
       </div>
     </div>
   );
@@ -1051,56 +1070,59 @@ function ListDetailContent() {
                           </div>
                         </button>
 
-                        {isExpanded && score && (
+                        {isExpanded && score && (() => {
+                          const allVoters = [
+                            ...score.upvoters.map(v => ({ ...v, isUpvote: true })),
+                            ...score.downvoters.map(v => ({ ...v, isUpvote: false })),
+                          ].sort((a, b) => {
+                            const contribA = a.isUpvote ? a.weight : -a.weight;
+                            const contribB = b.isUpvote ? b.weight : -b.weight;
+                            if (a.weight === 0 && b.weight === 0) return 0;
+                            if (a.weight === 0) return 1;
+                            if (b.weight === 0) return -1;
+                            return contribB - contribA;
+                          });
+
+                          return (
                           <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
-                            <div className="flex items-center gap-4 mb-3 pb-3 border-b border-slate-100">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Trust Score:</span>
-                                <span className={`text-sm font-bold font-mono ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
-                                  {score.netScore.toFixed(3)}
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {score.upvoters.length} up / {score.downvoters.length} down
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-slate-400">(</span>
-                                <span className="text-[10px] text-emerald-600 font-mono">+{score.weightedUp.toFixed(3)}</span>
-                                <span className="text-[10px] text-slate-400">/</span>
-                                <span className="text-[10px] text-red-500 font-mono">-{score.weightedDown.toFixed(3)}</span>
-                                <span className="text-[10px] text-slate-400">weighted)</span>
-                              </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <ThumbsUp className="h-3.5 w-3.5 text-emerald-500" />
-                                  <span className="text-xs font-medium text-emerald-600">Upvotes ({score.upvoters.length})</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">weighted: {score.weightedUp.toFixed(3)}</span>
-                                </div>
-                                <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
-                                  {score.upvoters.length === 0 ? (
-                                    <p className="text-xs text-slate-400 px-3 py-2">No upvotes yet</p>
-                                  ) : (
-                                    score.upvoters.map((v) => (
-                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={true} extraRelays={extraRelays} />
-                                    ))
-                                  )}
-                                </div>
+
+                            <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+                              <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-2 bg-slate-50 border-b border-slate-200">
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Source</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Vote</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trust Weight</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Contribution</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Note</span>
                               </div>
 
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <ThumbsDown className="h-3.5 w-3.5 text-red-500" />
-                                  <span className="text-xs font-medium text-red-500">Downvotes ({score.downvoters.length})</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">weighted: {score.weightedDown.toFixed(3)}</span>
+                              <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                {allVoters.length === 0 ? (
+                                  <p className="text-xs text-slate-400 px-3 py-3 text-center">No votes yet</p>
+                                ) : (
+                                  allVoters.map((v) => (
+                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} />
+                                  ))
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-2 bg-slate-50 border-t border-slate-200">
+                                <span className="text-xs font-bold text-slate-700">Total Trust Score</span>
+                                <div />
+                                <div />
+                                <div className="text-center">
+                                  <span className={`text-xs font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                    {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
+                                  </span>
                                 </div>
-                                <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
-                                  {score.downvoters.length === 0 ? (
-                                    <p className="text-xs text-slate-400 px-3 py-2">No downvotes yet</p>
-                                  ) : (
-                                    score.downvoters.map((v) => (
-                                      <VoterRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={false} extraRelays={extraRelays} />
-                                    ))
-                                  )}
-                                </div>
+                                <div />
                               </div>
                             </div>
 
@@ -1117,7 +1139,8 @@ function ListDetailContent() {
                               </div>
                             )}
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })}
