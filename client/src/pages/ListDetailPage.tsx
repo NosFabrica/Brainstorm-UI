@@ -37,7 +37,6 @@ import {
   ThumbsDown,
   ChevronDown,
   ChevronUp,
-  ArrowUpDown,
   Eye,
   HelpCircle,
   RotateCcw,
@@ -83,8 +82,9 @@ const TRUST_METHOD_DESCS: Record<TrustMethod, string> = {
   graperank: "Reactions weighted by GrapeRank trust scores",
 };
 
-type SortKey = "name" | "weighted_up" | "weighted_down" | "net_score";
+type SortKey = "name" | "raw_up" | "raw_down" | "weighted_up" | "weighted_down" | "net_score";
 type SortDir = "asc" | "desc";
+type ScoreFilter = "all" | "has_votes" | "positive" | "negative";
 
 interface VoterInfo {
   pubkey: string;
@@ -258,6 +258,7 @@ function ListDetailContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("net_score");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [povInput, setPovInput] = useState("");
   const [showPovInput, setShowPovInput] = useState(false);
@@ -470,14 +471,34 @@ function ListDetailContent() {
     [items, reactions, trustWeights]
   );
 
+  const filterCounts = useMemo(() => {
+    const counts = { all: items.length, has_votes: 0, positive: 0, negative: 0 };
+    for (const item of items) {
+      const score = itemScores.get(item.aTag);
+      if (score && (score.rawUp + score.rawDown > 0)) counts.has_votes++;
+      if (score && score.netScore > 0) counts.positive++;
+      if (score && score.netScore < 0) counts.negative++;
+    }
+    return counts;
+  }, [items, itemScores]);
+
   const filteredAndSorted = useMemo(() => {
     let filtered = items;
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      filtered = items.filter(i =>
+      filtered = filtered.filter(i =>
         (i.name || "").toLowerCase().includes(q) ||
         (i.content || "").toLowerCase().includes(q)
       );
+    }
+    if (scoreFilter !== "all") {
+      filtered = filtered.filter(i => {
+        const score = itemScores.get(i.aTag);
+        if (scoreFilter === "has_votes") return score ? (score.rawUp + score.rawDown > 0) : false;
+        if (scoreFilter === "positive") return score ? score.netScore > 0 : false;
+        if (scoreFilter === "negative") return score ? score.netScore < 0 : false;
+        return true;
+      });
     }
     return [...filtered].sort((a, b) => {
       const scoreA = itemScores.get(a.aTag);
@@ -485,6 +506,10 @@ function ListDetailContent() {
       let cmp = 0;
       if (sortKey === "name") {
         cmp = (a.name || "").localeCompare(b.name || "");
+      } else if (sortKey === "raw_up") {
+        cmp = (scoreA?.rawUp ?? 0) - (scoreB?.rawUp ?? 0);
+      } else if (sortKey === "raw_down") {
+        cmp = (scoreA?.rawDown ?? 0) - (scoreB?.rawDown ?? 0);
       } else if (sortKey === "weighted_up") {
         cmp = (scoreA?.weightedUp ?? 0) - (scoreB?.weightedUp ?? 0);
       } else if (sortKey === "weighted_down") {
@@ -494,7 +519,7 @@ function ListDetailContent() {
       }
       return sortDir === "desc" ? -cmp : cmp;
     });
-  }, [items, searchTerm, sortKey, sortDir, itemScores]);
+  }, [items, searchTerm, scoreFilter, sortKey, sortDir, itemScores]);
 
   const handleSort = useCallback((key: SortKey) => {
     if (sortKey === key) {
@@ -701,10 +726,10 @@ function ListDetailContent() {
               </div>
             ) : (
               <div data-testid="list-items">
-                <div className="flex flex-col gap-3 mb-4">
+                <div className="flex flex-col gap-3 mb-4 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/60 shadow-sm" data-testid="toolbar-list-detail">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <p className="text-sm text-slate-500" data-testid="text-items-count">
+                      <p className="text-sm text-slate-500 font-medium" data-testid="text-items-count">
                         {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
                       </p>
                       {reactionsQuery.isLoading && (
@@ -722,20 +747,20 @@ function ListDetailContent() {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <div className="relative flex-1 sm:w-44 sm:flex-none">
-                        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                      <div className="relative flex-1 sm:w-48 sm:flex-none">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                         <Input
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           placeholder="Search items..."
-                          className="pl-8 h-8 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-lg focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                          className="pl-9 h-9 text-sm bg-white/80 border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-lg focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
                           data-testid="input-search-items"
                         />
                       </div>
 
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
+                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-9 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
                             <span className="hidden sm:inline">{TRUST_METHOD_LABELS[trustMethod]}</span>
                           </Button>
@@ -760,6 +785,28 @@ function ListDetailContent() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
+                    {([
+                      { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
+                      { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
+                      { key: "positive" as ScoreFilter, label: "Positive", count: filterCounts.positive },
+                      { key: "negative" as ScoreFilter, label: "Negative", count: filterCounts.negative },
+                    ]).map((chip) => (
+                      <button
+                        key={chip.key}
+                        onClick={() => setScoreFilter(chip.key)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                          scoreFilter === chip.key
+                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
+                            : "bg-white/80 text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                        }`}
+                        data-testid={`chip-filter-${chip.key}`}
+                      >
+                        {chip.label} ({chip.count})
+                      </button>
+                    ))}
                   </div>
 
                   {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
@@ -846,35 +893,63 @@ function ListDetailContent() {
                   )}
                 </div>
 
+                {filteredAndSorted.length === 0 && items.length > 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-filter-results">
+                    <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
+                      <SearchIcon className="h-8 w-8 text-slate-300" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No items match your filters</p>
+                      <p className="text-sm text-slate-500 max-w-md">
+                        Try adjusting your search term or changing the active filter.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 border-slate-200 text-slate-600 hover:bg-slate-50"
+                      onClick={() => { setSearchTerm(""); setScoreFilter("all"); }}
+                      data-testid="button-clear-all-filters"
+                    >
+                      Clear all filters
+                    </Button>
+                  </div>
+                ) : (
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden overflow-x-auto shadow-sm">
                   <div className="grid grid-cols-[1fr_50px_50px_60px_60px_65px] min-w-[520px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
-                    <button className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors text-left" onClick={() => handleSort("name")} data-testid="button-sort-name">
+                    <button className={`flex items-center gap-1 text-xs font-medium transition-colors text-left ${sortKey === "name" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-slate-900"}`} onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
-                      {sortKey === "name" && <ArrowUpDown className="h-3 w-3" />}
+                      {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[10px] font-medium text-slate-400 text-center cursor-help">Raw +</span>
+                        <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "raw_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_up")} data-testid="button-sort-raw-up">
+                          Raw +
+                          {sortKey === "raw_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+                        </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw upvote count</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw upvote count (click to sort)</TooltipContent>
                     </UITooltip>
                     <UITooltip>
                       <TooltipTrigger asChild>
-                        <span className="text-[10px] font-medium text-slate-400 text-center cursor-help">Raw −</span>
+                        <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "raw_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_down")} data-testid="button-sort-raw-down">
+                          Raw −
+                          {sortKey === "raw_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+                        </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw downvote count</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Raw downvote count (click to sort)</TooltipContent>
                     </UITooltip>
-                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-500 transition-colors" onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
+                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_up" ? "text-indigo-600 font-semibold" : "text-emerald-600 hover:text-emerald-500"}`} onClick={() => handleSort("weighted_up")} data-testid="button-sort-up">
                       Trusted +
-                      {sortKey === "weighted_up" && <ArrowUpDown className="h-2.5 w-2.5" />}
+                      {sortKey === "weighted_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                     </button>
-                    <button className="flex items-center justify-center gap-1 text-[10px] font-medium text-red-500 hover:text-red-400 transition-colors" onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
+                    <button className={`flex items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${sortKey === "weighted_down" ? "text-indigo-600 font-semibold" : "text-red-500 hover:text-red-400"}`} onClick={() => handleSort("weighted_down")} data-testid="button-sort-down">
                       Trusted −
-                      {sortKey === "weighted_down" && <ArrowUpDown className="h-2.5 w-2.5" />}
+                      {sortKey === "weighted_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                     </button>
-                    <button className="flex items-center justify-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => handleSort("net_score")} data-testid="button-sort-score">
+                    <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-indigo-600"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score">
                       Score
-                      {sortKey === "net_score" && <ArrowUpDown className="h-3 w-3" />}
+                      {sortKey === "net_score" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
                   </div>
 
@@ -1002,7 +1077,9 @@ function ListDetailContent() {
                     );
                   })}
                 </div>
+                )}
 
+                {filteredAndSorted.length > 0 && (
                 <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <Eye className="h-4 w-4 text-indigo-500" />
@@ -1028,6 +1105,7 @@ function ListDetailContent() {
                     </UITooltip>
                   </div>
                 </div>
+                )}
               </div>
             )}
           </div>
