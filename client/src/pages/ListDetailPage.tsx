@@ -919,6 +919,29 @@ function ListDetailContent() {
                     </div>
                   </div>
 
+                  <div className="px-3 py-2 rounded-lg border border-slate-200 bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/30" data-testid="trust-method-info">
+                    <div className="flex items-center gap-1.5">
+                      <Eye className="h-3 w-3 text-indigo-500 shrink-0" />
+                      <span className="text-[11px] font-semibold text-indigo-700">{TRUST_METHOD_LABELS[trustMethod]}</span>
+                      <span className="text-[10px] text-slate-400 mx-1">&middot;</span>
+                      <span className="text-[10px] text-slate-400">{reactions.length} reactions &middot; {allVoterPubkeys.length} voters &middot; {items.length} items</span>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-3 w-3 text-slate-400 cursor-help shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 max-w-xs shadow-lg">
+                          <p className="text-xs leading-relaxed">
+                            Reactions are kind 7 Nostr events from the DCoSL relay. Each voter's reaction is weighted according to the selected trust method and PoV to produce the final scores.
+                          </p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
+                      {TRUST_METHOD_DESCS[trustMethod]}
+                      {trustMethod === "trust_everyone" && " — Switch to Follow List, Trusted List, or GrapeRank to weight reactions by your Web of Trust."}
+                    </p>
+                  </div>
+
                   <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
                     {([
                       { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
@@ -1217,33 +1240,6 @@ function ListDetailContent() {
                   })}
                 </div>
 
-                {filteredAndSorted.length > 0 && (
-                <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Eye className="h-4 w-4 text-indigo-500" />
-                    <p className="text-sm font-semibold text-indigo-700" style={{ fontFamily: "var(--font-display)" }}>Trust Method: {TRUST_METHOD_LABELS[trustMethod]}</p>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    {TRUST_METHOD_DESCS[trustMethod]}
-                    {trustMethod === "trust_everyone" && " — Switch to Follow List, Trusted List, or GrapeRank to weight reactions by your Web of Trust."}
-                  </p>
-                  <div className="flex items-center gap-3 mt-3">
-                    <p className="text-[10px] text-slate-400">
-                      {reactions.length} reactions &middot; {allVoterPubkeys.length} voters &middot; {items.length} items
-                    </p>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <HelpCircle className="h-3.5 w-3.5 text-slate-400 cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 max-w-xs shadow-lg">
-                        <p className="text-xs leading-relaxed">
-                          Reactions are kind 7 Nostr events from the DCoSL relay. Each voter's reaction is weighted according to the selected trust method and PoV to produce the final scores.
-                        </p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </div>
-                </div>
-                )}
                 </>
                 )}
               </div>
