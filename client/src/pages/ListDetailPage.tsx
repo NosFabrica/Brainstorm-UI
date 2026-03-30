@@ -76,14 +76,14 @@ const TRUST_METHOD_LABELS: Record<TrustMethod, string> = {
   trust_everyone: "Trust Everyone",
   follow_list: "Follow List",
   trusted_list: "Trusted List",
-  graperank: "GrapeRank",
+  graperank: "Trusted Assertions (rank)",
 };
 
 const TRUST_METHOD_DESCS: Record<TrustMethod, string> = {
   trust_everyone: "All reactions weighted equally (weight = 1)",
   follow_list: "Only reactions from accounts you follow count",
   trusted_list: "Only reactions from your kind 30392 trusted list count",
-  graperank: "Reactions weighted by GrapeRank trust scores",
+  graperank: "Reactions weighted by GrapeRank trust scores (Trusted Assertions)",
 };
 
 type SortKey = "name" | "raw_up" | "raw_down" | "net_score";
@@ -888,12 +888,14 @@ function ListDetailContent() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                      <DropdownMenu>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400" data-testid="label-pov-header">Point of View</span>
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
                             <Eye className="h-3 w-3" />
-                            <span className="truncate max-w-[80px]">{povDisplayName}</span>
+                            <span className="truncate max-w-[100px]">{povDisplayName}</span>
                             {isDemoPov && <span className="text-[9px] text-amber-600 bg-amber-50 px-1 py-px rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>}
                           </Button>
                         </DropdownMenuTrigger>
@@ -935,8 +937,11 @@ function ListDetailContent() {
                           </div>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
 
-                      <DropdownMenu>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400" data-testid="label-scoring-header">Scoring Method</span>
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
@@ -944,7 +949,7 @@ function ListDetailContent() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-64 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
-                          <DropdownMenuLabel className="text-xs text-slate-500">Trust Weighting Method</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-xs text-slate-500">Scoring Method</DropdownMenuLabel>
                           <DropdownMenuSeparator className="bg-slate-100" />
                           {(["trust_everyone", "follow_list", "trusted_list", "graperank"] as TrustMethod[]).map((m) => (
                             <DropdownMenuItem
@@ -962,6 +967,7 @@ function ListDetailContent() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </div>
                   </div>
 
@@ -984,7 +990,7 @@ function ListDetailContent() {
                     </div>
                     <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
                       {TRUST_METHOD_DESCS[trustMethod]}
-                      {trustMethod === "trust_everyone" && " — Switch to Follow List, Trusted List, or GrapeRank to weight reactions by your Web of Trust."}
+                      {trustMethod === "trust_everyone" && " — Switch to Follow List, Trusted List, or Trusted Assertions to weight reactions by your Web of Trust."}
                     </p>
                   </div>
 
