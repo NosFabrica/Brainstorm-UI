@@ -918,12 +918,6 @@ function ListDetailContent() {
                       </span>
                     </div>
                   )}
-                  {items.length > 0 && (
-                    <>
-                      <span className="text-slate-300 text-[10px] hidden sm:inline">·</span>
-                      <span className="text-[11px] text-slate-400" data-testid="list-meta-count">{items.length} {items.length === 1 ? "item" : "items"}</span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
