@@ -42,6 +42,9 @@ import {
   Globe,
   ListChecks,
   Calendar,
+  AlertTriangle,
+  Info,
+  ExternalLink,
 } from "lucide-react";
 import { GiGrapes } from "react-icons/gi";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -1118,6 +1121,39 @@ function ListDetailContent() {
                       <span className="text-[10px] font-semibold text-slate-900">{listHeader?.namePlural || listHeader?.name || "Current List"}</span>
                     </div>
                   )}
+
+                  {trustMethod === "trust_everyone" && !isLoadingWeights && items.length > 0 && (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-200/80 bg-amber-50/50" data-testid="banner-trust-everyone">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-amber-700 leading-relaxed">
+                        <span className="font-semibold">All votes weighted equally</span> — spam and bot votes count the same as trusted users. Try <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("graperank" as TrustMethod)} data-testid="link-switch-graperank">Trusted Assertions</button> or <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("follow_list" as TrustMethod)} data-testid="link-switch-followlist">Follow List</button> for spam-resistant scoring.
+                      </p>
+                    </div>
+                  )}
+
+                  {trustMethod === "trusted_list" && !isLoadingWeights && availableTrustedLists.length === 0 && (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-trusted-lists">
+                      <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-slate-500 leading-relaxed">
+                        <span className="font-semibold text-slate-700">No trusted lists found</span> for this point of view. To use this method, the PoV account needs a published Kind 30392 trusted list.
+                        <a href="https://brainstorm.nosfabrica.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 font-semibold underline transition-colors" data-testid="link-brainstorm-trusted">
+                          Create one at Brainstorm <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {trustMethod === "graperank" && !isLoadingWeights && !grapeRankScoresQuery.isLoading && (grapeRankScoresQuery.data?.size === 0 || !grapeRankScoresQuery.data) && allVoterPubkeys.length > 0 && (
+                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-graperank">
+                      <GiGrapes className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] text-slate-500 leading-relaxed">
+                        <span className="font-semibold text-slate-700">No GrapeRank trust scores found</span> for this point of view. The PoV account needs trusted assertions calculated and published.
+                        <a href="https://brainstorm.nosfabrica.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 font-semibold underline transition-colors" data-testid="link-brainstorm-graperank">
+                          Calculate at Brainstorm <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {filteredAndSorted.length === 0 && items.length > 0 ? (
@@ -1126,7 +1162,12 @@ function ListDetailContent() {
                       <div className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-sm">
                         <Loader2 className="h-6 w-6 text-[#7c86ff] animate-spin" />
                       </div>
-                      <p className="text-sm text-slate-500 font-medium">Loading trust weights...</p>
+                      <p className="text-sm text-slate-500 font-medium">
+                        {trustMethod === "follow_list" ? "Fetching follow list..." :
+                         trustMethod === "trusted_list" ? "Fetching trusted lists..." :
+                         trustMethod === "graperank" ? "Fetching GrapeRank scores..." :
+                         "Loading trust weights..."}
+                      </p>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-filter-results">

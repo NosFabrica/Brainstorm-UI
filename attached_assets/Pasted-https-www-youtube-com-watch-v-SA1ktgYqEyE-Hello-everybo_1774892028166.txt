@@ -1,0 +1,673 @@
+https://www.youtube.com/watch?v=SA1ktgYqEyE
+
+
+
+Hello everybody. My name is David Strahorn. I'm one of the four co-founders at Nost Fabrica where we are weaving the fabric of Noster to bring
+0:09
+9 seconds
+trust to a broken world. We're building tools and services grapevine tapestry and our flagship product Brainstorm
+0:18
+18 seconds
+currently in alpha development. products that bring you closer to your extended
+0:25
+25 seconds
+Nostra community in a way that will facilitate the sharing and delivery to you of content, facts, and information that you can trust.
+0:36
+36 seconds
+So, what does that mean? Well, in this video, I'm going to focus on one very specific and increasingly urgent use
+0:43
+43 seconds
+cases of our products. It deals with the question which is on nostster how do I
+0:51
+51 seconds
+distinguish real people from agents impersonators bots spam and other bad actors.
+0:58
+58 seconds
+Uh this is a challenge that sometimes people will describe as the challenge of proof of person a proof of personhood.
+1:07
+1 minute, 7 seconds
+And in this video, I'm going to walk you through a prototype for a communitybased solution, what some people would call a
+1:15
+1 minute, 15 seconds
+web of trustbased solution to showcase one of the methods we're building at NOSF fabrica to solve this and related problems. This is going to be a technical presentation.
+1:26
+1 minute, 26 seconds
+Uh most users are not going to need to understand how things are working under the hood. But for those of you who are builders, whether you're developers,
+1:36
+1 minute, 36 seconds
+product managers, visionaries,
+1:39
+1 minute, 39 seconds
+investors, what have you, those of you who are building Nostra clients, web of trust service providers, other
+1:47
+1 minute, 47 seconds
+associated tools and services to address the problem of trust in our society,
+1:52
+1 minute, 52 seconds
+specifically access to trustworthy information. I'm hoping that this technical presentation will be useful as you chart a path forward to build the
+2:01
+2 minutes, 1 second
+things that need to be built. So getting back to proof of personhood, the problem
+2:07
+2 minutes, 7 seconds
+is this. How do I know who on Nostra is a real person as opposed to an impersonator or other bad actor?
+2:16
+2 minutes, 16 seconds
+Uh for those of us who are focused on community- based solutions, web of trustbased solutions, what some would call freedom technology, the problem
+2:25
+2 minutes, 25 seconds
+could be restated. How do I delegate curation of a list of real people to my trusted Nostra community?
+2:33
+2 minutes, 33 seconds
+And we could restate this problem yet again in a much more generic fashion.
+2:39
+2 minutes, 39 seconds
+How do I delegate curation of a list of blank of whatever it is I'm interested in to my trusted Nostra community? Now I
+2:48
+2 minutes, 48 seconds
+use the phrase decentralized curation of simple lists decausal. That is one of the things we are trying to build at NAS
+2:56
+2 minutes, 56 seconds
+fabrica in a way. It is a fundamental building block upon which many more tools will be built. And so what I'm
+3:05
+3 minutes, 5 seconds
+showing you uh in this video is a is a um is a prototype that is based on three
+3:14
+3 minutes, 14 seconds
+NIPS that all three of which can be found at nostrahub.io.
+3:19
+3 minutes, 19 seconds
+The first NIP is the decentralized list custom NIP which I've authored and that is kind of that's the starting point for
+3:28
+3 minutes, 28 seconds
+a lot of stuff that that we'll be working with that we'll be building um in especially in in this video. The
+3:35
+3 minutes, 35 seconds
+second nip is one that I think a lot of people listening to this um video are going to be familiar with. Trusted
+3:42
+3 minutes, 42 seconds
+assertions authored by one of my co-founders at NOSF fabrica Vtor Pamplona uh a year and
+3:50
+3 minutes, 50 seconds
+a half ago or thereabouts maybe a little bit long more than that now. Um it's on Nostrahub it is also um it has been merged by
+3:59
+3 minutes, 59 seconds
+Fetch off into the GitHub repository for NIPS. It is NIP 85.
+4:04
+4 minutes, 4 seconds
+And um I'm not going to go too much into the details of how those work uh in this video. But the third the third nip is
+4:14
+4 minutes, 14 seconds
+trusted lists which is uh once again it's a custom nip that I've authored.
+4:18
+4 minutes, 18 seconds
+You can find at nostraub.io and I'm going to show you the creation of a trusted list in this video.
+4:28
+4 minutes, 28 seconds
+Um so the uh the demonstration that I have is that that I'll be showing you is is a
+4:34
+4 minutes, 34 seconds
+client that called Tapestry um a prototype client. Uh it's on GitHub. You can see
+4:42
+4 minutes, 42 seconds
+on the screen the the GitHub um the name of the account to go to. It's an account that corresponds to my openclaw agent
+4:52
+4 minutes, 52 seconds
+and it's my name's noose who is going to be running this demonstration effectively for us. There's another
+5:01
+5 minutes, 1 second
+repository besides Tapestry called Tapestry- CLI, which is uh we're not actually using it in this video, but it
+5:10
+5 minutes, 10 seconds
+is one that is created for the purpose of agents of LLMs to uh interface with the Tapestry backend with the API.
+5:21
+5 minutes, 21 seconds
+Um so anyone who wants to to use these, you can go to this repository, you know,
+5:26
+5 minutes, 26 seconds
+download both of these reposi both of these repos. um and have your agent read the documents in Tapestry CLI and just
+5:34
+5 minutes, 34 seconds
+you know play with it. So what I'm going to show you is a simulation by my agent.
+5:40
+5 minutes, 40 seconds
+Instead of curating a list of people because it's agents who are running the simulation and I decided I will do a
+5:49
+5 minutes, 49 seconds
+curation of the list of seven doors, the real list of real, you know, the real
+5:55
+5 minutes, 55 seconds
+seven doors of Snow White and the Seven Doors fame and run by my agent news. Like I said,
+6:04
+6 minutes, 4 seconds
+um the first step in running this was for my agent to create a bunch, but somewhere between 30 and 40 Nostra
+6:13
+6 minutes, 13 seconds
+accounts. Um the first seven are, you know, the real dwarves like Grumpy here.
+6:19
+6 minutes, 19 seconds
+You see pictured with a green background, so you know it's the real one. Um, also seven impersonator dwarves,
+6:28
+6 minutes, 28 seconds
+you know, like sniffles here, who represents the impersonators and the spam and all that that we see in real life on Nostra. And then there are 10,
+6:37
+6 minutes, 37 seconds
+you know, in quotation marks, real users like Snow White. They rep, you know,
+6:42
+6 minutes, 42 seconds
+represents the real users on Nostra. and then 10 I think 10
+6:49
+6 minutes, 49 seconds
+bots e like evil queen who you know represent the bad actors that are so pervasive on on all social media and
+6:57
+6 minutes, 57 seconds
+including Nostra. So after my agent spun these accounts up, the next step was to
+7:03
+7 minutes, 3 seconds
+use the decentralized lists NIP to for starters to create the list of dwarves
+7:10
+7 minutes, 10 seconds
+using a kind 39998 event. I'll show you that event in in a few minutes.
+7:17
+7 minutes, 17 seconds
+After that, using again once again using the decentralized list snip, items were added to this list. Um the way that c
+7:26
+7 minutes, 26 seconds
+decentralized lists work is that anybody can add any number of items to any list and every item is a kind 3999
+7:36
+7 minutes, 36 seconds
+event um which points to the list header. Now, everyone that includes, you know,
+7:44
+7 minutes, 44 seconds
+spam and bots and all that. Um,
+7:49
+7 minutes, 49 seconds
+so, so my agent made sure that a bunch of items were added to this list. There are 14. We'll we'll see them in a moment. And then um using once again
+7:59
+7 minutes, 59 seconds
+using the decentralized list NIP um we used kind seven events which specified
+8:06
+8 minutes, 6 seconds
+by NIP 25 which is very widely used in Nostra to approve or disapprove of very
+8:13
+8 minutes, 13 seconds
+of the items on this list. So an upvote is a kind seven event with a plus in the content field. Uh if it has a minus in
+8:21
+8 minutes, 21 seconds
+the content field it's a it's a downvote or a disapproval.
+8:25
+8 minutes, 25 seconds
+So once all of this raw data was created then uh the next step was to use the
+8:32
+8 minutes, 32 seconds
+tapestry client uh that I'll show you uh and synthesize all this data and put it package it
+8:40
+8 minutes, 40 seconds
+together into a single kind 30392 event using the trusted lists
+8:48
+8 minutes, 48 seconds
+custom nip on nostraub.io IO and and I will show you that in a few
+8:55
+8 minutes, 55 seconds
+moments. Um so I'll turn our attention now to the client which uh which is running this the Tapestry repository.
+9:07
+9 minutes, 7 seconds
+And here it is. I'm running it locally.
+9:12
+9 minutes, 12 seconds
+And what I'm showing you now on the Tapestry client is the list of seven doors. Seven doors of snow white fame.
+9:21
+9 minutes, 21 seconds
+Um, as I mentioned earlier, it's a kind 39998 event. Now, that means that it is replaceable.
+9:30
+9 minutes, 30 seconds
+Um, it's editable.
+9:32
+9 minutes, 32 seconds
+You can make it if you want, you can use just a get rid of the three, make it a 9998 event, in which case it's not editable editable. It's not replaceable.
+9:42
+9 minutes, 42 seconds
+Um, I find it more useful to use the the replaceable ones. 39998 event. So that's what I'm showing you.
+9:50
+9 minutes, 50 seconds
+You can do whichever one you want. So this particular event, it has um
+9:57
+9 minutes, 57 seconds
+one, two, three, four different tags. It is as simple. The decentralized lists nip is as simple as I could make it in
+10:06
+10 minutes, 6 seconds
+order to get the job done. So it has one of the tags is the names tag. Um one item on the list is a dwarf. It is a
+10:14
+10 minutes, 14 seconds
+list of dwarves. So, you need the singular and the plural form. Uh,
+10:19
+10 minutes, 19 seconds
+there's a description, the seven doors of Snow White fame, items contributed by the community.
+10:25
+10 minutes, 25 seconds
+And one of the very important tags here is this tag required that indicates that
+10:32
+10 minutes, 32 seconds
+every item on this list is expected to have a P tag. So, what that means is that these are lists of pub keys. And as
+10:40
+10 minutes, 40 seconds
+you'll see in a moment, all of the items on this list have a a P tag and a pub key. And finally, since this is a 30,000
+10:50
+10 minutes, 50 seconds
+and something uh event, then it needs to have a DTA tag. And here it is. That's just part of the the way uh addressable
+10:58
+10 minutes, 58 seconds
+replaceable events work in Nostra. So this is the list header.
+11:04
+11 minutes, 4 seconds
+Uh it what it's what kicks this whole thing off. Now once that's done, the next step is to add items on the list.
+11:12
+11 minutes, 12 seconds
+And as we see 14 items uh were added by 14 different authors.
+11:21
+11 minutes, 21 seconds
+So timid, brainy, goofy, sniffles, dopey,
+11:24
+11 minutes, 24 seconds
+these are all items that were added to the list of Snow White's Seven Dwarfs, uh added by these different authors,
+11:32
+11 minutes, 32 seconds
+Witch Cat, Troll, and all and so on. So let's look at one of those events. Um,
+11:37
+11 minutes, 37 seconds
+here's the raw event. It is, as stated earlier, it's a 3999 event as per the D-lists nip.
+11:47
+11 minutes, 47 seconds
+First of all, take a look at the Z tag.
+11:50
+11 minutes, 50 seconds
+The Z tag is one of the most important tags in this nip. It's fundamental for
+11:58
+11 minutes, 58 seconds
+how Dlists work. So, the Z tag points to the list header. And in this case, the
+12:04
+12 minutes, 4 seconds
+list header is um is addressable. So instead of using the event ID, we're using the A tag to point to the list
+12:12
+12 minutes, 12 seconds
+header. That means it has first of all the um the event kind of the event of of
+12:19
+12 minutes, 19 seconds
+the list header 3998. It has the author right here, which is B EA something. And
+12:26
+12 minutes, 26 seconds
+then it has the D tag. So, let's just check and make sure that this is the correct um a tag. We'll back up,
+12:36
+12 minutes, 36 seconds
+go back to the list header, and we see 3998 is the kind the author beba something or other. The d tag is dwarf
+12:46
+12 minutes, 46 seconds
+one. So, yes, that is correctly point that is correct. The correct a tag for
+12:52
+12 minutes, 52 seconds
+the list header in question. Now, this particular item on this list, it's got a name, timid. It's got a description,
+13:00
+13 minutes
+timid. Definitely a real dwarf. Now, as we know, this is an impersonator contributed by Witch Cat, a bad actor.
+13:08
+13 minutes, 8 seconds
+Um,
+13:10
+13 minutes, 10 seconds
+but you know, the name what what is most important of these other tags is the P tag. This is was indicated in the list header to be expected.
+13:19
+13 minutes, 19 seconds
+Um, so this right here is the pub key that's being added to the list. And since this is replaceable in the 30,000
+13:28
+13 minutes, 28 seconds
+range, it too has its own dtag. There you go. So that's one of the 14
+13:35
+13 minutes, 35 seconds
+items added to this list. Now, as I mentioned earlier, we're using NIP 7 uh
+13:43
+13 minutes, 43 seconds
+um reactions. I'm sorry. NIP 25 kind seven reactions to cast up votes and down votes. And this one, for example, has 17 up votes,
+13:55
+13 minutes, 55 seconds
+13 down votes. We need a way to process all this information. So, for starters,
+14:01
+14 minutes, 1 second
+we're going to do the way things often work in the legacy social media world.
+14:06
+14 minutes, 6 seconds
+Take all the up votes and all the down votes and treat them as if they're all equal. So 17 minus 13 that gives a trust
+14:15
+14 minutes, 15 seconds
+score of four. All right. Do that for every single item on this list and rank them from top to bottom according to their we'll just call it a trust score
+14:24
+14 minutes, 24 seconds
+here. And what do we see? Well, we see oh my goodness that most of the items
+14:33
+14 minutes, 33 seconds
+that have floated to the top of this list are spam impersonators.
+14:37
+14 minutes, 37 seconds
+Sniffles. That's not a real dwarf. We know that. Goofy, brainy, timid. These are not real dwarves. The real dwarves,
+14:44
+14 minutes, 44 seconds
+most of them have been downvoted, so they have negative scores. How did that happen? Well, it happened because
+14:51
+14 minutes, 51 seconds
+spammers do what spammers do. They swarm you with spam. And here we see the results of that.
+15:01
+15 minutes, 1 second
+Luckily,
+15:02
+15 minutes, 2 seconds
+we have uh we have tools, we have solution to this problem.
+15:11
+15 minutes, 11 seconds
+And the solution is let's go over here to the trust determination page scoring method. So the scoring method we're
+15:19
+15 minutes, 19 seconds
+using here is the trust everyone scoring method. Obviously that's not working very well. Not in a world of spam. We
+15:27
+15 minutes, 27 seconds
+have options. The best option is to use trusted assertions. So let's choose the trusted assertions option. Now what that
+15:35
+15 minutes, 35 seconds
+means is that we're using the point of view of um you know this is a point of view of the agent the LLM you know this
+15:44
+15 minutes, 44 seconds
+is the agent is a standin for you imagine this is your point of view these are your trusted assertions so this
+15:51
+15 minutes, 51 seconds
+agent um previously went to brainstormfabrica.com
+15:57
+15 minutes, 57 seconds
+which is in alpha and had his grapevine calculated by using the brainstorm using grape rank method.
+16:08
+16 minutes, 8 seconds
+And these scores are published using trusted assertions. And I'm not going to go into the details of how that works because that would be a different video.
+16:15
+16 minutes, 15 seconds
+But let's see what happens now when we use this scoring method.
+16:21
+16 minutes, 21 seconds
+Bam. Look at that. All of the sudden it's the real seven dwarfves who float to the top of this list with positive
+16:29
+16 minutes, 29 seconds
+scores. and all the spam now they suddenly have negative scores. Look at that. It's like magic. Now how did that
+16:37
+16 minutes, 37 seconds
+happen? So what happened was that when we calculate the trust score previously we just did a sum you know
+16:45
+16 minutes, 45 seconds
+this number minus this number. It's just adding subtracting numbers together. But what we're doing now is a weighted sum where the weight is a trust score.
+16:54
+16 minutes, 54 seconds
+Specifically, it is the rank score which is a number from 0 to 100. That is the rank of the author of each up vote and
+17:04
+17 minutes, 4 seconds
+down vote. And once again, it is from the perspective of you know the perspective that we have chosen right
+17:11
+17 minutes, 11 seconds
+here. It's it's intended to be from your perspective. You are at the center of your web of trust always. So, oops, didn't mean to do that.
+17:20
+17 minutes, 20 seconds
+um take the rank score, normalize it by divide it by 100. And so an upvote
+17:30
+17 minutes, 30 seconds
+instead of counting for one, it is one multiplied by the the normalized rank.
+17:36
+17 minutes, 36 seconds
+And so for a lot of these up votes and down votes, that score is zero. If it's authored by someone who's not trustworthy, then it is effectively
+17:45
+17 minutes, 45 seconds
+ignored. So you could spin up a million bots and bad actors and upvote your spam a million times using the trusted assertion, you know,
+17:56
+17 minutes, 56 seconds
+brainstorm grape rank nus fabrica method.
+18:02
+18 minutes, 2 seconds
+All million of those bots are just ignored. You don't have to worry about them. Um assuming that the great rank method works, which it actually does,
+18:10
+18 minutes, 10 seconds
+but again that's a different video. So there you have it. Um, that's not all I have to show you, show for you, though.
+18:19
+18 minutes, 19 seconds
+Um, let's imagine that you don't have trusted um, let's say you've not had your trusted assertions generated yet.
+18:30
+18 minutes, 30 seconds
+You've not yet gone over and and clicked the button. It takes, you know, 20 minutes for them to be calculated and published. Well, you have options. One
+18:38
+18 minutes, 38 seconds
+option would be you can choose someone else's point of view. you. So, let's say you have a friend who's had uh his or her grapevine calculated and published.
+18:47
+18 minutes, 47 seconds
+You could choose someone else's point of view. So, that's another option. I'm not a great big fan of that option because
+18:54
+18 minutes, 54 seconds
+the whole point of web of trust is to personalize scores trust to your perspective. So,
+19:05
+19 minutes, 5 seconds
+another option, stick with your point of view, but instead of trusted assertions if you don't have them, just use your follow list. Everyone's got a follow
+19:13
+19 minutes, 13 seconds
+list. Everyone has been on Nostra for a little bit of time at least. So, let's see. That's going to we're going to use that in order to screen out the spam.
+19:22
+19 minutes, 22 seconds
+Now, coming back here, we are now using follows to screen out the spam. And once again, it looks like this worked. the
+19:29
+19 minutes, 29 seconds
+the real dwarves are at the top and the fake dwarves they are they have negative trust scores. Now, the reason that that
+19:36
+19 minutes, 36 seconds
+worked is it just so happens that my bot, my agent, I should say, happens to
+19:44
+19 minutes, 44 seconds
+be following a bunch of people who are experts in dwarfs directly following Snow White, Prince Charming, Magic Mirror, Huntsman, Forest, Owl, and and
+19:51
+19 minutes, 51 seconds
+and the rest of these uh real, you know, real users and not following any of these, you know, not
+20:00
+20 minutes
+following Evil Queen or Poison Avil or Goblin King. And so all the bad actors input is effectively just ignored. It
+20:08
+20 minutes, 8 seconds
+may as well not even be there when when it comes to calculating the trust scores. So in this particular case using
+20:15
+20 minutes, 15 seconds
+your follows list works pretty well. Now whichever one of these methods you use the next step is
+20:24
+20 minutes, 24 seconds
+um you know take into consideration that there's a lot of data that goes into calculating all these numbers. There's 14 different events for these lists.
+20:34
+20 minutes, 34 seconds
+There's a bunch of up votes, bunch of down votes. There's every contributor to all to these up votes and down votes and
+20:41
+20 minutes, 41 seconds
+items has a trust score that you have to fetch using a from a trust assertion.
+20:47
+20 minutes, 47 seconds
+That's a that's a bunch of notes that you have to synthesize. So every time you want to use this list,
+20:54
+20 minutes, 54 seconds
+you could recalculate it from scratch.
+20:57
+20 minutes, 57 seconds
+But what happens if you want to use this someplace else on Noster, you know,
+21:02
+21 minutes, 2 seconds
+where they don't want to do all these calculations? Well, package the results all together using the trusted list nip
+21:10
+21 minutes, 10 seconds
+uh which uh is on like I said it's on nostrahub.io.
+21:15
+21 minutes, 15 seconds
+And so here we have the the way that works is there's a cutoff. Default here is two, but you can make it whatever you want. Anyone whose score is above the
+21:23
+21 minutes, 23 seconds
+cutoff makes it on the list and anyone who scores below the cutoff does not.
+21:30
+21 minutes, 30 seconds
+Simple as that. It's a binary on the list or off the list. And here and it is a kind 30392
+21:37
+21 minutes, 37 seconds
+event. Um I took the same I'm using the same event kinds as trusted assertions.
+21:42
+21 minutes, 42 seconds
+I just added 10. So instead of 30382 for pub keys, it's 30392 for pub keys. And
+21:49
+21 minutes, 49 seconds
+so you can think of this as being it's very structurally very similar to a standard NIP 51 list. Uh the tags we've
+21:56
+21 minutes, 56 seconds
+got seven P tags because seven of them made the cutoff and uh they're all pup keys. Uh it is replaceable. So it needs a D tag. Here it is.
+22:09
+22 minutes, 9 seconds
+And uh it's got a title curated dwarves.
+22:13
+22 minutes, 13 seconds
+uh I just automatically named it you using the the method that you're using that that you're using to to curate the
+22:20
+22 minutes, 20 seconds
+list. But you know the great thing about how this all works is that the way that I decide to curate all this data and the
+22:28
+22 minutes, 28 seconds
+way that you decide to curate all this data they don't have to be the same method. I'm using follows. You could use trusted assertions. You could even use
+22:36
+22 minutes, 36 seconds
+trust everybody if you want. Um but you whatever method you decide to use using
+22:43
+22 minutes, 43 seconds
+the tapestry client uh the the the tapestry this this prototype. Um publish
+22:53
+22 minutes, 53 seconds
+this list and I've I've already published it but you could just click this button publish it. Um and then you can use that list wherever
+23:01
+23 minutes, 1 second
+you want. You could you could go to if if a you could go to a client that could fetch every trusted assert assert or
+23:08
+23 minutes, 8 seconds
+every trusted list published by you and use it in whatever way you want. And I'll actually show you one way to use that in just a moment. Um but before I
+23:17
+23 minutes, 17 seconds
+do that, one more option. You can according to the trusted lists nip optionally include trust scores in the
+23:24
+23 minutes, 24 seconds
+tags. And so here we go. I click that option and now we've got a bunch of tens. Everyone has scored a 10 in this
+23:32
+23 minutes, 32 seconds
+example. And here they are, the trust scores in the tag in case you want to use the scores themselves for whatever purpose, but I like to keep things simple. I'm going to uncheck the box.
+23:43
+23 minutes, 43 seconds
+Just have who's on the list. That's it. That's all I need. So, click publish.
+23:49
+23 minutes, 49 seconds
+And there you go. Um, now I stated earlier that that I'm going to show you how this list can be used.
+23:57
+23 minutes, 57 seconds
+Let's imagine that the next list that we want to curate, it's not a list of people. It's not a list of dwarves.
+24:04
+24 minutes, 4 seconds
+Let's say it's a list of of tools that are useful when you're mining stuff.
+24:10
+24 minutes, 10 seconds
+Something that dwarves know, the real dwarves know, not the fake dwarfs, but the real dwarves. Well, go over here to
+24:18
+24 minutes, 18 seconds
+the trust determination method. when I'm when it comes to time to curate that list, I don't want everyone to have a
+24:25
+24 minutes, 25 seconds
+say in what goes on the list, I my people on my follows list. Well, let's just say you're not following anybody
+24:32
+24 minutes, 32 seconds
+who knows anything about this particular topic. Um,
+24:37
+24 minutes, 37 seconds
+you could use trusted assertions, which basically includes everyone who's not obviously a bad actor, but most people aren't going to know the answer to this
+24:46
+24 minutes, 46 seconds
+question. But you really want you want the dwarves to answer this question.
+24:50
+24 minutes, 50 seconds
+Well, you can do that. Click trusted list as your scoring method.
+24:55
+24 minutes, 55 seconds
+Select there's only one list we've got so far. Trusted list, curated dwarves.
+25:00
+25 minutes
+And now when you go um I don't actually have this demonstration, but just imagine that we're now curating this other list. And this time it's the
+25:09
+25 minutes, 9 seconds
+dwarves who are curating who are the only ones who are allowed to upvote and downvote. So bam, you can using this
+25:16
+25 minutes, 16 seconds
+using these three nips together, you can daisy chain one list to another uh in
+25:26
+25 minutes, 26 seconds
+whatever degree of complexity that you want. One list curates another list of pub keys, creates another list of pub keys, curates a list of events or whatever you want to do.
+25:36
+25 minutes, 36 seconds
+Um so that is pretty much everything I've got to demonstrate for you right now. Um,
+25:43
+25 minutes, 43 seconds
+we have a lot more a lot of lot of things cooking at NAS fabrica. Uh, this,
+25:49
+25 minutes, 49 seconds
+like I said, it's a prototype. It is not designed here to be nice and user friendly. It is designed to showcase the technology under the hood. Um, we will
+25:59
+25 minutes, 59 seconds
+eventually be incorporating these things into our products. Um, not just a prototype. Uh, something I've not yet
+26:06
+26 minutes, 6 seconds
+prototyped, but I've been thinking I want to do. You don't have to. If you could publish this list using other
+26:14
+26 minutes, 14 seconds
+methods, it doesn't have to be trusted lists. If you want to publish it in some other method, you could um you know the beauty of of of how this works. You can
+26:23
+26 minutes, 23 seconds
+interpret this data. You can use it in whatever way you want to. Uh I think it might be useful to publish these as
+26:29
+26 minutes, 29 seconds
+trusted assertions. That's something I might look into. I might build that as a prototype. Um but anyway, these are all
+26:38
+26 minutes, 38 seconds
+things for future videos. Um,
+26:43
+26 minutes, 43 seconds
+I look forward to feedback. Anyone can you can find uh all of us at nusfabrica.com.
+26:52
+26 minutes, 52 seconds
+I mentioned that my agent had trusted assertions calculated using our um product in alpha brainstorm.nesfabrica.com.
+27:03
+27 minutes, 3 seconds
+Anyone watching this video is more than welcome to come and give it a shot as long as you know just be forewarned that
+27:10
+27 minutes, 10 seconds
+it could break. We're not yet to the point of shouting it to the mountain tops, but you know, if you're developers, if you're using this stuff and what you're building, then absolutely come here and and and use it.
+27:23
+27 minutes, 23 seconds
+Um, all right. I think that's everything. I I hope to hear from you. I hope to uh message me on Noster. You can
+27:32
+27 minutes, 32 seconds
+you can find me through nusfabrica.com and um you know you can you can tell us all what you think at our upcoming
+27:41
+27 minutes, 41 seconds
+weekly web of trust hackathon call coming up uh in in five days from now. U
+27:49
+27 minutes, 49 seconds
+so thank you very much. Talk to you all later. Peace.
+Sync to video time
+
+
+
+
+
+
+
+
+All
+
+
+Presentations
+
+
+Recently uploaded
+
