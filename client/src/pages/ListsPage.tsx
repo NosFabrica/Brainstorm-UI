@@ -33,6 +33,12 @@ import {
   ChevronRight,
   Inbox,
   ArrowUpDown,
+  Fingerprint,
+  AppWindow,
+  Radio,
+  MapPin,
+  KeyRound,
+  Layers,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -68,6 +74,36 @@ function formatAge(ts: number): string {
   return new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+type ListCategory = "all" | "people" | "apps" | "relays" | "places" | "keys" | "other";
+
+const LIST_CATEGORIES: { key: ListCategory; label: string; icon: typeof Fingerprint; keywords: string[] }[] = [
+  { key: "all", label: "All", icon: Layers, keywords: [] },
+  { key: "people", label: "People", icon: Fingerprint, keywords: ["people", "person", "human", "user", "agent", "llm", "bot", "dwarf", "dwarves", "proof of person", "personhood", "identity", "member"] },
+  { key: "apps", label: "Apps", icon: AppWindow, keywords: ["app", "application", "client", "software", "tool", "service", "category", "categories"] },
+  { key: "relays", label: "Relays", icon: Radio, keywords: ["relay", "relays", "wss://", "server", "infrastructure"] },
+  { key: "places", label: "Places", icon: MapPin, keywords: ["country", "countries", "city", "cities", "location", "place", "region", "citizenship", "geographic"] },
+  { key: "keys", label: "Key Mgmt", icon: KeyRound, keywords: ["key", "rotation", "pubkey", "signing", "nip-41", "recovery"] },
+];
+
+function inferCategory(name: string, description: string, propertyTags: { requirement: string; value: string }[]): ListCategory {
+  const text = `${name} ${description}`.toLowerCase();
+  const propValues = propertyTags.map(t => t.value.toLowerCase()).join(" ");
+  const combined = `${text} ${propValues}`;
+
+  for (const cat of LIST_CATEGORIES) {
+    if (cat.key === "all" || cat.key === "other") continue;
+    for (const kw of cat.keywords) {
+      if (combined.includes(kw)) return cat.key;
+    }
+  }
+
+  if (propertyTags.some(t => t.value.toLowerCase() === "p" || t.value.toLowerCase() === "pubkey")) {
+    return "people";
+  }
+
+  return "other";
+}
+
 export default function ListsPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
@@ -77,6 +113,7 @@ export default function ListsPage() {
   const [authorTrustScores, setAuthorTrustScores] = useState<Record<string, number | null>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState("newest");
+  const [activeCategory, setActiveCategory] = useState<ListCategory>("all");
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -135,6 +172,25 @@ export default function ListsPage() {
     }) || null;
   }, [lists]);
 
+  const listCategories = useMemo(() => {
+    const map: Record<string, ListCategory> = {};
+    for (const l of lists) {
+      map[l.aTag] = inferCategory(l.namePlural || l.name || "", l.description || "", l.propertyTags || []);
+    }
+    return map;
+  }, [lists]);
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<ListCategory, number> = { all: 0, people: 0, apps: 0, relays: 0, places: 0, keys: 0, other: 0 };
+    const countable = lists.filter(l => !exampleList || l.aTag !== exampleList.aTag);
+    counts.all = countable.length;
+    for (const l of countable) {
+      const cat = listCategories[l.aTag] || "other";
+      counts[cat]++;
+    }
+    return counts;
+  }, [lists, listCategories, exampleList]);
+
   const filteredAndSorted = useMemo(() => {
     let filtered = searchTerm.trim()
       ? lists
@@ -147,6 +203,9 @@ export default function ListsPage() {
         const authorName = (authorProfiles[l.pubkey]?.name || "").toLowerCase();
         return name.includes(q) || desc.includes(q) || authorName.includes(q);
       });
+    }
+    if (activeCategory !== "all") {
+      filtered = filtered.filter(l => (listCategories[l.aTag] || "other") === activeCategory);
     }
     return [...filtered].sort((a, b) => {
       switch (sortKey) {
@@ -165,7 +224,7 @@ export default function ListsPage() {
           return (b.createdAt || 0) - (a.createdAt || 0);
       }
     });
-  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles, authorTrustScores, exampleList]);
+  }, [lists, searchTerm, sortKey, itemCounts, authorProfiles, authorTrustScores, exampleList, activeCategory, listCategories]);
 
   useEffect(() => {
     if (lists.length === 0) return;
@@ -381,39 +440,68 @@ export default function ListsPage() {
           </div>
         ) : (
           <>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/60 shadow-sm" data-testid="toolbar-lists">
-              <div className="relative flex-1">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                <Input
-                  placeholder="Search lists by name, description, or author..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9 bg-white/80 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
-                  data-testid="input-search-lists"
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <Select value={sortKey} onValueChange={setSortKey}>
-                    <SelectTrigger className="h-9 w-[160px] bg-white/80 border-slate-200 text-sm focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40" data-testid="select-sort-lists">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
-                      <SelectItem value="newest" data-testid="sort-newest">Newest First</SelectItem>
-                      <SelectItem value="oldest" data-testid="sort-oldest">Oldest First</SelectItem>
-                      <SelectItem value="most_items" data-testid="sort-most-items">Most Items</SelectItem>
-                      <SelectItem value="most_trusted" data-testid="sort-most-trusted">Most Trusted</SelectItem>
-                      <SelectItem value="name_az" data-testid="sort-name-az">Name (A–Z)</SelectItem>
-                      <SelectItem value="name_za" data-testid="sort-name-za">Name (Z–A)</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <div className="flex flex-col gap-3 mb-6 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/60 shadow-sm" data-testid="toolbar-lists">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                  <Input
+                    placeholder="Search lists by name, description, or author..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-9 bg-white/80 border-slate-200 text-sm placeholder:text-slate-400 focus-visible:ring-[#7c86ff]/30 focus-visible:border-[#7c86ff]/40"
+                    data-testid="input-search-lists"
+                  />
                 </div>
-                {searchTerm.trim() && (
-                  <span className="text-xs text-slate-400 font-medium whitespace-nowrap" data-testid="text-results-count">
-                    {filteredAndSorted.length} of {lists.length} {lists.length === 1 ? "list" : "lists"}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <Select value={sortKey} onValueChange={setSortKey}>
+                      <SelectTrigger className="h-9 w-[160px] bg-white/80 border-slate-200 text-sm focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40" data-testid="select-sort-lists">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
+                        <SelectItem value="newest" data-testid="sort-newest">Newest First</SelectItem>
+                        <SelectItem value="oldest" data-testid="sort-oldest">Oldest First</SelectItem>
+                        <SelectItem value="most_items" data-testid="sort-most-items">Most Items</SelectItem>
+                        <SelectItem value="most_trusted" data-testid="sort-most-trusted">Most Trusted</SelectItem>
+                        <SelectItem value="name_az" data-testid="sort-name-az">Name (A–Z)</SelectItem>
+                        <SelectItem value="name_za" data-testid="sort-name-za">Name (Z–A)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(searchTerm.trim() || activeCategory !== "all") && (
+                    <span className="text-xs text-slate-400 font-medium whitespace-nowrap" data-testid="text-results-count">
+                      {filteredAndSorted.length} of {lists.length - (exampleList && !searchTerm.trim() ? 1 : 0)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1" data-testid="category-chips">
+                {LIST_CATEGORIES.map((cat) => {
+                  const count = categoryCounts[cat.key] ?? 0;
+                  if (cat.key !== "all" && cat.key !== "other" && count === 0) return null;
+                  const Icon = cat.icon;
+                  const isActive = activeCategory === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      onClick={() => setActiveCategory(cat.key)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
+                          : "bg-white/80 text-slate-500 border border-slate-200/80 hover:border-slate-300 hover:text-slate-700"
+                      }`}
+                      data-testid={`chip-category-${cat.key}`}
+                    >
+                      <Icon className={`h-3 w-3 ${isActive ? "text-indigo-500" : "text-slate-400"}`} />
+                      {cat.label}
+                      {cat.key !== "all" && count > 0 && (
+                        <span className={`text-[10px] ${isActive ? "text-indigo-500" : "text-slate-400"}`}>({count})</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -504,25 +592,27 @@ export default function ListsPage() {
               );
             })()}
 
-            {filteredAndSorted.length === 0 && searchTerm.trim() && (
+            {filteredAndSorted.length === 0 && (searchTerm.trim() || activeCategory !== "all") && (
               <div className="flex flex-col items-center justify-center py-16 gap-4" data-testid="empty-search-results">
                 <div className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">
                   <SearchIcon className="h-8 w-8 text-slate-300" />
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>No lists match your search</p>
+                  <p className="text-lg font-semibold text-slate-900 mb-1" style={{ fontFamily: "var(--font-display)" }}>
+                    {searchTerm.trim() ? "No lists match your search" : `No lists in "${LIST_CATEGORIES.find(c => c.key === activeCategory)?.label || activeCategory}"`}
+                  </p>
                   <p className="text-sm text-slate-500 max-w-md">
-                    Try adjusting your search term or clearing the filter.
+                    {searchTerm.trim() ? "Try adjusting your search term or clearing the filter." : "Try a different category or browse all lists."}
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-1 border-slate-200 text-slate-600 hover:bg-slate-50"
-                  onClick={() => setSearchTerm("")}
+                  onClick={() => { setSearchTerm(""); setActiveCategory("all"); }}
                   data-testid="button-clear-search"
                 >
-                  Clear search
+                  {searchTerm.trim() ? "Clear search" : "Show all lists"}
                 </Button>
               </div>
             )}
@@ -546,9 +636,16 @@ export default function ListsPage() {
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
-                                <List className="h-3.5 w-3.5" />
-                              </div>
+                              {(() => {
+                                const cat = listCategories[list.aTag] || "other";
+                                const catDef = LIST_CATEGORIES.find(c => c.key === cat);
+                                const CatIcon = catDef?.icon || List;
+                                return (
+                                  <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                                    <CatIcon className="h-3.5 w-3.5" />
+                                  </div>
+                                );
+                              })()}
                               <h3 className="text-base font-bold text-slate-900 truncate" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-list-name-${list.dTag || list.id.slice(0, 8)}`}>
                                 {list.namePlural || list.name}
                               </h3>
