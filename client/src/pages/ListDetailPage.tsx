@@ -262,9 +262,10 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
   );
 }
 
-function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile, batchDone }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
+function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile, batchDone, fallbackImage, fallbackName }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null; batchDone?: boolean; fallbackImage?: string; fallbackName?: string }) {
   const [fetchedProfile, setFetchedProfile] = useState<ProfileContent | null>(null);
   const profile = prefetchedProfile || fetchedProfile;
+  const avatarSrc = profile?.picture || fallbackImage || "";
 
   useEffect(() => {
     if (prefetchedProfile || !batchDone || !isPubkey(pubkey)) return;
@@ -277,9 +278,9 @@ function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile, batchDone }
 
   return (
     <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${pubkey.slice(0, 8)}`}>
-      {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
+      {avatarSrc ? <AvatarImage src={avatarSrc} className="object-cover" /> : null}
       <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
-        {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
+        {(profile?.display_name || profile?.name || fallbackName || "?").charAt(0).toUpperCase()}
       </AvatarFallback>
     </Avatar>
   );
@@ -1137,7 +1138,7 @@ function ListDetailContent() {
                     const isExpanded = expandedItem === item.aTag;
                     const itemKey = item.dTag || item.id.slice(0, 8);
                     const pubkeyValue = extractPubkey(item.content || "", item.jsonData);
-                    const jsonImage = !pubkeyValue ? (item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "")) : "";
+                    const itemImage = item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "") || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).picture === "string" ? (item.jsonData as Record<string, unknown>).picture as string : "");
 
                     return (
                       <div key={item.aTag}>
@@ -1148,10 +1149,10 @@ function ListDetailContent() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {pubkeyValue ? (
-                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} />
-                            ) : jsonImage ? (
+                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} fallbackImage={itemImage} fallbackName={item.name} />
+                            ) : itemImage ? (
                               <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
-                                <AvatarImage src={jsonImage} className="object-cover" />
+                                <AvatarImage src={itemImage} className="object-cover" />
                                 <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
                                   {(item.name || "?").charAt(0).toUpperCase()}
                                 </AvatarFallback>
