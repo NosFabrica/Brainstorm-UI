@@ -1208,21 +1208,15 @@ function ListDetailContent() {
                               <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
                             </div>
 
-                            <div className="flex flex-col items-center justify-center">
+                            <div className="flex items-center justify-center">
                               <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-weighted-up-${itemKey}`}>
                                 {wUp.toFixed(1)}
                               </span>
-                              <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-up-${itemKey}`}>
-                                {score?.rawUp ?? 0} raw
-                              </span>
                             </div>
 
-                            <div className="flex flex-col items-center justify-center">
+                            <div className="flex items-center justify-center">
                               <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-weighted-down-${itemKey}`}>
                                 {wDown.toFixed(1)}
-                              </span>
-                              <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-down-${itemKey}`}>
-                                {score?.rawDown ?? 0} raw
                               </span>
                             </div>
 
@@ -1240,9 +1234,6 @@ function ListDetailContent() {
                                   <div className="h-full w-full bg-slate-200" />
                                 )}
                               </div>
-                              <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
-                                from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
-                              </span>
                             </div>
                           </div>
 
@@ -1296,35 +1287,26 @@ function ListDetailContent() {
                                 <div className="flex items-center gap-1">
                                   <ThumbsUp className="h-3 w-3 text-emerald-500" />
                                   <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold">{wUp.toFixed(1)}</span>
-                                  <span className="text-[9px] text-slate-400">({score?.rawUp ?? 0})</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <ThumbsDown className="h-3 w-3 text-red-400" />
                                   <span className="text-xs font-mono tabular-nums text-red-500 font-semibold">{wDown.toFixed(1)}</span>
-                                  <span className="text-[9px] text-slate-400">({score?.rawDown ?? 0})</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <div className="flex flex-col items-end gap-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-10 h-1 rounded-full overflow-hidden flex">
-                                      {wTotal > 0 ? (
-                                        <>
-                                          <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
-                                          <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
-                                        </>
-                                      ) : (
-                                        <div className="h-full w-full bg-slate-200" />
-                                      )}
-                                    </div>
-                                    <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`}>
-                                      {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
-                                    </span>
-                                  </div>
-                                  <span className="text-[8px] text-slate-400">
-                                    from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
-                                  </span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-10 h-1 rounded-full overflow-hidden flex">
+                                  {wTotal > 0 ? (
+                                    <>
+                                      <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
+                                      <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
+                                    </>
+                                  ) : (
+                                    <div className="h-full w-full bg-slate-200" />
+                                  )}
                                 </div>
+                                <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                  {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1345,16 +1327,29 @@ function ListDetailContent() {
 
                           return (
                           <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
-                                <span className={`text-sm font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
-                                  {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
+                            <div className="flex flex-col gap-1.5 mb-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
+                                  <span className={`text-sm font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                    {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {score.upvoters.length} up / {score.downvoters.length} down
                                 </span>
                               </div>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                {score.upvoters.length} up / {score.downvoters.length} down
-                              </span>
+                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-400">
+                                <span className="font-mono"><span className="text-emerald-600 font-medium">{wUp.toFixed(1)}</span> weighted up</span>
+                                <span>&middot;</span>
+                                <span className="font-mono"><span className="text-red-500 font-medium">{wDown.toFixed(1)}</span> weighted down</span>
+                                <span>&middot;</span>
+                                <span>{score.rawUp} raw up / {score.rawDown} raw down</span>
+                                <span>&middot;</span>
+                                <span>from {totalVoters} voter{totalVoters !== 1 ? "s" : ""}</span>
+                                <span>&middot;</span>
+                                <span>{weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}</span>
+                              </div>
                             </div>
 
                             {item.description && (
