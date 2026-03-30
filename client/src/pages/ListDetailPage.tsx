@@ -1153,7 +1153,7 @@ function ListDetailContent() {
                       ...(score?.downvoters.map(v => v.pubkey) ?? []),
                     ]);
                     const totalVoters = allVoterPks.size;
-                    const weightedSources = (score?.upvoters.filter(v => v.weight > 0).length ?? 0) + (score?.downvoters.filter(v => v.weight > 0).length ?? 0);
+                    const weightedSources = (score?.upvoters.filter(v => v.weight !== 0).length ?? 0) + (score?.downvoters.filter(v => v.weight !== 0).length ?? 0);
                     const wUp = score?.weightedUp ?? 0;
                     const wDown = score?.weightedDown ?? 0;
                     const wTotal = wUp + wDown;
