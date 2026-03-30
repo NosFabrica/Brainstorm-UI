@@ -40,7 +40,6 @@ import {
   RotateCcw,
   ArrowRight,
   Globe,
-  Users,
   ListChecks,
 } from "lucide-react";
 import { GiGrapes } from "react-icons/gi";
