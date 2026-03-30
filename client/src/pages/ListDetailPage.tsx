@@ -37,10 +37,13 @@ import {
   ThumbsDown,
   ChevronDown,
   ChevronUp,
-  Eye,
   RotateCcw,
   ArrowRight,
+  Globe,
+  Users,
+  ListChecks,
 } from "lucide-react";
+import { GiGrapes } from "react-icons/gi";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
@@ -84,6 +87,15 @@ const TRUST_METHOD_DESCS: Record<TrustMethod, string> = {
   trusted_list: "Only reactions from your kind 30392 trusted list count",
   graperank: "Reactions weighted by GrapeRank trust scores (Trusted Assertions)",
 };
+
+function TrustMethodIcon({ method, className }: { method: TrustMethod; className?: string }) {
+  switch (method) {
+    case "trust_everyone": return <Globe className={className} />;
+    case "follow_list": return <Users className={className} />;
+    case "trusted_list": return <ListChecks className={className} />;
+    case "graperank": return <GiGrapes className={className} />;
+  }
+}
 
 type SortKey = "name" | "raw_up" | "raw_down" | "net_score";
 type SortDir = "asc" | "desc";
@@ -971,7 +983,7 @@ function ListDetailContent() {
                         <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
-                            <Eye className="h-3.5 w-3.5" />
+                            <TrustMethodIcon method={trustMethod} className="h-3.5 w-3.5" />
                             <span className="truncate max-w-[120px]">{TRUST_METHOD_LABELS[trustMethod]}</span>
                           </Button>
                         </DropdownMenuTrigger>
@@ -985,6 +997,7 @@ function ListDetailContent() {
                               onClick={() => setTrustMethod(m)}
                               data-testid={`menuitem-trust-${m}`}
                             >
+                              <TrustMethodIcon method={m} className="h-4 w-4 shrink-0 text-slate-400" />
                               <div className="flex-1">
                                 <p className="font-medium">{TRUST_METHOD_LABELS[m]}</p>
                                 <p className="text-[10px] text-slate-400 mt-0.5">{TRUST_METHOD_DESCS[m]}</p>
@@ -1391,7 +1404,7 @@ function ListDetailContent() {
                             )}
 
                             <div className="flex items-center gap-1.5 mb-3 text-[10px] text-slate-400" data-testid={`text-scoring-context-${itemKey}`}>
-                              <Eye className="h-3 w-3 text-indigo-400 shrink-0" />
+                              <TrustMethodIcon method={trustMethod} className="h-3 w-3 text-indigo-400 shrink-0" />
                               <span className="font-medium text-indigo-600">{TRUST_METHOD_LABELS[trustMethod]}</span>
                               <span>&middot;</span>
                               <span>{TRUST_METHOD_DESCS[trustMethod]}</span>
