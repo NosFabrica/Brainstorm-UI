@@ -469,6 +469,7 @@ function ListDetailContent() {
   useEffect(() => {
     if (allPubkeysToFetch.length === 0) return;
     let cancelled = false;
+    setProfilesMap({});
     setBatchProfilesDone(false);
     const batchRelays = isDwarves
       ? [...new Set([...["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"], TAPESTRY_RELAY])]
