@@ -1109,8 +1109,8 @@ function ListDetailContent() {
                   </div>
                 )}
 
-                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden overflow-x-auto shadow-sm">
-                  <div className="grid grid-cols-[1fr_120px_60px_60px_100px] min-w-[560px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                  <div className="hidden md:grid grid-cols-[1fr_120px_60px_60px_110px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
                     <button className={`flex items-center gap-1 text-xs font-medium transition-colors text-left ${sortKey === "name" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-slate-900"}`} onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
                       {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
@@ -1139,6 +1139,22 @@ function ListDetailContent() {
                       {sortKey === "net_score" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </button>
                   </div>
+                  <div className="flex md:hidden items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
+                    <button className={`flex items-center gap-1 text-xs font-medium transition-colors ${sortKey === "name" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-slate-900"}`} onClick={() => handleSort("name")} data-testid="button-sort-name-mobile">
+                      Item {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <button className={`flex items-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "raw_up" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_up")} data-testid="button-sort-raw-up-mobile">
+                        <ThumbsUp className="h-3 w-3" /> {sortKey === "raw_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+                      </button>
+                      <button className={`flex items-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "raw_down" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("raw_down")} data-testid="button-sort-raw-down-mobile">
+                        <ThumbsDown className="h-3 w-3" /> {sortKey === "raw_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+                      </button>
+                      <button className={`flex items-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score-mobile">
+                        Score {sortKey === "net_score" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+                      </button>
+                    </div>
+                  </div>
 
                   {filteredAndSorted.map((item) => {
                     const score = itemScores.get(item.aTag);
@@ -1162,88 +1178,173 @@ function ListDetailContent() {
                     return (
                       <div key={item.aTag}>
                         <button
-                          className="w-full grid grid-cols-[1fr_120px_60px_60px_100px] min-w-[560px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
+                          className="w-full px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
                           onClick={() => setExpandedItem(isExpanded ? null : item.aTag)}
                           data-testid={`row-item-${itemKey}`}
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            {pubkeyValue ? (
-                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} fallbackImage={itemImage} fallbackName={item.name} />
-                            ) : itemImage ? (
-                              <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
-                                <AvatarImage src={itemImage} className="object-cover" />
-                                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
-                                  {(item.name || "?").charAt(0).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                            ) : (
-                              <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                                <span className="text-xs text-indigo-600 font-bold">
-                                  {(item.name || "?").charAt(0).toUpperCase()}
-                                </span>
+                          <div className="hidden md:grid grid-cols-[1fr_120px_60px_60px_110px] items-center">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {pubkeyValue ? (
+                                <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} fallbackImage={itemImage} fallbackName={item.name} />
+                              ) : itemImage ? (
+                                <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
+                                  <AvatarImage src={itemImage} className="object-cover" />
+                                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
+                                    {(item.name || "?").charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                                  <span className="text-xs text-indigo-600 font-bold">
+                                    {(item.name || "?").charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
+                                    {item.name || item.content?.slice(0, 50) || "Unnamed item"}
+                                  </p>
+                                  {item.createdAt > 0 && (
+                                    <span className="text-[9px] text-slate-400 shrink-0" data-testid={`text-item-date-${itemKey}`}>{formatRelativeTime(item.createdAt)}</span>
+                                  )}
+                                </div>
+                                {item.description ? (
+                                  <p className="text-[11px] text-slate-400 truncate mt-0.5" title={item.description} data-testid={`text-item-desc-row-${itemKey}`}>
+                                    {item.description}
+                                  </p>
+                                ) : !pubkeyValue && item.content && item.content !== item.name ? (
+                                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                    {item.content.slice(0, 60)}
+                                  </p>
+                                ) : null}
                               </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
-                                  {item.name || item.content?.slice(0, 50) || "Unnamed item"}
-                                </p>
-                                {item.createdAt > 0 && (
-                                  <span className="text-[9px] text-slate-400 shrink-0" data-testid={`text-item-date-${itemKey}`}>{formatRelativeTime(item.createdAt)}</span>
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
+                            </div>
+
+                            <div className="min-w-0">
+                              <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
+                            </div>
+
+                            <div className="flex flex-col items-center justify-center">
+                              <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-weighted-up-${itemKey}`}>
+                                {wUp.toFixed(1)}
+                              </span>
+                              <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-up-${itemKey}`}>
+                                {score?.rawUp ?? 0} raw
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col items-center justify-center">
+                              <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-weighted-down-${itemKey}`}>
+                                {wDown.toFixed(1)}
+                              </span>
+                              <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-down-${itemKey}`}>
+                                {score?.rawDown ?? 0} raw
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col items-center justify-center gap-0.5">
+                              <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
+                                {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
+                              </span>
+                              <div className="w-14 h-1 rounded-full overflow-hidden flex" data-testid={`bar-sentiment-${itemKey}`}>
+                                {wTotal > 0 ? (
+                                  <>
+                                    <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
+                                    <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
+                                  </>
+                                ) : (
+                                  <div className="h-full w-full bg-slate-200" />
                                 )}
                               </div>
-                              {item.description ? (
-                                <p className="text-[11px] text-slate-400 truncate mt-0.5" title={item.description} data-testid={`text-item-desc-row-${itemKey}`}>
-                                  {item.description}
-                                </p>
-                              ) : !pubkeyValue && item.content && item.content !== item.name ? (
-                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                  {item.content.slice(0, 60)}
-                                </p>
-                              ) : null}
+                              <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
+                                from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
+                              </span>
                             </div>
-                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
                           </div>
 
-                          <div className="min-w-0">
-                            <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
-                          </div>
-
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-weighted-up-${itemKey}`}>
-                              {wUp.toFixed(1)}
-                            </span>
-                            <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-up-${itemKey}`}>
-                              {score?.rawUp ?? 0} raw
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-weighted-down-${itemKey}`}>
-                              {wDown.toFixed(1)}
-                            </span>
-                            <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-down-${itemKey}`}>
-                              {score?.rawDown ?? 0} raw
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col items-center justify-center gap-1">
-                            <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
-                              {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
-                            </span>
-                            <div className="w-14 h-1 rounded-full overflow-hidden flex" data-testid={`bar-sentiment-${itemKey}`}>
-                              {wTotal > 0 ? (
-                                <>
-                                  <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
-                                  <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
-                                </>
-                              ) : (
-                                <div className="h-full w-full bg-slate-200" />
-                              )}
+                          <div className="flex md:hidden flex-col gap-2">
+                            <div className="flex items-start gap-3">
+                              <div className="shrink-0">
+                                {pubkeyValue ? (
+                                  <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} fallbackImage={itemImage} fallbackName={item.name} />
+                                ) : itemImage ? (
+                                  <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl">
+                                    <AvatarImage src={itemImage} className="object-cover" />
+                                    <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold rounded-xl">
+                                      {(item.name || "?").charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ) : (
+                                  <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                    <span className="text-xs text-indigo-600 font-bold">
+                                      {(item.name || "?").charAt(0).toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-slate-900 truncate">
+                                    {item.name || item.content?.slice(0, 50) || "Unnamed item"}
+                                  </p>
+                                  {item.createdAt > 0 && (
+                                    <span className="text-[9px] text-slate-400 shrink-0">{formatRelativeTime(item.createdAt)}</span>
+                                  )}
+                                </div>
+                                {item.description ? (
+                                  <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
+                                    {item.description}
+                                  </p>
+                                ) : !pubkeyValue && item.content && item.content !== item.name ? (
+                                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                    {item.content.slice(0, 60)}
+                                  </p>
+                                ) : null}
+                                <div className="mt-1">
+                                  <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
+                                </div>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-1" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-1" />}
                             </div>
-                            <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
-                              from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
-                            </span>
+
+                            <div className="flex items-center justify-between pl-11">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                  <ThumbsUp className="h-3 w-3 text-emerald-500" />
+                                  <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold">{wUp.toFixed(1)}</span>
+                                  <span className="text-[9px] text-slate-400">({score?.rawUp ?? 0})</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <ThumbsDown className="h-3 w-3 text-red-400" />
+                                  <span className="text-xs font-mono tabular-nums text-red-500 font-semibold">{wDown.toFixed(1)}</span>
+                                  <span className="text-[9px] text-slate-400">({score?.rawDown ?? 0})</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-10 h-1 rounded-full overflow-hidden flex">
+                                      {wTotal > 0 ? (
+                                        <>
+                                          <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
+                                          <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
+                                        </>
+                                      ) : (
+                                        <div className="h-full w-full bg-slate-200" />
+                                      )}
+                                    </div>
+                                    <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                      {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
+                                    </span>
+                                  </div>
+                                  <span className="text-[8px] text-slate-400">
+                                    {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </button>
 
