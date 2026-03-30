@@ -1110,7 +1110,7 @@ function ListDetailContent() {
                 )}
 
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden overflow-x-auto shadow-sm">
-                  <div className="grid grid-cols-[1fr_120px_50px_50px_80px] min-w-[520px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
+                  <div className="grid grid-cols-[1fr_120px_60px_60px_100px] min-w-[560px] items-center px-4 py-2 border-b border-slate-200 bg-slate-50">
                     <button className={`flex items-center gap-1 text-xs font-medium transition-colors text-left ${sortKey === "name" ? "text-indigo-600 font-semibold" : "text-slate-500 hover:text-slate-900"}`} onClick={() => handleSort("name")} data-testid="button-sort-name">
                       Item
                       {sortKey === "name" && (sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
@@ -1123,7 +1123,7 @@ function ListDetailContent() {
                           {sortKey === "raw_up" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Upvote count (click to sort)</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Weighted upvotes (raw count below)</TooltipContent>
                     </UITooltip>
                     <UITooltip>
                       <TooltipTrigger asChild>
@@ -1132,7 +1132,7 @@ function ListDetailContent() {
                           {sortKey === "raw_down" && (sortDir === "asc" ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Downvote count (click to sort)</TooltipContent>
+                      <TooltipContent side="top" className="bg-white border-slate-200 text-slate-700 text-xs shadow-lg">Weighted downvotes (raw count below)</TooltipContent>
                     </UITooltip>
                     <button className={`flex items-center justify-center gap-0.5 text-xs font-medium transition-colors ${sortKey === "net_score" ? "text-indigo-600 font-semibold" : "text-slate-400 hover:text-slate-700"}`} onClick={() => handleSort("net_score")} data-testid="button-sort-score">
                       Trust Score
@@ -1148,10 +1148,21 @@ function ListDetailContent() {
                     const jd = item.jsonData as Record<string, unknown> | null;
                     const itemImage = item.image || (jd && typeof jd.image === "string" ? jd.image : "") || (jd && typeof jd.picture === "string" ? jd.picture : "") || (jd && typeof jd.avatar === "string" ? jd.avatar : "");
 
+                    const allVoterPks = new Set([
+                      ...(score?.upvoters.map(v => v.pubkey) ?? []),
+                      ...(score?.downvoters.map(v => v.pubkey) ?? []),
+                    ]);
+                    const totalVoters = allVoterPks.size;
+                    const weightedSources = (score?.upvoters.filter(v => v.weight > 0).length ?? 0) + (score?.downvoters.filter(v => v.weight > 0).length ?? 0);
+                    const wUp = score?.weightedUp ?? 0;
+                    const wDown = score?.weightedDown ?? 0;
+                    const wTotal = wUp + wDown;
+                    const sentimentPct = wTotal > 0 ? (wUp / wTotal) * 100 : 50;
+
                     return (
                       <div key={item.aTag}>
                         <button
-                          className="w-full grid grid-cols-[1fr_120px_50px_50px_80px] min-w-[520px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
+                          className="w-full grid grid-cols-[1fr_120px_60px_60px_100px] min-w-[560px] items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors text-left"
                           onClick={() => setExpandedItem(isExpanded ? null : item.aTag)}
                           data-testid={`row-item-${itemKey}`}
                         >
@@ -1198,21 +1209,39 @@ function ListDetailContent() {
                             <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
                           </div>
 
-                          <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-raw-up-${itemKey}`}>
-                              {score?.rawUp ?? 0}
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="text-xs font-mono tabular-nums text-emerald-600 font-semibold" data-testid={`text-weighted-up-${itemKey}`}>
+                              {wUp.toFixed(1)}
+                            </span>
+                            <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-up-${itemKey}`}>
+                              {score?.rawUp ?? 0} raw
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-center">
-                            <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-raw-down-${itemKey}`}>
-                              {score?.rawDown ?? 0}
+                          <div className="flex flex-col items-center justify-center">
+                            <span className="text-xs font-mono tabular-nums text-red-500 font-semibold" data-testid={`text-weighted-down-${itemKey}`}>
+                              {wDown.toFixed(1)}
+                            </span>
+                            <span className="text-[9px] font-mono tabular-nums text-slate-400" data-testid={`text-raw-down-${itemKey}`}>
+                              {score?.rawDown ?? 0} raw
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-center">
+                          <div className="flex flex-col items-center justify-center gap-1">
                             <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
                               {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
+                            </span>
+                            <div className="w-14 h-1 rounded-full bg-slate-200 overflow-hidden" data-testid={`bar-sentiment-${itemKey}`}>
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${sentimentPct}%`,
+                                  background: sentimentPct > 50 ? '#10b981' : sentimentPct < 50 ? '#ef4444' : '#94a3b8',
+                                }}
+                              />
+                            </div>
+                            <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
+                              {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
                             </span>
                           </div>
                         </button>
