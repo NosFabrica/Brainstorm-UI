@@ -1259,7 +1259,7 @@ function ListDetailContent() {
                                 )}
                               </div>
                               <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
-                                from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
+                                from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
                               </span>
                             </div>
                           </div>
@@ -1340,7 +1340,7 @@ function ListDetailContent() {
                                     </span>
                                   </div>
                                   <span className="text-[8px] text-slate-400">
-                                    {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
+                                    from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
                                   </span>
                                 </div>
                               </div>
