@@ -256,6 +256,8 @@ export default function DashboardPage() {
     },
   });
 
+  const wasAutoTriggeredRef = useRef(false);
+
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
@@ -263,9 +265,13 @@ export default function DashboardPage() {
         queryClient.setQueryData(["/api/auth/graperankResult"], data);
       }
       queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      const isAutoTrigger = wasAutoTriggeredRef.current;
+      wasAutoTriggeredRef.current = false;
       toast({
-        title: "Calculation started",
-        description: "Your trust scores are being recalculated. Results will update shortly.",
+        title: isAutoTrigger ? "Refreshing your trust scores" : "Calculation started",
+        description: isAutoTrigger
+          ? "Your GrapeRank scores are being recalculated automatically. This may take a moment."
+          : "Your trust scores are being recalculated. Results will update shortly.",
         duration: 5000,
       });
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
@@ -404,6 +410,32 @@ export default function DashboardPage() {
       setRetryCount(0);
     }
   }, [isGrapeRankFailed, isPublishFailed]);
+
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (
+      grapeRankQuery.isSuccess &&
+      grapeRank === null &&
+      !isGrapeRankFailed &&
+      !triggerGrapeRankMutation.isPending &&
+      !autoTriggeredRef.current &&
+      selfQuery.isSuccess &&
+      !hasNoFollowing &&
+      followingCount > 0
+    ) {
+      autoTriggeredRef.current = true;
+      wasAutoTriggeredRef.current = true;
+      triggerGrapeRankMutation.mutate();
+    }
+  }, [
+    grapeRankQuery.isSuccess,
+    grapeRank,
+    isGrapeRankFailed,
+    triggerGrapeRankMutation.isPending,
+    selfQuery.isSuccess,
+    hasNoFollowing,
+    followingCount,
+  ]);
 
   const formatRelativeTime = (date: Date | null): string => {
     if (!date || isNaN(date.getTime())) return "";
