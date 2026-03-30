@@ -94,6 +94,7 @@ interface VoterInfo {
   pubkey: string;
   weight: number;
   createdAt: number;
+  content?: string;
 }
 
 interface ItemScore {
@@ -152,11 +153,11 @@ function computeItemScores(
       if (r.isUpvote) {
         rawUp++;
         weightedUp += w;
-        upvoters.push({ pubkey, weight: w, createdAt: r.createdAt });
+        upvoters.push({ pubkey, weight: w, createdAt: r.createdAt, content: r.content || undefined });
       } else {
         rawDown++;
         weightedDown += w;
-        downvoters.push({ pubkey, weight: w, createdAt: r.createdAt });
+        downvoters.push({ pubkey, weight: w, createdAt: r.createdAt, content: r.content || undefined });
       }
     }
 
@@ -205,7 +206,7 @@ function extractPubkey(content: string, jsonData: Record<string, unknown> | null
   return "";
 }
 
-function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPubkey, prefetchedProfile, batchDone }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
+function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extraRelays, itemAuthorPubkey, prefetchedProfile, batchDone }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
   const [fetchedProfile, setFetchedProfile] = useState<ProfileContent | null>(null);
   const profile = prefetchedProfile || fetchedProfile;
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
@@ -213,6 +214,7 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
   const contribution = isUpvote ? weight : -weight;
   const hasWeight = weight > 0;
   const isAuthor = itemAuthorPubkey === pubkey;
+  const relativeTime = useMemo(() => formatRelativeTime(createdAt), [createdAt]);
 
   useEffect(() => {
     if (prefetchedProfile || !batchDone) return;
@@ -223,6 +225,8 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
     return () => { cancelled = true; };
   }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
+  const noteText = content || (isAuthor && isUpvote ? "Author (implicit upvote)" : !hasWeight ? "Trust weight unknown" : "");
+
   return (
     <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
       <div className="flex items-center gap-2 min-w-0">
@@ -232,7 +236,10 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
             {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
+        <div className="min-w-0 flex flex-col">
+          <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
+          <span className="text-[9px] text-slate-400">{relativeTime}</span>
+        </div>
       </div>
 
       <div className="flex justify-center">
@@ -252,10 +259,10 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
       </div>
 
       <div className="min-w-0">
-        {isAuthor && isUpvote ? (
-          <span className="text-[10px] text-indigo-500 italic">Author (implicit upvote)</span>
-        ) : !hasWeight ? (
-          <span className="text-[10px] text-slate-400 italic">Trust weight unknown</span>
+        {noteText ? (
+          <span className={`text-[10px] truncate block ${content ? "text-slate-600" : "text-slate-400 italic"}`} title={content || undefined} data-testid={`note-${pubkey.slice(0, 8)}`}>
+            {noteText}
+          </span>
         ) : null}
       </div>
     </div>
@@ -1245,7 +1252,7 @@ function ListDetailContent() {
                                   <p className="text-xs text-slate-400 px-3 py-3 text-center">No votes yet</p>
                                 ) : (
                                   allVoters.map((v) => (
-                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} itemAuthorPubkey={item.pubkey} prefetchedProfile={profilesMap[v.pubkey] || null} batchDone={batchProfilesDone} />
+                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} content={v.content} isUpvote={v.isUpvote} extraRelays={extraRelays} itemAuthorPubkey={item.pubkey} prefetchedProfile={profilesMap[v.pubkey] || null} batchDone={batchProfilesDone} />
                                   ))
                                 )}
                               </div>

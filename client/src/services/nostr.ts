@@ -723,6 +723,7 @@ export interface DListReaction {
   createdAt: number;
   targetItemATag: string;
   isUpvote: boolean;
+  content: string;
 }
 
 const dcoslReactionCache = new Map<string, DListReaction[]>();
@@ -760,10 +761,12 @@ export async function fetchDListReactions(
       if (seen.has(eventId)) return;
       seen.add(eventId);
 
-      const content = (event.content || "").trim();
-      const isUpvote = content === "+" || content === "";
-      const isDownvote = content === "-";
+      const rawContent = (event.content || "").trim();
+      const isUpvote = rawContent === "" || rawContent === "+" || rawContent.startsWith("+");
+      const isDownvote = rawContent === "-" || rawContent.startsWith("-");
       if (!isUpvote && !isDownvote) return;
+
+      const description = rawContent.replace(/^[+-]\s*/, "").trim();
 
       let targetItemATag = "";
       for (const tag of event.tags || []) {
@@ -780,6 +783,7 @@ export async function fetchDListReactions(
         createdAt: event.created_at,
         targetItemATag,
         isUpvote,
+        content: description,
       });
     } catch {}
   };
@@ -832,10 +836,12 @@ export async function fetchDListReactionsByPubkey(
           if (seen.has(eventId)) return;
           seen.add(eventId);
 
-          const content = (event.content || "").trim();
-          const isUpvote = content === "+" || content === "";
-          const isDownvote = content === "-";
+          const rawContent = (event.content || "").trim();
+          const isUpvote = rawContent === "" || rawContent === "+" || rawContent.startsWith("+");
+          const isDownvote = rawContent === "-" || rawContent.startsWith("-");
           if (!isUpvote && !isDownvote) return;
+
+          const description = rawContent.replace(/^[+-]\s*/, "").trim();
 
           let targetItemATag = "";
           for (const tag of event.tags || []) {
@@ -852,6 +858,7 @@ export async function fetchDListReactionsByPubkey(
             createdAt: event.created_at,
             targetItemATag,
             isUpvote,
+            content: description,
           });
         } catch {}
       },
