@@ -956,7 +956,7 @@ function ListDetailContent() {
                     />
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-3">
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <div className="flex flex-col items-start">
                         <span className="hidden sm:block text-[8px] font-semibold uppercase tracking-widest text-slate-300 mb-0.5 pl-0.5">POV</span>
@@ -1047,44 +1047,40 @@ function ListDetailContent() {
 
                     <div className="hidden sm:block w-px h-8 bg-slate-200 shrink-0" />
 
-                    <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
-                    {([
-                      { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
-                      { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
-                      { key: "positive" as ScoreFilter, label: "Positive", count: filterCounts.positive },
-                      { key: "negative" as ScoreFilter, label: "Negative", count: filterCounts.negative },
-                    ]).map((chip) => (
-                      <button
-                        key={chip.key}
-                        onClick={() => setScoreFilter(chip.key)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                          scoreFilter === chip.key
-                            ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
-                            : "bg-white/80 text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
-                        }`}
-                        data-testid={`chip-filter-${chip.key}`}
-                      >
-                        {chip.label} ({chip.count})
-                      </button>
-                    ))}
-                    </div>
+                    <div className="flex items-center justify-between gap-2 w-full sm:w-auto sm:flex-1">
+                      <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar" data-testid="filter-chips">
+                        {([
+                          { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
+                          { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
+                          { key: "positive" as ScoreFilter, label: "Positive", count: filterCounts.positive },
+                          { key: "negative" as ScoreFilter, label: "Negative", count: filterCounts.negative },
+                        ]).map((chip) => (
+                          <button
+                            key={chip.key}
+                            onClick={() => setScoreFilter(chip.key)}
+                            className={`px-2 sm:px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 whitespace-nowrap shrink-0 ${
+                              scoreFilter === chip.key
+                                ? "bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm"
+                                : "bg-white/80 text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
+                            }`}
+                            data-testid={`chip-filter-${chip.key}`}
+                          >
+                            {chip.label} <span className="text-[10px] opacity-70">({chip.count})</span>
+                          </button>
+                        ))}
+                      </div>
 
-                    <div className="sm:ml-auto flex items-center gap-3 shrink-0">
-                      {reactionsQuery.isLoading && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading reactions...</span>
-                        </div>
-                      )}
-                      {isLoadingWeights && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading trust weights...</span>
-                        </div>
-                      )}
-                      <p className="text-sm text-slate-500 font-medium" data-testid="text-items-count">
-                        {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
-                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {reactionsQuery.isLoading && (
+                          <Loader2 className="h-3 w-3 text-[#7c86ff] animate-spin" />
+                        )}
+                        {isLoadingWeights && (
+                          <Loader2 className="h-3 w-3 text-[#7c86ff] animate-spin" />
+                        )}
+                        <p className="text-[11px] sm:text-sm text-slate-500 font-medium whitespace-nowrap" data-testid="text-items-count">
+                          {filteredAndSorted.length}/{items.length}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1123,33 +1119,41 @@ function ListDetailContent() {
                   )}
 
                   {trustMethod === "trust_everyone" && !isLoadingWeights && items.length > 0 && (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-200/80 bg-amber-50/50" data-testid="banner-trust-everyone">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-[11px] text-amber-700 leading-relaxed">
-                        <span className="font-semibold">All votes weighted equally</span> — spam and bot votes count the same as trusted users. Try <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("graperank" as TrustMethod)} data-testid="link-switch-graperank">Trusted Assertions</button> or <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("follow_list" as TrustMethod)} data-testid="link-switch-followlist">Follow List</button> for spam-resistant scoring.
-                      </p>
+                    <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-amber-200/80 bg-amber-50/50" data-testid="banner-trust-everyone">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
+                      <div className="text-[10px] sm:text-[11px] text-amber-700 leading-relaxed">
+                        <span className="font-semibold">All votes weighted equally</span>
+                        <span className="hidden sm:inline"> — spam and bot votes count the same as trusted users.</span>
+                        <span className="sm:hidden"> — vulnerable to spam.</span>
+                        {" "}Try{" "}
+                        <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("graperank" as TrustMethod)} data-testid="link-switch-graperank">Trusted Assertions</button>
+                        {" "}or{" "}
+                        <button className="underline font-semibold hover:text-amber-900 transition-colors" onClick={() => setTrustMethod("follow_list" as TrustMethod)} data-testid="link-switch-followlist">Follow List</button>.
+                      </div>
                     </div>
                   )}
 
                   {trustMethod === "trusted_list" && !isLoadingWeights && availableTrustedLists.length === 0 && (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-trusted-lists">
-                      <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                      <div className="text-[11px] text-slate-500 leading-relaxed">
-                        <span className="font-semibold text-slate-700">No trusted lists found</span> for this point of view. To use this method, the PoV account needs a published Kind 30392 trusted list.
+                    <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-trusted-lists">
+                      <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-px" />
+                      <div className="text-[10px] sm:text-[11px] text-slate-500 leading-relaxed">
+                        <span className="font-semibold text-slate-700">No trusted lists found</span> for this PoV.
+                        <span className="hidden sm:inline"> To use this method, the PoV account needs a published Kind 30392 trusted list.</span>
                         <a href="https://brainstorm.nosfabrica.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 font-semibold underline transition-colors" data-testid="link-brainstorm-trusted">
-                          Create one at Brainstorm <ExternalLink className="h-2.5 w-2.5" />
+                          Create one <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       </div>
                     </div>
                   )}
 
                   {trustMethod === "graperank" && !isLoadingWeights && !grapeRankScoresQuery.isLoading && (grapeRankScoresQuery.data?.size === 0 || !grapeRankScoresQuery.data) && allVoterPubkeys.length > 0 && (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-graperank">
-                      <GiGrapes className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
-                      <div className="text-[11px] text-slate-500 leading-relaxed">
-                        <span className="font-semibold text-slate-700">No GrapeRank trust scores found</span> for this point of view. The PoV account needs trusted assertions calculated and published.
+                    <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-slate-200 bg-slate-50/70" data-testid="banner-no-graperank">
+                      <GiGrapes className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-px" />
+                      <div className="text-[10px] sm:text-[11px] text-slate-500 leading-relaxed">
+                        <span className="font-semibold text-slate-700">No GrapeRank scores found</span> for this PoV.
+                        <span className="hidden sm:inline"> The PoV account needs trusted assertions calculated and published.</span>
                         <a href="https://brainstorm.nosfabrica.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 ml-1 text-indigo-500 hover:text-indigo-700 font-semibold underline transition-colors" data-testid="link-brainstorm-graperank">
-                          Calculate at Brainstorm <ExternalLink className="h-2.5 w-2.5" />
+                          Calculate <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       </div>
                     </div>
