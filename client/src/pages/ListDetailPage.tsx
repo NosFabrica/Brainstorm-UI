@@ -909,7 +909,7 @@ function ListDetailContent() {
                     />
                   </div>
 
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-3">
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <div className="flex flex-col items-start">
                         <span className="hidden sm:block text-[8px] font-semibold uppercase tracking-widest text-slate-300 mb-0.5 pl-0.5">POV</span>
@@ -997,7 +997,7 @@ function ListDetailContent() {
                       </div>
                     </div>
 
-                    <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
+                    <div className="hidden sm:block w-px h-8 bg-slate-200 shrink-0" />
 
                     <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
                     {([
