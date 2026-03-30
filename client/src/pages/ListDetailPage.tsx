@@ -261,10 +261,6 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
           <span className="text-[10px] text-slate-600 truncate block" title={content} data-testid={`note-${pubkey.slice(0, 8)}`}>
             {content}
           </span>
-        ) : isAuthor && isUpvote ? (
-          <span className="text-[10px] text-slate-400 italic">Author</span>
-        ) : !hasWeight ? (
-          <span className="text-[10px] text-slate-400 italic">No trust weight</span>
         ) : null}
       </div>
     </div>
