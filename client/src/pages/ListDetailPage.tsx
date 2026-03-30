@@ -1173,14 +1173,23 @@ function ListDetailContent() {
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
-                                {item.name || item.content?.slice(0, 50) || "Unnamed item"}
-                              </p>
-                              {!pubkeyValue && item.content && item.content !== item.name && (
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-slate-900 truncate" data-testid={`text-item-name-${itemKey}`}>
+                                  {item.name || item.content?.slice(0, 50) || "Unnamed item"}
+                                </p>
+                                {item.createdAt > 0 && (
+                                  <span className="text-[9px] text-slate-400 shrink-0" data-testid={`text-item-date-${itemKey}`}>{formatRelativeTime(item.createdAt)}</span>
+                                )}
+                              </div>
+                              {item.description ? (
+                                <p className="text-[11px] text-slate-400 truncate mt-0.5" title={item.description} data-testid={`text-item-desc-row-${itemKey}`}>
+                                  {item.description}
+                                </p>
+                              ) : !pubkeyValue && item.content && item.content !== item.name ? (
                                 <p className="text-[11px] text-slate-500 truncate mt-0.5">
                                   {item.content.slice(0, 60)}
                                 </p>
-                              )}
+                              ) : null}
                             </div>
                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
                           </div>
