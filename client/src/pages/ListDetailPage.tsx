@@ -458,7 +458,7 @@ function ListDetailContent() {
     const pks = new Set<string>();
     for (const item of items) {
       if (item.pubkey && isPubkey(item.pubkey)) pks.add(item.pubkey);
-      const subjectPk = extractPubkey(item.content || "", item.jsonData);
+      const subjectPk = extractPubkey(item.content || "", item.jsonData) || (item.referencedPubkey && isPubkey(item.referencedPubkey) ? item.referencedPubkey : "");
       if (subjectPk && isPubkey(subjectPk)) pks.add(subjectPk);
     }
     for (const pk of allVoterPubkeys) {
@@ -1137,7 +1137,7 @@ function ListDetailContent() {
                     const score = itemScores.get(item.aTag);
                     const isExpanded = expandedItem === item.aTag;
                     const itemKey = item.dTag || item.id.slice(0, 8);
-                    const pubkeyValue = extractPubkey(item.content || "", item.jsonData);
+                    const pubkeyValue = extractPubkey(item.content || "", item.jsonData) || (item.referencedPubkey && /^[0-9a-f]{64}$/i.test(item.referencedPubkey) ? item.referencedPubkey : "");
                     const jd = item.jsonData as Record<string, unknown> | null;
                     const itemImage = item.image || (jd && typeof jd.image === "string" ? jd.image : "") || (jd && typeof jd.picture === "string" ? jd.picture : "") || (jd && typeof jd.avatar === "string" ? jd.avatar : "");
 

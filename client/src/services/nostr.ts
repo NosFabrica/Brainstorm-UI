@@ -521,6 +521,7 @@ export interface DListItem {
   content: string;
   image: string;
   jsonData: Record<string, unknown> | null;
+  referencedPubkey: string;
 }
 
 const dcoslListCache = new Map<string, DListHeader[]>();
@@ -578,6 +579,7 @@ function parseDListItem(event: any): DListItem | null {
   const parentRef = getTag(event, "z") || "";
   const name = getTag(event, "name") || getTag(event, "title") || "";
   const image = getTag(event, "image") || getTag(event, "thumb") || "";
+  const referencedPubkey = getTag(event, "p") || "";
 
   let jsonData: Record<string, unknown> | null = null;
   const jsonTag = getTag(event, "json");
@@ -597,6 +599,7 @@ function parseDListItem(event: any): DListItem | null {
     content: event.content || "",
     image,
     jsonData,
+    referencedPubkey,
   };
 }
 
