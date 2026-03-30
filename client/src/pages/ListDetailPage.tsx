@@ -224,44 +224,69 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
   }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
   return (
-    <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
-      <div className="flex items-center gap-2 min-w-0">
+    <>
+      <div className="hidden sm:grid grid-cols-[1fr_32px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
+        <div className="flex items-center gap-2 min-w-0">
+          <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
+            {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
+            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[8px] font-bold">
+              {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
+            <span className="text-[9px] text-slate-400">{relativeTime}</span>
+          </div>
+        </div>
+        <div className="flex justify-center">
+          {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-500" />}
+        </div>
+        <div className="text-center">
+          <span className={`text-[11px] font-mono tabular-nums ${hasWeight ? "text-slate-700" : "text-slate-400"}`}>
+            {hasWeight ? weight.toFixed(3) : "\u2014"}
+          </span>
+        </div>
+        <div className="text-center">
+          <span className={`text-[11px] font-mono tabular-nums font-medium ${!hasWeight ? "text-slate-400" : contribution > 0 ? "text-emerald-600" : "text-red-500"}`}>
+            {hasWeight ? (contribution > 0 ? "+" : "") + contribution.toFixed(3) : "\u2014"}
+          </span>
+        </div>
+        <div className="min-w-0">
+          {content ? (
+            <span className="text-[10px] text-slate-600 truncate block" title={content} data-testid={`note-${pubkey.slice(0, 8)}`}>
+              {content}
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex sm:hidden items-center gap-2 px-3 py-2 border-b border-slate-100 last:border-b-0" data-testid={`breakdown-mobile-${pubkey.slice(0, 8)}`}>
         <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
           {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
           <AvatarFallback className="bg-indigo-50 text-indigo-700 text-[8px] font-bold">
             {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 flex flex-col">
-          <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
-          <span className="text-[9px] text-slate-400">{relativeTime}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-700 truncate">{profile?.display_name || profile?.name || displayNpub}</span>
+            <span className="text-[9px] text-slate-400 shrink-0">{relativeTime}</span>
+          </div>
+          {content ? (
+            <span className="text-[10px] text-slate-500 truncate block" title={content}>{content}</span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-500" />}
+          <span className={`text-[11px] font-mono tabular-nums ${hasWeight ? "text-slate-600" : "text-slate-400"}`}>
+            {hasWeight ? weight.toFixed(3) : "\u2014"}
+          </span>
+          <span className={`text-[11px] font-mono tabular-nums font-medium ${!hasWeight ? "text-slate-400" : contribution > 0 ? "text-emerald-600" : "text-red-500"}`}>
+            {hasWeight ? (contribution > 0 ? "+" : "") + contribution.toFixed(3) : "\u2014"}
+          </span>
         </div>
       </div>
-
-      <div className="flex justify-center">
-        {isUpvote ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-500" />}
-      </div>
-
-      <div className="text-center">
-        <span className={`text-[11px] font-mono tabular-nums ${hasWeight ? "text-slate-700" : "text-slate-400"}`}>
-          {hasWeight ? weight.toFixed(3) : "\u2014"}
-        </span>
-      </div>
-
-      <div className="text-center">
-        <span className={`text-[11px] font-mono tabular-nums font-medium ${!hasWeight ? "text-slate-400" : contribution > 0 ? "text-emerald-600" : "text-red-500"}`}>
-          {hasWeight ? (contribution > 0 ? "+" : "") + contribution.toFixed(3) : "\u2014"}
-        </span>
-      </div>
-
-      <div className="min-w-0">
-        {content ? (
-          <span className="text-[10px] text-slate-600 truncate block" title={content} data-testid={`note-${pubkey.slice(0, 8)}`}>
-            {content}
-          </span>
-        ) : null}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -1328,9 +1353,9 @@ function ListDetailContent() {
                           return (
                           <div className="px-4 py-4 border-b border-slate-100 bg-slate-50/50" data-testid={`detail-panel-${itemKey}`}>
                             <div className="flex flex-col gap-1.5 mb-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Trust Score Breakdown</span>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Breakdown</span>
                                   <span className={`text-sm font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
                                     {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
                                   </span>
@@ -1339,16 +1364,11 @@ function ListDetailContent() {
                                   {score.upvoters.length} up / {score.downvoters.length} down
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-400">
+                              <div className="grid grid-cols-2 sm:flex sm:items-center gap-x-3 gap-y-0.5 sm:gap-2 text-[10px] text-slate-400">
                                 <span className="font-mono"><span className="text-emerald-600 font-medium">{wUp.toFixed(1)}</span> weighted up</span>
-                                <span>&middot;</span>
                                 <span className="font-mono"><span className="text-red-500 font-medium">{wDown.toFixed(1)}</span> weighted down</span>
-                                <span>&middot;</span>
                                 <span>{score.rawUp} raw up / {score.rawDown} raw down</span>
-                                <span>&middot;</span>
-                                <span>from {totalVoters} voter{totalVoters !== 1 ? "s" : ""}</span>
-                                <span>&middot;</span>
-                                <span>{weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}</span>
+                                <span>{totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} source{weightedSources !== 1 ? "s" : ""}</span>
                               </div>
                             </div>
 
@@ -1366,12 +1386,16 @@ function ListDetailContent() {
                             </div>
 
                             <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                              <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-2 bg-slate-50 border-b border-slate-200">
+                              <div className="hidden sm:grid grid-cols-[1fr_32px_80px_80px_1fr] items-center px-3 py-2 bg-slate-50 border-b border-slate-200">
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Source</span>
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Vote</span>
-                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trust Weight</span>
-                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Contribution</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Weight</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Score</span>
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Note</span>
+                              </div>
+                              <div className="flex sm:hidden items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Source</span>
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Weight / Score</span>
                               </div>
 
                               <div className="max-h-64 overflow-y-auto custom-scrollbar">
@@ -1384,16 +1408,11 @@ function ListDetailContent() {
                                 )}
                               </div>
 
-                              <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-2 bg-slate-50 border-t border-slate-200">
+                              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-t border-slate-200">
                                 <span className="text-xs font-bold text-slate-700">Total Trust Score</span>
-                                <div />
-                                <div />
-                                <div className="text-center">
-                                  <span className={`text-xs font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
-                                    {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
-                                  </span>
-                                </div>
-                                <div />
+                                <span className={`text-xs font-bold font-mono tabular-nums ${score.netScore > 0 ? "text-emerald-600" : score.netScore < 0 ? "text-red-500" : "text-slate-500"}`}>
+                                  {(score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3)}
+                                </span>
                               </div>
                             </div>
 
