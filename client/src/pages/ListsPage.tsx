@@ -33,7 +33,6 @@ import {
   ChevronRight,
   Inbox,
   ArrowUpDown,
-  Sparkles,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -435,8 +434,7 @@ export default function ListsPage() {
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/30" data-testid="badge-example">
-                              <Sparkles className="h-3 w-3 text-emerald-600" />
+                            <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/30" data-testid="badge-example">
                               <span className="text-[10px] font-bold tracking-[0.1em] text-emerald-700 uppercase">Example</span>
                             </div>
                           </div>
