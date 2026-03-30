@@ -518,6 +518,7 @@ export interface DListItem {
   aTag: string;
   parentRef: string;
   name: string;
+  description: string;
   content: string;
   image: string;
   jsonData: Record<string, unknown> | null;
@@ -578,6 +579,7 @@ function parseDListItem(event: any): DListItem | null {
 
   const parentRef = getTag(event, "z") || "";
   const name = getTag(event, "name") || getTag(event, "title") || "";
+  const description = getTag(event, "description") || "";
   const image = getTag(event, "image") || getTag(event, "thumb") || "";
   const rawRefPk = getTag(event, "p") || "";
   const referencedPubkey = /^[0-9a-f]{64}$/i.test(rawRefPk) ? rawRefPk.toLowerCase() : "";
@@ -597,6 +599,7 @@ function parseDListItem(event: any): DListItem | null {
     aTag,
     parentRef,
     name,
+    description,
     content: event.content || "",
     image,
     jsonData,

@@ -225,7 +225,7 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
   }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
   return (
-    <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
+    <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
       <div className="flex items-center gap-2 min-w-0">
         <Avatar className="h-5 w-5 border border-slate-200 shrink-0">
           {profile?.picture ? <AvatarImage src={profile.picture} className="object-cover" /> : null}
@@ -1235,8 +1235,14 @@ function ListDetailContent() {
                               </span>
                             </div>
 
+                            {item.description && (
+                              <p className="text-xs text-slate-500 italic mb-3 px-1 border-l-2 border-indigo-200 pl-2" data-testid={`text-item-desc-${itemKey}`}>
+                                {item.description}
+                              </p>
+                            )}
+
                             <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-                              <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-2 bg-slate-50 border-b border-slate-200">
+                              <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-2 bg-slate-50 border-b border-slate-200">
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Source</span>
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Vote</span>
                                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center">Trust Weight</span>
@@ -1254,7 +1260,7 @@ function ListDetailContent() {
                                 )}
                               </div>
 
-                              <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-2 bg-slate-50 border-t border-slate-200">
+                              <div className="grid grid-cols-[1fr_40px_90px_100px_1fr] items-center px-3 py-2 bg-slate-50 border-t border-slate-200">
                                 <span className="text-xs font-bold text-slate-700">Total Trust Score</span>
                                 <div />
                                 <div />
