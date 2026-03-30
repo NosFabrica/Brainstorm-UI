@@ -213,7 +213,6 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
   const contribution = isUpvote ? weight : -weight;
   const hasWeight = weight > 0;
-  const isAuthor = itemAuthorPubkey === pubkey;
   const relativeTime = useMemo(() => formatRelativeTime(createdAt), [createdAt]);
 
   useEffect(() => {
