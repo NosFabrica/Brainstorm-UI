@@ -962,7 +962,7 @@ function ListDetailContent() {
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">{TRUST_METHOD_LABELS[trustMethod]}</span>
+                            <span className="truncate max-w-[120px]">{TRUST_METHOD_LABELS[trustMethod]}</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-64 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl">
