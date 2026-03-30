@@ -1138,7 +1138,8 @@ function ListDetailContent() {
                     const isExpanded = expandedItem === item.aTag;
                     const itemKey = item.dTag || item.id.slice(0, 8);
                     const pubkeyValue = extractPubkey(item.content || "", item.jsonData);
-                    const itemImage = item.image || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).image === "string" ? (item.jsonData as Record<string, unknown>).image as string : "") || (item.jsonData && typeof (item.jsonData as Record<string, unknown>).picture === "string" ? (item.jsonData as Record<string, unknown>).picture as string : "");
+                    const jd = item.jsonData as Record<string, unknown> | null;
+                    const itemImage = item.image || (jd && typeof jd.image === "string" ? jd.image : "") || (jd && typeof jd.picture === "string" ? jd.picture : "") || (jd && typeof jd.avatar === "string" ? jd.avatar : "");
 
                     return (
                       <div key={item.aTag}>
