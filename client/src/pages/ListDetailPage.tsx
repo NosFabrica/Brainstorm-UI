@@ -905,10 +905,8 @@ function ListDetailContent() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400" data-testid="label-pov-header">Point of View</span>
-                        <DropdownMenu>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
                             <Eye className="h-3 w-3" />
@@ -954,11 +952,8 @@ function ListDetailContent() {
                           </div>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      </div>
 
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400" data-testid="label-scoring-header">Scoring Method</span>
-                        <DropdownMenu>
+                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
@@ -984,7 +979,6 @@ function ListDetailContent() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      </div>
                     </div>
 
                     <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
