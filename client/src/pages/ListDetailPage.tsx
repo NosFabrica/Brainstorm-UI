@@ -41,6 +41,7 @@ import {
   ArrowRight,
   Globe,
   ListChecks,
+  Calendar,
 } from "lucide-react";
 import { GiGrapes } from "react-icons/gi";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -496,6 +497,7 @@ function ListDetailContent() {
 
   const allPubkeysToFetch = useMemo(() => {
     const pks = new Set<string>();
+    if (listHeader?.pubkey && isPubkey(listHeader.pubkey)) pks.add(listHeader.pubkey);
     for (const item of items) {
       if (item.pubkey && isPubkey(item.pubkey)) pks.add(item.pubkey);
       const subjectPk = extractPubkey(item.content || "", item.jsonData) || (item.referencedPubkey && isPubkey(item.referencedPubkey) ? item.referencedPubkey : "");
@@ -505,7 +507,7 @@ function ListDetailContent() {
       if (isPubkey(pk)) pks.add(pk);
     }
     return Array.from(pks);
-  }, [items, allVoterPubkeys]);
+  }, [items, allVoterPubkeys, listHeader]);
 
   useEffect(() => {
     if (allPubkeysToFetch.length === 0) return;
@@ -886,6 +888,43 @@ function ListDetailContent() {
                     {listHeader.description}
                   </p>
                 )}
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1" data-testid="list-meta-row">
+                  {listHeader.pubkey && isPubkey(listHeader.pubkey) && (() => {
+                    const authorProfile = profilesMap[listHeader.pubkey];
+                    const authorName = authorProfile?.display_name || authorProfile?.name || listHeader.pubkey.slice(0, 12) + "…";
+                    return (
+                      <div className="flex items-center gap-1.5" data-testid="list-meta-author">
+                        <Avatar className="h-4 w-4 border border-slate-200/80 shrink-0">
+                          {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-slate-100 text-slate-500 text-[7px] font-bold">
+                            {authorName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-[11px] text-slate-400">
+                          by <span className="text-slate-600 font-medium">{authorName}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  {listHeader.pubkey && listHeader.createdAt && (
+                    <span className="text-slate-300 text-[10px] hidden sm:inline">·</span>
+                  )}
+                  {listHeader.createdAt && (
+                    <div className="flex items-center gap-1" data-testid="list-meta-date">
+                      <Calendar className="h-3 w-3 text-slate-300 shrink-0" />
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(listHeader.createdAt * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    </div>
+                  )}
+                  {items.length > 0 && (
+                    <>
+                      <span className="text-slate-300 text-[10px] hidden sm:inline">·</span>
+                      <span className="text-[11px] text-slate-400" data-testid="list-meta-count">{items.length} {items.length === 1 ? "item" : "items"}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
