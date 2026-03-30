@@ -225,8 +225,6 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
     return () => { cancelled = true; };
   }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
-  const noteText = content || (isAuthor && isUpvote ? "Author (implicit upvote)" : !hasWeight ? "Trust weight unknown" : "");
-
   return (
     <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
       <div className="flex items-center gap-2 min-w-0">
@@ -259,10 +257,14 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, createdAt, content, extra
       </div>
 
       <div className="min-w-0">
-        {noteText ? (
-          <span className={`text-[10px] truncate block ${content ? "text-slate-600" : "text-slate-400 italic"}`} title={content || undefined} data-testid={`note-${pubkey.slice(0, 8)}`}>
-            {noteText}
+        {content ? (
+          <span className="text-[10px] text-slate-600 truncate block" title={content} data-testid={`note-${pubkey.slice(0, 8)}`}>
+            {content}
           </span>
+        ) : isAuthor && isUpvote ? (
+          <span className="text-[10px] text-slate-400 italic">Author</span>
+        ) : !hasWeight ? (
+          <span className="text-[10px] text-slate-400 italic">No trust weight</span>
         ) : null}
       </div>
     </div>
