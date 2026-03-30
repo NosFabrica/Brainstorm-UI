@@ -579,7 +579,8 @@ function parseDListItem(event: any): DListItem | null {
   const parentRef = getTag(event, "z") || "";
   const name = getTag(event, "name") || getTag(event, "title") || "";
   const image = getTag(event, "image") || getTag(event, "thumb") || "";
-  const referencedPubkey = getTag(event, "p") || "";
+  const rawRefPk = getTag(event, "p") || "";
+  const referencedPubkey = /^[0-9a-f]{64}$/i.test(rawRefPk) ? rawRefPk.toLowerCase() : "";
 
   let jsonData: Record<string, unknown> | null = null;
   const jsonTag = getTag(event, "json");
