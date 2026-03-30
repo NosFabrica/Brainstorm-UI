@@ -911,7 +911,9 @@ function ListDetailContent() {
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <DropdownMenu>
+                      <div className="flex flex-col items-start">
+                        <span className="hidden sm:block text-[8px] font-semibold uppercase tracking-widest text-slate-300 mb-0.5 pl-0.5">POV</span>
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
                             <Avatar className="h-5 w-5 border border-indigo-200 shrink-0">
@@ -962,8 +964,11 @@ function ListDetailContent() {
                           </div>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
 
-                      <DropdownMenu>
+                      <div className="flex flex-col items-start">
+                        <span className="hidden sm:block text-[8px] font-semibold uppercase tracking-widest text-slate-300 mb-0.5 pl-0.5">Method</span>
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 bg-white/80 rounded-lg h-8 px-2.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-trust-method">
                             <Eye className="h-3.5 w-3.5" />
@@ -989,6 +994,7 @@ function ListDetailContent() {
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </div>
 
                     <div className="hidden sm:block w-px h-6 bg-slate-200 shrink-0" />
