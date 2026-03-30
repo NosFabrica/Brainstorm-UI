@@ -987,26 +987,26 @@ function ListDetailContent() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {reactionsQuery.isLoading && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading reactions...</span>
-                        </div>
-                      )}
-                      {isLoadingWeights && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading trust weights...</span>
-                        </div>
-                      )}
-                      <p className="text-sm text-slate-500 font-medium" data-testid="text-items-count">
-                        {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
-                      </p>
-                    </div>
+                    {(reactionsQuery.isLoading || isLoadingWeights) && (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {reactionsQuery.isLoading && (
+                          <div className="flex items-center gap-1.5">
+                            <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                            <span className="text-xs text-slate-400">Loading reactions...</span>
+                          </div>
+                        )}
+                        {isLoadingWeights && (
+                          <div className="flex items-center gap-1.5">
+                            <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                            <span className="text-xs text-slate-400">Loading trust weights...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
+                  <div className="flex items-center justify-between gap-2" data-testid="filter-chips-row">
+                    <div className="flex items-center gap-1.5 flex-wrap" data-testid="filter-chips">
                     {([
                       { key: "all" as ScoreFilter, label: "All", count: filterCounts.all },
                       { key: "has_votes" as ScoreFilter, label: "Has Votes", count: filterCounts.has_votes },
@@ -1026,6 +1026,10 @@ function ListDetailContent() {
                         {chip.label} ({chip.count})
                       </button>
                     ))}
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium shrink-0" data-testid="text-items-count">
+                      {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
+                    </p>
                   </div>
 
                   {trustMethod === "trusted_list" && availableTrustedLists.length > 0 && (
