@@ -733,6 +733,11 @@ function ListDetailContent() {
     try { return nip19.npubEncode(effectivePovPubkey).slice(0, 12) + "..."; } catch { return effectivePovPubkey.slice(0, 12) + "..."; }
   }, [isDemoPov, isEffectivelySelf, user, resolvedPovProfile, effectivePovPubkey]);
 
+  const povPicture = useMemo(() => {
+    if (isEffectivelySelf) return user?.picture || null;
+    return resolvedPovProfile?.picture || null;
+  }, [isEffectivelySelf, user, resolvedPovProfile]);
+
   if (!user) return null;
 
   return (
@@ -908,8 +913,13 @@ function ListDetailContent() {
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
-                            <Eye className="h-3 w-3" />
+                          <Button variant="ghost" size="sm" className="gap-1.5 text-[11px] text-indigo-600 hover:text-indigo-800 border border-indigo-200 bg-indigo-50/60 rounded-lg h-8 px-2 no-default-hover-elevate no-default-active-elevate" data-testid="button-pov-menu">
+                            <Avatar className="h-5 w-5 border border-indigo-200 shrink-0">
+                              {povPicture ? <AvatarImage src={povPicture} className="object-cover" /> : null}
+                              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-[8px] font-bold">
+                                {(povDisplayName || "?").charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
                             <span className="truncate max-w-[100px]">{povDisplayName}</span>
                             {isDemoPov && <span className="text-[9px] text-amber-600 bg-amber-50 px-1 py-px rounded-full border border-amber-200" data-testid="badge-demo-pov">demo</span>}
                           </Button>
