@@ -869,24 +869,6 @@ function ListDetailContent() {
               <div data-testid="list-items">
                 <div className="flex flex-col gap-3 mb-4 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/60 shadow-sm" data-testid="toolbar-list-detail">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <p className="text-sm text-slate-500 font-medium" data-testid="text-items-count">
-                        {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
-                      </p>
-                      {reactionsQuery.isLoading && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading reactions...</span>
-                        </div>
-                      )}
-                      {isLoadingWeights && (
-                        <div className="flex items-center gap-1.5">
-                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
-                          <span className="text-xs text-slate-400">Loading trust weights...</span>
-                        </div>
-                      )}
-                    </div>
-
                     <div className="flex items-center gap-3 w-full sm:w-auto">
                       <div className="flex flex-col items-start gap-0.5">
                         <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400" data-testid="label-pov-header">Point of View</span>
@@ -967,6 +949,24 @@ function ListDetailContent() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {reactionsQuery.isLoading && (
+                        <div className="flex items-center gap-1.5">
+                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                          <span className="text-xs text-slate-400">Loading reactions...</span>
+                        </div>
+                      )}
+                      {isLoadingWeights && (
+                        <div className="flex items-center gap-1.5">
+                          <Loader2 className="h-3.5 w-3.5 text-[#7c86ff] animate-spin" />
+                          <span className="text-xs text-slate-400">Loading trust weights...</span>
+                        </div>
+                      )}
+                      <p className="text-sm text-slate-500 font-medium" data-testid="text-items-count">
+                        {filteredAndSorted.length} of {items.length} {items.length === 1 ? "item" : "items"}
+                      </p>
                     </div>
                   </div>
 
