@@ -79,10 +79,12 @@ const pool = new RelayPool();
 
 export function fetchProfiles(
   pubkeys: string[],
-  onProfile?: (pubkey: string, profile: ProfileContent) => void
+  onProfile?: (pubkey: string, profile: ProfileContent) => void,
+  relays?: string[]
 ): Promise<void> {
+  const useRelays = relays && relays.length > 0 ? relays : PROFILE_RELAYS;
   return new Promise<void>((resolve) => {
-    pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }).subscribe({
+    pool.request(useRelays, { kinds: [0], authors: pubkeys }).subscribe({
       next: (event) => {
         try { 
           if (eventStore.add(event)) {

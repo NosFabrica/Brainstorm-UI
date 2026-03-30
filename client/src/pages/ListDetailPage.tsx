@@ -205,7 +205,7 @@ function extractPubkey(content: string, jsonData: Record<string, unknown> | null
   return "";
 }
 
-function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPubkey, prefetchedProfile }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string; prefetchedProfile?: ProfileContent | null }) {
+function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPubkey, prefetchedProfile, batchDone }: VoterInfo & { isUpvote: boolean; extraRelays?: string[]; itemAuthorPubkey?: string; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
   const [fetchedProfile, setFetchedProfile] = useState<ProfileContent | null>(null);
   const profile = prefetchedProfile || fetchedProfile;
   const npub = useMemo(() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey.slice(0, 16); } }, [pubkey]);
@@ -215,13 +215,13 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
   const isAuthor = itemAuthorPubkey === pubkey;
 
   useEffect(() => {
-    if (prefetchedProfile) return;
+    if (prefetchedProfile || !batchDone) return;
     let cancelled = false;
     fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setFetchedProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey, extraRelays, prefetchedProfile]);
+  }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
   return (
     <div className="grid grid-cols-[1fr_40px_80px_80px_1fr] items-center px-3 py-1.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 transition-colors" data-testid={`breakdown-${pubkey.slice(0, 8)}`}>
@@ -262,18 +262,18 @@ function ScoreBreakdownRow({ pubkey, weight, isUpvote, extraRelays, itemAuthorPu
   );
 }
 
-function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null }) {
+function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile, batchDone }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
   const [fetchedProfile, setFetchedProfile] = useState<ProfileContent | null>(null);
   const profile = prefetchedProfile || fetchedProfile;
 
   useEffect(() => {
-    if (prefetchedProfile || !isPubkey(pubkey)) return;
+    if (prefetchedProfile || !batchDone || !isPubkey(pubkey)) return;
     let cancelled = false;
     fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setFetchedProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey, extraRelays, prefetchedProfile]);
+  }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
   return (
     <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${pubkey.slice(0, 8)}`}>
@@ -285,18 +285,18 @@ function ItemProfileAvatar({ pubkey, extraRelays, prefetchedProfile }: { pubkey:
   );
 }
 
-function AuthorBadge({ pubkey, extraRelays, prefetchedProfile }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null }) {
+function AuthorBadge({ pubkey, extraRelays, prefetchedProfile, batchDone }: { pubkey: string; extraRelays?: string[]; prefetchedProfile?: ProfileContent | null; batchDone?: boolean }) {
   const [fetchedProfile, setFetchedProfile] = useState<ProfileContent | null>(null);
   const profile = prefetchedProfile || fetchedProfile;
 
   useEffect(() => {
-    if (prefetchedProfile || !isPubkey(pubkey)) return;
+    if (prefetchedProfile || !batchDone || !isPubkey(pubkey)) return;
     let cancelled = false;
     fetchOutboxRelayList(pubkey, 10000, extraRelays).then(() => fetchProfile(pubkey, 10000, extraRelays)).then(p => {
       if (!cancelled && p) setFetchedProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pubkey, extraRelays, prefetchedProfile]);
+  }, [pubkey, extraRelays, prefetchedProfile, batchDone]);
 
   const displayName = profile?.display_name || profile?.name || pubkey.slice(0, 8) + "...";
 
@@ -451,6 +451,7 @@ function ListDetailContent() {
   }, [reactions]);
 
   const [profilesMap, setProfilesMap] = useState<Record<string, ProfileContent>>({});
+  const [batchProfilesDone, setBatchProfilesDone] = useState(false);
 
   const allPubkeysToFetch = useMemo(() => {
     const pks = new Set<string>();
@@ -468,14 +469,18 @@ function ListDetailContent() {
   useEffect(() => {
     if (allPubkeysToFetch.length === 0) return;
     let cancelled = false;
-    const batch: Record<string, ProfileContent> = {};
+    setBatchProfilesDone(false);
+    const batchRelays = isDwarves
+      ? [...new Set([...["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"], TAPESTRY_RELAY])]
+      : undefined;
     fetchProfiles(allPubkeysToFetch, (pubkey, profile) => {
       if (cancelled) return;
-      batch[pubkey] = profile;
       setProfilesMap(prev => ({ ...prev, [pubkey]: profile }));
-    }).catch(() => {});
+    }, batchRelays).catch(() => {}).finally(() => {
+      if (!cancelled) setBatchProfilesDone(true);
+    });
     return () => { cancelled = true; };
-  }, [allPubkeysToFetch]);
+  }, [allPubkeysToFetch, isDwarves]);
 
   const followListQuery = useQuery({
     queryKey: ["follow-list", effectivePovPubkey],
@@ -1142,7 +1147,7 @@ function ListDetailContent() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {pubkeyValue ? (
-                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} />
+                              <ItemProfileAvatar pubkey={pubkeyValue} extraRelays={extraRelays} prefetchedProfile={profilesMap[pubkeyValue] || null} batchDone={batchProfilesDone} />
                             ) : jsonImage ? (
                               <Avatar className="h-8 w-8 border border-slate-200 shrink-0 rounded-xl" data-testid={`avatar-item-${itemKey}`}>
                                 <AvatarImage src={jsonImage} className="object-cover" />
@@ -1171,7 +1176,7 @@ function ListDetailContent() {
                           </div>
 
                           <div className="min-w-0">
-                            <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} />
+                            <AuthorBadge pubkey={item.pubkey} extraRelays={extraRelays} prefetchedProfile={profilesMap[item.pubkey] || null} batchDone={batchProfilesDone} />
                           </div>
 
                           <div className="flex items-center justify-center">
@@ -1234,7 +1239,7 @@ function ListDetailContent() {
                                   <p className="text-xs text-slate-400 px-3 py-3 text-center">No votes yet</p>
                                 ) : (
                                   allVoters.map((v) => (
-                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} itemAuthorPubkey={item.pubkey} prefetchedProfile={profilesMap[v.pubkey] || null} />
+                                    <ScoreBreakdownRow key={v.pubkey} pubkey={v.pubkey} weight={v.weight} createdAt={v.createdAt} isUpvote={v.isUpvote} extraRelays={extraRelays} itemAuthorPubkey={item.pubkey} prefetchedProfile={profilesMap[v.pubkey] || null} batchDone={batchProfilesDone} />
                                   ))
                                 )}
                               </div>
