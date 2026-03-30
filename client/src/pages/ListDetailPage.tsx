@@ -635,9 +635,9 @@ function ListDetailContent() {
       if (sortKey === "name") {
         cmp = (a.name || "").localeCompare(b.name || "");
       } else if (sortKey === "raw_up") {
-        cmp = (scoreA?.rawUp ?? 0) - (scoreB?.rawUp ?? 0);
+        cmp = (scoreA?.weightedUp ?? 0) - (scoreB?.weightedUp ?? 0);
       } else if (sortKey === "raw_down") {
-        cmp = (scoreA?.rawDown ?? 0) - (scoreB?.rawDown ?? 0);
+        cmp = (scoreA?.weightedDown ?? 0) - (scoreB?.weightedDown ?? 0);
       } else {
         cmp = (scoreA?.netScore ?? 0) - (scoreB?.netScore ?? 0);
       }
@@ -1231,17 +1231,18 @@ function ListDetailContent() {
                             <span className={`text-sm font-bold font-mono tabular-nums ${(score?.netScore ?? 0) > 0 ? "text-emerald-600" : (score?.netScore ?? 0) < 0 ? "text-red-500" : "text-slate-500"}`} data-testid={`text-score-${itemKey}`}>
                               {score ? (score.netScore > 0 ? "+" : "") + score.netScore.toFixed(3) : "0.000"}
                             </span>
-                            <div className="w-14 h-1 rounded-full bg-slate-200 overflow-hidden" data-testid={`bar-sentiment-${itemKey}`}>
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${sentimentPct}%`,
-                                  background: sentimentPct > 50 ? '#10b981' : sentimentPct < 50 ? '#ef4444' : '#94a3b8',
-                                }}
-                              />
+                            <div className="w-14 h-1 rounded-full overflow-hidden flex" data-testid={`bar-sentiment-${itemKey}`}>
+                              {wTotal > 0 ? (
+                                <>
+                                  <div className="h-full bg-emerald-500" style={{ width: `${sentimentPct}%` }} />
+                                  <div className="h-full bg-red-400" style={{ width: `${100 - sentimentPct}%` }} />
+                                </>
+                              ) : (
+                                <div className="h-full w-full bg-slate-200" />
+                              )}
                             </div>
                             <span className="text-[8px] text-slate-400 whitespace-nowrap" data-testid={`text-voter-meta-${itemKey}`}>
-                              {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted
+                              from {totalVoters} voter{totalVoters !== 1 ? "s" : ""} · {weightedSources} weighted source{weightedSources !== 1 ? "s" : ""}
                             </span>
                           </div>
                         </button>
