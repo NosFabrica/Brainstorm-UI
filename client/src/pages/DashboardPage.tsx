@@ -290,28 +290,29 @@ export default function DashboardPage() {
   const selfData = selfQuery.data?.data;
   const network = selfData?.graph || user?.userData?.data?.graph || null;
 
+  const taPubkey = selfQuery.data?.data?.history?.ta_pubkey;
   const trustServiceProvider = useQuery({
-    queryKey: ["trustServiceProvider", user?.pubkey, selfQuery.data?.data?.history?.ta_pubkey],
+    queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
     queryFn: async () => {
-      console.log("trustServiceProvider", selfQuery.data?.data?.history?.ta_pubkey)
-      if (!user?.pubkey || !selfQuery.data?.data?.history?.ta_pubkey) return null;
-      const isBrainstormClient = await isUsingBrainstorm(user.pubkey, selfQuery.data?.data?.history?.ta_pubkey);
-
-      if (isBrainstormClient && localStorage.getItem("brainstorm_nip85_activated") !== "true") {
-        localStorage.setItem("brainstorm_nip85_activated", "true");
-      }
-
-      if (nip85Activated !== isBrainstormClient) {
-        setNip85Activated(isBrainstormClient)
-      }
-      
-      return isBrainstormClient
+      if (!user?.pubkey || !taPubkey) return false;
+      return await isUsingBrainstorm(user.pubkey, taPubkey);
     },
-    enabled: !!user,
+    enabled: !!user && !!taPubkey,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
     staleTime: Infinity,
   });
+
+  useEffect(() => {
+    if (trustServiceProvider.data === undefined) return;
+    const isBrainstorm = !!trustServiceProvider.data;
+    if (isBrainstorm && localStorage.getItem("brainstorm_nip85_activated") !== "true") {
+      localStorage.setItem("brainstorm_nip85_activated", "true");
+    }
+    if (nip85Activated !== isBrainstorm) {
+      setNip85Activated(isBrainstorm);
+    }
+  }, [trustServiceProvider.data]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -1438,7 +1439,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {publishDone && !nip85Activated && !nip85Dismissed && trustServiceProvider.isFetched && (
+          {publishDone && !nip85Activated && !nip85Dismissed && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
