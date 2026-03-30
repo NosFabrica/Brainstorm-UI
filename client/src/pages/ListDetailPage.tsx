@@ -392,11 +392,12 @@ function ListDetailContent() {
       return;
     }
     let cancelled = false;
-    fetchOutboxRelayList(effectivePovPubkey).then(() => fetchProfile(effectivePovPubkey)).then(p => {
+    const relays = isDwarves ? [TAPESTRY_RELAY] : undefined;
+    fetchOutboxRelayList(effectivePovPubkey, 10000, relays).then(() => fetchProfile(effectivePovPubkey, 10000, relays)).then(p => {
       if (!cancelled && p) setPovProfile(p as ProfileContent);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [effectivePovPubkey, user]);
+  }, [effectivePovPubkey, user, isDwarves]);
 
   const grapeRankQuery = useQuery({
     queryKey: ["/api/auth/graperankResult"],
@@ -695,12 +696,14 @@ function ListDetailContent() {
 
   const isEffectivelySelf = effectivePovPubkey === user?.pubkey;
 
+  const resolvedPovProfile = povProfile || profilesMap[effectivePovPubkey] || null;
+
   const povDisplayName = useMemo(() => {
     if (isDemoPov) return "Nous (demo)";
     if (isEffectivelySelf) return user?.displayName || "You";
-    if (povProfile?.display_name || povProfile?.name) return povProfile.display_name || povProfile.name;
+    if (resolvedPovProfile?.display_name || resolvedPovProfile?.name) return resolvedPovProfile.display_name || resolvedPovProfile.name;
     try { return nip19.npubEncode(effectivePovPubkey).slice(0, 12) + "..."; } catch { return effectivePovPubkey.slice(0, 12) + "..."; }
-  }, [isDemoPov, isEffectivelySelf, user, povProfile, effectivePovPubkey]);
+  }, [isDemoPov, isEffectivelySelf, user, resolvedPovProfile, effectivePovPubkey]);
 
   if (!user) return null;
 
