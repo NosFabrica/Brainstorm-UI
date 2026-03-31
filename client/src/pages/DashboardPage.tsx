@@ -821,9 +821,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {grapeRankQuery.isLoading ? (
-              <div className="self-start md:self-end max-w-xs w-48 h-14 rounded-2xl bg-gradient-to-br from-white/60 to-indigo-50/30 border border-slate-200/50 animate-pulse" />
-              ) : nip85Activated && publishDone ? (
+              {nip85Activated && publishDone ? (
               <div
                 className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative self-start md:self-end max-w-xs"
                 data-testid="badge-nip85-active"
