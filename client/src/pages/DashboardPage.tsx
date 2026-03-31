@@ -1068,7 +1068,7 @@ export default function DashboardPage() {
               )}
             </AnimatePresence>
 
-            {showOnboarding && (
+            {(showOnboarding || isRecalculating) && (
               <div
                 className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 border border-white/10 shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:shadow-[0_28px_70px_-20px_rgba(124,134,255,0.35)] overflow-hidden relative transition-shadow"
                 onMouseMove={handleMouseMove}
