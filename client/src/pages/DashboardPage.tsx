@@ -228,6 +228,8 @@ export default function DashboardPage() {
     staleTime: Infinity,
   });
 
+  const recalcTriggeredAtRef = useRef<number | null>(null);
+
   const selfQuery = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf(),
@@ -238,6 +240,10 @@ export default function DashboardPage() {
       const d = grData?.data;
       if (!d || typeof d !== "object") return 10_000;
       const done = isStatusDone((d as any).ta_status);
+      if (done && recalcTriggeredAtRef.current) {
+        const elapsed = Date.now() - recalcTriggeredAtRef.current;
+        if (elapsed < 25 * 60 * 1000) return 10_000;
+      }
       return done ? false : 10_000;
     },
   });
@@ -251,6 +257,11 @@ export default function DashboardPage() {
       const d = query.state.data?.data;
       if (!d || typeof d !== "object") return 10_000;
       const done = isStatusDone((d as any).ta_status);
+      if (done && recalcTriggeredAtRef.current) {
+        const elapsed = Date.now() - recalcTriggeredAtRef.current;
+        if (elapsed < 25 * 60 * 1000) return 10_000;
+        recalcTriggeredAtRef.current = null;
+      }
       return done ? false : 10_000;
     },
   });
@@ -260,6 +271,7 @@ export default function DashboardPage() {
   const triggerGrapeRankMutation = useMutation({
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
+      recalcTriggeredAtRef.current = Date.now();
       if (data?.data && typeof data.data === "object") {
         queryClient.setQueryData(["/api/auth/graperankResult"], data);
       }
