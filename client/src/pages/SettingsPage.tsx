@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getActivePreset, setActivePreset, setCustomThreshold, getCustomThreshold, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
@@ -247,7 +247,14 @@ export default function SettingsPage() {
     }
   };
 
-  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDone = useMemo(() => {
+    if (calcDoneNow) {
+      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      return true;
+    }
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  }, [calcDoneNow]);
   const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
   const isGrapeRankFailedState = (typeof grapeRankData?.data?.status === "string" && grapeRankData.data.status.toLowerCase() === "failure") || (typeof grapeRankData?.data?.ta_status === "string" && grapeRankData.data.ta_status.toLowerCase() === "failure");
   const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;

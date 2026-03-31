@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -129,7 +129,14 @@ export default function SearchPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDone = useMemo(() => {
+    if (calcDoneNow) {
+      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      return true;
+    }
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  }, [calcDoneNow]);
 
   useEffect(() => {
     const u = getCurrentUser();

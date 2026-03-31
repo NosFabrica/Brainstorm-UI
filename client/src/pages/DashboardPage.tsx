@@ -1533,11 +1533,11 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
-                      onClick={() => calcDone && navigate("/network?group=followed_by&view=list")}
-                      role={calcDone ? "button" : undefined}
-                      tabIndex={calcDone ? 0 : -1}
-                      onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
+                      role={isCalculationComplete ? "button" : undefined}
+                      tabIndex={isCalculationComplete ? 0 : -1}
+                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
                       data-testid="card-trusted-followers"
                     >
                       <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#7c86ff] to-[#333286]" />
@@ -1551,7 +1551,7 @@ export default function DashboardPage() {
                         {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
-                      {calcDone && (
+                      {isCalculationComplete && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
                           <span>Explore</span>
                           <ChevronRight className="h-2.5 w-2.5" />
@@ -1560,11 +1560,11 @@ export default function DashboardPage() {
                     </div>
 
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-violet-50/40 p-3 transition-all duration-300 overflow-hidden ${calcDone ? "cursor-pointer border-slate-200/80 hover:border-violet-400/40 hover:shadow-[0_8px_24px_-8px_rgba(139,92,246,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
-                      onClick={() => calcDone && navigate("/network?group=following&view=list")}
-                      role={calcDone ? "button" : undefined}
-                      tabIndex={calcDone ? 0 : -1}
-                      onKeyDown={(e) => { if (calcDone && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-violet-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-violet-400/40 hover:shadow-[0_8px_24px_-8px_rgba(139,92,246,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
+                      role={isCalculationComplete ? "button" : undefined}
+                      tabIndex={isCalculationComplete ? 0 : -1}
+                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
                       data-testid="card-trusted-following"
                     >
                       <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-[#7c86ff]" />
@@ -1578,7 +1578,7 @@ export default function DashboardPage() {
                         {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
-                      {calcDone && (
+                      {isCalculationComplete && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-violet-500/60">
                           <span>Explore</span>
                           <ChevronRight className="h-2.5 w-2.5" />
@@ -1593,10 +1593,10 @@ export default function DashboardPage() {
                       Live
                     </div>
                     <span
-                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 ${calcDone ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors" : ""}`}
-                      onClick={() => calcDone && navigate("/network")}
-                      role={calcDone ? "button" : undefined}
-                      tabIndex={calcDone ? 0 : -1}
+                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 ${isCalculationComplete ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors" : ""}`}
+                      onClick={() => isCalculationComplete && navigate("/network")}
+                      role={isCalculationComplete ? "button" : undefined}
+                      tabIndex={isCalculationComplete ? 0 : -1}
                       data-testid="button-view-all-network"
                     >
                       View All
