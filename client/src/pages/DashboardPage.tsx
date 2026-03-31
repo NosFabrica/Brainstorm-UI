@@ -2480,26 +2480,6 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
-          <details className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-            <summary className="text-sm font-semibold text-slate-300 cursor-pointer" data-testid="toggle-raw-api">Raw API Data (Debug)</summary>
-            <div className="mt-4 space-y-4 text-xs">
-              <div>
-                <h4 className="text-slate-400 font-semibold mb-1">GrapeRank Result</h4>
-                <pre className="bg-slate-950 text-green-300 p-3 rounded-lg overflow-auto max-h-80" data-testid="text-raw-graperank">{JSON.stringify(grapeRankQuery.data, null, 2)}</pre>
-              </div>
-              <div>
-                <h4 className="text-slate-400 font-semibold mb-1">Self Data</h4>
-                <pre className="bg-slate-950 text-blue-300 p-3 rounded-lg overflow-auto max-h-80" data-testid="text-raw-self">{JSON.stringify(selfQuery.data, null, 2)}</pre>
-              </div>
-              <div>
-                <h4 className="text-slate-400 font-semibold mb-1">Derived State</h4>
-                <pre className="bg-slate-950 text-amber-300 p-3 rounded-lg overflow-auto max-h-80" data-testid="text-raw-derived">{JSON.stringify({ calcDone, publishDone, isRecalculating, showOnboarding, isCalculationComplete, isGrapeRankFailed, isPublishFailed, recalcTriggeredAt: recalcTriggeredAtRef.current }, null, 2)}</pre>
-              </div>
-            </div>
-          </details>
-        </div>
-
         <Footer />
       </div>
     </TooltipProvider>

@@ -1,0 +1,117 @@
+
+Learn More
+Nostria
+Supported Clients
+
+Nostria Logo
+Nostria
+Built for human connections
+
+NIP-85
+Get started in seconds. No email. No phone. Just you. A clean, scalable Nostr client focused on ownership, privacy, and a calmer social experience.
+
+Download for Android
+Learn More
+
+For Developers
+Get Your Client Featured
+Join the NIP-85 Ecosystem
+
+Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.
+
+Learn More
+View NIP-85 Spec
+
+Raw API Data (Debug)
+GrapeRank Result
+{
+  "code": 200,
+  "message": null,
+  "data": {
+    "created_at": "2026-03-31T17:36:44.385845",
+    "updated_at": "2026-03-31T17:36:44.393884",
+    "private_id": 366,
+    "status": "ongoing",
+    "ta_status": "waiting",
+    "internal_publication_status": "waiting",
+    "result": null,
+    "count_values": "",
+    "password": "E85lRW6yUTSCOkyBHDYqNWYzBkUWasHX",
+    "algorithm": "graperank",
+    "parameters": "f7506270c51ec3a120e1cb0e1b14a31d7e4420a070e3980dcdf765c23d3c3a6e",
+    "how_many_others_with_priority": 0,
+    "pubkey": "f7506270c51ec3a120e1cb0e1b14a31d7e4420a070e3980dcdf765c23d3c3a6e"
+  }
+}
+Self Data
+{
+  "code": 200,
+  "message": null,
+  "data": {
+    "graph": {
+      "followed_by": [
+        {
+          "pubkey": "dabe380b225adf262f3e2cf96460d4879b15fafd2f4325939600fc5c3b50a122",
+          "influence": 0.057133208463305954,
+          "trusted_reporters": 0
+        },
+        {
+          "pubkey": "0403c86a1bb4cfbc34c8a493fbd1f0d158d42dd06d03eaa3720882a066d3a378",
+          "influence": 0.4229998305205993,
+          "trusted_reporters": 9
+        }
+      ],
+      "following": [
+        {
+          "pubkey": "be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a",
+          "influence": 0.993716972397917,
+          "trusted_reporters": 0
+        },
+        {
+          "pubkey": "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f",
+          "influence": 0.9999828491452553,
+          "trusted_reporters": 0
+        },
+        {
+          "pubkey": "bbf923aa9246065f88c40c7d9bf61cccc0ff3fcff065a8cb2ff4cfbb62088f1e",
+          "influence": 0.9537530866510351,
+          "trusted_reporters": 0
+        },
+        {
+          "pubkey": "71ba2defb251db0660ef4c186490856b16e1a7eb840bef5d00f862b34ac7669f",
+          "influence": 0.9481621145210123,
+          "trusted_reporters": 0
+        },
+        {
+          "pubkey": "c8383d81dd24406745b68409be40d6721c301029464067fcc50a25ddf9139549",
+          "influence": 0.9144297788941782,
+          "trusted_reporters": 1
+        }
+      ],
+      "muted_by": [],
+      "muting": [],
+      "reported_by": [],
+      "reporting": [],
+      "influence": 1
+    },
+    "history": {
+      "created_at": "2026-02-19T19:37:04.047959",
+      "updated_at": "2026-03-31T17:36:44.385845",
+      "pubkey": "f7506270c51ec3a120e1cb0e1b14a31d7e4420a070e3980dcdf765c23d3c3a6e",
+      "ta_pubkey": "6e68d1d6a3a5d4eb1d43710a10118c12f9a0ec528a09fd6a631a9f3b10b59430",
+      "last_time_calculated_graperank": "2026-03-31T17:32:21.181668",
+      "last_time_triggered_graperank": "2026-03-31T17:36:44.388124"
+    }
+  }
+}
+Derived State
+{
+  "calcDone": false,
+  "publishDone": false,
+  "isRecalculating": true,
+  "showOnboarding": false,
+  "isCalculationComplete": true,
+  "isGrapeRankFailed": false,
+  "isPublishFailed": false,
+  "recalcTriggeredAt": null
+}
