@@ -802,11 +802,14 @@ export default function NetworkPage() {
     staleTime: 30_000,
   });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
-  const hadPreviousCalcRef = useRef(false);
-  if (calcDoneNow) {
-    hadPreviousCalcRef.current = true;
-  }
-  const calcDone = calcDoneNow || hadPreviousCalcRef.current;
+  const hadPreviousCalc = useMemo(() => {
+    if (calcDoneNow) {
+      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      return true;
+    }
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  }, [calcDoneNow]);
+  const calcDone = calcDoneNow || hadPreviousCalc;
 
   const PAGE_SIZE = 24;
 

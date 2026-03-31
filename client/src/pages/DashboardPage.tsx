@@ -688,14 +688,17 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate, user]);
 
-  const hadPreviousScoresRef = useRef(false);
-  if (calcDone) {
-    hadPreviousScoresRef.current = true;
-  }
+  const hadPreviousScores = useMemo(() => {
+    if (calcDone) {
+      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      return true;
+    }
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  }, [calcDone]);
 
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = !calcDone && hadPreviousScoresRef.current;
+  const isRecalculating = !calcDone && hadPreviousScores;
   const isCalculationComplete = calcDone || isRecalculating;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
@@ -1444,7 +1447,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {(publishDone || isRecalculating) && !nip85Activated && !nip85Dismissed && (
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
