@@ -216,25 +216,46 @@ export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> 
   };
 }
 
+async function waitForNostrExtension(maxWaitMs = 3000, intervalMs = 200): Promise<boolean> {
+  if (window.nostr) return true;
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const check = setInterval(() => {
+      if (window.nostr) {
+        clearInterval(check);
+        resolve(true);
+      } else if (Date.now() - start >= maxWaitMs) {
+        clearInterval(check);
+        resolve(false);
+      }
+    }, intervalMs);
+  });
+}
+
 export async function handleLogin(): Promise<NostrUser> {
-  if (!window.nostr) {
-    throw new Error("No Nostr extension found. Please install a NIP-07 compatible extension like nos2x or Alby.");
+  const extensionFound = await waitForNostrExtension();
+  if (!extensionFound) {
+    throw new Error("No Nostr extension detected. Please install a NIP-07 compatible extension (nos2x, Alby, Keys.Band, etc.) and refresh the page.");
   }
 
   let pubkey: string;
   try {
-    pubkey = await window.nostr.getPublicKey();
-  } catch {
-    throw new Error("Permission denied. Please allow the Nostr extension to share your public key.");
+    pubkey = await window.nostr!.getPublicKey();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.toLowerCase().includes("denied") || msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("cancel")) {
+      throw new Error("Permission denied. Please allow the Nostr extension to share your public key.");
+    }
+    throw new Error(`Failed to get public key from extension: ${msg || "unknown error"}. Try refreshing the page.`);
   }
 
   if (!pubkey || typeof pubkey !== "string") {
-    throw new Error("Invalid public key received from extension.");
+    throw new Error("Invalid public key received from extension. Please check your Nostr extension is configured correctly.");
   }
 
   const challenge = await apiClient.getAuthChallenge(pubkey);
 
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 22242,
     tags: [
       ["t", "brainstorm_login"],
@@ -245,12 +266,25 @@ export async function handleLogin(): Promise<NostrUser> {
     pubkey
   };
 
-  const signedEvent = await window.nostr.signEvent(event);
+  let signedEvent: Record<string, unknown>;
+  try {
+    signedEvent = await window.nostr!.signEvent(event);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.toLowerCase().includes("denied") || msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("cancel")) {
+      throw new Error("Signing was cancelled. Please approve the sign request in your Nostr extension to log in.");
+    }
+    throw new Error(`Failed to sign event: ${msg || "unknown error"}. Your extension may not support this event type.`);
+  }
+
+  if (!signedEvent || !signedEvent.sig) {
+    throw new Error("Extension returned an unsigned event. Please try again or use a different Nostr extension.");
+  }
 
   const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
   const token = result.data?.token || (result as any).token;
   if (!token) {
-    throw new Error("No token received from server");
+    throw new Error("No token received from server. Please try again.");
   }
   localStorage.setItem("brainstorm_session_token", token);
 
