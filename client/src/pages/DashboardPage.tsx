@@ -710,7 +710,7 @@ export default function DashboardPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = !calcDone && hadPreviousScores;
+  const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
