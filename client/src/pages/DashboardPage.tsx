@@ -712,7 +712,7 @@ export default function DashboardPage() {
 
   const isRecalculating = !calcDone && hadPreviousScores;
   const isCalculationComplete = calcDone || isRecalculating;
-  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating;
+  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
   const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated || grapeRank);
 
