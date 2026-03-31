@@ -801,7 +801,12 @@ export default function NetworkPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const calcDone = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
+  const hadPreviousCalcRef = useRef(false);
+  if (calcDoneNow) {
+    hadPreviousCalcRef.current = true;
+  }
+  const calcDone = calcDoneNow || hadPreviousCalcRef.current;
 
   const PAGE_SIZE = 24;
 

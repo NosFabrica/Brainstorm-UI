@@ -688,10 +688,16 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate, user]);
 
+  const hadPreviousScoresRef = useRef(false);
+  if (calcDone) {
+    hadPreviousScoresRef.current = true;
+  }
+
   if (!user || isAuthRedirecting()) return null;
 
-  const isCalculationComplete = calcDone;
-  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing;
+  const isRecalculating = !calcDone && hadPreviousScoresRef.current;
+  const isCalculationComplete = calcDone || isRecalculating;
+  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
   const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated || grapeRank);
 
@@ -724,7 +730,7 @@ export default function DashboardPage() {
                     <Search className="h-4 w-4" />
                     Search
                   </Button>
-                  <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} title={!calcDone ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
+                  <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${isCalculationComplete ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => isCalculationComplete && navigate("/network")} disabled={!isCalculationComplete} title={!isCalculationComplete ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
                     <Users className="h-4 w-4" />
                     Network
                   </Button>
@@ -782,7 +788,7 @@ export default function DashboardPage() {
           onClose={() => setMobileMenuOpen(false)}
           currentPath={location}
           navigate={navigate}
-          calcDone={calcDone}
+          calcDone={isCalculationComplete}
           user={user}
           onLogout={handleLogout}
         />
@@ -1438,7 +1444,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {publishDone && !nip85Activated && !nip85Dismissed && (
+          {(publishDone || isRecalculating) && !nip85Activated && !nip85Dismissed && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1505,8 +1511,8 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
-                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${calcDone ? "" : "opacity-50 cursor-not-allowed"}`}
-                title={!calcDone ? "Available after calculation completes" : undefined}
+                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
+                title={!isCalculationComplete ? "Available after calculation completes" : undefined}
                 data-testid="card-social-graph"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
