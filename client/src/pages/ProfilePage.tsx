@@ -2130,13 +2130,6 @@ export default function ProfilePage() {
                   );
                 })()}
 
-                <details className="mt-4">
-                  <summary className="text-xs text-slate-400 font-medium uppercase tracking-wide cursor-pointer hover:text-slate-600 transition-colors" data-testid="button-profile-raw">Raw API Data</summary>
-                  <pre className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100 overflow-auto max-h-48 font-mono mt-2" data-testid="text-profile-raw">
-                    {JSON.stringify(profileResult, null, 2)}
-                  </pre>
-                </details>
-
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
