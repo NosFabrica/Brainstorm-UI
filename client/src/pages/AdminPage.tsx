@@ -249,7 +249,7 @@ function SortHeader({ label, sortKey, currentSort, onSort }: {
   const active = currentSort.key === sortKey;
   return (
     <button
-      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors"
+      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors whitespace-nowrap"
       onClick={() => onSort(sortKey)}
       data-testid={`sort-${sortKey}`}
     >
@@ -958,7 +958,7 @@ export default function AdminPage() {
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
               <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User CRM</h3>
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-slate-500">{filteredUsers.length.toLocaleString()} users</span>
                     <span className="text-[10px] text-slate-400">|</span>
@@ -994,21 +994,21 @@ export default function AdminPage() {
                 <table className="w-full text-left min-w-[1400px]" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/50">
-                      <th className="px-2 py-3 w-6"></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
-                      <th className="px-2 py-3"><SortHeader label="Nostr Identity" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm ID</span></th>
-                      <th className="px-2 py-3"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Last Published</span></th>
-                      <th className="px-2 py-3"><SortHeader label="Last Calculated" sortKey="lastCalc" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><SortHeader label="# Calcs" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Count <span className="text-amber-500">*</span></span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calc Status <span className="text-amber-500">*</span></span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Runtime <span className="text-amber-500">*</span></span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last Error <span className="text-amber-500">*</span></span></th>
-                      <th className="px-2 py-3 text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
+                      <th className="px-2 py-2.5 align-middle w-6"></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Nostr Identity" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm ID</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Last Pub</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Calc" sortKey="lastCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="# Calcs" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-l border-amber-200/40 bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Count</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calc Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Runtime</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-amber-200/40 bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last Error</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
