@@ -61,7 +61,7 @@ import {
   Eye,
   LogIn,
 } from "lucide-react";
-import { getCurrentUser, logout, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -422,11 +422,16 @@ export default function AdminPage() {
     });
   }, [network]);
 
+  const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
+
   const filteredUsers = useMemo(() => {
     let list = allUsers;
     if (userSearch.trim()) {
       const q = userSearch.trim().toLowerCase();
-      list = list.filter(u => u.pubkey.toLowerCase().includes(q) || u.npub.toLowerCase().includes(q) || u.relations.some(r => r.toLowerCase().includes(q)));
+      list = list.filter(u => {
+        const prof = userProfiles.get(u.pubkey);
+        return u.pubkey.toLowerCase().includes(q) || u.npub.toLowerCase().includes(q) || u.relations.some(r => r.toLowerCase().includes(q)) || (prof?.name && prof.name.toLowerCase().includes(q));
+      });
     }
     const sorted = [...list];
     sorted.sort((a, b) => {
@@ -444,12 +449,36 @@ export default function AdminPage() {
       return 0;
     });
     return sorted;
-  }, [allUsers, userSearch, userSort]);
+  }, [allUsers, userSearch, userSort, userProfiles]);
 
   const paginatedUsers = useMemo(() => {
     const start = userPage * pageSize;
     return filteredUsers.slice(start, start + pageSize);
   }, [filteredUsers, userPage, pageSize]);
+
+  useEffect(() => {
+    if (paginatedUsers.length === 0) return;
+    let cancelled = false;
+    const toFetch = paginatedUsers.filter(u => !userProfiles.has(u.pubkey));
+    if (toFetch.length === 0) return;
+    (async () => {
+      const results = await Promise.allSettled(toFetch.map(u => fetchProfile(u.pubkey, 8000)));
+      if (cancelled) return;
+      setUserProfiles(prev => {
+        const next = new Map(prev);
+        for (let i = 0; i < toFetch.length; i++) {
+          const r = results[i];
+          if (r.status === "fulfilled" && r.value) {
+            next.set(toFetch[i].pubkey, { name: r.value.display_name || r.value.name, picture: r.value.picture });
+          } else {
+            next.set(toFetch[i].pubkey, {});
+          }
+        }
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [paginatedUsers]);
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
 
@@ -872,14 +901,25 @@ export default function AdminPage() {
                               <td className="px-2 py-2.5">
                                 <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </td>
-                              {/* API endpoint not supported: /admin/users — profile name + avatar */}
                               <td className="px-2 py-2.5" data-testid={`cell-profile-${i}`}>
-                                <div className="flex items-center gap-1.5">
-                                  <div className="h-6 w-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                                    <Users className="h-3 w-3 text-slate-300" />
-                                  </div>
-                                  <span className="text-[9px] text-slate-400 italic">—</span>
-                                </div>
+                                {(() => {
+                                  const prof = userProfiles.get(u.pubkey);
+                                  return (
+                                    <div className="flex items-center gap-1.5">
+                                      <Avatar className="h-6 w-6 shrink-0">
+                                        {prof?.picture ? (
+                                          <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" />
+                                        ) : null}
+                                        <AvatarFallback className="bg-slate-100 border border-slate-200 text-[9px] text-slate-400">
+                                          {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300" />}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <span className="text-[9px] text-slate-700 truncate max-w-[80px]">
+                                        {prof?.name || u.npub.slice(0, 10) + "..."}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td className="px-2 py-2.5">
                                 <div className="space-y-0.5">
