@@ -197,7 +197,7 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip }: {
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -205,6 +205,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   subtitle?: string;
   unsupported?: boolean;
   tooltip?: string;
+  scope?: "system" | "graph";
 }) {
   return (
     <div
@@ -217,7 +218,12 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
         <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
           <Icon className="h-4 w-4 text-[#333286]" />
         </div>
-        {trend && (
+        {scope && (
+          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>
+            {scope === "system" ? "System" : "Your graph"}
+          </span>
+        )}
+        {trend && !scope && (
           <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
             {trend.up ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             {trend.value}
@@ -323,6 +329,16 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
+
+  const adminStatsQuery = useQuery({
+    queryKey: ["/api/admin/stats"],
+    queryFn: () => apiClient.getAdminStats(),
+    enabled: !!user,
+    staleTime: 120_000,
+    retry: false,
+  });
+  const adminStats = adminStatsQuery.data ?? null;
+  const hasSystemData = adminStats !== null;
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -742,11 +758,46 @@ export default function AdminPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
-            <KpiCard label="Graph Size" value={formatNumber(allUsers.length)} icon={Users} subtitle="From /user/self graph" tooltip="Total unique pubkeys discovered in your Web of Trust graph — includes followers, following, and extended network." />
-            <KpiCard label="Scored Users" value={formatNumber(scoredUserCount)} icon={UserCheck} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} tooltip="Users who have had GrapeRank calculated at least once. Updates as more users are enriched from the CRM." />
-            <KpiCard label="SP Adopters" value={formatNumber(spAdopterCount)} icon={Shield} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} tooltip="Users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." />
-            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="From your graph" tooltip="Total mute and report actions visible in your graph — combines reports you've filed and reports filed against users you follow." />
-            <KpiCard label="Queue Position" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} tooltip="Your current position in the GrapeRank calculation queue. Lower means your next recalculation will start sooner." />
+            <KpiCard
+              label={hasSystemData ? "Total Users" : "Graph Size"}
+              value={formatNumber(hasSystemData ? adminStats!.totalUsers : allUsers.length)}
+              icon={Users}
+              subtitle={hasSystemData ? "All Brainstorm users" : "From /user/self graph"}
+              tooltip={hasSystemData ? "Total registered users across the entire Brainstorm platform." : "Total unique pubkeys discovered in your Web of Trust graph — includes followers, following, and extended network."}
+              scope={hasSystemData ? "system" : "graph"}
+            />
+            <KpiCard
+              label="Scored Users"
+              value={formatNumber(hasSystemData ? adminStats!.scoredUsers : scoredUserCount)}
+              icon={UserCheck}
+              subtitle={hasSystemData ? "Completed GrapeRank" : `${enrichedCount} of ${allUsers.length} enriched`}
+              tooltip={hasSystemData ? "Total users across the platform who have had GrapeRank calculated at least once." : "Users in your graph who have had GrapeRank calculated at least once. Updates as more users are enriched."}
+              scope={hasSystemData ? "system" : "graph"}
+            />
+            <KpiCard
+              label="SP Adopters"
+              value={formatNumber(hasSystemData ? adminStats!.spAdopters : spAdopterCount)}
+              icon={Shield}
+              subtitle={hasSystemData ? "Published NIP-85 TA" : `${enrichedCount} of ${allUsers.length} enriched`}
+              tooltip={hasSystemData ? "Total users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." : "Users in your graph who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider."}
+              scope={hasSystemData ? "system" : "graph"}
+            />
+            <KpiCard
+              label="Reports Filed"
+              value={formatNumber(hasSystemData ? adminStats!.totalReports : reportedByCount + reportingCount)}
+              icon={AlertTriangle}
+              subtitle={hasSystemData ? "Platform-wide" : "From your graph"}
+              tooltip={hasSystemData ? "Total mute and report actions filed across the entire Brainstorm platform." : "Total mute and report actions visible in your graph — combines reports you've filed and reports filed against users you follow."}
+              scope={hasSystemData ? "system" : "graph"}
+            />
+            <KpiCard
+              label={hasSystemData ? "Queue Depth" : "Queue Position"}
+              value={hasSystemData ? formatNumber(adminStats!.queueDepth) : (queuePosition !== null ? queuePosition.toString() : "—")}
+              icon={Clock}
+              subtitle={hasSystemData ? "Users awaiting calculation" : (queuePosition !== null ? "Position in queue" : "Via graperankResult")}
+              tooltip={hasSystemData ? "Total number of users currently waiting in the GrapeRank calculation queue." : "Your current position in the GrapeRank calculation queue. Lower means your next recalculation will start sooner."}
+              scope={hasSystemData ? "system" : "graph"}
+            />
           </div>
 
           <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">

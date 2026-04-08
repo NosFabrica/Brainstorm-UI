@@ -230,4 +230,30 @@ export const apiClient = {
     }
     return await response.json();
   },
+
+  async getAdminStats(): Promise<{
+    totalUsers: number;
+    scoredUsers: number;
+    spAdopters: number;
+    totalReports: number;
+    queueDepth: number;
+  } | null> {
+    try {
+      const response = await authenticatedFetch(
+        `${BRAINSTORM_API}/admin/stats`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return {
+        totalUsers: data?.total_users ?? data?.totalUsers ?? 0,
+        scoredUsers: data?.scored_users ?? data?.scoredUsers ?? 0,
+        spAdopters: data?.sp_adopters ?? data?.spAdopters ?? 0,
+        totalReports: data?.total_reports ?? data?.totalReports ?? 0,
+        queueDepth: data?.queue_depth ?? data?.queueDepth ?? 0,
+      };
+    } catch {
+      return null;
+    }
+  },
 };
