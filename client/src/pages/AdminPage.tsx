@@ -51,9 +51,7 @@ import {
   Zap,
   FileText,
   UserCheck,
-  TrendingUp,
   Copy,
-  Timer,
   Globe,
   RefreshCw,
   CalendarDays,
@@ -465,6 +463,20 @@ export default function AdminPage() {
     return filteredUsers.slice(start, start + pageSize);
   }, [filteredUsers, userPage, pageSize]);
 
+  const { enrichedCount, scoredUserCount, spAdopterCount } = useMemo(() => {
+    let enriched = 0;
+    let scored = 0;
+    let adopters = 0;
+    brainstormData.forEach(bd => {
+      if (bd.status === "loaded") {
+        enriched++;
+        if (bd.timesCalculated && bd.timesCalculated > 0) scored++;
+        if (bd.taPubkey) adopters++;
+      }
+    });
+    return { enrichedCount: enriched, scoredUserCount: scored, spAdopterCount: adopters };
+  }, [brainstormData]);
+
   useEffect(() => {
     if (paginatedUsers.length === 0) return;
     let cancelled = false;
@@ -727,19 +739,12 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* KPI cards: system-wide metrics require /admin/system endpoint (not supported) */}
-          {/* Graph-derived metrics (from /user/self) are labeled as "Your Graph" */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-2.5" data-testid="section-kpi-strip">
-            {/* API endpoint not supported: /admin/system — system-wide user count */}
-            <KpiCard label="Total Users (System)" value="—" icon={Users} subtitle="Requires /admin/system" unsupported />
-            {/* API endpoint not supported: /admin/system — users who have completed GrapeRank */}
-            <KpiCard label="Users with Scores" value="—" icon={UserCheck} subtitle="Requires /admin/system" unsupported />
-            <KpiCard label="Your Graph Pubkeys" value={formatNumber(allUsers.length)} icon={TrendingUp} subtitle="From /user/self graph" />
-            <KpiCard label="Queue Depth" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} />
-            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="Your graph only" />
-            {/* API endpoint not supported: /admin/sessions — active session count */}
-            <KpiCard label="Active Sessions" value="—" icon={Eye} subtitle="Requires /admin/sessions" unsupported />
-            <KpiCard label="Uptime / Last Restart" value={formatUptime(SESSION_START)} icon={Timer} subtitle="Admin session uptime" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
+            <KpiCard label="Graph Size" value={formatNumber(allUsers.length)} icon={Users} subtitle="From /user/self graph" />
+            <KpiCard label="Scored Users" value={formatNumber(scoredUserCount)} icon={UserCheck} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} />
+            <KpiCard label="SP Adopters" value={formatNumber(spAdopterCount)} icon={Shield} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} />
+            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="From your graph" />
+            <KpiCard label="Queue Position" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} />
           </div>
 
           <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
