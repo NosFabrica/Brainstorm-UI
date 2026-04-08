@@ -129,13 +129,21 @@ interface AdminUserRow {
   influence: number;
   followerCount: number;
   followingCount: number;
-  firstSeen: string;
-  lastTaTimestamp: string;
-  taCount: string;
-  calcStatus: string;
-  lastCalcRuntime: string;
-  lastCalcError: string;
-  timesCalculated: string;
+}
+
+interface BrainstormUserData {
+  status: "loading" | "loaded" | "error";
+  taPubkey?: string;
+  followerTotal: number;
+  followingTotal: number;
+  mutedByTotal: number;
+  reportedByTotal: number;
+  influence: number;
+  lastCalculated?: string;
+  lastTriggered?: string;
+  timesCalculated?: number;
+  followerList: string[];
+  followingList: string[];
 }
 
 interface RelayLatency {
@@ -411,18 +419,14 @@ export default function AdminPage() {
         influence: data.influence,
         followerCount: rels.includes("follower") ? 1 : 0,
         followingCount: rels.includes("following") ? 1 : 0,
-        firstSeen: "—", // API endpoint not supported: requires /admin/users
-        lastTaTimestamp: "—", // API endpoint not supported: requires /admin/users
-        taCount: "—", // API endpoint not supported: requires /admin/users
-        calcStatus: "—", // API endpoint not supported: requires /admin/users
-        lastCalcRuntime: "—", // API endpoint not supported: requires /admin/users
-        lastCalcError: "—", // API endpoint not supported: requires /admin/users
-        timesCalculated: "—", // API endpoint not supported: requires /admin/users
       };
     });
   }, [network]);
 
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
+
+  const [brainstormData, setBrainstormData] = useState<Map<string, BrainstormUserData>>(new Map());
+  const brainstormInFlight = useMemo(() => new Set<string>(), []);
 
   const filteredUsers = useMemo(() => {
     let list = allUsers;
@@ -430,26 +434,29 @@ export default function AdminPage() {
       const q = userSearch.trim().toLowerCase();
       list = list.filter(u => {
         const prof = userProfiles.get(u.pubkey);
-        return u.pubkey.toLowerCase().includes(q) || u.npub.toLowerCase().includes(q) || u.relations.some(r => r.toLowerCase().includes(q)) || (prof?.name && prof.name.toLowerCase().includes(q));
+        const bd = brainstormData.get(u.pubkey);
+        return u.pubkey.toLowerCase().includes(q) || u.npub.toLowerCase().includes(q) || u.relations.some(r => r.toLowerCase().includes(q)) || (prof?.name && prof.name.toLowerCase().includes(q)) || (bd?.taPubkey && bd.taPubkey.toLowerCase().includes(q));
       });
     }
     const sorted = [...list];
     sorted.sort((a, b) => {
+      const bdA = brainstormData.get(a.pubkey);
+      const bdB = brainstormData.get(b.pubkey);
       let va: string | number, vb: string | number;
-      if (userSort.key === "influence") { va = a.influence; vb = b.influence; }
+      if (userSort.key === "influence") { va = bdA?.influence ?? a.influence; vb = bdB?.influence ?? b.influence; }
       else if (userSort.key === "pubkey") { va = a.pubkey; vb = b.pubkey; }
       else if (userSort.key === "relations") { va = a.relations.length; vb = b.relations.length; }
-      else if (userSort.key === "followers") { va = a.followerCount; vb = b.followerCount; }
-      else if (userSort.key === "following") { va = a.followingCount; vb = b.followingCount; }
-      else if (userSort.key === "firstSeen") { va = a.firstSeen; vb = b.firstSeen; }
-      else if (userSort.key === "timesCalc") { va = a.timesCalculated; vb = b.timesCalculated; }
+      else if (userSort.key === "followers") { va = bdA?.followerTotal ?? 0; vb = bdB?.followerTotal ?? 0; }
+      else if (userSort.key === "following") { va = bdA?.followingTotal ?? 0; vb = bdB?.followingTotal ?? 0; }
+      else if (userSort.key === "timesCalc") { va = bdA?.timesCalculated ?? 0; vb = bdB?.timesCalculated ?? 0; }
+      else if (userSort.key === "lastCalc") { va = bdA?.lastCalculated ?? ""; vb = bdB?.lastCalculated ?? ""; }
       else { va = a.pubkey; vb = b.pubkey; }
       if (va < vb) return userSort.dir === "asc" ? -1 : 1;
       if (va > vb) return userSort.dir === "asc" ? 1 : -1;
       return 0;
     });
     return sorted;
-  }, [allUsers, userSearch, userSort, userProfiles]);
+  }, [allUsers, userSearch, userSort, userProfiles, brainstormData]);
 
   const paginatedUsers = useMemo(() => {
     const start = userPage * pageSize;
@@ -479,6 +486,68 @@ export default function AdminPage() {
     })();
     return () => { cancelled = true; };
   }, [paginatedUsers]);
+
+  useEffect(() => {
+    if (paginatedUsers.length === 0) return;
+    const toFetch = paginatedUsers.filter(u => !brainstormData.has(u.pubkey) && !brainstormInFlight.has(u.pubkey));
+    if (toFetch.length === 0) return;
+    for (const u of toFetch) brainstormInFlight.add(u.pubkey);
+    const countArr = (arr: unknown): number => Array.isArray(arr) ? arr.length : 0;
+    const toPkList = (arr: unknown): string[] => {
+      if (!Array.isArray(arr)) return [];
+      return arr.map((e: any) => typeof e === "string" ? e : e?.pubkey).filter(Boolean).slice(0, 10);
+    };
+    (async () => {
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
+        const batch = toFetch.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(batch.map(u => apiClient.getUserByPubkey(u.pubkey)));
+        setBrainstormData(prev => {
+          const next = new Map(prev);
+          for (let j = 0; j < batch.length; j++) {
+            brainstormInFlight.delete(batch[j].pubkey);
+            const r = results[j];
+            if (r.status === "fulfilled" && r.value?.data) {
+              const d = r.value.data;
+              const hist = d.history || {};
+              next.set(batch[j].pubkey, {
+                status: "loaded",
+                taPubkey: hist.ta_pubkey,
+                followerTotal: countArr(d.followed_by ?? d.graph?.followed_by),
+                followingTotal: countArr(d.following ?? d.graph?.following),
+                mutedByTotal: countArr(d.muted_by ?? d.graph?.muted_by),
+                reportedByTotal: countArr(d.reported_by ?? d.graph?.reported_by),
+                influence: typeof d.influence === "number" ? d.influence : 0,
+                lastCalculated: hist.last_time_calculated_graperank,
+                lastTriggered: hist.last_time_triggered_graperank,
+                timesCalculated: hist.times_calculated_graperank,
+                followerList: toPkList(d.followed_by ?? d.graph?.followed_by),
+                followingList: toPkList(d.following ?? d.graph?.following),
+              });
+            } else {
+              next.set(batch[j].pubkey, { status: "error", followerTotal: 0, followingTotal: 0, mutedByTotal: 0, reportedByTotal: 0, influence: 0, followerList: [], followingList: [] });
+            }
+          }
+          return next;
+        });
+      }
+    })();
+  }, [paginatedUsers]);
+
+  const brainstormFetchedCount = useMemo(() => {
+    let count = 0;
+    brainstormData.forEach(v => { if (v.status === "loaded") count++; });
+    return count;
+  }, [brainstormData]);
+
+  const formatCrmDate = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    } catch { return dateStr; }
+  };
 
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
 
@@ -829,17 +898,23 @@ export default function AdminPage() {
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
               <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Directory</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{filteredUsers.length.toLocaleString()} pubkeys from /user/self graph data</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Full admin user records require a dedicated /admin/users endpoint (not supported)</p>
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User CRM</h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-slate-500">{filteredUsers.length.toLocaleString()} users</span>
+                    <span className="text-[10px] text-slate-400">|</span>
+                    <span className="text-[10px] text-slate-400">{brainstormFetchedCount} enriched via /user/&#123;pubkey&#125;</span>
+                    <span className="text-[10px] text-slate-400">|</span>
+                    <span className="text-[10px] text-amber-500 font-medium">Source: /user/self network graph</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Full user listing requires <span className="font-mono text-amber-600/80">/admin/users</span> endpoint (pending backend)</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Search pubkey, npub, or relation..."
+                    placeholder="Search name, npub, pubkey, relation..."
                     value={userSearch}
                     onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-64"
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-72"
                     data-testid="input-user-search"
                   />
                   <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
@@ -855,43 +930,50 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* User table: full admin schema per spec. All columns displayed explicitly. */}
-              {/* Columns marked † require /admin/users endpoint (not supported) — shown as "—" with StatusBadge */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1400px]" data-testid="table-users">
+                <table className="w-full text-left min-w-[1200px]" data-testid="table-users">
                   <thead>
-                    <tr className="border-b border-slate-100">
+                    <tr className="border-b border-slate-100 bg-slate-50/50">
                       <th className="px-2 py-3 w-6"></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile †</span></th>
-                      <th className="px-2 py-3"><SortHeader label="Nostr npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm npub †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
+                      <th className="px-2 py-3"><SortHeader label="Nostr Identity" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm ID</span></th>
                       <th className="px-2 py-3"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><SortHeader label="First Seen †" sortKey="firstSeen" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Last Published †</span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Count †</span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc Status †</span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Calculated †</span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Runtime †</span></th>
-                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Error †</span></th>
-                      <th className="px-2 py-3"><SortHeader label="# Calcs †" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><SortHeader label="Last Calculated" sortKey="lastCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><SortHeader label="# Calcs" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Count <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calc Status <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Runtime <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last Error <span className="text-amber-500">*</span></span></th>
                       <th className="px-2 py-3 text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={14} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : (
                       paginatedUsers.map((u, i) => {
                         const isExpanded = expandedRows.has(u.pubkey);
+                        const prof = userProfiles.get(u.pubkey);
+                        const bd = brainstormData.get(u.pubkey);
+                        const isLoading = !bd || bd.status === "loading";
+                        const isError = bd?.status === "error";
+                        const isLoaded = bd?.status === "loaded";
+                        const SkeletonCell = () => <div className="h-3 w-12 bg-slate-100 rounded animate-pulse" />;
+                        const AwaitingApiBadge = () => (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                            <Clock className="h-2.5 w-2.5" /> Awaiting API
+                          </span>
+                        );
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className="border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer" onClick={() => {
+                            <tr className={`border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer ${isError ? "bg-red-50/30" : ""}`} onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
@@ -902,86 +984,99 @@ export default function AdminPage() {
                                 <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </td>
                               <td className="px-2 py-2.5" data-testid={`cell-profile-${i}`}>
-                                {(() => {
-                                  const prof = userProfiles.get(u.pubkey);
-                                  return (
-                                    <div className="flex items-center gap-1.5">
-                                      <Avatar className="h-6 w-6 shrink-0">
-                                        {prof?.picture ? (
-                                          <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" />
-                                        ) : null}
-                                        <AvatarFallback className="bg-slate-100 border border-slate-200 text-[9px] text-slate-400">
-                                          {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300" />}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <span className="text-[9px] text-slate-700 truncate max-w-[80px]">
-                                        {prof?.name || u.npub.slice(0, 10) + "..."}
-                                      </span>
+                                <div className="flex items-center gap-1.5">
+                                  <Avatar className="h-6 w-6 shrink-0">
+                                    {prof?.picture ? (
+                                      <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" />
+                                    ) : null}
+                                    <AvatarFallback className="bg-slate-100 border border-slate-200 text-[9px] text-slate-400">
+                                      {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300" />}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <span className="text-[9px] text-slate-700 truncate block max-w-[90px] font-medium">
+                                      {prof?.name || u.npub.slice(0, 12) + "..."}
+                                    </span>
+                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                      {u.relations.slice(0, 2).map(r => (
+                                        <span key={r} className={`text-[7px] px-1 py-0 rounded ${RELATION_BADGE_STYLES[r] || "bg-slate-100 text-slate-500"}`}>{r}</span>
+                                      ))}
+                                      {u.relations.length > 2 && <span className="text-[7px] text-slate-400">+{u.relations.length - 2}</span>}
                                     </div>
-                                  );
-                                })()}
+                                  </div>
+                                </div>
                               </td>
                               <td className="px-2 py-2.5">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[9px] font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
-                                    <CopyButton text={u.pubkey} />
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-indigo-500/80">{u.npub.slice(0, 10)}...{u.npub.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
                                     <CopyButton text={u.npub} />
                                   </div>
-                                </div>
-                              </td>
-                              {/* API endpoint not supported: /admin/users — brainstorm-specific npub */}
-                              <td className="px-2 py-2.5" data-testid={`cell-brainstorm-npub-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">—</span>
-                              </td>
-                              <td className="px-2 py-2.5">
-                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.followerCount}</span>
-                              </td>
-                              <td className="px-2 py-2.5">
-                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.followingCount}</span>
-                              </td>
-                              <td className="px-2 py-2.5">
-                                <div className="flex items-center gap-1">
-                                  <div className="w-8 h-1 rounded-full bg-slate-100 overflow-hidden">
-                                    <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min(u.influence * 100, 100)}%` }} />
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[7px] font-mono text-slate-400">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
+                                    <CopyButton text={u.pubkey} />
                                   </div>
-                                  <span className="text-[9px] font-mono text-slate-600 tabular-nums">{u.influence.toFixed(3)}</span>
                                 </div>
                               </td>
-                              {/* API endpoint not supported: /admin/users — first seen date */}
-                              <td className="px-2 py-2.5" data-testid={`cell-first-seen-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.firstSeen}</span>
+                              <td className="px-2 py-2.5" data-testid={`cell-brainstorm-npub-${i}`}>
+                                {isLoading ? <SkeletonCell /> : isLoaded && bd?.taPubkey ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[8px] font-mono text-emerald-600">{bd.taPubkey.slice(0, 10)}...{bd.taPubkey.slice(-4)}</span>
+                                    <CopyButton text={bd.taPubkey} />
+                                  </div>
+                                ) : isError ? (
+                                  <span className="text-[8px] text-red-400">fetch error</span>
+                                ) : (
+                                  <span className="text-[8px] text-slate-300 italic">none</span>
+                                )}
                               </td>
-                              {/* API endpoint not supported: /admin/users — TA last published timestamp */}
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-last-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.lastTaTimestamp}</span>
+                              <td className="px-2 py-2.5">
+                                {isLoading ? <SkeletonCell /> : (
+                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{isLoaded ? bd!.followerTotal.toLocaleString() : "—"}</span>
+                                )}
                               </td>
-                              {/* API endpoint not supported: /admin/users — TA count */}
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-count-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.taCount}</span>
+                              <td className="px-2 py-2.5">
+                                {isLoading ? <SkeletonCell /> : (
+                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{isLoaded ? bd!.followingTotal.toLocaleString() : "—"}</span>
+                                )}
                               </td>
-                              {/* API endpoint not supported: /admin/users — calculation status */}
-                              <td className="px-2 py-2.5" data-testid={`cell-calc-status-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.calcStatus}</span>
+                              <td className="px-2 py-2.5">
+                                {isLoading ? <SkeletonCell /> : (
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-10 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                      <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((isLoaded ? bd!.influence : u.influence) * 100, 100)}%` }} />
+                                    </div>
+                                    <span className="text-[9px] font-mono text-slate-600 tabular-nums">{(isLoaded ? bd!.influence : u.influence).toFixed(3)}</span>
+                                  </div>
+                                )}
                               </td>
-                              {/* API endpoint not supported: /admin/users — last calculated timestamp */}
                               <td className="px-2 py-2.5" data-testid={`cell-last-calc-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">—</span>
+                                {isLoading ? <SkeletonCell /> : isLoaded && bd?.lastCalculated ? (
+                                  <span className="text-[9px] text-slate-600">{formatCrmDate(bd.lastCalculated)}</span>
+                                ) : isLoaded ? (
+                                  <span className="text-[8px] text-slate-300 italic">never</span>
+                                ) : (
+                                  <span className="text-[8px] text-slate-300">—</span>
+                                )}
                               </td>
-                              {/* API endpoint not supported: /admin/users — last calc runtime duration */}
-                              <td className="px-2 py-2.5" data-testid={`cell-runtime-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.lastCalcRuntime}</span>
-                              </td>
-                              {/* API endpoint not supported: /admin/users — last calculation error */}
-                              <td className="px-2 py-2.5" data-testid={`cell-last-error-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.lastCalcError}</span>
-                              </td>
-                              {/* API endpoint not supported: /admin/users — times calculated */}
                               <td className="px-2 py-2.5" data-testid={`cell-times-calc-${i}`}>
-                                <span className="text-[9px] text-slate-400 italic">{u.timesCalculated}</span>
+                                {isLoading ? <SkeletonCell /> : isLoaded ? (
+                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{bd?.timesCalculated ?? 0}</span>
+                                ) : (
+                                  <span className="text-[8px] text-slate-300">—</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-count-${i}`}>
+                                <AwaitingApiBadge />
+                              </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-calc-status-${i}`}>
+                                <AwaitingApiBadge />
+                              </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-runtime-${i}`}>
+                                <AwaitingApiBadge />
+                              </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-last-error-${i}`}>
+                                <AwaitingApiBadge />
                               </td>
                               <td className="px-2 py-2.5 text-right">
                                 <Button
@@ -991,32 +1086,148 @@ export default function AdminPage() {
                                   onClick={(e) => { e.stopPropagation(); navigate(`/profile/${u.npub}`); }}
                                   data-testid={`button-view-user-${i}`}
                                 >
-                                  View
+                                  <Eye className="h-3 w-3 mr-1" /> View
                                 </Button>
                               </td>
                             </tr>
                             {isExpanded && (
-                              <tr key={`${u.pubkey}-detail`} className="bg-slate-50/50" data-testid={`row-user-detail-${i}`}>
-                                <td colSpan={16} className="px-5 py-4">
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-[10px]">
-                                    <div>
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Pubkey</p>
-                                      <p className="font-mono text-slate-700 break-all">{u.pubkey}</p>
+                              <tr key={`${u.pubkey}-detail`} className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${i}`}>
+                                <td colSpan={14} className="px-5 py-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-[10px]">
+                                    <div className="space-y-2">
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Identity</p>
+                                      <div className="space-y-1.5">
+                                        <div>
+                                          <p className="text-[8px] text-slate-400 uppercase">Full Pubkey</p>
+                                          <p className="font-mono text-slate-700 break-all text-[9px]">{u.pubkey}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-[8px] text-slate-400 uppercase">Full Nostr npub</p>
+                                          <p className="font-mono text-indigo-600 break-all text-[9px]">{u.npub}</p>
+                                        </div>
+                                        {isLoaded && bd?.taPubkey && (
+                                          <div>
+                                            <p className="text-[8px] text-slate-400 uppercase">Brainstorm Service Key</p>
+                                            <div className="flex items-center gap-1">
+                                              <p className="font-mono text-emerald-600 break-all text-[9px]">{bd.taPubkey}</p>
+                                              <CopyButton text={bd.taPubkey} />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div>
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Nostr npub</p>
-                                      <p className="font-mono text-indigo-600 break-all">{u.npub}</p>
+
+                                    <div className="space-y-2">
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Network</p>
+                                      {isLoading ? (
+                                        <div className="space-y-1">
+                                          <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
+                                          <div className="h-3 w-16 bg-slate-100 rounded animate-pulse" />
+                                        </div>
+                                      ) : isLoaded ? (
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Followers</span>
+                                            <span className="font-mono text-slate-700 font-medium">{bd!.followerTotal.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Following</span>
+                                            <span className="font-mono text-slate-700 font-medium">{bd!.followingTotal.toLocaleString()}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Muted By</span>
+                                            <span className="font-mono text-slate-700">{bd!.mutedByTotal}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Reported By</span>
+                                            <span className="font-mono text-slate-700">{bd!.reportedByTotal}</span>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Influence</span>
+                                            <span className="font-mono text-indigo-600 font-medium">{bd!.influence.toFixed(4)}</span>
+                                          </div>
+                                          {bd!.followerList.length > 0 && (
+                                            <div className="mt-1">
+                                              <p className="text-[8px] text-slate-400 uppercase mb-0.5">Top Followers (up to 10)</p>
+                                              <div className="space-y-0.5">
+                                                {bd!.followerList.map((pk, fi) => (
+                                                  <div key={fi} className="flex items-center gap-1">
+                                                    <span className="text-[7px] font-mono text-slate-500">{pk.slice(0, 8)}...{pk.slice(-4)}</span>
+                                                    <CopyButton text={pk} />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <p className="text-slate-400 italic">No data</p>
+                                      )}
                                     </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — follower history with timestamps */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Follower History</p>
-                                      <p className="text-slate-400 italic">Expandable history requires /admin/users</p>
+
+                                    <div className="space-y-2">
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
+                                      {isLoading ? (
+                                        <div className="space-y-1">
+                                          <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
+                                          <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
+                                        </div>
+                                      ) : isLoaded ? (
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-slate-500">Times Calculated</span>
+                                            <span className="font-mono text-slate-700 font-medium">{bd?.timesCalculated ?? 0}</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-500">Last Calculated</span>
+                                            <p className="font-mono text-slate-700 text-[9px] mt-0.5">{bd?.lastCalculated ? formatCrmDate(bd.lastCalculated) : "never"}</p>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-500">Last Triggered</span>
+                                            <p className="font-mono text-slate-700 text-[9px] mt-0.5">{bd?.lastTriggered ? formatCrmDate(bd.lastTriggered) : "never"}</p>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <p className="text-slate-400 italic">No data</p>
+                                      )}
                                     </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — following history with timestamps */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Following History</p>
-                                      <p className="text-slate-400 italic">Expandable history requires /admin/users</p>
+
+                                    <div className="space-y-2">
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Awaiting Backend API</p>
+                                      <div className="space-y-1.5 text-[9px]">
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">First Seen Date</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">TA Publish Count</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">Calculation Status (live)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">Runtime Duration</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">Error History Timeline</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Clock className="h-3 w-3 text-amber-500" />
+                                          <span className="text-slate-500">Follower/Following History</span>
+                                        </div>
+                                      </div>
+                                      <p className="text-[8px] text-amber-500 italic mt-2">Requires /admin/users and /admin/users/&#123;pubkey&#125;/history endpoints</p>
                                     </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 mt-3">
+                                    {u.relations.map(r => (
+                                      <span key={r} className={`text-[8px] px-1.5 py-0.5 rounded-full ${RELATION_BADGE_STYLES[r] || "bg-slate-100 text-slate-500 border border-slate-200"}`}>{r}</span>
+                                    ))}
                                   </div>
                                 </td>
                               </tr>
@@ -1029,10 +1240,15 @@ export default function AdminPage() {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-slate-100">
-                <p className="text-[10px] text-slate-400 italic">
-                  † Columns marked with † require per-user data from a dedicated /admin/users endpoint (not yet supported). These include: profile name/avatar, Brainstorm npub, first-seen date, TA last published timestamp, TA count, calculation status, last calculated timestamp, runtime duration, error history, and times calculated. Follower/following history with timestamps is available in expanded detail rows. All placeholder fields will auto-populate when the backend API becomes available.
-                </p>
+              <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="text-[9px] text-slate-500">Live data from /user/&#123;pubkey&#125;</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full bg-amber-400" />
+                  <span className="text-[9px] text-slate-500"><span className="text-amber-500">*</span> Awaiting /admin/users endpoint</span>
+                </div>
               </div>
 
               {totalPages > 1 && (
