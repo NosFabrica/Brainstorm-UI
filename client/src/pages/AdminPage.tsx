@@ -189,12 +189,12 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   }[status];
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${config.bg} border ${config.border}`} data-testid={`badge-status-${status}`}>
-      <span className="relative flex h-1.5 w-1.5">
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${config.bg} border ${config.border}`} data-testid={`badge-status-${status}`}>
+      <span className="relative flex h-1 w-1">
         {config.ping && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.ping} opacity-75`} />}
-        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${config.dot}`} />
+        <span className={`relative inline-flex rounded-full h-1 w-1 ${config.dot}`} />
       </span>
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${config.text}`}>{config.label}</span>
+      <span className={`text-[8px] font-semibold uppercase tracking-wider ${config.text} whitespace-nowrap`}>{config.label}</span>
     </span>
   );
 }
@@ -209,25 +209,27 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported }: {
 }) {
   return (
     <div
-      className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] p-5 group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative overflow-hidden"
+      className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col min-h-[120px]"
       data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
-      <div className="flex items-start justify-between mb-3 relative">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-[#333286]" />
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl" />
+      <div className="flex items-start justify-between mb-2 relative">
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
+          <Icon className="h-4 w-4 text-[#333286]" />
         </div>
         {trend && (
-          <span className={`text-[11px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
+          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
             {trend.up ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             {trend.value}
           </span>
         )}
       </div>
-      <p className={`text-2xl font-bold tracking-tight relative ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-      <p className="text-xs text-slate-500 mt-1 relative">{label}</p>
-      {subtitle && <p className="text-[10px] text-slate-400 mt-0.5 relative">{subtitle}</p>}
-      {unsupported && <div className="mt-1.5 relative"><StatusBadge status="disconnected" /></div>}
+      <p className={`text-xl font-bold tracking-tight relative ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+      <p className="text-[11px] text-slate-500 mt-0.5 relative leading-tight">{label}</p>
+      {subtitle && <p className="text-[9px] text-slate-400 mt-0.5 relative">{subtitle}</p>}
+      <div className="mt-auto pt-1.5 relative">
+        {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
+      </div>
     </div>
   );
 }
@@ -727,7 +729,7 @@ export default function AdminPage() {
 
           {/* KPI cards: system-wide metrics require /admin/system endpoint (not supported) */}
           {/* Graph-derived metrics (from /user/self) are labeled as "Your Graph" */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4" data-testid="section-kpi-strip">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-2.5" data-testid="section-kpi-strip">
             {/* API endpoint not supported: /admin/system — system-wide user count */}
             <KpiCard label="Total Users (System)" value="—" icon={Users} subtitle="Requires /admin/system" unsupported />
             {/* API endpoint not supported: /admin/system — users who have completed GrapeRank */}
