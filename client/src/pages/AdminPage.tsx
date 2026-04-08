@@ -434,6 +434,10 @@ export default function AdminPage() {
       if (userSort.key === "influence") { va = a.influence; vb = b.influence; }
       else if (userSort.key === "pubkey") { va = a.pubkey; vb = b.pubkey; }
       else if (userSort.key === "relations") { va = a.relations.length; vb = b.relations.length; }
+      else if (userSort.key === "followers") { va = a.followerCount; vb = b.followerCount; }
+      else if (userSort.key === "following") { va = a.followingCount; vb = b.followingCount; }
+      else if (userSort.key === "firstSeen") { va = a.firstSeen; vb = b.firstSeen; }
+      else if (userSort.key === "timesCalc") { va = a.timesCalculated; vb = b.timesCalculated; }
       else { va = a.pubkey; vb = b.pubkey; }
       if (va < vb) return userSort.dir === "asc" ? -1 : 1;
       if (va > vb) return userSort.dir === "asc" ? 1 : -1;
@@ -819,44 +823,34 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* User table: full admin schema. Columns marked with † require /admin/users endpoint (not supported) */}
+              {/* User table: full admin schema per spec. All columns displayed explicitly. */}
+              {/* Columns marked † require /admin/users endpoint (not supported) — shown as "—" with StatusBadge */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left" data-testid="table-users">
+                <table className="w-full text-left min-w-[1400px]" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <th className="px-2 py-3 w-8"></th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile †</span>
-                      </th>
-                      <th className="px-2 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Followers</span>
-                      </th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Following</span>
-                      </th>
+                      <th className="px-2 py-3 w-6"></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile †</span></th>
+                      <th className="px-2 py-3"><SortHeader label="Nostr npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm npub †</span></th>
+                      <th className="px-2 py-3"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Date †</span>
-                      </th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA †</span>
-                      </th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc †</span>
-                      </th>
-                      <th className="px-2 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500"># Calcs †</span>
-                      </th>
-                      <th className="px-2 py-3 text-right">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span>
-                      </th>
+                      <th className="px-2 py-3"><SortHeader label="First Seen †" sortKey="firstSeen" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Last Published †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Count †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc Status †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Calculated †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Runtime †</span></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Error †</span></th>
+                      <th className="px-2 py-3"><SortHeader label="# Calcs †" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3 text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={16} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
@@ -872,65 +866,85 @@ export default function AdminPage() {
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
-                              <td className="px-2 py-3">
-                                <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              <td className="px-2 py-2.5">
+                                <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </td>
-                              <td className="px-2 py-3">
-                                {/* API endpoint not supported: /admin/users — profile name + avatar */}
-                                <div className="flex items-center gap-2">
-                                  <div className="h-7 w-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                                    <Users className="h-3.5 w-3.5 text-slate-300" />
+                              {/* API endpoint not supported: /admin/users — profile name + avatar */}
+                              <td className="px-2 py-2.5" data-testid={`cell-profile-${i}`}>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="h-6 w-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                    <Users className="h-3 w-3 text-slate-300" />
                                   </div>
-                                  <span className="text-[10px] text-slate-400 italic">—</span>
+                                  <span className="text-[9px] text-slate-400 italic">—</span>
                                 </div>
                               </td>
-                              <td className="px-2 py-3">
+                              <td className="px-2 py-2.5">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-6)}</span>
+                                    <span className="text-[9px] font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
                                     <CopyButton text={u.pubkey} />
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[9px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-indigo-500/80">{u.npub.slice(0, 10)}...{u.npub.slice(-4)}</span>
                                     <CopyButton text={u.npub} />
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-2 py-3">
-                                <span className="text-xs font-mono text-slate-600 tabular-nums">{u.followerCount}</span>
+                              {/* API endpoint not supported: /admin/users — brainstorm-specific npub */}
+                              <td className="px-2 py-2.5" data-testid={`cell-brainstorm-npub-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">—</span>
                               </td>
-                              <td className="px-2 py-3">
-                                <span className="text-xs font-mono text-slate-600 tabular-nums">{u.followingCount}</span>
+                              <td className="px-2 py-2.5">
+                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.followerCount}</span>
                               </td>
-                              <td className="px-2 py-3">
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-10 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <td className="px-2 py-2.5">
+                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.followingCount}</span>
+                              </td>
+                              <td className="px-2 py-2.5">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-8 h-1 rounded-full bg-slate-100 overflow-hidden">
                                     <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min(u.influence * 100, 100)}%` }} />
                                   </div>
-                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
+                                  <span className="text-[9px] font-mono text-slate-600 tabular-nums">{u.influence.toFixed(3)}</span>
                                 </div>
                               </td>
-                              <td className="px-2 py-3">
-                                {/* API endpoint not supported: /admin/users — first seen date */}
-                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-first-seen-${i}`}>{u.firstSeen}</span>
+                              {/* API endpoint not supported: /admin/users — first seen date */}
+                              <td className="px-2 py-2.5" data-testid={`cell-first-seen-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.firstSeen}</span>
                               </td>
-                              <td className="px-2 py-3">
-                                {/* API endpoint not supported: /admin/users — TA timestamp/count */}
-                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-ta-${i}`}>{u.lastTaTimestamp}</span>
+                              {/* API endpoint not supported: /admin/users — TA last published timestamp */}
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-last-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.lastTaTimestamp}</span>
                               </td>
-                              <td className="px-2 py-3">
-                                {/* API endpoint not supported: /admin/users — calc status */}
-                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-calc-status-${i}`}>{u.calcStatus}</span>
+                              {/* API endpoint not supported: /admin/users — TA count */}
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-count-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.taCount}</span>
                               </td>
-                              <td className="px-2 py-3">
-                                {/* API endpoint not supported: /admin/users — times calculated */}
-                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-times-calc-${i}`}>{u.timesCalculated}</span>
+                              {/* API endpoint not supported: /admin/users — calculation status */}
+                              <td className="px-2 py-2.5" data-testid={`cell-calc-status-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.calcStatus}</span>
                               </td>
-                              <td className="px-2 py-3 text-right">
+                              {/* API endpoint not supported: /admin/users — last calculated timestamp */}
+                              <td className="px-2 py-2.5" data-testid={`cell-last-calc-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">—</span>
+                              </td>
+                              {/* API endpoint not supported: /admin/users — last calc runtime duration */}
+                              <td className="px-2 py-2.5" data-testid={`cell-runtime-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.lastCalcRuntime}</span>
+                              </td>
+                              {/* API endpoint not supported: /admin/users — last calculation error */}
+                              <td className="px-2 py-2.5" data-testid={`cell-last-error-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.lastCalcError}</span>
+                              </td>
+                              {/* API endpoint not supported: /admin/users — times calculated */}
+                              <td className="px-2 py-2.5" data-testid={`cell-times-calc-${i}`}>
+                                <span className="text-[9px] text-slate-400 italic">{u.timesCalculated}</span>
+                              </td>
+                              <td className="px-2 py-2.5 text-right">
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="text-xs text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate"
+                                  className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                   onClick={(e) => { e.stopPropagation(); navigate(`/profile/${u.npub}`); }}
                                   data-testid={`button-view-user-${i}`}
                                 >
@@ -940,45 +954,25 @@ export default function AdminPage() {
                             </tr>
                             {isExpanded && (
                               <tr key={`${u.pubkey}-detail`} className="bg-slate-50/50" data-testid={`row-user-detail-${i}`}>
-                                <td colSpan={11} className="px-5 py-4">
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 text-[10px]">
+                                <td colSpan={16} className="px-5 py-4">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-[10px]">
                                     <div>
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Pubkey</p>
                                       <p className="font-mono text-slate-700 break-all">{u.pubkey}</p>
                                     </div>
                                     <div>
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Nostr npub</p>
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Nostr npub</p>
                                       <p className="font-mono text-indigo-600 break-all">{u.npub}</p>
-                                    </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — brainstorm npub */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Brainstorm npub</p>
-                                      <p className="text-slate-400 italic">Requires /admin/users</p>
-                                    </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — profile name/avatar */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Profile Name</p>
-                                      <p className="text-slate-400 italic">Requires /admin/users</p>
                                     </div>
                                     <div>
                                       {/* API endpoint not supported: /admin/users — follower history with timestamps */}
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Follower History</p>
-                                      <p className="text-slate-400 italic">Requires /admin/users</p>
+                                      <p className="text-slate-400 italic">Expandable history requires /admin/users</p>
                                     </div>
                                     <div>
                                       {/* API endpoint not supported: /admin/users — following history with timestamps */}
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Following History</p>
-                                      <p className="text-slate-400 italic">Requires /admin/users</p>
-                                    </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — last calc runtime */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Last Calc Runtime</p>
-                                      <p className="text-slate-400 italic">{u.lastCalcRuntime}</p>
-                                    </div>
-                                    <div>
-                                      {/* API endpoint not supported: /admin/users — error history */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Error History</p>
-                                      <p className="text-slate-400 italic">{u.lastCalcError}</p>
+                                      <p className="text-slate-400 italic">Expandable history requires /admin/users</p>
                                     </div>
                                   </div>
                                 </td>
@@ -994,7 +988,7 @@ export default function AdminPage() {
 
               <div className="px-5 py-3 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 italic">
-                  † Columns marked with † require per-user data from a dedicated /admin/users endpoint (not yet supported). These include: first-seen date, profile/avatar, follower/following history with timestamps, TA timestamps/counts, calc status, last runtime/error history, and times calculated. All will populate automatically when the backend API becomes available.
+                  † Columns marked with † require per-user data from a dedicated /admin/users endpoint (not yet supported). These include: profile name/avatar, Brainstorm npub, first-seen date, TA last published timestamp, TA count, calculation status, last calculated timestamp, runtime duration, error history, and times calculated. Follower/following history with timestamps is available in expanded detail rows. All placeholder fields will auto-populate when the backend API becomes available.
                 </p>
               </div>
 
