@@ -606,8 +606,8 @@ export default function AdminPage() {
   const tabs: { key: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
-    { key: "users", label: "Users", icon: Users },
     { key: "health", label: "System Health", icon: Server },
+    { key: "users", label: "Users", icon: Users },
   ];
 
   const configuredRelays = [PRIMARY_RELAY, ...PROFILE_RELAYS];
