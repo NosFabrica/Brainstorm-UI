@@ -10,6 +10,7 @@ import {
   BookOpen,
   Settings as SettingsIcon,
   LogOut,
+  Shield,
 } from "lucide-react";
 
 interface MobileMenuProps {
@@ -22,8 +23,10 @@ interface MobileMenuProps {
     displayName?: string;
     npub: string;
     picture?: string;
+    pubkey?: string;
   } | null;
   onLogout: () => void;
+  isAdmin?: boolean;
 }
 
 const primaryNav = [
@@ -93,6 +96,7 @@ export function MobileMenu({
   calcDone = true,
   user,
   onLogout,
+  isAdmin = false,
 }: MobileMenuProps) {
   if (!open) return null;
 
@@ -182,6 +186,14 @@ export function MobileMenu({
                   onClose={onClose}
                   navigate={navigate}
                 />
+                {isAdmin && (
+                  <NavButton
+                    item={{ path: "/admin", label: "Admin", icon: Shield }}
+                    active={currentPath === "/admin"}
+                    onClose={onClose}
+                    navigate={navigate}
+                  />
+                )}
               </div>
             </>
           )}

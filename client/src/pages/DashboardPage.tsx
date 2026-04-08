@@ -61,6 +61,7 @@ import {
   Terminal,
   Mail,
   HelpCircle,
+  Shield,
 } from "lucide-react";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
@@ -91,6 +92,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
@@ -786,6 +788,12 @@ export default function DashboardPage() {
                       <SettingsIcon className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </DropdownMenuItem>
+                    {isAdminPubkey(user?.pubkey) && (
+                      <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Admin Dashboard</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator className="bg-indigo-100" />
                     <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
                       <LogOut className="mr-2 h-4 w-4" />
@@ -806,6 +814,7 @@ export default function DashboardPage() {
           calcDone={isCalculationComplete}
           user={user}
           onLogout={handleLogout}
+          isAdmin={isAdminPubkey(user?.pubkey)}
         />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
