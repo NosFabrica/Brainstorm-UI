@@ -197,18 +197,20 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported }: {
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   trend?: { value: string; up: boolean };
   subtitle?: string;
   unsupported?: boolean;
+  tooltip?: string;
 }) {
   return (
     <div
       className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col min-h-[120px]"
       data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      title={tooltip}
     >
       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl" />
       <div className="flex items-start justify-between mb-2 relative">
@@ -740,11 +742,11 @@ export default function AdminPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
-            <KpiCard label="Graph Size" value={formatNumber(allUsers.length)} icon={Users} subtitle="From /user/self graph" />
-            <KpiCard label="Scored Users" value={formatNumber(scoredUserCount)} icon={UserCheck} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} />
-            <KpiCard label="SP Adopters" value={formatNumber(spAdopterCount)} icon={Shield} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} />
-            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="From your graph" />
-            <KpiCard label="Queue Position" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} />
+            <KpiCard label="Graph Size" value={formatNumber(allUsers.length)} icon={Users} subtitle="From /user/self graph" tooltip="Total unique pubkeys discovered in your Web of Trust graph — includes followers, following, and extended network." />
+            <KpiCard label="Scored Users" value={formatNumber(scoredUserCount)} icon={UserCheck} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} tooltip="Users who have had GrapeRank calculated at least once. Updates as more users are enriched from the CRM." />
+            <KpiCard label="SP Adopters" value={formatNumber(spAdopterCount)} icon={Shield} subtitle={`${enrichedCount} of ${allUsers.length} enriched`} tooltip="Users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." />
+            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="From your graph" tooltip="Total mute and report actions visible in your graph — combines reports you've filed and reports filed against users you follow." />
+            <KpiCard label="Queue Position" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} tooltip="Your current position in the GrapeRank calculation queue. Lower means your next recalculation will start sooner." />
           </div>
 
           <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
