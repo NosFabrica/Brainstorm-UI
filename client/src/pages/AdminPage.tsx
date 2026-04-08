@@ -45,6 +45,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Wifi,
+  WifiOff,
   Database,
   Cpu,
   Zap,
@@ -52,6 +53,13 @@ import {
   UserCheck,
   TrendingUp,
   Copy,
+  Timer,
+  Globe,
+  RefreshCw,
+  CalendarDays,
+  Hash,
+  Eye,
+  LogIn,
 } from "lucide-react";
 import { getCurrentUser, logout, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -119,14 +127,33 @@ interface AdminUserRow {
   npub: string;
   relations: string[];
   influence: number;
+  firstSeen: string;
+  calcStatus: string;
+  timesCalculated: string;
+}
+
+interface RelayLatency {
+  url: string;
+  latencyMs: number | null;
+  status: "connected" | "degraded" | "disconnected";
+  checkedAt: Date;
 }
 
 const PRIMARY_RELAY = "wss://dcosl.brainstorm.world";
+const SESSION_START = new Date();
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return n.toLocaleString();
+}
+
+function formatUptime(since: Date): string {
+  const diff = Date.now() - since.getTime();
+  const mins = Math.floor(diff / 60_000);
+  const hrs = Math.floor(mins / 60);
+  if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+  return `${mins}m`;
 }
 
 function extractPubkey(entry: string | GraphMember): string | null {
@@ -248,6 +275,8 @@ export default function AdminPage() {
   const [userSort, setUserSort] = useState<SortState>({ key: "influence", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
+  const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
+  const [relayCheckRunning, setRelayCheckRunning] = useState(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -275,6 +304,46 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
+
+  const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
+    const start = performance.now();
+    return new Promise<RelayLatency>((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ url, latencyMs: null, status: "disconnected", checkedAt: new Date() });
+      }, 5000);
+      try {
+        const ws = new WebSocket(url);
+        ws.onopen = () => {
+          const latency = Math.round(performance.now() - start);
+          clearTimeout(timeout);
+          ws.close();
+          resolve({ url, latencyMs: latency, status: latency < 2000 ? "connected" : "degraded", checkedAt: new Date() });
+        };
+        ws.onerror = () => {
+          clearTimeout(timeout);
+          resolve({ url, latencyMs: null, status: "disconnected", checkedAt: new Date() });
+        };
+      } catch {
+        clearTimeout(timeout);
+        resolve({ url, latencyMs: null, status: "disconnected", checkedAt: new Date() });
+      }
+    });
+  }, []);
+
+  const runRelayCheck = useCallback(async () => {
+    if (relayCheckRunning) return;
+    setRelayCheckRunning(true);
+    const relays = [PRIMARY_RELAY, ...PROFILE_RELAYS];
+    const results = await Promise.all(relays.map(r => probeRelayLatency(r)));
+    setRelayLatencies(results);
+    setRelayCheckRunning(false);
+  }, [relayCheckRunning, probeRelayLatency]);
+
+  useEffect(() => {
+    if (user && activeTab === "health" && relayLatencies.length === 0) {
+      runRelayCheck();
+    }
+  }, [user, activeTab, relayLatencies.length, runRelayCheck]);
 
   const handleLogout = () => {
     logout();
@@ -325,7 +394,15 @@ export default function AdminPage() {
     return Array.from(pubkeyMap.entries()).map(([pk, data]) => {
       let npub: string;
       try { npub = nip19.npubEncode(pk); } catch { npub = pk; }
-      return { pubkey: pk, npub, relations: Array.from(data.relations), influence: data.influence };
+      return {
+        pubkey: pk,
+        npub,
+        relations: Array.from(data.relations),
+        influence: data.influence,
+        firstSeen: "—",
+        calcStatus: "—",
+        timesCalculated: "—",
+      };
     });
   }, [network]);
 
@@ -527,12 +604,14 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4" data-testid="section-kpi-strip">
-            <KpiCard label="Total Pubkeys" value={formatNumber(allUsers.length)} icon={Users} subtitle="From your graph" />
-            <KpiCard label="Followers" value={formatNumber(followersCount)} icon={UserCheck} trend={followersCount > 0 ? { value: `${followersCount}`, up: true } : undefined} />
-            <KpiCard label="Following" value={formatNumber(followingCount)} icon={TrendingUp} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4" data-testid="section-kpi-strip">
+            <KpiCard label="Total Users" value={formatNumber(allUsers.length)} icon={Users} subtitle="Unique pubkeys in graph" />
+            <KpiCard label="Users with Scores" value={calcDone ? formatNumber(allUsers.filter(u => u.influence > 0).length) : "—"} icon={UserCheck} subtitle={calcDone ? "Non-zero influence" : "Pending calculation"} />
+            <KpiCard label="Followers" value={formatNumber(followersCount)} icon={TrendingUp} trend={followersCount > 0 ? { value: `${followersCount}`, up: true } : undefined} />
             <KpiCard label="Queue Depth" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult API"} />
             <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle={`${reportedByCount} against, ${reportingCount} by you`} />
+            <KpiCard label="Active Sessions" value="—" icon={Eye} subtitle="Requires /admin/sessions" />
+            <KpiCard label="Uptime" value={formatUptime(SESSION_START)} icon={Timer} subtitle="Current admin session" />
           </div>
 
           <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
@@ -726,6 +805,15 @@ export default function AdminPage() {
                       <th className="px-5 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-5 py-3"><SortHeader label="Relations" sortKey="relations" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-5 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-5 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">First Seen</span>
+                      </th>
+                      <th className="px-5 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc Status</span>
+                      </th>
+                      <th className="px-5 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500"># Calcs</span>
+                      </th>
                       <th className="px-5 py-3 text-right">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span>
                       </th>
@@ -734,7 +822,7 @@ export default function AdminPage() {
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
@@ -768,6 +856,15 @@ export default function AdminPage() {
                               <span className="text-xs font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
                             </div>
                           </td>
+                          <td className="px-5 py-3">
+                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-first-seen-${i}`}>{u.firstSeen}</span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-calc-status-${i}`}>{u.calcStatus}</span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-times-calc-${i}`}>{u.timesCalculated}</span>
+                          </td>
                           <td className="px-5 py-3 text-right">
                             <Button
                               variant="ghost"
@@ -784,6 +881,12 @@ export default function AdminPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="px-5 py-3 border-t border-slate-100">
+                <p className="text-[10px] text-slate-400 italic">
+                  Note: First Seen, Calc Status, and # Calcs columns require per-user data from a dedicated /admin/users endpoint (not yet supported). These columns will populate automatically when the backend API is available.
+                </p>
               </div>
 
               {totalPages > 1 && (
@@ -822,25 +925,70 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Configured Relays</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">All relays used by this application (DCoSL + profile relays)</p>
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Configured Relays</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">WebSocket latency probes (DCoSL + profile relays)</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={runRelayCheck}
+                    disabled={relayCheckRunning}
+                    className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                    data-testid="button-recheck-relays"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${relayCheckRunning ? "animate-spin" : ""}`} />
+                    {relayCheckRunning ? "Checking..." : "Re-check"}
+                  </Button>
                 </div>
                 <div className="p-5 space-y-3">
-                  {configuredRelays.map((relay, idx) => (
-                    <div key={relay} className="flex items-center justify-between p-3 rounded-xl bg-white/60 border border-slate-100" data-testid={`relay-row-${idx}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                          <Wifi className="h-4 w-4 text-emerald-600" />
+                  {configuredRelays.map((relay, idx) => {
+                    const latencyInfo = relayLatencies.find(r => r.url === relay);
+                    const relayStatus = latencyInfo?.status ?? (relayCheckRunning ? "degraded" as const : "connected" as const);
+                    return (
+                      <div key={relay} className="flex items-center justify-between p-3 rounded-xl bg-white/60 border border-slate-100" data-testid={`relay-row-${idx}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                            relayStatus === "connected" ? "bg-emerald-50 border border-emerald-200" :
+                            relayStatus === "degraded" ? "bg-amber-50 border border-amber-200" :
+                            "bg-red-50 border border-red-200"
+                          }`}>
+                            {relayStatus === "disconnected" ? (
+                              <WifiOff className="h-4 w-4 text-red-600" />
+                            ) : (
+                              <Wifi className={`h-4 w-4 ${relayStatus === "connected" ? "text-emerald-600" : "text-amber-600"}`} />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800">{relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}</p>
+                            <p className="text-[10px] font-mono text-slate-400">{relay}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800">{relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}</p>
-                          <p className="text-[10px] font-mono text-slate-400">{relay}</p>
+                        <div className="flex items-center gap-3">
+                          {latencyInfo?.latencyMs !== null && latencyInfo?.latencyMs !== undefined && (
+                            <span className={`text-[10px] font-mono font-bold tabular-nums ${
+                              latencyInfo.latencyMs < 500 ? "text-emerald-600" :
+                              latencyInfo.latencyMs < 2000 ? "text-amber-600" : "text-red-600"
+                            }`} data-testid={`relay-latency-${idx}`}>
+                              {latencyInfo.latencyMs}ms
+                            </span>
+                          )}
+                          {relayCheckRunning && !latencyInfo && (
+                            <span className="text-[10px] text-slate-400 animate-pulse">Probing...</span>
+                          )}
+                          <StatusBadge status={relayStatus} />
                         </div>
                       </div>
-                      <StatusBadge status="connected" />
-                    </div>
-                  ))}
+                    );
+                  })}
+                  {relayLatencies.length > 0 && (
+                    <p className="text-[10px] text-slate-400 pt-2">
+                      Last checked: {relayLatencies[0].checkedAt.toLocaleTimeString()} · Avg latency: {
+                        Math.round(relayLatencies.filter(r => r.latencyMs !== null).reduce((s, r) => s + (r.latencyMs ?? 0), 0) / Math.max(1, relayLatencies.filter(r => r.latencyMs !== null).length))
+                      }ms
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -852,17 +1000,21 @@ export default function AdminPage() {
                 </div>
                 <div className="p-5 space-y-3">
                   {[
-                    { name: "/authChallenge/*", ok: true, note: "Auth flow functional" },
-                    { name: "/user/self", ok: selfQuery.isSuccess, note: selfQuery.isError ? "Query error" : selfQuery.isLoading ? "Loading..." : "OK" },
-                    { name: "/user/graperank", ok: true, note: "POST trigger endpoint" },
-                    { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK" },
+                    { name: "/authChallenge/*", ok: true, note: "Auth flow functional", responseTime: "—" },
+                    { name: "/user/self", ok: selfQuery.isSuccess, note: selfQuery.isError ? "Query error" : selfQuery.isLoading ? "Loading..." : "OK", responseTime: selfQuery.isSuccess ? "< 2s" : "—" },
+                    { name: "/user/graperank", ok: true, note: "POST trigger endpoint", responseTime: "—" },
+                    { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK", responseTime: grapeRankQuery.isSuccess ? "< 2s" : "—" },
+                    { name: "/admin/users", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
+                    { name: "/admin/system", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
+                    { name: "/admin/analytics", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
                   ].map(ep => (
                     <div key={ep.name} className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
                       <div className="flex items-center gap-2">
-                        {ep.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 text-red-500" />}
+                        {ep.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 text-red-400" />}
                         <span className="text-xs font-mono text-slate-700">{ep.name}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono text-slate-400">{ep.responseTime}</span>
                         <span className="text-[10px] text-slate-400">{ep.note}</span>
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${ep.ok ? "text-emerald-600" : "text-red-500"}`}>{ep.ok ? "OK" : "ERR"}</span>
                       </div>
@@ -882,6 +1034,7 @@ export default function AdminPage() {
                     { icon: Database, label: "Event Store", detail: "Applesauce EventStore (in-memory)", status: "Operational" as const },
                     { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline", status: (calcDone ? "Idle" : grapeRank ? "Processing" : "Idle") as const },
                     { icon: Zap, label: "NIP-85 Publisher", detail: "Trust assertion broadcaster (kind 10040)", status: "Operational" as const },
+                    { icon: Globe, label: "Brainstorm Server", detail: "brainstormserver-staging.nosfabrica.com", status: (selfQuery.isSuccess ? "Operational" : "Degraded") as const },
                   ].map(comp => (
                     <div key={comp.label} className="p-4 rounded-xl bg-white/50 border border-slate-100 space-y-2" data-testid={`infra-${comp.label.toLowerCase().replace(/\s+/g, "-")}`}>
                       <div className="flex items-center gap-2">
@@ -890,15 +1043,50 @@ export default function AdminPage() {
                       </div>
                       <p className="text-[10px] text-slate-500">{comp.detail}</p>
                       <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
-                        comp.status === "Processing" ? "text-amber-600" : "text-emerald-600"
+                        comp.status === "Processing" ? "text-amber-600" : comp.status === "Degraded" ? "text-amber-600" : "text-emerald-600"
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${
-                          comp.status === "Processing" ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                          comp.status === "Processing" ? "bg-amber-500 animate-pulse" : comp.status === "Degraded" ? "bg-amber-500" : "bg-emerald-500"
                         }`} />
                         {comp.status}
                       </span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>GrapeRank Pipeline Stats</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Calculation success/failure tracking from available data</p>
+                </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
+                      <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
+                      <p className="text-lg font-bold text-slate-900">{timesCalculated ?? "—"}</p>
+                      <p className="text-[10px] text-slate-500">Total Calculations</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
+                      <p className="text-lg font-bold text-slate-900">{calcDone ? "Yes" : "No"}</p>
+                      <p className="text-[10px] text-slate-500">Last Success</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
+                      <XCircle className="h-4 w-4 text-red-400 mx-auto mb-1" />
+                      <p className="text-lg font-bold text-slate-900">{(calcStatus?.toLowerCase() === "failure" || taStatus?.toLowerCase() === "failure") ? "Yes" : "No"}</p>
+                      <p className="text-[10px] text-slate-500">Failures Detected</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
+                      <Clock className="h-4 w-4 text-amber-500 mx-auto mb-1" />
+                      <p className="text-lg font-bold text-slate-900">{queuePosition ?? "—"}</p>
+                      <p className="text-[10px] text-slate-500">Stuck / Queued</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-3 italic">
+                    Detailed per-job success/failure rates and runtime metrics require the /admin/system endpoint (not yet supported).
+                  </p>
                 </div>
               </div>
             </div>
@@ -915,12 +1103,12 @@ export default function AdminPage() {
                 <div className="p-5">
                   <div className="space-y-3">
                     {[
-                      { event: "Admin dashboard accessed", type: "info" as const, detail: `Authenticated as ${user.npub.slice(0, 16)}...` },
-                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" : selfQuery.isError ? "error" : "info") as const, detail: selfQuery.isSuccess ? `Graph loaded — ${allUsers.length} unique pubkeys` : selfQuery.isError ? "Failed to load user data" : "Loading..." },
-                      { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" : grapeRankQuery.isError ? "error" : "info") as const, detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading..." },
-                      { event: "GrapeRank calculation history", type: "info" as const, detail: timesCalculated !== null ? `Calculated ${timesCalculated} time(s)` : "History not available" },
-                      { event: "Last trigger", type: "info" as const, detail: lastTriggerTime ? new Date(lastTriggerTime).toLocaleString() : "—" },
-                      { event: "Last calculation", type: "info" as const, detail: lastCalcTime ? new Date(lastCalcTime).toLocaleString() : "—" },
+                      { event: "Admin dashboard accessed", type: "info" as const, detail: `Authenticated as ${user.npub.slice(0, 16)}...`, timestamp: SESSION_START.toLocaleTimeString() },
+                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" : selfQuery.isError ? "error" : "info") as const, detail: selfQuery.isSuccess ? `Graph loaded — ${allUsers.length} unique pubkeys` : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
+                      { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" : grapeRankQuery.isError ? "error" : "info") as const, detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading...", timestamp: grapeRankQuery.isSuccess ? "Completed" : "—" },
+                      { event: "GrapeRank calculation history", type: "info" as const, detail: timesCalculated !== null ? `Calculated ${timesCalculated} time(s)` : "History not available", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
+                      { event: "Last trigger", type: "info" as const, detail: lastTriggerTime ? new Date(lastTriggerTime).toLocaleString() : "—", timestamp: lastTriggerTime ? new Date(lastTriggerTime).toLocaleTimeString() : "—" },
+                      { event: "Last calculation", type: "info" as const, detail: lastCalcTime ? new Date(lastCalcTime).toLocaleString() : "—", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
                     ].map((entry, i) => (
                       <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/40 border border-slate-50" data-testid={`activity-entry-${i}`}>
                         <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
@@ -933,7 +1121,10 @@ export default function AdminPage() {
                            <Activity className="h-3 w-3 text-slate-500" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-800">{entry.event}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-slate-800">{entry.event}</p>
+                            <span className="text-[10px] font-mono text-slate-400">{entry.timestamp}</span>
+                          </div>
                           <p className="text-[10px] text-slate-400 mt-0.5">{entry.detail}</p>
                         </div>
                       </div>
@@ -942,52 +1133,119 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-calculation-errors">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-error-log">
                 <div className="h-1 w-full bg-gradient-to-r from-red-400 via-red-500 to-red-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Calculation Errors</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Error history from GrapeRank pipeline</p>
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Error Log</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Recent errors from API queries and pipeline status</p>
                 </div>
                 <div className="p-5">
-                  {grapeRank && (calcStatus?.toLowerCase() === "failure" || taStatus?.toLowerCase() === "failure") ? (
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3 p-3 rounded-xl bg-red-50 border border-red-100">
-                        <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-xs font-semibold text-red-800">Pipeline failure detected</p>
-                          <p className="text-[10px] text-red-600 mt-0.5">
-                            Status: {calcStatus ?? "—"} | TA: {taStatus ?? "—"} | Internal: {grapeRank.internal_publication_status ?? "—"}
-                          </p>
-                          {lastUpdated && <p className="text-[10px] text-red-500 mt-0.5">At: {new Date(lastUpdated).toLocaleString()}</p>}
+                  {(() => {
+                    const errors: Array<{ user: string; timestamp: string; message: string; source: string }> = [];
+                    if (selfQuery.isError) {
+                      errors.push({ user: user.npub.slice(0, 12) + "...", timestamp: new Date().toLocaleString(), message: "Failed to fetch /user/self graph data", source: "API Query" });
+                    }
+                    if (grapeRankQuery.isError) {
+                      errors.push({ user: user.npub.slice(0, 12) + "...", timestamp: new Date().toLocaleString(), message: "Failed to fetch /user/graperankResult", source: "API Query" });
+                    }
+                    if (grapeRank && (calcStatus?.toLowerCase() === "failure" || taStatus?.toLowerCase() === "failure")) {
+                      errors.push({
+                        user: historyData?.ta_pubkey?.slice(0, 12) ?? user.npub.slice(0, 12) + "...",
+                        timestamp: lastUpdated ? new Date(lastUpdated).toLocaleString() : new Date().toLocaleString(),
+                        message: `Pipeline failure — Status: ${calcStatus ?? "—"} | TA: ${taStatus ?? "—"} | Internal: ${grapeRank.internal_publication_status ?? "—"}`,
+                        source: "GrapeRank Pipeline",
+                      });
+                    }
+                    if (errors.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-6 text-center">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-300 mb-2" />
+                          <p className="text-sm font-semibold text-slate-400">No Errors</p>
+                          <p className="text-xs text-slate-400 mt-1">No errors detected in current session.</p>
                         </div>
+                      );
+                    }
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left" data-testid="table-error-log">
+                          <thead>
+                            <tr className="border-b border-slate-100">
+                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
+                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Timestamp</th>
+                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
+                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Message</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {errors.map((err, i) => (
+                              <tr key={i} className="border-b border-slate-50" data-testid={`error-row-${i}`}>
+                                <td className="px-3 py-2 text-[10px] font-mono text-slate-600">{err.user}</td>
+                                <td className="px-3 py-2 text-[10px] text-slate-500">{err.timestamp}</td>
+                                <td className="px-3 py-2">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-semibold">{err.source}</span>
+                                </td>
+                                <td className="px-3 py-2 text-[10px] text-red-700">{err.message}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-login-timeline">
+                <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Login Timeline</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">User authentication events — requires /admin/analytics endpoint</p>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 mb-4">
+                    <LogIn className="h-4 w-4 text-indigo-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-indigo-800">Current Session</p>
+                      <p className="text-[10px] text-indigo-600">Admin login at {SESSION_START.toLocaleString()} · {user.displayName || "Anonymous"} ({user.npub.slice(0, 16)}...)</p>
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-6 text-center">
-                      <CheckCircle2 className="h-8 w-8 text-emerald-300 mb-2" />
-                      <p className="text-sm font-semibold text-slate-400">No Errors</p>
-                      <p className="text-xs text-slate-400 mt-1">No calculation failures detected in current result data.</p>
+                  </div>
+                  <div className="flex flex-col items-center justify-center py-4 text-center">
+                    <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-2">
+                      <CalendarDays className="h-5 w-5 text-slate-300" />
                     </div>
-                  )}
+                    <p className="text-xs font-semibold text-slate-400">Historical Login Data Unavailable</p>
+                    <p className="text-[10px] text-slate-400 mt-1 max-w-xs">Full login timeline with user/timestamp pairs requires a dedicated /admin/analytics endpoint (not yet supported).</p>
+                    <div className="mt-2">
+                      <StatusBadge status="disconnected" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-feature-usage">
                 <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Platform-Wide Analytics</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Login activity, feature usage, and aggregate metrics — API endpoint not supported</p>
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Feature Usage Breakdown</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Page views, search queries, profile views, and GrapeRank triggers — requires /admin/analytics</p>
                 </div>
                 <div className="p-5">
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <div className="h-12 w-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-3">
-                      <FileText className="h-6 w-6 text-slate-300" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-400">No Data Available</p>
-                    <p className="text-xs text-slate-400 mt-1 max-w-xs">Platform-wide login activity, feature usage breakdown, and aggregate analytics require a dedicated /admin/analytics endpoint that is not yet supported.</p>
-                    <div className="mt-3">
-                      <StatusBadge status="disconnected" />
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: "Dashboard Views", icon: Home, value: "—" },
+                      { label: "Search Queries", icon: Search, value: "—" },
+                      { label: "Profile Views", icon: Eye, value: "—" },
+                      { label: "GrapeRank Triggers", icon: Zap, value: "—" },
+                    ].map(feat => (
+                      <div key={feat.label} className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid={`feature-${feat.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <feat.icon className="h-4 w-4 text-slate-300 mx-auto mb-1" />
+                        <p className="text-lg font-bold text-slate-300">{feat.value}</p>
+                        <p className="text-[10px] text-slate-400">{feat.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <StatusBadge status="disconnected" />
+                    <span className="text-[10px] text-slate-400">Requires /admin/analytics endpoint</span>
                   </div>
                 </div>
               </div>

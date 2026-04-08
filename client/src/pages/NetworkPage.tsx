@@ -26,6 +26,7 @@ import {
   VolumeX,
   Volume2,
   ShieldCheck,
+  Shield,
   Network,
   HelpCircle,
 } from "lucide-react";
@@ -46,6 +47,7 @@ import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/componen
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphHelpers";
@@ -1375,6 +1377,12 @@ export default function NetworkPage() {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isAdminPubkey(user?.pubkey) && (
+                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
@@ -1399,6 +1407,7 @@ export default function NetworkPage() {
         calcDone={calcDone}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdminPubkey(user?.pubkey)}
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">

@@ -12,6 +12,7 @@ import {
   HelpCircle,
   ChevronDown,
   ArrowLeft,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -197,6 +199,12 @@ export default function FaqPage() {
                       <SettingsIcon className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </DropdownMenuItem>
+                    {isAdminPubkey(user?.pubkey) && (
+                      <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Admin Dashboard</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator className="bg-indigo-100" />
                     <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
                       <LogOut className="mr-2 h-4 w-4" />
@@ -228,6 +236,7 @@ export default function FaqPage() {
         navigate={navigate}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdminPubkey(user?.pubkey)}
       />
 
       <main className="flex-1 relative z-10">
