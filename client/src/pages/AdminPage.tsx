@@ -1124,15 +1124,21 @@ export default function AdminPage() {
                                           <p className="text-[8px] text-slate-400 uppercase">Full Nostr npub</p>
                                           <p className="font-mono text-indigo-600 break-all text-[9px]">{u.npub}</p>
                                         </div>
-                                        {isLoaded && bd?.taPubkey && (
-                                          <div>
-                                            <p className="text-[8px] text-slate-400 uppercase">Brainstorm Service Key</p>
+                                        <div>
+                                          <p className="text-[8px] text-slate-400 uppercase">Brainstorm Service Key</p>
+                                          {isLoading ? (
+                                            <div className="h-3 w-32 bg-slate-100 rounded animate-pulse mt-0.5" />
+                                          ) : isLoaded && bd?.taPubkey ? (
                                             <div className="flex items-center gap-1">
                                               <p className="font-mono text-emerald-600 break-all text-[9px]">{bd.taPubkey}</p>
                                               <CopyButton text={bd.taPubkey} />
                                             </div>
-                                          </div>
-                                        )}
+                                          ) : isError ? (
+                                            <ErrorBadge />
+                                          ) : (
+                                            <p className="text-[8px] text-slate-300 italic mt-0.5">none</p>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
 
