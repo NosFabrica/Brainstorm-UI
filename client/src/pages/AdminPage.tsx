@@ -191,12 +191,13 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle }: {
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   trend?: { value: string; up: boolean };
   subtitle?: string;
+  unsupported?: boolean;
 }) {
   return (
     <div
@@ -215,9 +216,10 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle }: {
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-slate-900 tracking-tight relative" style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+      <p className={`text-2xl font-bold tracking-tight relative ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
       <p className="text-xs text-slate-500 mt-1 relative">{label}</p>
       {subtitle && <p className="text-[10px] text-slate-400 mt-0.5 relative">{subtitle}</p>}
+      {unsupported && <div className="mt-1.5 relative"><StatusBadge status="disconnected" /></div>}
     </div>
   );
 }
@@ -621,15 +623,15 @@ export default function AdminPage() {
           {/* KPI cards: system-wide metrics require /admin/system endpoint (not supported) */}
           {/* Graph-derived metrics (from /user/self) are labeled as "Your Graph" */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4" data-testid="section-kpi-strip">
-            <KpiCard label="Total Users (System)" value="—" icon={Users} subtitle="Requires /admin/system" />
             {/* API endpoint not supported: /admin/system — system-wide user count */}
-            <KpiCard label="Users with Scores" value="—" icon={UserCheck} subtitle="Requires /admin/system" />
+            <KpiCard label="Total Users (System)" value="—" icon={Users} subtitle="Requires /admin/system" unsupported />
             {/* API endpoint not supported: /admin/system — users who have completed GrapeRank */}
+            <KpiCard label="Users with Scores" value="—" icon={UserCheck} subtitle="Requires /admin/system" unsupported />
             <KpiCard label="Your Graph Pubkeys" value={formatNumber(allUsers.length)} icon={TrendingUp} subtitle="From /user/self graph" />
             <KpiCard label="Queue Depth" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} />
             <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="Your graph only" />
-            <KpiCard label="Active Sessions" value="—" icon={Eye} subtitle="Requires /admin/sessions" />
             {/* API endpoint not supported: /admin/sessions — active session count */}
+            <KpiCard label="Active Sessions" value="—" icon={Eye} subtitle="Requires /admin/sessions" unsupported />
             <KpiCard label="Uptime / Last Restart" value={formatUptime(SESSION_START)} icon={Timer} subtitle="Admin session uptime" />
           </div>
 
@@ -822,23 +824,31 @@ export default function AdminPage() {
                 <table className="w-full text-left" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <th className="px-3 py-3 w-8"></th>
-                      <th className="px-3 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-3 py-3"><SortHeader label="Follow" sortKey="relations" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-3 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-3 py-3">
+                      <th className="px-2 py-3 w-8"></th>
+                      <th className="px-2 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile †</span>
+                      </th>
+                      <th className="px-2 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Followers</span>
+                      </th>
+                      <th className="px-2 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Following</span>
+                      </th>
+                      <th className="px-2 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Date †</span>
                       </th>
-                      <th className="px-3 py-3">
+                      <th className="px-2 py-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA †</span>
                       </th>
-                      <th className="px-3 py-3">
+                      <th className="px-2 py-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc †</span>
                       </th>
-                      <th className="px-3 py-3">
+                      <th className="px-2 py-3">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500"># Calcs †</span>
                       </th>
-                      <th className="px-3 py-3 text-right">
+                      <th className="px-2 py-3 text-right">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span>
                       </th>
                     </tr>
@@ -846,7 +856,7 @@ export default function AdminPage() {
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
@@ -862,53 +872,61 @@ export default function AdminPage() {
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
+                                {/* API endpoint not supported: /admin/users — profile name + avatar */}
+                                <div className="flex items-center gap-2">
+                                  <div className="h-7 w-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                    <Users className="h-3.5 w-3.5 text-slate-300" />
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 italic">—</span>
+                                </div>
+                              </td>
+                              <td className="px-2 py-3">
                                 <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-6)}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-6)}</span>
                                     <CopyButton text={u.pubkey} />
                                   </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[9px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
                                     <CopyButton text={u.npub} />
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                  {u.relations.map(r => (
-                                    <span key={r} className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${RELATION_BADGE_STYLES[r] ?? "bg-slate-50 text-slate-700 border border-slate-200"}`}>{r}</span>
-                                  ))}
-                                </div>
+                              <td className="px-2 py-3">
+                                <span className="text-xs font-mono text-slate-600 tabular-nums">{u.followerCount}</span>
                               </td>
-                              <td className="px-3 py-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-12 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <td className="px-2 py-3">
+                                <span className="text-xs font-mono text-slate-600 tabular-nums">{u.followingCount}</span>
+                              </td>
+                              <td className="px-2 py-3">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-10 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                                     <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min(u.influence * 100, 100)}%` }} />
                                   </div>
-                                  <span className="text-xs font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
+                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
                                 </div>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 {/* API endpoint not supported: /admin/users — first seen date */}
                                 <span className="text-[10px] text-slate-400 italic" data-testid={`cell-first-seen-${i}`}>{u.firstSeen}</span>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 {/* API endpoint not supported: /admin/users — TA timestamp/count */}
                                 <span className="text-[10px] text-slate-400 italic" data-testid={`cell-ta-${i}`}>{u.lastTaTimestamp}</span>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 {/* API endpoint not supported: /admin/users — calc status */}
                                 <span className="text-[10px] text-slate-400 italic" data-testid={`cell-calc-status-${i}`}>{u.calcStatus}</span>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-2 py-3">
                                 {/* API endpoint not supported: /admin/users — times calculated */}
                                 <span className="text-[10px] text-slate-400 italic" data-testid={`cell-times-calc-${i}`}>{u.timesCalculated}</span>
                               </td>
-                              <td className="px-3 py-3 text-right">
+                              <td className="px-2 py-3 text-right">
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -922,23 +940,33 @@ export default function AdminPage() {
                             </tr>
                             {isExpanded && (
                               <tr key={`${u.pubkey}-detail`} className="bg-slate-50/50" data-testid={`row-user-detail-${i}`}>
-                                <td colSpan={9} className="px-5 py-4">
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-[10px]">
+                                <td colSpan={11} className="px-5 py-4">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 text-[10px]">
                                     <div>
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Pubkey</p>
                                       <p className="font-mono text-slate-700 break-all">{u.pubkey}</p>
                                     </div>
                                     <div>
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full npub</p>
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Nostr npub</p>
                                       <p className="font-mono text-indigo-600 break-all">{u.npub}</p>
                                     </div>
                                     <div>
-                                      {/* API endpoint not supported: /admin/users — follower/following history */}
+                                      {/* API endpoint not supported: /admin/users — brainstorm npub */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Brainstorm npub</p>
+                                      <p className="text-slate-400 italic">Requires /admin/users</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — profile name/avatar */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Profile Name</p>
+                                      <p className="text-slate-400 italic">Requires /admin/users</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — follower history with timestamps */}
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Follower History</p>
                                       <p className="text-slate-400 italic">Requires /admin/users</p>
                                     </div>
                                     <div>
-                                      {/* API endpoint not supported: /admin/users — following history */}
+                                      {/* API endpoint not supported: /admin/users — following history with timestamps */}
                                       <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Following History</p>
                                       <p className="text-slate-400 italic">Requires /admin/users</p>
                                     </div>
@@ -948,8 +976,8 @@ export default function AdminPage() {
                                       <p className="text-slate-400 italic">{u.lastCalcRuntime}</p>
                                     </div>
                                     <div>
-                                      {/* API endpoint not supported: /admin/users — last error */}
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Last Error</p>
+                                      {/* API endpoint not supported: /admin/users — error history */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Error History</p>
                                       <p className="text-slate-400 italic">{u.lastCalcError}</p>
                                     </div>
                                   </div>
@@ -1133,6 +1161,61 @@ export default function AdminPage() {
                       </span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* NIP-85 relay publish health */}
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-nip85-health">
+                <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-cyan-400" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>NIP-85 Publish Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Trust assertion event (kind 10040) publish metrics</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  {/* API endpoint not supported: /admin/system — NIP-85 publish success/failure rate */}
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-3.5 w-3.5 text-[#333286]" />
+                      <span className="text-xs text-slate-700">Events Published</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
+                      <StatusBadge status="disconnected" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-xs text-slate-700">Publish Success Rate</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
+                      <StatusBadge status="disconnected" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="text-xs text-slate-700">Failed Publishes</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
+                      <StatusBadge status="disconnected" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <Wifi className="h-3.5 w-3.5 text-indigo-500" />
+                      <span className="text-xs text-slate-700">Relay Acceptance Rate</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
+                      <StatusBadge status="disconnected" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic pt-1">
+                    NIP-85 trust assertion publish metrics (event counts, success/failure rates, per-relay acceptance) require the /admin/system endpoint.
+                  </p>
                 </div>
               </div>
 
