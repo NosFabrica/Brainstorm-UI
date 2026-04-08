@@ -495,7 +495,7 @@ export default function AdminPage() {
     const countArr = (arr: unknown): number => Array.isArray(arr) ? arr.length : 0;
     const toPkList = (arr: unknown): string[] => {
       if (!Array.isArray(arr)) return [];
-      return arr.map((e: any) => typeof e === "string" ? e : e?.pubkey).filter(Boolean).slice(0, 10);
+      return arr.map((e: string | GraphMember) => typeof e === "string" ? e : (e as GraphMember)?.pubkey).filter(Boolean).slice(0, 10);
     };
     (async () => {
       const BATCH_SIZE = 5;
@@ -931,7 +931,7 @@ export default function AdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1200px]" data-testid="table-users">
+                <table className="w-full text-left min-w-[1400px]" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/50">
                       <th className="px-2 py-3 w-6"></th>
@@ -941,6 +941,7 @@ export default function AdminPage() {
                       <th className="px-2 py-3"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Last Published <span className="text-amber-500">*</span></span></th>
                       <th className="px-2 py-3"><SortHeader label="Last Calculated" sortKey="lastCalc" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><SortHeader label="# Calcs" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-3"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Count <span className="text-amber-500">*</span></span></th>
@@ -953,7 +954,7 @@ export default function AdminPage() {
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={14} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={15} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
@@ -969,6 +970,11 @@ export default function AdminPage() {
                         const AwaitingApiBadge = () => (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
                             <Clock className="h-2.5 w-2.5" /> Awaiting API
+                          </span>
+                        );
+                        const ErrorBadge = () => (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium bg-red-50 text-red-600 border border-red-200">
+                            <XCircle className="h-2.5 w-2.5" /> Error
                           </span>
                         );
                         return (
@@ -1025,7 +1031,7 @@ export default function AdminPage() {
                                     <CopyButton text={bd.taPubkey} />
                                   </div>
                                 ) : isError ? (
-                                  <span className="text-[8px] text-red-400">fetch error</span>
+                                  <ErrorBadge />
                                 ) : (
                                   <span className="text-[8px] text-slate-300 italic">none</span>
                                 )}
@@ -1050,11 +1056,16 @@ export default function AdminPage() {
                                   </div>
                                 )}
                               </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-last-${i}`}>
+                                <AwaitingApiBadge />
+                              </td>
                               <td className="px-2 py-2.5" data-testid={`cell-last-calc-${i}`}>
                                 {isLoading ? <SkeletonCell /> : isLoaded && bd?.lastCalculated ? (
                                   <span className="text-[9px] text-slate-600">{formatCrmDate(bd.lastCalculated)}</span>
                                 ) : isLoaded ? (
                                   <span className="text-[8px] text-slate-300 italic">never</span>
+                                ) : isError ? (
+                                  <ErrorBadge />
                                 ) : (
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
@@ -1092,7 +1103,7 @@ export default function AdminPage() {
                             </tr>
                             {isExpanded && (
                               <tr key={`${u.pubkey}-detail`} className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${i}`}>
-                                <td colSpan={14} className="px-5 py-4">
+                                <td colSpan={15} className="px-5 py-4">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-[10px]">
                                     <div className="space-y-2">
                                       <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Identity</p>
@@ -1151,6 +1162,19 @@ export default function AdminPage() {
                                               <p className="text-[8px] text-slate-400 uppercase mb-0.5">Top Followers (up to 10)</p>
                                               <div className="space-y-0.5">
                                                 {bd!.followerList.map((pk, fi) => (
+                                                  <div key={fi} className="flex items-center gap-1">
+                                                    <span className="text-[7px] font-mono text-slate-500">{pk.slice(0, 8)}...{pk.slice(-4)}</span>
+                                                    <CopyButton text={pk} />
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {bd!.followingList.length > 0 && (
+                                            <div className="mt-1">
+                                              <p className="text-[8px] text-slate-400 uppercase mb-0.5">Top Following (up to 10)</p>
+                                              <div className="space-y-0.5">
+                                                {bd!.followingList.map((pk, fi) => (
                                                   <div key={fi} className="flex items-center gap-1">
                                                     <span className="text-[7px] font-mono text-slate-500">{pk.slice(0, 8)}...{pk.slice(-4)}</span>
                                                     <CopyButton text={pk} />
