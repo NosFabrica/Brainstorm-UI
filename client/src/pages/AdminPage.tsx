@@ -1141,9 +1141,9 @@ export default function AdminPage() {
                 <div className="p-5 grid grid-cols-1 gap-4">
                   {[
                     { icon: Database, label: "Event Store", detail: "Applesauce EventStore (in-memory)", status: "Operational" as const },
-                    { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline", status: (calcDone ? "Idle" : grapeRank ? "Processing" : "Idle") as const },
+                    { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline", status: (calcDone ? "Idle" as const : grapeRank ? "Processing" as const : "Idle" as const) },
                     { icon: Zap, label: "NIP-85 Publisher", detail: "Trust assertion broadcaster (kind 10040)", status: "Operational" as const },
-                    { icon: Globe, label: "Brainstorm Server", detail: "brainstormserver-staging.nosfabrica.com", status: (selfQuery.isSuccess ? "Operational" : "Degraded") as const },
+                    { icon: Globe, label: "Brainstorm Server", detail: "brainstormserver-staging.nosfabrica.com", status: (selfQuery.isSuccess ? "Operational" as const : "Degraded" as const) },
                   ].map(comp => (
                     <div key={comp.label} className="p-4 rounded-xl bg-white/50 border border-slate-100 space-y-2" data-testid={`infra-${comp.label.toLowerCase().replace(/\s+/g, "-")}`}>
                       <div className="flex items-center gap-2">
@@ -1268,8 +1268,8 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {[
                       { event: "Admin dashboard accessed", type: "info" as const, detail: `Authenticated as ${user.npub.slice(0, 16)}...`, timestamp: SESSION_START.toLocaleTimeString() },
-                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" : selfQuery.isError ? "error" : "info") as const, detail: selfQuery.isSuccess ? `Graph loaded — ${allUsers.length} unique pubkeys` : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
-                      { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" : grapeRankQuery.isError ? "error" : "info") as const, detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading...", timestamp: grapeRankQuery.isSuccess ? "Completed" : "—" },
+                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" as const : selfQuery.isError ? "error" as const : "info" as const), detail: selfQuery.isSuccess ? `Graph loaded — ${allUsers.length} unique pubkeys` : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
+                      { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" as const : grapeRankQuery.isError ? "error" as const : "info" as const), detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading...", timestamp: grapeRankQuery.isSuccess ? "Completed" : "—" },
                       { event: "GrapeRank calculation history", type: "info" as const, detail: timesCalculated !== null ? `Calculated ${timesCalculated} time(s)` : "History not available", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
                       { event: "Last trigger", type: "info" as const, detail: lastTriggerTime ? new Date(lastTriggerTime).toLocaleString() : "—", timestamp: lastTriggerTime ? new Date(lastTriggerTime).toLocaleTimeString() : "—" },
                       { event: "Last calculation", type: "info" as const, detail: lastCalcTime ? new Date(lastCalcTime).toLocaleString() : "—", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
