@@ -38,7 +38,6 @@ PORT = "5000"
 
 [deployment]
 deploymentTarget = "static"
-run = ["node", "./dist/index.cjs"]
 build = ["npm", "run", "build"]
 publicDir = "dist"
 
