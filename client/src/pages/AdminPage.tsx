@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -127,8 +127,14 @@ interface AdminUserRow {
   npub: string;
   relations: string[];
   influence: number;
+  followerCount: number;
+  followingCount: number;
   firstSeen: string;
+  lastTaTimestamp: string;
+  taCount: string;
   calcStatus: string;
+  lastCalcRuntime: string;
+  lastCalcError: string;
   timesCalculated: string;
 }
 
@@ -277,6 +283,7 @@ export default function AdminPage() {
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -394,14 +401,21 @@ export default function AdminPage() {
     return Array.from(pubkeyMap.entries()).map(([pk, data]) => {
       let npub: string;
       try { npub = nip19.npubEncode(pk); } catch { npub = pk; }
+      const rels = Array.from(data.relations);
       return {
         pubkey: pk,
         npub,
-        relations: Array.from(data.relations),
+        relations: rels,
         influence: data.influence,
-        firstSeen: "—",
-        calcStatus: "—",
-        timesCalculated: "—",
+        followerCount: rels.includes("follower") ? 1 : 0,
+        followingCount: rels.includes("following") ? 1 : 0,
+        firstSeen: "—", // API endpoint not supported: requires /admin/users
+        lastTaTimestamp: "—", // API endpoint not supported: requires /admin/users
+        taCount: "—", // API endpoint not supported: requires /admin/users
+        calcStatus: "—", // API endpoint not supported: requires /admin/users
+        lastCalcRuntime: "—", // API endpoint not supported: requires /admin/users
+        lastCalcError: "—", // API endpoint not supported: requires /admin/users
+        timesCalculated: "—", // API endpoint not supported: requires /admin/users
       };
     });
   }, [network]);
@@ -604,14 +618,19 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* KPI cards: system-wide metrics require /admin/system endpoint (not supported) */}
+          {/* Graph-derived metrics (from /user/self) are labeled as "Your Graph" */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4" data-testid="section-kpi-strip">
-            <KpiCard label="Total Users" value={formatNumber(allUsers.length)} icon={Users} subtitle="Unique pubkeys in graph" />
-            <KpiCard label="Users with Scores" value={calcDone ? formatNumber(allUsers.filter(u => u.influence > 0).length) : "—"} icon={UserCheck} subtitle={calcDone ? "Non-zero influence" : "Pending calculation"} />
-            <KpiCard label="Followers" value={formatNumber(followersCount)} icon={TrendingUp} trend={followersCount > 0 ? { value: `${followersCount}`, up: true } : undefined} />
-            <KpiCard label="Queue Depth" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult API"} />
-            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle={`${reportedByCount} against, ${reportingCount} by you`} />
+            <KpiCard label="Total Users (System)" value="—" icon={Users} subtitle="Requires /admin/system" />
+            {/* API endpoint not supported: /admin/system — system-wide user count */}
+            <KpiCard label="Users with Scores" value="—" icon={UserCheck} subtitle="Requires /admin/system" />
+            {/* API endpoint not supported: /admin/system — users who have completed GrapeRank */}
+            <KpiCard label="Your Graph Pubkeys" value={formatNumber(allUsers.length)} icon={TrendingUp} subtitle="From /user/self graph" />
+            <KpiCard label="Queue Depth" value={queuePosition !== null ? queuePosition.toString() : "—"} icon={Clock} subtitle={queuePosition !== null ? "Position in queue" : "Via graperankResult"} />
+            <KpiCard label="Reports Filed" value={formatNumber(reportedByCount + reportingCount)} icon={AlertTriangle} subtitle="Your graph only" />
             <KpiCard label="Active Sessions" value="—" icon={Eye} subtitle="Requires /admin/sessions" />
-            <KpiCard label="Uptime" value={formatUptime(SESSION_START)} icon={Timer} subtitle="Current admin session" />
+            {/* API endpoint not supported: /admin/sessions — active session count */}
+            <KpiCard label="Uptime / Last Restart" value={formatUptime(SESSION_START)} icon={Timer} subtitle="Admin session uptime" />
           </div>
 
           <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
@@ -750,8 +769,8 @@ export default function AdminPage() {
                     {[
                       { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                       { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
-                      { endpoint: "/admin/users", label: "Admin Users", status: "disconnected" as const },
-                      { endpoint: "/admin/system", label: "Admin System", status: "disconnected" as const },
+                      { endpoint: "/admin/users", label: "Admin Users", status: "disconnected" as const }, // API endpoint not supported
+                      { endpoint: "/admin/system", label: "Admin System", status: "disconnected" as const }, // API endpoint not supported
                     ].map(ep => (
                       <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
                         <div>
@@ -798,23 +817,28 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* User table: full admin schema. Columns marked with † require /admin/users endpoint (not supported) */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <th className="px-5 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-5 py-3"><SortHeader label="Relations" sortKey="relations" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-5 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-5 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">First Seen</span>
+                      <th className="px-3 py-3 w-8"></th>
+                      <th className="px-3 py-3"><SortHeader label="Pubkey / npub" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-3 py-3"><SortHeader label="Follow" sortKey="relations" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-3 py-3"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-3 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Date †</span>
                       </th>
-                      <th className="px-5 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc Status</span>
+                      <th className="px-3 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA †</span>
                       </th>
-                      <th className="px-5 py-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500"># Calcs</span>
+                      <th className="px-3 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Calc †</span>
                       </th>
-                      <th className="px-5 py-3 text-right">
+                      <th className="px-3 py-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500"># Calcs †</span>
+                      </th>
+                      <th className="px-3 py-3 text-right">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span>
                       </th>
                     </tr>
@@ -822,62 +846,119 @@ export default function AdminPage() {
                   <tbody>
                     {paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-400">
                           {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : (
-                      paginatedUsers.map((u, i) => (
-                        <tr key={u.pubkey} className="border-b border-slate-50 hover:bg-white/60 transition-colors" data-testid={`row-user-${i}`}>
-                          <td className="px-5 py-3">
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-6)}</span>
-                                <CopyButton text={u.pubkey} />
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
-                                <CopyButton text={u.npub} />
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex flex-wrap gap-1">
-                              {u.relations.map(r => (
-                                <span key={r} className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${RELATION_BADGE_STYLES[r] ?? "bg-slate-50 text-slate-700 border border-slate-200"}`}>{r}</span>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min(u.influence * 100, 100)}%` }} />
-                              </div>
-                              <span className="text-xs font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-first-seen-${i}`}>{u.firstSeen}</span>
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-calc-status-${i}`}>{u.calcStatus}</span>
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className="text-[10px] text-slate-400 italic" data-testid={`cell-times-calc-${i}`}>{u.timesCalculated}</span>
-                          </td>
-                          <td className="px-5 py-3 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate"
-                              onClick={() => navigate(`/profile/${u.npub}`)}
-                              data-testid={`button-view-user-${i}`}
-                            >
-                              View
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
+                      paginatedUsers.map((u, i) => {
+                        const isExpanded = expandedRows.has(u.pubkey);
+                        return (
+                          <Fragment key={u.pubkey}>
+                            <tr className="border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer" onClick={() => {
+                              setExpandedRows(prev => {
+                                const next = new Set(prev);
+                                if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
+                                return next;
+                              });
+                            }} data-testid={`row-user-${i}`}>
+                              <td className="px-3 py-3">
+                                <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-mono text-slate-700">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-6)}</span>
+                                    <CopyButton text={u.pubkey} />
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
+                                    <CopyButton text={u.npub} />
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {u.relations.map(r => (
+                                    <span key={r} className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${RELATION_BADGE_STYLES[r] ?? "bg-slate-50 text-slate-700 border border-slate-200"}`}>{r}</span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-12 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                    <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min(u.influence * 100, 100)}%` }} />
+                                  </div>
+                                  <span className="text-xs font-mono text-slate-600 tabular-nums">{u.influence.toFixed(4)}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                {/* API endpoint not supported: /admin/users — first seen date */}
+                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-first-seen-${i}`}>{u.firstSeen}</span>
+                              </td>
+                              <td className="px-3 py-3">
+                                {/* API endpoint not supported: /admin/users — TA timestamp/count */}
+                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-ta-${i}`}>{u.lastTaTimestamp}</span>
+                              </td>
+                              <td className="px-3 py-3">
+                                {/* API endpoint not supported: /admin/users — calc status */}
+                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-calc-status-${i}`}>{u.calcStatus}</span>
+                              </td>
+                              <td className="px-3 py-3">
+                                {/* API endpoint not supported: /admin/users — times calculated */}
+                                <span className="text-[10px] text-slate-400 italic" data-testid={`cell-times-calc-${i}`}>{u.timesCalculated}</span>
+                              </td>
+                              <td className="px-3 py-3 text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/profile/${u.npub}`); }}
+                                  data-testid={`button-view-user-${i}`}
+                                >
+                                  View
+                                </Button>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr key={`${u.pubkey}-detail`} className="bg-slate-50/50" data-testid={`row-user-detail-${i}`}>
+                                <td colSpan={9} className="px-5 py-4">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-[10px]">
+                                    <div>
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full Pubkey</p>
+                                      <p className="font-mono text-slate-700 break-all">{u.pubkey}</p>
+                                    </div>
+                                    <div>
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Full npub</p>
+                                      <p className="font-mono text-indigo-600 break-all">{u.npub}</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — follower/following history */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Follower History</p>
+                                      <p className="text-slate-400 italic">Requires /admin/users</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — following history */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Following History</p>
+                                      <p className="text-slate-400 italic">Requires /admin/users</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — last calc runtime */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Last Calc Runtime</p>
+                                      <p className="text-slate-400 italic">{u.lastCalcRuntime}</p>
+                                    </div>
+                                    <div>
+                                      {/* API endpoint not supported: /admin/users — last error */}
+                                      <p className="font-bold uppercase tracking-wider text-slate-500 mb-1">Last Error</p>
+                                      <p className="text-slate-400 italic">{u.lastCalcError}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -885,7 +966,7 @@ export default function AdminPage() {
 
               <div className="px-5 py-3 border-t border-slate-100">
                 <p className="text-[10px] text-slate-400 italic">
-                  Note: First Seen, Calc Status, and # Calcs columns require per-user data from a dedicated /admin/users endpoint (not yet supported). These columns will populate automatically when the backend API is available.
+                  † Columns marked with † require per-user data from a dedicated /admin/users endpoint (not yet supported). These include: first-seen date, profile/avatar, follower/following history with timestamps, TA timestamps/counts, calc status, last runtime/error history, and times calculated. All will populate automatically when the backend API becomes available.
                 </p>
               </div>
 
@@ -1004,9 +1085,9 @@ export default function AdminPage() {
                     { name: "/user/self", ok: selfQuery.isSuccess, note: selfQuery.isError ? "Query error" : selfQuery.isLoading ? "Loading..." : "OK", responseTime: selfQuery.isSuccess ? "< 2s" : "—" },
                     { name: "/user/graperank", ok: true, note: "POST trigger endpoint", responseTime: "—" },
                     { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK", responseTime: grapeRankQuery.isSuccess ? "< 2s" : "—" },
-                    { name: "/admin/users", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
-                    { name: "/admin/system", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
-                    { name: "/admin/analytics", ok: false, note: "Endpoint not supported", responseTime: "N/A" },
+                    { name: "/admin/users", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
+                    { name: "/admin/system", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
+                    { name: "/admin/analytics", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
                   ].map(ep => (
                     <div key={ep.name} className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
                       <div className="flex items-center gap-2">
