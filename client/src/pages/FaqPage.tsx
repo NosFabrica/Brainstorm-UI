@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ArrowLeft,
   Shield,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -96,6 +98,7 @@ export default function FaqPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const { toast } = useToast();
 
   const searchParams = new URLSearchParams(window.location.search);
   const initialTab = searchParams.get("tab") === "developers" ? "developers" : "users";
@@ -187,7 +190,10 @@ export default function FaqPage() {
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                        <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
+                        <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                          <span>{user.npub.slice(0, 16)}...</span>
+                          <Copy className="h-3 w-3" />
+                        </button>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-indigo-100" />
