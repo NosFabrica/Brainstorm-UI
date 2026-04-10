@@ -439,7 +439,7 @@ export default function SearchPage() {
                   </span>
                 </h1>
                 <p className="text-slate-500 text-sm max-w-lg mx-auto" data-testid="text-search-subtitle">
-                  Find anyone on Nostr. Search by name, enter an npub, or paste a NIP-05 handle.
+                  Search the decentralized web, ranked by trust.
                 </p>
               </div>
             )}
