@@ -656,13 +656,13 @@ export default function UserPanelPage() {
                   data-testid="button-toggle-agent-card"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${(agentIsLive && agentState.picture) || agentPictureInput ? "bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30" : ""}`}>
                       {agentIsLive && agentState.picture ? (
                         <img src={agentState.picture} alt={agentState.name} className="h-full w-full rounded-xl object-cover" />
                       ) : agentPictureInput ? (
                         <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-xl object-cover" />
                       ) : (
-                        <AgentIcon className="h-4.5 w-4.5 text-cyan-400" />
+                        <AgentIcon className="h-5 w-5 text-cyan-400" />
                       )}
                     </div>
                     <div className="text-left">
