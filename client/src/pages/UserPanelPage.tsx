@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { getTier } from "@/utils/trustTiers";
 import PageBackground from "@/components/PageBackground";
 import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_1775844197287.png";
 import { Footer } from "@/components/Footer";
@@ -155,13 +156,6 @@ function saveAgentState(state: AgentState) {
   try { localStorage.setItem("brainstorm_agent_state", JSON.stringify(state)); } catch {}
 }
 
-function getTier(influence: number): { name: string; color: string; badgeClass: string } {
-  if (influence >= 0.8) return { name: "Highly Trusted", color: "text-emerald-600", badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700" };
-  if (influence >= 0.5) return { name: "Trusted", color: "text-sky-600", badgeClass: "bg-sky-50 border-sky-200 text-sky-700" };
-  if (influence >= 0.2) return { name: "Neutral", color: "text-indigo-600", badgeClass: "bg-indigo-50 border-indigo-200 text-indigo-700" };
-  if (influence >= 0.05) return { name: "Low Trust", color: "text-amber-600", badgeClass: "bg-amber-50 border-amber-200 text-amber-700" };
-  return { name: "Unverified", color: "text-slate-500", badgeClass: "bg-slate-50 border-slate-200 text-slate-500" };
-}
 
 function TrendIndicator({ current, previous }: { current: number; previous: number | null }) {
   if (previous === null) return <Minus className="h-3.5 w-3.5 text-slate-400" />;

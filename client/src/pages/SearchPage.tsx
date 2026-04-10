@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   TrendingUp,
   ExternalLink,
+  Clock,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { getTier, freshnessScore, getRelativeTime } from "@/utils/trustTiers";
 
 const SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
 
@@ -181,6 +183,43 @@ export default function SearchPage() {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
 
+  const { data: selfData } = useQuery({
+    queryKey: ["/api/auth/self"],
+    queryFn: () => apiClient.getSelf(),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  const trustScoreMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const following = selfData?.data?.graph?.following;
+    if (!Array.isArray(following)) return map;
+    for (const entry of following) {
+      const pubkey = typeof entry === "string" ? entry : entry.pubkey;
+      const influence = typeof entry === "object" ? (entry.influence ?? 0) : 0;
+      if (pubkey) map.set(pubkey, influence);
+    }
+    return map;
+  }, [selfData]);
+
+  const sortedResults = useMemo(() => {
+    if (results.length === 0) return results;
+    const RELAY_WEIGHT = 0.5;
+    const FRESHNESS_WEIGHT = 0.3;
+    const TRUST_WEIGHT = 0.2;
+    const maxIdx = results.length;
+
+    return [...results]
+      .map((r, idx) => {
+        const relayScore = 1 - idx / maxIdx;
+        const fresh = freshnessScore(r.createdAt);
+        const trust = Math.min(1, Math.max(0, trustScoreMap.get(r.pubkey) ?? 0));
+        const composite = RELAY_WEIGHT * relayScore + FRESHNESS_WEIGHT * fresh + TRUST_WEIGHT * trust;
+        return { ...r, composite, trustInfluence: trust > 0 ? trust : null };
+      })
+      .sort((a, b) => b.composite - a.composite);
+  }, [results, trustScoreMap]);
+
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
@@ -294,8 +333,8 @@ export default function SearchPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const showEmptyState = !hasSearched && results.length === 0 && !isSearching;
-  const showNoResults = hasSearched && results.length === 0 && !isSearching;
+  const showEmptyState = !hasSearched && sortedResults.length === 0 && !isSearching;
+  const showNoResults = hasSearched && sortedResults.length === 0 && !isSearching;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-search">
@@ -442,9 +481,9 @@ export default function SearchPage() {
                 <p className="text-[10px] text-slate-400">
                   Accepts names, npubs, hex keys, or NIP-05 handles
                 </p>
-                {hasSearched && results.length > 0 && (
+                {hasSearched && sortedResults.length > 0 && (
                   <p className="text-[10px] text-slate-400 ml-auto" data-testid="text-search-stats">
-                    {results.length} result{results.length !== 1 ? "s" : ""} in {(searchTime / 1000).toFixed(2)}s
+                    {sortedResults.length} result{sortedResults.length !== 1 ? "s" : ""} in {(searchTime / 1000).toFixed(2)}s
                   </p>
                 )}
               </div>
@@ -489,46 +528,62 @@ export default function SearchPage() {
             </div>
           )}
 
-          {!isSearching && hasSearched && results.length > 0 && (
+          {!isSearching && hasSearched && sortedResults.length > 0 && (
             <div className="max-w-3xl mx-auto px-4 sm:px-6">
               <div className="space-y-1" data-testid="container-search-results">
-                {results.map((result, idx) => (
-                  <button
-                    key={result.pubkey}
-                    className="w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl hover:bg-white/90 hover:shadow-md hover:border-indigo-200/50 border border-transparent transition-all duration-200 text-left group cursor-pointer"
-                    onClick={() => navigate(`/profile/${result.npub}`)}
-                    data-testid={`result-profile-${idx}`}
-                  >
-                    <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border border-slate-200 shadow-sm shrink-0 mt-0.5">
-                      {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                      <AvatarFallback className="bg-indigo-50 text-indigo-700 font-bold text-xs">
-                        {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
-                          {getDisplayLabel(result)}
-                        </span>
-                        {result.nip05 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0" data-testid={`badge-nip05-${idx}`}>
-                            <CheckCircle2 className="h-2.5 w-2.5" />
-                            <span className="truncate max-w-[120px] sm:max-w-[180px]">{result.nip05}</span>
+                {sortedResults.map((result, idx) => {
+                  const trustInfo = result.trustInfluence !== null ? getTier(result.trustInfluence) : null;
+                  const isStale = result.createdAt ? (Date.now() / 1000 - result.createdAt) > 365 * 86400 : false;
+                  return (
+                    <button
+                      key={result.pubkey}
+                      className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl hover:bg-white/90 hover:shadow-md hover:border-indigo-200/50 border border-transparent transition-all duration-200 text-left group cursor-pointer ${isStale ? "opacity-80" : ""}`}
+                      onClick={() => navigate(`/profile/${result.npub}`)}
+                      data-testid={`result-profile-${idx}`}
+                    >
+                      <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border border-slate-200 shadow-sm shrink-0 mt-0.5">
+                        {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
+                        <AvatarFallback className="bg-indigo-50 text-indigo-700 font-bold text-xs">
+                          {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                            {getDisplayLabel(result)}
                           </span>
+                          {trustInfo && trustInfo.name !== "Unverified" && (
+                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${trustInfo.badgeClass}`} data-testid={`badge-trust-${idx}`}>
+                              <Shield className="h-2.5 w-2.5" />
+                              {trustInfo.name}
+                            </span>
+                          )}
+                          {result.nip05 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0" data-testid={`badge-nip05-${idx}`}>
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              <span className="truncate max-w-[120px] sm:max-w-[180px]">{result.nip05}</span>
+                            </span>
+                          )}
+                          {isStale && result.createdAt && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-medium shrink-0" data-testid={`badge-stale-${idx}`}>
+                              <Clock className="h-2.5 w-2.5" />
+                              {getRelativeTime(result.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5" data-testid={`text-result-npub-${idx}`}>
+                          {result.npub.slice(0, 16)}...{result.npub.slice(-6)}
+                        </p>
+                        {result.about && (
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
+                            {truncateAbout(result.about)}
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 font-mono mt-0.5" data-testid={`text-result-npub-${idx}`}>
-                        {result.npub.slice(0, 16)}...{result.npub.slice(-6)}
-                      </p>
-                      {result.about && (
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
-                          {truncateAbout(result.about)}
-                        </p>
-                      )}
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1.5 hidden sm:block" />
-                  </button>
-                ))}
+                      <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1.5 hidden sm:block" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
