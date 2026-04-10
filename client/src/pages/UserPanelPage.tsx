@@ -528,10 +528,10 @@ export default function UserPanelPage() {
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-panel">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-agentsuite">
       <PageBackground />
 
-      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-panel">
+      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-agentsuite">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-4 sm:gap-6 min-w-0">
@@ -541,7 +541,7 @@ export default function UserPanelPage() {
                 </Button>
               </div>
 
-              <button type="button" className="flex items-center gap-3 min-w-0 lg:hidden" onClick={() => navigate("/dashboard")} data-testid="button-panel-mobile-brand">
+              <button type="button" className="flex items-center gap-3 min-w-0 lg:hidden" onClick={() => navigate("/dashboard")} data-testid="button-agentsuite-mobile-brand">
                 <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center shrink-0">
                   <BrainLogo size={20} className="text-indigo-200" />
                 </div>
@@ -556,7 +556,7 @@ export default function UserPanelPage() {
                 <span className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</span>
               </button>
 
-              <div className="hidden lg:flex gap-1" data-testid="nav-panel-tabs">
+              <div className="hidden lg:flex gap-1" data-testid="nav-agentsuite-tabs">
                 <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
                   <Home className="h-4 w-4" /> Dashboard
                 </Button>
@@ -566,7 +566,7 @@ export default function UserPanelPage() {
                 <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
                   <Users className="h-4 w-4" /> Network
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-white rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-panel">
+                <Button variant="ghost" size="sm" className="gap-2 text-white rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-agentsuite">
                   <AgentIcon className="h-4 w-4" /> <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
                 </Button>
               </div>
@@ -575,14 +575,14 @@ export default function UserPanelPage() {
             <div className="flex items-center gap-2 sm:gap-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-panel-profile-menu">
-                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md" data-testid="img-panel-avatar">
+                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-agentsuite-profile-menu">
+                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md" data-testid="img-agentsuite-avatar">
                       {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
                       <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                     </Avatar>
                     <div className="hidden md:flex flex-col items-start mr-2">
-                      <span className="text-sm font-bold text-white leading-none mb-0.5" data-testid="text-panel-profile-name">{user.displayName || "Anon"}</span>
-                      <span className="text-[10px] text-indigo-300 font-mono leading-none" data-testid="text-panel-profile-npub">{user.npub.slice(0, 8)}...</span>
+                      <span className="text-sm font-bold text-white leading-none mb-0.5" data-testid="text-agentsuite-profile-name">{user.displayName || "Anon"}</span>
+                      <span className="text-[10px] text-indigo-300 font-mono leading-none" data-testid="text-agentsuite-profile-npub">{user.npub.slice(0, 8)}...</span>
                     </div>
                   </div>
                 </DropdownMenuTrigger>
@@ -622,20 +622,20 @@ export default function UserPanelPage() {
       <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} currentPath={location} navigate={navigate} calcDone={calcDone} user={user} onLogout={handleLogout} isAdmin={isAdminPubkey(user?.pubkey)} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
-        <div className="space-y-6 animate-fade-up" data-testid="container-panel">
+        <div className="space-y-6 animate-fade-up" data-testid="container-agentsuite">
 
           <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2" data-testid="section-panel-header">
+            <div className="space-y-2" data-testid="section-agentsuite-header">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
               </div>
-              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
+              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agentsuite-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Agent Suite
                 </span>
               </h1>
-              <p className="text-xs sm:text-base text-slate-600 font-medium" data-testid="text-panel-subtitle">
+              <p className="text-xs sm:text-base text-slate-600 font-medium" data-testid="text-agentsuite-subtitle">
                 Build your trust assistant — it grows with your network and earns trust on your behalf.
               </p>
             </div>
