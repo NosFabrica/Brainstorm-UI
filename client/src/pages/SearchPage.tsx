@@ -477,10 +477,6 @@ export default function SearchPage() {
                 <p className={`text-slate-500 text-sm ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   Search the decentralized web, ranked by trust.
                 </p>
-                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 border border-indigo-200/20 backdrop-blur-sm mt-3 ${firstVisit ? "animate-[staggerUp_0.5s_ease-out_0.7s_both]" : "animate-fade-up"}`}>
-                  <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                  <span className="text-[9px] font-semibold tracking-[0.1em] text-indigo-600/70 uppercase">Open Protocol</span>
-                </div>
               </div>
             )}
 
@@ -707,7 +703,7 @@ export default function SearchPage() {
 
       <div className="w-full py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/40 to-transparent" />
-        <div className="max-w-xl mx-auto flex items-center justify-center gap-6 text-slate-400" data-testid="section-search-features">
+        <div className="max-w-xl mx-auto flex items-center justify-center gap-5 text-slate-400" data-testid="section-search-features">
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
             <Users className="h-3.5 w-3.5 text-indigo-300" />
             <span className="text-[11px] tracking-wide">Profile search</span>
@@ -721,6 +717,11 @@ export default function SearchPage() {
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-indigo-300" />
             <span className="text-[11px] tracking-wide">Identity verified</span>
+          </div>
+          <div className="w-px h-3 bg-slate-200/60" />
+          <div className="flex items-center gap-1">
+            <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
+            <span className="text-[10px] font-semibold tracking-[0.08em] text-indigo-500/60 uppercase">Open Protocol</span>
           </div>
         </div>
       </div>
