@@ -388,12 +388,12 @@ export default function UserPanelPage() {
     mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(getProfilePayload()),
     onSuccess: () => {
       updateAgentState({ ...getAgentStateUpdates(), status: "active", publishedAt: Date.now() });
-      toast({ title: "Sidekick deployed!", description: `${agentNameInput.trim() || "Your sidekick"} is now live on the Nostr network.` });
+      toast({ title: "Assistant deployed!", description: `${agentNameInput.trim() || "Your assistant"} is now live on the Nostr network.` });
     },
     onError: (error: Error) => {
       if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
         updateAgentState({ ...getAgentStateUpdates(), status: "active", activatedAt: Date.now() });
-        toast({ title: "Sidekick activated locally", description: "Backend publishing will be available soon. Your sidekick is ready!" });
+        toast({ title: "Assistant activated locally", description: "Backend publishing will be available soon. Your assistant is ready!" });
       } else {
         updateAgentState({ status: "dormant" });
         toast({ variant: "destructive", title: "Activation failed", description: error.message || "Something went wrong." });
@@ -404,7 +404,7 @@ export default function UserPanelPage() {
   const updateBrainstormProfile = useMutation({
     mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(getProfilePayload()),
     onSuccess: () => {
-      toast({ title: "Sidekick updated", description: "Profile published to the network." });
+      toast({ title: "Assistant updated", description: "Profile published to the network." });
     },
     onError: (error: Error) => {
       if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
@@ -417,7 +417,7 @@ export default function UserPanelPage() {
 
   const handleActivateAgent = () => {
     if (!agentNameInput.trim()) {
-      toast({ variant: "destructive", title: "Name your sidekick", description: "Give your sidekick a name before activating." });
+      toast({ variant: "destructive", title: "Name your assistant", description: "Give your assistant a name before activating." });
       return;
     }
     setActivateConfirmOpen(true);
@@ -623,7 +623,7 @@ export default function UserPanelPage() {
             <div className="space-y-2" data-testid="section-panel-header">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Sidekick on Nostr</p>
+                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
               </div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
@@ -631,7 +631,7 @@ export default function UserPanelPage() {
                 </span>
               </h1>
               <p className="text-slate-600 font-medium" data-testid="text-panel-subtitle">
-                Build your trust sidekick — grow together, earn trust together.
+                Build your trust assistant — it grows with your network and earns trust on your behalf.
               </p>
             </div>
           </div>
@@ -661,10 +661,10 @@ export default function UserPanelPage() {
                         </div>
                       </div>
                       <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-activate-title">
-                        Create Your Sidekick
+                        Create Your Assistant
                       </h2>
                       <p className="text-sm text-slate-400 max-w-md mx-auto">
-                        Your sidekick represents you on the Nostr trust network. It grows with you — the more you engage, the stronger it becomes.
+                        Your assistant represents you on the Nostr trust network. It grows with your engagement and builds trust across the ecosystem.
                       </p>
                     </div>
 
@@ -673,7 +673,7 @@ export default function UserPanelPage() {
                         <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Identity</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Name your sidekick *</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Name your assistant *</label>
                             <Input
                               placeholder="e.g. TrustBot, Guardian, Sentinel..."
                               value={agentNameInput}
@@ -685,7 +685,7 @@ export default function UserPanelPage() {
                           <div>
                             <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Bio <span className="text-slate-500">(optional)</span></label>
                             <Input
-                              placeholder="What makes your sidekick special?"
+                              placeholder="What does your assistant do?"
                               value={agentDescInput}
                               onChange={e => setAgentDescInput(e.target.value)}
                               className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
@@ -762,9 +762,9 @@ export default function UserPanelPage() {
                         data-testid="button-activate-agent"
                       >
                         {agentState.status === "activating" ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> Deploying your sidekick...</>
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Deploying your assistant...</>
                         ) : (
-                          <><Rocket className="h-4 w-4" /> Activate Sidekick</>
+                          <><Rocket className="h-4 w-4" /> Activate Assistant</>
                         )}
                       </Button>
                     </div>
@@ -798,7 +798,7 @@ export default function UserPanelPage() {
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center gap-3 flex-wrap">
                           <h2 className="text-2xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agent-name">
-                            {agentState.name || "Unnamed Sidekick"}
+                            {agentState.name || "Unnamed Assistant"}
                           </h2>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${statusConfig.bgClass} border ${statusConfig.borderClass}`} data-testid="badge-agent-status">
                             <span className="relative flex h-1.5 w-1.5">
@@ -900,8 +900,8 @@ export default function UserPanelPage() {
                     <AgentIcon className="h-4 w-4 text-cyan-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Sidekick</h2>
-                    <p className="text-xs text-slate-500">Update your sidekick's profile and connections</p>
+                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Assistant</h2>
+                    <p className="text-xs text-slate-500">Update your assistant's profile and connections</p>
                   </div>
                 </div>
               </div>
@@ -910,7 +910,7 @@ export default function UserPanelPage() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Identity</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Sidekick Name</label>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Assistant Name</label>
                       <Input value={agentNameInput} onChange={e => setAgentNameInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-name" />
                     </div>
                     <div>
