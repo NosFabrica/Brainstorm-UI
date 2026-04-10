@@ -469,14 +469,8 @@ export default function SearchPage() {
           <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
               <div className="text-center mb-8" data-testid="section-search-hero">
-                <div className={`flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <div className="relative mb-4">
-                    <div className="absolute inset-0 bg-indigo-400/15 rounded-full blur-xl scale-150" />
-                    <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-indigo-600 shadow-lg shadow-indigo-400/20 flex items-center justify-center">
-                      <BrainLogo size={22} className="text-white" />
-                    </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#F8FAFC]" />
-                  </div>
+                <div className={`flex justify-center mb-3 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
+                  <BrainLogo size={32} className="text-slate-800" />
                 </div>
                 <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight mb-2 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.3s_both]" : "animate-fade-up"}`} style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
