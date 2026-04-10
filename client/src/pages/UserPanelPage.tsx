@@ -639,8 +639,7 @@ export default function UserPanelPage() {
 
           <div className="rounded-2xl overflow-hidden border border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.08)]" data-testid="card-agent-hero">
             <div className="bg-gradient-to-br from-slate-950 via-[#0c1929] to-slate-950 relative">
-              <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: `url(${workshopBg})`, backgroundSize: "cover", backgroundPosition: "center", filter: "grayscale(1) brightness(0.5)" }} />
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-950/95 via-[#0c1929]/90 to-slate-950/95" />
+              <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: `url(${workshopBg})`, backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "luminosity" }} />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_60%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(124,134,255,0.08),transparent_60%)]" />
               <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(rgba(6,182,212,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.4) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
