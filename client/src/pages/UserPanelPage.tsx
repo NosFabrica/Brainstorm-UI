@@ -1021,15 +1021,8 @@ export default function UserPanelPage() {
                     </span>
                   )}
                   {nip85Activated && (
-                    <>
-                      <span className="text-[10px] text-slate-500">Brainstorm · <span className="font-mono text-white/50">10040</span></span>
-                      <span className="text-slate-600">·</span>
-                      <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-purple-400/70 hover:text-purple-300 transition-colors">Amethyst</a>
-                      <span className="text-slate-600">·</span>
-                      <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-orange-400/70 hover:text-orange-300 transition-colors">Nostria</a>
-                    </>
+                    <span className="text-[10px] text-slate-500">Brainstorm · <span className="font-mono text-white/50">10040</span></span>
                   )}
-                  <a href="/settings" className="text-[10px] text-cyan-500/50 hover:text-cyan-400 transition-colors" data-testid="link-nip85-settings">Manage →</a>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Network</span>
@@ -1039,6 +1032,7 @@ export default function UserPanelPage() {
                   <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Last Calc</span>
                   <span className="text-xs text-white/70" data-testid="text-overview-last-calc">{formatRelativeTime(lastCalculated)}</span>
                 </div>
+                <a href="/settings" className="text-[10px] text-cyan-500/50 hover:text-cyan-400 transition-colors ml-auto" data-testid="link-nip85-settings">Manage →</a>
               </div>
             )}
           </div>
