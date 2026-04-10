@@ -469,11 +469,15 @@ export default function SearchPage() {
           <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
               <div className="text-center mb-8" data-testid="section-search-hero">
-                <h1 className={`text-3xl sm:text-4xl font-bold tracking-tight mb-3 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.2s_both]" : "animate-fade-up"}`} style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
-                    Brainstorm
-                  </span>
-                </h1>
+                <div className={`flex items-center justify-center gap-3 mb-3 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.2s_both]" : "animate-fade-up"}`}>
+                  <BrainLogo size={36} className="text-indigo-500 shrink-0 sm:hidden" />
+                  <BrainLogo size={44} className="text-indigo-500 shrink-0 hidden sm:block" />
+                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
+                      Brainstorm
+                    </span>
+                  </h1>
+                </div>
                 <p className={`text-slate-500 text-sm ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   Search the decentralized web, ranked by trust.
                 </p>
