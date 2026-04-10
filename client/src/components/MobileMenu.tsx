@@ -11,8 +11,8 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Shield,
-  Bot,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
 
 interface MobileMenuProps {
   open: boolean;
@@ -34,7 +34,7 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
-  { path: "/panel", label: "Agent HQ", icon: Bot },
+  { path: "/panel", label: "Agent HQ", icon: AgentIcon },
 ];
 
 const helpNav = [

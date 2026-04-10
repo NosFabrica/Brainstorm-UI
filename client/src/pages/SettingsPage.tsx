@@ -45,8 +45,8 @@ import {
   Globe,
   Shield,
   Copy,
-  Bot,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -355,7 +355,7 @@ export default function SettingsPage() {
                   onClick={() => navigate("/panel")}
                   data-testid="button-nav-panel"
                 >
-                  <Bot className="h-4 w-4" />
+                  <AgentIcon className="h-4 w-4" />
                   Agent HQ
                 </Button>
               </div>

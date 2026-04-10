@@ -52,7 +52,6 @@ import {
   ExternalLink,
   X,
   Zap,
-  Bot,
   Sparkles,
   Activity,
   Globe,
@@ -62,6 +61,7 @@ import {
   Eye,
   Signal,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -109,7 +109,7 @@ interface AgentState {
 }
 
 const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; bgClass: string; borderClass: string; icon: typeof Zap; description: string; level: number }> = {
-  dormant: { label: "Dormant", color: "text-slate-400", bgClass: "bg-slate-500/20", borderClass: "border-slate-500/30", icon: Bot, description: "Your agent awaits activation", level: 0 },
+  dormant: { label: "Dormant", color: "text-slate-400", bgClass: "bg-slate-500/20", borderClass: "border-slate-500/30", icon: AgentIcon, description: "Your agent awaits activation", level: 0 },
   activating: { label: "Activating", color: "text-amber-400", bgClass: "bg-amber-500/20", borderClass: "border-amber-500/30", icon: Loader2, description: "Powering up...", level: 0 },
   active: { label: "Active", color: "text-emerald-400", bgClass: "bg-emerald-500/20", borderClass: "border-emerald-500/30", icon: Zap, description: "Published to the Nostr network", level: 1 },
   established: { label: "Established", color: "text-sky-400", bgClass: "bg-sky-500/20", borderClass: "border-sky-500/30", icon: Globe, description: "Discovered by multiple relays", level: 2 },
@@ -119,7 +119,7 @@ const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; b
 
 const ACHIEVEMENTS = [
   { id: "activated", label: "First Spark", description: "Activated your agent", icon: Zap, check: (a: AgentState) => a.status !== "dormant" && a.status !== "activating" },
-  { id: "named", label: "Identity", description: "Named your agent", icon: Bot, check: (a: AgentState) => !!a.name },
+  { id: "named", label: "Identity", description: "Named your agent", icon: AgentIcon, check: (a: AgentState) => !!a.name },
   { id: "published", label: "On the Grid", description: "Published to Nostr relays", icon: Globe, check: (a: AgentState) => !!a.publishedAt },
   { id: "described", label: "Story Told", description: "Added a description", icon: Sparkles, check: (a: AgentState) => !!a.description },
 ];
@@ -509,7 +509,7 @@ export default function UserPanelPage() {
                   <Users className="h-4 w-4" /> Network
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/10 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-panel">
-                  <Bot className="h-4 w-4" /> Agent HQ
+                  <AgentIcon className="h-4 w-4" /> Agent HQ
                 </Button>
               </div>
             </div>
@@ -595,7 +595,7 @@ export default function UserPanelPage() {
                     <div className="inline-flex items-center justify-center">
                       <div className="relative">
                         <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.15)]">
-                          <Bot className="h-10 w-10 text-cyan-400" />
+                          <AgentIcon className="h-10 w-10 text-cyan-400" />
                         </div>
                         <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-slate-800 border-2 border-cyan-500/40 flex items-center justify-center">
                           <Sparkles className="h-3 w-3 text-cyan-400" />
@@ -656,7 +656,7 @@ export default function UserPanelPage() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                       <div className="relative shrink-0">
                         <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.2)]">
-                          <Bot className="h-10 w-10 text-cyan-300" />
+                          <AgentIcon className="h-10 w-10 text-cyan-300" />
                         </div>
                         <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-[0_0_10px_rgba(52,211,153,0.5)]">
                           <Activity className="h-3.5 w-3.5 text-white" />
@@ -747,7 +747,7 @@ export default function UserPanelPage() {
               <div className="bg-gradient-to-b from-cyan-500/8 to-white/60 border-b border-cyan-500/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                    <Bot className="h-4 w-4 text-cyan-600" />
+                    <AgentIcon className="h-4 w-4 text-cyan-600" />
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Agent</h2>

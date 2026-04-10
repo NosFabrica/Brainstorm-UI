@@ -63,8 +63,8 @@ import {
   HelpCircle,
   Shield,
   Copy,
-  Bot,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -754,7 +754,7 @@ export default function DashboardPage() {
                     Network
                   </Button>
                   <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/panel")} data-testid="button-nav-panel">
-                    <Bot className="h-4 w-4" />
+                    <AgentIcon className="h-4 w-4" />
                     Agent HQ
                   </Button>
                 </div>
