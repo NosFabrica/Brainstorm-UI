@@ -61,6 +61,8 @@ import {
   Rocket,
   Eye,
   Signal,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
@@ -197,6 +199,7 @@ export default function UserPanelPage() {
   const [agentLud16Input, setAgentLud16Input] = useState(() => getDefaultAgentState().lud16);
   const [agentNip05Input, setAgentNip05Input] = useState(() => getDefaultAgentState().nip05);
   const [agentWebsiteInput, setAgentWebsiteInput] = useState(() => getDefaultAgentState().website);
+  const [agentCardExpanded, setAgentCardExpanded] = useState(true);
   const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
   const [npubInput, setNpubInput] = useState("");
   const [lookedUpUser, setLookedUpUser] = useState<LookedUpUser | null>(null);
@@ -639,33 +642,56 @@ export default function UserPanelPage() {
 
           <div className="rounded-2xl overflow-hidden border border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.08)]" data-testid="card-agent-hero">
             <div className="bg-gradient-to-br from-slate-950 via-[#0c1929] to-slate-950 relative">
-              <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: `url(${workshopBg})`, backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "luminosity" }} />
+              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url(${workshopBg})`, backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "luminosity" }} />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_60%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(124,134,255,0.08),transparent_60%)]" />
               <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(rgba(6,182,212,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.4) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/20 to-transparent" />
 
-              <div className="relative p-6 sm:p-8">
+              <div className="relative">
+                <button
+                  onClick={() => setAgentCardExpanded(!agentCardExpanded)}
+                  className="w-full flex items-center justify-between gap-3 p-4 sm:px-6 sm:py-4 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  data-testid="button-toggle-agent-card"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                      {agentIsLive && agentState.picture ? (
+                        <img src={agentState.picture} alt={agentState.name} className="h-full w-full rounded-xl object-cover" />
+                      ) : agentPictureInput ? (
+                        <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-xl object-cover" />
+                      ) : (
+                        <AgentIcon className="h-4.5 w-4.5 text-cyan-400" />
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <h2 className="text-sm font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                        {agentIsLive ? (agentState.name || "Unnamed Assistant") : "Create Your Assistant"}
+                      </h2>
+                      <p className="text-[11px] text-slate-400">
+                        {agentIsLive ? statusConfig.description : "Deploy a trust agent to represent you on Nostr"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {agentIsLive && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${statusConfig.bgClass} border ${statusConfig.borderClass}`}>
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${statusConfig.color.replace("text-", "bg-")}`} />
+                          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${statusConfig.color.replace("text-", "bg-")}`} />
+                        </span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${statusConfig.color}`}>{statusConfig.label}</span>
+                      </span>
+                    )}
+                    {agentCardExpanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+                  </div>
+                </button>
+
+                <div className={`overflow-hidden transition-all duration-300 ease-in-out ${agentCardExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
+                <div className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0">
                 {!agentIsLive ? (
                   <div className="max-w-md mx-auto space-y-4" data-testid="agent-activation-flow">
-                    <div className="flex items-center gap-3">
-                      <div className="relative shrink-0">
-                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center">
-                          {agentPictureInput ? (
-                            <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-2xl object-cover" />
-                          ) : (
-                            <AgentIcon className="h-6 w-6 text-cyan-400" />
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-activate-title">
-                          Create Your Assistant
-                        </h2>
-                        <p className="text-xs text-slate-400">Deploy a trust agent to represent you on Nostr.</p>
-                      </div>
-                    </div>
 
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-2.5">
@@ -875,6 +901,8 @@ export default function UserPanelPage() {
                     </div>
                   </div>
                 )}
+              </div>
+              </div>
               </div>
             </div>
           </div>
