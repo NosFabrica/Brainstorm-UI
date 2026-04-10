@@ -467,14 +467,14 @@ export default function SearchPage() {
               <div className="text-center mb-8 sm:mb-10" data-testid="section-search-hero">
                 <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
                   <BrainLogo size={48} className="text-indigo-600 mb-2 sm:hidden" />
-                  <BrainLogo size={56} className="text-indigo-600 mb-2 hidden sm:block" />
-                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                  <BrainLogo size={44} className="text-indigo-600 mb-2 hidden sm:block" />
+                  <h1 className="text-4xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
                       Brainstorm
                     </span>
                   </h1>
                 </div>
-                <p className={`text-slate-400 text-sm sm:text-base mt-2 sm:mt-3 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                <p className={`text-slate-400 text-sm sm:text-sm mt-2 sm:mt-2 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   Search the decentralized web, ranked by trust.
                 </p>
               </div>
