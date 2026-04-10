@@ -49,6 +49,7 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 type SearchPov = "nosfabrica" | "mywot";
 
 const SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
+const NOSFABRICA_OBSERVER = "15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270";
 
 interface SearchResult {
   pubkey: string;
@@ -224,9 +225,9 @@ export default function SearchPage() {
   const hasPovOption = !!taPubkey;
 
   const observerPubkey = useMemo(() => {
-    if (pov === "nosfabrica" && taPubkey) return taPubkey;
+    if (pov === "nosfabrica") return NOSFABRICA_OBSERVER;
     return user?.pubkey;
-  }, [pov, taPubkey, user?.pubkey]);
+  }, [pov, user?.pubkey]);
 
   const sortedResults = useMemo((): RankedSearchResult[] => {
     if (results.length === 0) return [];
