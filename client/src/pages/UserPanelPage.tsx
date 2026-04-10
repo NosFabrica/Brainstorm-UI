@@ -700,33 +700,31 @@ export default function UserPanelPage() {
                 {!agentIsLive ? (
                   <div className="max-w-2xl mx-auto space-y-3" data-testid="agent-activation-flow">
 
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5">
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Name *</label>
-                          <Input
-                            placeholder="e.g. TrustBot, Guardian..."
-                            value={agentNameInput}
-                            onChange={e => setAgentNameInput(e.target.value)}
-                            className="bg-white/[0.07] border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/25 focus:bg-white/[0.09] h-9 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
-                            data-testid="input-agent-name"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Bio</label>
-                          <textarea
-                            placeholder="Describe its role and purpose..."
-                            value={agentDescInput}
-                            onChange={e => setAgentDescInput(e.target.value)}
-                            rows={2}
-                            className="w-full rounded-md bg-white/[0.07] border border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/25 focus:bg-white/[0.09] px-3 py-2 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] resize-none outline-none"
-                            data-testid="input-agent-desc"
-                          />
-                        </div>
+                    <div className="max-w-lg mx-auto space-y-3">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Name *</label>
+                        <Input
+                          placeholder="e.g. TrustBot, Guardian..."
+                          value={agentNameInput}
+                          onChange={e => setAgentNameInput(e.target.value)}
+                          className="bg-white/[0.07] border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/25 focus:bg-white/[0.09] h-9 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
+                          data-testid="input-agent-name"
+                        />
                       </div>
-                      <div className="flex sm:flex-col gap-2.5 items-end sm:items-start">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Bio</label>
+                        <textarea
+                          placeholder="Describe its role and purpose..."
+                          value={agentDescInput}
+                          onChange={e => setAgentDescInput(e.target.value)}
+                          rows={2}
+                          className="w-full rounded-md bg-white/[0.07] border border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/25 focus:bg-white/[0.09] px-3 py-2 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] resize-none outline-none"
+                          data-testid="input-agent-desc"
+                        />
+                      </div>
+                      <div className="flex gap-3 justify-center items-end">
                         <div className="shrink-0">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Avatar</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1 text-center">Avatar</label>
                           <ImageUpload
                             value={agentPictureInput}
                             onChange={setAgentPictureInput}
@@ -734,8 +732,8 @@ export default function UserPanelPage() {
                             aspect="square"
                           />
                         </div>
-                        <div className="flex-1 sm:flex-initial min-w-0 sm:w-40">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Banner</label>
+                        <div className="flex-1 max-w-[240px]">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1 text-center">Banner</label>
                           <ImageUpload
                             value={agentBannerInput}
                             onChange={setAgentBannerInput}
