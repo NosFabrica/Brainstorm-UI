@@ -19,6 +19,8 @@ import {
   ExternalLink,
   Clock,
   Eye,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
@@ -475,9 +477,90 @@ export default function SearchPage() {
             <div className="relative group/search" data-testid="container-search-input">
               <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-violet-500/20 to-indigo-500/20 rounded-2xl blur-lg opacity-0 group-hover/search:opacity-100 transition-opacity duration-500 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
               <div className="relative flex items-center bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-indigo-300/50 transition-all duration-300 overflow-hidden">
-                <div className="pl-4 text-slate-400">
-                  <SearchIcon className="h-5 w-5" />
-                </div>
+                {hasPovOption ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="pl-3 pr-1 flex items-center gap-1 shrink-0 group/pov focus:outline-none"
+                        data-testid="button-pov-switcher"
+                      >
+                        <div className="relative">
+                          <Avatar className={`h-7 w-7 border-2 transition-all duration-300 ${pov === "nosfabrica" ? "border-indigo-400 ring-2 ring-indigo-200/50" : "border-emerald-400 ring-2 ring-emerald-200/50"}`}>
+                            {pov === "nosfabrica" ? (
+                              <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+                            ) : (
+                              <>
+                                {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                                <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[10px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                              </>
+                            )}
+                          </Avatar>
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-white ${pov === "nosfabrica" ? "bg-indigo-500" : "bg-emerald-500"}`} />
+                        </div>
+                        <ChevronDown className="h-3 w-3 text-slate-400 group-hover/pov:text-slate-600 transition-colors" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-72 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl p-1" data-testid="dropdown-pov">
+                      <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400 px-3 py-1.5">
+                        Point of View
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "nosfabrica" ? "bg-indigo-50/80" : "hover:bg-slate-50"}`}
+                        onClick={() => handlePovSwitch("nosfabrica")}
+                        data-testid="pov-option-nosfabrica"
+                      >
+                        <Avatar className="h-9 w-9 border-2 border-indigo-200 shrink-0">
+                          <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-slate-900">NosFabrica</span>
+                            {pov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-tight">House Web of Trust scores</p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "mywot" ? "bg-emerald-50/80" : "hover:bg-slate-50"}`}
+                        onClick={() => handlePovSwitch("mywot")}
+                        data-testid="pov-option-mywot"
+                      >
+                        <Avatar className="h-9 w-9 border-2 border-emerald-200 shrink-0">
+                          {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-slate-900 truncate">{user.displayName || "My WoT"}</span>
+                            {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-tight">Your personal Web of Trust scores</p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-1 bg-slate-100" />
+                      <DropdownMenuItem
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-500"
+                        onClick={() => navigate("/personalization")}
+                        data-testid="link-learn-more"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span className="text-xs">How personalization works</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <div className="pl-4 text-slate-400">
+                    <SearchIcon className="h-5 w-5" />
+                  </div>
+                )}
+                {hasPovOption && (
+                  <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+                )}
+                {hasPovOption && (
+                  <div className="pl-1 text-slate-400">
+                    <SearchIcon className="h-5 w-5" />
+                  </div>
+                )}
                 <Input
                   ref={inputRef}
                   placeholder="Search people on Nostr..."
@@ -512,36 +595,11 @@ export default function SearchPage() {
               </div>
               <div className="flex items-center mt-2 px-1">
                 {hasPovOption ? (
-                  <div className="flex items-center gap-2" data-testid="container-pov-switcher">
-                    <Eye className="h-3 w-3 text-slate-400 shrink-0" />
-                    <button
-                      onClick={() => handlePovSwitch("nosfabrica")}
-                      className={`flex items-center gap-1 transition-all duration-200 ${pov === "nosfabrica" ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
-                      data-testid="pov-option-nosfabrica"
-                    >
-                      <img src={nosFabricaLogo} alt="NosFabrica" className="h-4 w-4 rounded-full object-cover" />
-                      <span className={`text-[10px] font-semibold ${pov === "nosfabrica" ? "text-indigo-600" : "text-slate-400"}`}>NosFabrica</span>
-                    </button>
-                    <span className="text-slate-300 text-[10px]">/</span>
-                    <button
-                      onClick={() => handlePovSwitch("mywot")}
-                      className={`flex items-center gap-1 transition-all duration-200 ${pov === "mywot" ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
-                      data-testid="pov-option-mywot"
-                    >
-                      <Avatar className="h-4 w-4">
-                        {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[6px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                      </Avatar>
-                      <span className={`text-[10px] font-semibold ${pov === "mywot" ? "text-emerald-600" : "text-slate-400"}`}>My WoT</span>
-                    </button>
-                    <span className="text-slate-300 text-[10px]">·</span>
-                    <button
-                      onClick={() => navigate("/personalization")}
-                      className="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors"
-                      data-testid="link-learn-more"
-                    >
-                      learn more
-                    </button>
+                  <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
+                    <Eye className="h-3 w-3 text-slate-400" />
+                    <p className="text-[10px] text-slate-400">
+                      Viewing as <span className={`font-semibold ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+                    </p>
                   </div>
                 ) : (
                   <p className="text-[10px] text-slate-400">
