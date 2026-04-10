@@ -79,7 +79,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
     return (
       <div className={`relative group ${containerClass} overflow-hidden border border-white/10 ${className}`}>
         <img src={value} alt={label || "Uploaded"} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
