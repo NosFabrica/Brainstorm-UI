@@ -698,9 +698,9 @@ export default function UserPanelPage() {
                 <div className={`overflow-hidden transition-all duration-300 ease-in-out ${agentCardExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
                 <div className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0">
                 {!agentIsLive ? (
-                  <div className="max-w-md mx-auto space-y-4" data-testid="agent-activation-flow">
+                  <div className="max-w-3xl mx-auto space-y-4" data-testid="agent-activation-flow">
 
-                    <div className="space-y-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-2">
                         <div className="flex items-center gap-1.5">
                           <div className="h-1 w-1 rounded-full bg-cyan-400" />
@@ -719,10 +719,10 @@ export default function UserPanelPage() {
                         <div>
                           <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Bio</label>
                           <textarea
-                            placeholder="What does your assistant do? Describe its role and purpose..."
+                            placeholder="Describe its role and purpose..."
                             value={agentDescInput}
                             onChange={e => setAgentDescInput(e.target.value)}
-                            rows={3}
+                            rows={2}
                             className="w-full rounded-md bg-white/[0.07] border border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/25 focus:bg-white/[0.09] px-3 py-2 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] resize-none outline-none"
                             data-testid="input-agent-desc"
                           />
@@ -762,9 +762,9 @@ export default function UserPanelPage() {
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-amber-400/80">Connections</span>
                           <span className="text-[9px] italic text-slate-500 ml-1">optional</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2.5">
+                        <div className="space-y-2">
                           <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Lightning</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Lightning</label>
                             <Input
                               placeholder="you@getalby.com"
                               value={agentLud16Input}
@@ -774,7 +774,7 @@ export default function UserPanelPage() {
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">NIP-05</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">NIP-05</label>
                             <Input
                               placeholder="you@nostr.com"
                               value={agentNip05Input}
@@ -783,8 +783,8 @@ export default function UserPanelPage() {
                               data-testid="input-agent-nip05"
                             />
                           </div>
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Website</label>
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Website</label>
                             <Input
                               placeholder="https://yoursite.com"
                               value={agentWebsiteInput}
