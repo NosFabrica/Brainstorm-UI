@@ -761,6 +761,7 @@ export default function UserPanelPage() {
                         <div className="flex items-center gap-1.5 mb-1">
                           <div className="h-1 w-1 rounded-full bg-amber-400" />
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-amber-400/80">Connections</span>
+                          <span className="text-[9px] italic text-slate-500 ml-1">optional</span>
                         </div>
                         <div className="grid grid-cols-2 gap-2.5">
                           <div>
