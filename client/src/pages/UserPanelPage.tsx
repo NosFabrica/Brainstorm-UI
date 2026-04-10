@@ -388,15 +388,29 @@ export default function UserPanelPage() {
     mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(getProfilePayload()),
     onSuccess: () => {
       updateAgentState({ ...getAgentStateUpdates(), status: "active", publishedAt: Date.now() });
-      toast({ title: "Agent deployed!", description: `${agentNameInput.trim() || "Your agent"} is now live on the Nostr network.` });
+      toast({ title: "Sidekick deployed!", description: `${agentNameInput.trim() || "Your sidekick"} is now live on the Nostr network.` });
     },
     onError: (error: Error) => {
       if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
         updateAgentState({ ...getAgentStateUpdates(), status: "active", activatedAt: Date.now() });
-        toast({ title: "Agent activated locally", description: "Backend publishing will be available soon. Your agent is ready!" });
+        toast({ title: "Sidekick activated locally", description: "Backend publishing will be available soon. Your sidekick is ready!" });
       } else {
         updateAgentState({ status: "dormant" });
         toast({ variant: "destructive", title: "Activation failed", description: error.message || "Something went wrong." });
+      }
+    },
+  });
+
+  const updateBrainstormProfile = useMutation({
+    mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(getProfilePayload()),
+    onSuccess: () => {
+      toast({ title: "Sidekick updated", description: "Profile published to the network." });
+    },
+    onError: (error: Error) => {
+      if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+        toast({ title: "Saved locally", description: "Backend publishing will sync when available." });
+      } else {
+        toast({ variant: "destructive", title: "Update failed", description: error.message || "Could not publish changes." });
       }
     },
   });
@@ -417,8 +431,7 @@ export default function UserPanelPage() {
 
   const handleUpdateAgent = () => {
     updateAgentState(getAgentStateUpdates());
-    publishBrainstormProfile.mutate();
-    toast({ title: "Sidekick updated", description: "Your sidekick's profile has been saved." });
+    updateBrainstormProfile.mutate();
   };
 
   const resolveNpubInput = (): string | null => {
