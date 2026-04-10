@@ -485,7 +485,7 @@ export default function SearchPage() {
                         data-testid="button-pov-switcher"
                       >
                         <div className="relative">
-                          <Avatar className={`h-7 w-7 border-2 transition-all duration-300 ${pov === "nosfabrica" ? "border-indigo-400 ring-2 ring-indigo-200/50" : "border-emerald-400 ring-2 ring-emerald-200/50"}`}>
+                          <Avatar className={`h-7 w-7 border transition-all duration-300 ${pov === "nosfabrica" ? "border-indigo-200 ring-1 ring-indigo-100/60" : "border-emerald-200 ring-1 ring-emerald-100/60"}`}>
                             {pov === "nosfabrica" ? (
                               <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
                             ) : (
@@ -495,51 +495,51 @@ export default function SearchPage() {
                               </>
                             )}
                           </Avatar>
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-white ${pov === "nosfabrica" ? "bg-indigo-500" : "bg-emerald-500"}`} />
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${pov === "nosfabrica" ? "bg-indigo-400" : "bg-emerald-400"}`} />
                         </div>
                         <ChevronDown className="h-3 w-3 text-slate-400 group-hover/pov:text-slate-600 transition-colors" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-72 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl p-1" data-testid="dropdown-pov">
-                      <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400 px-3 py-1.5">
+                    <DropdownMenuContent align="start" className="w-72 bg-white border-slate-200/80 shadow-lg shadow-slate-200/30 p-1.5 rounded-xl" data-testid="dropdown-pov">
+                      <DropdownMenuLabel className="text-[10px] font-medium tracking-[0.08em] uppercase text-slate-400 px-3 py-1.5">
                         Point of View
                       </DropdownMenuLabel>
                       <DropdownMenuItem
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "nosfabrica" ? "bg-indigo-50/80" : "hover:bg-slate-50"}`}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors focus:bg-indigo-50/50 focus:text-slate-900 ${pov === "nosfabrica" ? "bg-indigo-50/60" : ""}`}
                         onClick={() => handlePovSwitch("nosfabrica")}
                         data-testid="pov-option-nosfabrica"
                       >
-                        <Avatar className="h-9 w-9 border-2 border-indigo-200 shrink-0">
+                        <Avatar className="h-8 w-8 border border-indigo-200/60 shrink-0">
                           <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-slate-900">NosFabrica</span>
-                            {pov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                            <span className="text-sm font-medium text-slate-800">NosFabrica</span>
+                            {pov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-500" />}
                           </div>
-                          <p className="text-[11px] text-slate-500 leading-tight">House Web of Trust scores</p>
+                          <p className="text-[11px] text-slate-400 leading-tight">House Web of Trust scores</p>
                         </div>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "mywot" ? "bg-emerald-50/80" : "hover:bg-slate-50"}`}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors focus:bg-emerald-50/50 focus:text-slate-900 ${pov === "mywot" ? "bg-emerald-50/60" : ""}`}
                         onClick={() => handlePovSwitch("mywot")}
                         data-testid="pov-option-mywot"
                       >
-                        <Avatar className="h-9 w-9 border-2 border-emerald-200 shrink-0">
+                        <Avatar className="h-8 w-8 border border-emerald-200/60 shrink-0">
                           {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                          <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                          <AvatarFallback className="bg-emerald-50/60 text-emerald-600 font-medium text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-slate-900 truncate">{user.displayName || "My WoT"}</span>
-                            {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                            <span className="text-sm font-medium text-slate-800 truncate">{user.displayName || "My WoT"}</span>
+                            {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-500" />}
                           </div>
-                          <p className="text-[11px] text-slate-500 leading-tight">Your personal Web of Trust scores</p>
+                          <p className="text-[11px] text-slate-400 leading-tight">Your personal Web of Trust scores</p>
                         </div>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-1 bg-slate-100" />
+                      <DropdownMenuSeparator className="my-1 bg-slate-100/80" />
                       <DropdownMenuItem
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-500"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer focus:bg-slate-50/80 focus:text-slate-600 text-slate-400"
                         onClick={() => navigate("/personalization")}
                         data-testid="link-learn-more"
                       >
