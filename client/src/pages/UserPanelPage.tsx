@@ -58,7 +58,6 @@ import {
   Globe,
   Award,
   Star,
-  Rocket,
   Eye,
   Signal,
   ChevronDown,
@@ -1324,7 +1323,7 @@ export default function UserPanelPage() {
             <AlertDialogHeader className="space-y-3">
               <div className="flex items-start gap-3">
                 <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/20 flex items-center justify-center shadow-[0_8px_20px_-10px_rgba(6,182,212,0.3)] shrink-0">
-                  <Rocket className="h-5 w-5 text-cyan-600" />
+                  <AgentIcon className="h-5 w-5 text-cyan-600" />
                 </div>
                 <div className="min-w-0">
                   <AlertDialogTitle className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -1336,15 +1335,15 @@ export default function UserPanelPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2">
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500">Agent Name</span>
                   <span className="text-xs font-bold text-slate-900">{agentNameInput.trim()}</span>
                 </div>
                 {agentDescInput.trim() && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Description</span>
-                    <span className="text-xs text-slate-700 truncate max-w-[200px]">{agentDescInput.trim()}</span>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-500 block mb-0.5">Description</span>
+                    <span className="text-xs text-slate-700 leading-relaxed">{agentDescInput.trim()}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -1355,12 +1354,18 @@ export default function UserPanelPage() {
                   <span className="text-xs font-semibold text-slate-500">Relays</span>
                   <span className="text-xs text-slate-600">5 relays</span>
                 </div>
+                <div className="pt-1.5 border-t border-slate-200/80">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-cyan-50 to-indigo-50 border border-cyan-200/60" data-testid="badge-certified-assistant">
+                    <AgentIcon className="h-3 w-3 text-cyan-600" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Certified Brainstorm Assistant</span>
+                  </div>
+                </div>
               </div>
             </AlertDialogHeader>
             <AlertDialogFooter className="mt-4 gap-2">
               <AlertDialogCancel className="rounded-xl" data-testid="button-activate-cancel">Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleConfirmActivation} className="rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white gap-2" data-testid="button-activate-confirm">
-                <Rocket className="h-4 w-4" /> Deploy Agent
+                <AgentIcon className="h-4 w-4" /> Deploy Agent
               </AlertDialogAction>
             </AlertDialogFooter>
           </div>
