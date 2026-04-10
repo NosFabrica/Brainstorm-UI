@@ -534,6 +534,14 @@ export default function SearchPage() {
                       </Avatar>
                       <span className={`text-[10px] font-semibold ${pov === "mywot" ? "text-emerald-600" : "text-slate-400"}`}>My WoT</span>
                     </button>
+                    <span className="text-slate-300 text-[10px]">·</span>
+                    <button
+                      onClick={() => navigate("/personalization")}
+                      className="text-[10px] text-slate-400 hover:text-indigo-500 transition-colors"
+                      data-testid="link-learn-more"
+                    >
+                      learn more
+                    </button>
                   </div>
                 ) : (
                   <p className="text-[10px] text-slate-400">
