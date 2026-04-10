@@ -199,7 +199,7 @@ export default function UserPanelPage() {
   const [agentLud16Input, setAgentLud16Input] = useState(() => getDefaultAgentState().lud16);
   const [agentNip05Input, setAgentNip05Input] = useState(() => getDefaultAgentState().nip05);
   const [agentWebsiteInput, setAgentWebsiteInput] = useState(() => getDefaultAgentState().website);
-  const [agentCardExpanded, setAgentCardExpanded] = useState(true);
+  const [agentCardExpanded, setAgentCardExpanded] = useState(false);
   const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
   const [npubInput, setNpubInput] = useState("");
   const [lookedUpUser, setLookedUpUser] = useState<LookedUpUser | null>(null);
@@ -675,6 +675,13 @@ export default function UserPanelPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {agentIsLive && !agentCardExpanded && (
+                      <div className="hidden sm:flex items-center gap-1.5">
+                        {agentState.lud16 && <Zap className="h-3 w-3 text-amber-400" title={agentState.lud16} />}
+                        {agentState.nip05 && <CheckCircle2 className="h-3 w-3 text-purple-400" title={agentState.nip05} />}
+                        {agentState.website && <Globe className="h-3 w-3 text-cyan-400" title={agentState.website} />}
+                      </div>
+                    )}
                     {agentIsLive && (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${statusConfig.bgClass} border ${statusConfig.borderClass}`}>
                         <span className="relative flex h-1.5 w-1.5">
