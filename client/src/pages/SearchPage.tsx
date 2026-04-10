@@ -18,6 +18,9 @@ import {
   TrendingUp,
   ExternalLink,
   Clock,
+  Eye,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
@@ -40,6 +43,9 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
 import { getTier, freshnessScore, getRelativeTime } from "@/utils/trustTiers";
+import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
+
+type SearchPov = "nosfabrica" | "mywot";
 
 const SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
 
@@ -172,6 +178,7 @@ export default function SearchPage() {
   const [searchTime, setSearchTime] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
+  const [pov, setPov] = useState<SearchPov>("nosfabrica");
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/api/auth/graperankResult"],
@@ -206,6 +213,14 @@ export default function SearchPage() {
     }
     return map;
   }, [selfData]);
+
+  const taPubkey = selfData?.data?.history?.ta_pubkey;
+  const hasPovOption = !!taPubkey;
+
+  const observerPubkey = useMemo(() => {
+    if (pov === "nosfabrica" && taPubkey) return taPubkey;
+    return user?.pubkey;
+  }, [pov, taPubkey, user?.pubkey]);
 
   const sortedResults = useMemo((): RankedSearchResult[] => {
     if (results.length === 0) return [];
@@ -317,7 +332,7 @@ export default function SearchPage() {
     const start = performance.now();
 
     try {
-      const searchResults = await searchRelay(q, user?.pubkey, 30);
+      const searchResults = await searchRelay(q, observerPubkey, 30);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(Math.round(performance.now() - start));
@@ -329,7 +344,18 @@ export default function SearchPage() {
         setIsSearching(false);
       }
     }
-  }, [query, user, navigate]);
+  }, [query, observerPubkey, navigate]);
+
+  const handlePovSwitch = useCallback((newPov: SearchPov) => {
+    if (newPov === pov) return;
+    setPov(newPov);
+  }, [pov]);
+
+  useEffect(() => {
+    if (hasSearched && query.trim()) {
+      handleSearch();
+    }
+  }, [pov]);
 
   const handleLogout = () => {
     logout();
@@ -447,9 +473,81 @@ export default function SearchPage() {
             <div className="relative group/search" data-testid="container-search-input">
               <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-violet-500/20 to-indigo-500/20 rounded-2xl blur-lg opacity-0 group-hover/search:opacity-100 transition-opacity duration-500 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
               <div className="relative flex items-center bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-indigo-300/50 transition-all duration-300 overflow-hidden">
-                <div className="pl-4 text-slate-400">
-                  <SearchIcon className="h-5 w-5" />
-                </div>
+                {hasPovOption ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="pl-3 pr-1 flex items-center gap-1 shrink-0 group/pov focus:outline-none"
+                        data-testid="button-pov-switcher"
+                      >
+                        <div className="relative">
+                          <Avatar className={`h-7 w-7 border-2 transition-all duration-300 ${pov === "nosfabrica" ? "border-indigo-400 ring-2 ring-indigo-200/50" : "border-emerald-400 ring-2 ring-emerald-200/50"}`}>
+                            {pov === "nosfabrica" ? (
+                              <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+                            ) : (
+                              <>
+                                {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                                <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[10px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                              </>
+                            )}
+                          </Avatar>
+                          <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-[1.5px] border-white ${pov === "nosfabrica" ? "bg-indigo-500" : "bg-emerald-500"}`} />
+                        </div>
+                        <ChevronDown className="h-3 w-3 text-slate-400 group-hover/pov:text-slate-600 transition-colors" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-72 bg-white/95 backdrop-blur-xl border-slate-200 shadow-xl p-1" data-testid="dropdown-pov">
+                      <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400 px-3 py-1.5">
+                        Point of View
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "nosfabrica" ? "bg-indigo-50/80" : "hover:bg-slate-50"}`}
+                        onClick={() => handlePovSwitch("nosfabrica")}
+                        data-testid="pov-option-nosfabrica"
+                      >
+                        <Avatar className="h-9 w-9 border-2 border-indigo-200 shrink-0">
+                          <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-slate-900">NosFabrica</span>
+                            {pov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-tight">House Web of Trust scores</p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${pov === "mywot" ? "bg-emerald-50/80" : "hover:bg-slate-50"}`}
+                        onClick={() => handlePovSwitch("mywot")}
+                        data-testid="pov-option-mywot"
+                      >
+                        <Avatar className="h-9 w-9 border-2 border-emerald-200 shrink-0">
+                          {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-semibold text-slate-900 truncate">{user.displayName || "My WoT"}</span>
+                            {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-tight">Your personal Web of Trust</p>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <div className="pl-4 text-slate-400">
+                    <SearchIcon className="h-5 w-5" />
+                  </div>
+                )}
+                {hasPovOption && (
+                  <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+                )}
+                {hasPovOption ? (
+                  <div className="pl-1 text-slate-400">
+                    <SearchIcon className="h-4.5 w-4.5" />
+                  </div>
+                ) : null}
                 <Input
                   ref={inputRef}
                   placeholder="Search people on Nostr..."
@@ -483,9 +581,19 @@ export default function SearchPage() {
                 </Button>
               </div>
               <div className="flex items-center gap-3 mt-2 px-1">
-                <p className="text-[10px] text-slate-400">
-                  Accepts names, npubs, hex keys, or NIP-05 handles
-                </p>
+                {hasPovOption && (
+                  <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
+                    <Eye className="h-3 w-3 text-slate-400" />
+                    <p className="text-[10px] text-slate-400">
+                      Viewing as <span className={`font-semibold ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+                    </p>
+                  </div>
+                )}
+                {!hasPovOption && (
+                  <p className="text-[10px] text-slate-400">
+                    Accepts names, npubs, hex keys, or NIP-05 handles
+                  </p>
+                )}
                 {hasSearched && sortedResults.length > 0 && (
                   <p className="text-[10px] text-slate-400 ml-auto" data-testid="text-search-stats">
                     {sortedResults.length} result{sortedResults.length !== 1 ? "s" : ""} in {(searchTime / 1000).toFixed(2)}s
