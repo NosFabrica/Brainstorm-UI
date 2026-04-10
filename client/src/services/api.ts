@@ -231,13 +231,13 @@ export const apiClient = {
     return await response.json();
   },
 
-  async publishBrainstormAssistantProfile(profile?: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
+  async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
     const response = await authenticatedFetch(
       `${BRAINSTORM_API}/user/publishAssistantProfile`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: profile ? JSON.stringify(profile) : undefined,
+        body: JSON.stringify(profile),
         signal: AbortSignal.timeout(30000),
       },
     );
