@@ -435,7 +435,7 @@ export default function SearchPage() {
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
-                    Brainstorm Search
+                    Brainstorm
                   </span>
                 </h1>
                 <p className="text-slate-500 text-sm max-w-lg mx-auto" data-testid="text-search-subtitle">
