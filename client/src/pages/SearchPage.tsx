@@ -466,14 +466,15 @@ export default function SearchPage() {
             {!hasSearched && (
               <div className="text-center mb-6" data-testid="section-search-hero">
                 <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <BrainLogo size={40} className="text-indigo-600 mb-1" />
-                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                  <BrainLogo size={36} className="text-indigo-600 mb-1 sm:hidden" />
+                  <BrainLogo size={40} className="text-indigo-600 mb-1 hidden sm:block" />
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
                       Brainstorm
                     </span>
                   </h1>
                 </div>
-                <p className={`text-slate-400 text-sm mt-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                <p className={`text-slate-400 text-xs sm:text-sm mt-1.5 sm:mt-2 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   Search the decentralized web, ranked by trust.
                 </p>
               </div>
@@ -560,8 +561,8 @@ export default function SearchPage() {
                 )}
                 <Input
                   ref={inputRef}
-                  placeholder="Signal Engine Optimization — rank signals, not pages."
-                  className="border-0 shadow-none focus-visible:ring-0 h-12 sm:h-14 text-sm sm:text-base bg-transparent placeholder:text-slate-400"
+                  placeholder="Search by name, npub, or NIP-05..."
+                  className="border-0 shadow-none focus-visible:ring-0 h-12 sm:h-14 text-sm sm:text-base bg-transparent placeholder:text-slate-400 min-w-0"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -637,11 +638,11 @@ export default function SearchPage() {
                   return (
                     <button
                       key={result.pubkey}
-                      className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl hover:bg-white/90 hover:shadow-md hover:border-indigo-200/50 border border-transparent transition-all duration-200 text-left group cursor-pointer ${isStale ? "opacity-80" : ""}`}
+                      className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl hover:bg-white/90 active:bg-white/95 hover:shadow-md hover:border-indigo-200/50 border border-transparent transition-all duration-200 text-left group cursor-pointer ${isStale ? "opacity-80" : ""}`}
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
-                      <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border border-slate-200 shadow-sm shrink-0 mt-0.5">
+                      <Avatar className="h-9 w-9 sm:h-11 sm:w-11 border border-slate-200 shadow-sm shrink-0 mt-0.5">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                         <AvatarFallback className="bg-indigo-50 text-indigo-700 font-bold text-xs">
                           {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
@@ -660,8 +661,8 @@ export default function SearchPage() {
                           )}
                           {result.nip05 && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0" data-testid={`badge-nip05-${idx}`}>
-                              <CheckCircle2 className="h-2.5 w-2.5" />
-                              <span className="truncate max-w-[120px] sm:max-w-[180px]">{result.nip05}</span>
+                              <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate max-w-[80px] sm:max-w-[180px]">{result.nip05}</span>
                             </span>
                           )}
                           {isStale && result.createdAt && (
@@ -702,25 +703,25 @@ export default function SearchPage() {
 
       <div className="w-full py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/40 to-transparent" />
-        <div className="max-w-xl mx-auto flex items-center justify-center gap-5 text-slate-400" data-testid="section-search-features">
+        <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-4 text-slate-400" data-testid="section-search-features">
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
-            <Users className="h-3.5 w-3.5 text-indigo-300" />
-            <span className="text-[11px] tracking-wide">Profile search</span>
+            <Users className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Profile search</span>
           </div>
-          <div className="w-px h-3 bg-slate-200/60" />
+          <div className="w-px h-3 bg-slate-200/60 hidden sm:block" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-1">
-            <TrendingUp className="h-3.5 w-3.5 text-indigo-300" />
-            <span className="text-[11px] tracking-wide">Trust ranked</span>
+            <TrendingUp className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Trust ranked</span>
           </div>
-          <div className="w-px h-3 bg-slate-200/60" />
+          <div className="w-px h-3 bg-slate-200/60 hidden sm:block" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-indigo-300" />
-            <span className="text-[11px] tracking-wide">Identity verified</span>
+            <CheckCircle2 className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Identity verified</span>
           </div>
-          <div className="w-px h-3 bg-slate-200/60" />
+          <div className="w-px h-3 bg-slate-200/60 hidden sm:block" />
           <div className="flex items-center gap-1">
-            <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-            <span className="text-[10px] font-semibold tracking-[0.08em] text-indigo-500/60 uppercase">Open Protocol</span>
+            <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse shrink-0" />
+            <span className="text-[9px] sm:text-[10px] font-semibold tracking-[0.08em] text-indigo-500/60 uppercase whitespace-nowrap">Open Protocol</span>
           </div>
         </div>
       </div>
