@@ -10,23 +10,107 @@ interface ImageUploadProps {
   className?: string;
 }
 
-async function uploadImage(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("fileToUpload", file);
-  formData.append("reqtype", "fileupload");
+const MAX_AVATAR_SIZE = 400;
+const MAX_BANNER_WIDTH = 1200;
+const MAX_BANNER_HEIGHT = 400;
+const JPEG_QUALITY = 0.82;
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-  const response = await fetch("https://catbox.moe/user/api.php", {
+function resizeImage(file: File, maxW: number, maxH: number, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width;
+      let h = img.height;
+      if (w > maxW || h > maxH) {
+        const ratio = Math.min(maxW / w, maxH / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas not supported")); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Compression failed")); return; }
+          resolve(blob);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadToNostrBuild(blob: Blob): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", blob, "image.jpg");
+
+  const response = await fetch("https://nostr.build/api/v2/upload/files", {
     method: "POST",
     body: formData,
   });
 
-  if (!response.ok) {
-    throw new Error(`Upload failed (${response.status})`);
+  if (response.ok) {
+    const data = await response.json();
+    const url = data?.data?.[0]?.url;
+    if (url) return url;
+  }
+  throw new Error("nostr.build failed");
+}
+
+async function uploadToVoidCat(blob: Blob): Promise<string> {
+  const response = await fetch("https://void.cat/upload", {
+    method: "POST",
+    body: blob,
+    headers: {
+      "Content-Type": "image/jpeg",
+      "V-Content-Type": "image/jpeg",
+    },
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    if (data?.file?.url) return data.file.url;
+    if (data?.id) return `https://void.cat/d/${data.id}`;
+  }
+  throw new Error("void.cat failed");
+}
+
+async function uploadImage(blob: Blob): Promise<string> {
+  const errors: string[] = [];
+
+  try {
+    return await uploadToNostrBuild(blob);
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "nostr.build failed");
   }
 
-  const url = await response.text();
-  if (!url || !url.startsWith("http")) throw new Error("Upload failed — no URL returned");
-  return url.trim();
+  try {
+    return await uploadToVoidCat(blob);
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "void.cat failed");
+  }
+
+  const dataUrl = await blobToDataUrl(blob);
+  if (dataUrl.length > 2 * 1024 * 1024) {
+    throw new Error("Upload services unavailable and image too large for inline storage");
+  }
+  return dataUrl;
 }
 
 export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "" }: ImageUploadProps) {
@@ -35,26 +119,31 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const isSquare = aspect === "square";
+  const maxW = isSquare ? MAX_AVATAR_SIZE : MAX_BANNER_WIDTH;
+  const maxH = isSquare ? MAX_AVATAR_SIZE : MAX_BANNER_HEIGHT;
+
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("Please select an image file");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Image must be under 10MB");
+    if (file.size > MAX_FILE_BYTES) {
+      setError("Image must be under 5MB");
       return;
     }
     setError(null);
     setUploading(true);
     try {
-      const url = await uploadImage(file);
+      const compressed = await resizeImage(file, maxW, maxH, JPEG_QUALITY);
+      const url = await uploadImage(compressed);
       onChange(url);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
-  }, [onChange]);
+  }, [onChange, maxW, maxH]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -70,7 +159,6 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
 
   const handleDragLeave = useCallback(() => setDragOver(false), []);
 
-  const isSquare = aspect === "square";
   const containerClass = isSquare
     ? "w-[72px] h-[72px] rounded-xl"
     : "w-full h-[72px] rounded-xl";
