@@ -356,7 +356,7 @@ export default function SettingsPage() {
                   data-testid="button-nav-agentsuite"
                 >
                   <AgentIcon className="h-4 w-4" />
-                  <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent HQ</span>
                 </Button>
               </div>
             </div>

@@ -547,7 +547,7 @@ export default function UserPanelPage() {
                 </div>
                 <div className="leading-tight text-left min-w-0">
                   <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80">Brainstorm</p>
-                  <p className="text-sm font-bold bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent" style={{ fontFamily: "var(--font-display)" }}>Agent Suite</p>
+                  <p className="text-sm font-bold bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent" style={{ fontFamily: "var(--font-display)" }}>Agent HQ</p>
                 </div>
               </button>
 
@@ -567,7 +567,7 @@ export default function UserPanelPage() {
                   <Users className="h-4 w-4" /> Network
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-white rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-agentsuite">
-                  <AgentIcon className="h-4 w-4" /> <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  <AgentIcon className="h-4 w-4" /> <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent HQ</span>
                 </Button>
               </div>
             </div>
@@ -628,15 +628,15 @@ export default function UserPanelPage() {
             <div className="space-y-2" data-testid="section-agentsuite-header">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
+                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Agent Headquarters</p>
               </div>
               <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agentsuite-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Agent Suite
+                  Agent HQ
                 </span>
               </h1>
               <p className="text-xs sm:text-base text-slate-600 font-medium" data-testid="text-agentsuite-subtitle">
-                Build your trust assistant — it grows with your network and earns trust on your behalf.
+                Your command center — activate your agent, track its growth, and manage your trust network.
               </p>
             </div>
           </div>
