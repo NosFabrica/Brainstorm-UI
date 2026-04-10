@@ -629,12 +629,12 @@ export default function UserPanelPage() {
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
+              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Agent Suite
                 </span>
               </h1>
-              <p className="text-sm sm:text-base text-slate-600 font-medium" data-testid="text-panel-subtitle">
+              <p className="text-xs sm:text-base text-slate-600 font-medium" data-testid="text-panel-subtitle">
                 Build your trust assistant — it grows with your network and earns trust on your behalf.
               </p>
             </div>
@@ -995,30 +995,68 @@ export default function UserPanelPage() {
                 <div className="h-4 w-20 bg-white/10 rounded" />
               </div>
             ) : (
-              <div className="space-y-3">
+              <>
+              <div className="hidden sm:flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Pubkey</span>
+                  <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub">
+                    {truncatedNpub}
+                    <Copy className="h-3 w-3 text-indigo-300/50" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2" data-testid="nip85-inline-status">
+                  <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">NIP-85</span>
+                  {nip85Activated ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30" data-testid="badge-nip85-active">
+                      <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" /></span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Active</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/20 border border-slate-500/30" data-testid="badge-nip85-inactive">
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Inactive</span>
+                    </span>
+                  )}
+                  {nip85Activated && (
+                    <span className="text-[10px] text-slate-500">Brainstorm · <span className="font-mono text-white/50">10040</span></span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Network</span>
+                  <span className="text-xs font-bold text-white" data-testid="text-overview-network-size">{totalNetworkSize.toLocaleString()} users</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Last Calc</span>
+                  <span className="text-xs text-white/70" data-testid="text-overview-last-calc">{formatRelativeTime(lastCalculated)}</span>
+                </div>
+                <button type="button" onClick={() => navigate("/settings")} className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all ml-auto" data-testid="link-nip85-settings">
+                  <SettingsIcon className="h-3 w-3" /> Manage
+                </button>
+              </div>
+              <div className="sm:hidden space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider shrink-0">Pubkey</span>
-                    <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors truncate" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub">
+                    <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors truncate" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub-mobile">
                       {truncatedNpub}
                       <Copy className="h-3 w-3 text-indigo-300/50 shrink-0" />
                     </button>
                   </div>
-                  <button type="button" onClick={() => navigate("/settings")} className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all shrink-0" data-testid="link-nip85-settings">
+                  <button type="button" onClick={() => navigate("/settings")} className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all shrink-0" data-testid="link-nip85-settings-mobile">
                     <SettingsIcon className="h-3 w-3" /> Manage
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                  <div className="col-span-2 sm:col-span-1" data-testid="nip85-inline-status">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2" data-testid="nip85-inline-status-mobile">
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider block mb-1">NIP-85</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {nip85Activated ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30" data-testid="badge-nip85-active">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30">
                           <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" /></span>
                           <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Active</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/20 border border-slate-500/30" data-testid="badge-nip85-inactive">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-500/20 border border-slate-500/30">
                           <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-400" />
                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Inactive</span>
                         </span>
@@ -1030,14 +1068,15 @@ export default function UserPanelPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider block mb-1">Network</span>
-                    <span className="text-xs font-bold text-white" data-testid="text-overview-network-size">{totalNetworkSize.toLocaleString()} users</span>
+                    <span className="text-xs font-bold text-white">{totalNetworkSize.toLocaleString()} users</span>
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider block mb-1">Last Calc</span>
-                    <span className="text-xs text-white/70" data-testid="text-overview-last-calc">{formatRelativeTime(lastCalculated)}</span>
+                    <span className="text-xs text-white/70">{formatRelativeTime(lastCalculated)}</span>
                   </div>
                 </div>
               </div>
+              </>
             )}
           </div>
 
