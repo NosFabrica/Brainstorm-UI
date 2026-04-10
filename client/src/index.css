@@ -460,6 +460,13 @@
   100% { background-position: -200% 0; opacity: 0; }
 }
 
+@keyframes floatDot {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.4; }
+  25% { transform: translateY(-8px) translateX(3px); opacity: 0.7; }
+  50% { transform: translateY(-4px) translateX(-2px); opacity: 0.5; }
+  75% { transform: translateY(-10px) translateX(1px); opacity: 0.6; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
