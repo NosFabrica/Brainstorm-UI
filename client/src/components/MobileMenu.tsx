@@ -11,7 +11,7 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Shield,
-  LayoutDashboard,
+  Bot,
 } from "lucide-react";
 
 interface MobileMenuProps {
@@ -34,7 +34,7 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
-  { path: "/panel", label: "My Panel", icon: LayoutDashboard },
+  { path: "/panel", label: "Agent HQ", icon: Bot },
 ];
 
 const helpNav = [

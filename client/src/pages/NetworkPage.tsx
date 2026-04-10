@@ -29,7 +29,7 @@ import {
   Shield,
   Network,
   HelpCircle,
-  LayoutDashboard,
+  Bot,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1335,8 +1335,8 @@ export default function NetworkPage() {
                   Network
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/panel")} data-testid="button-nav-panel">
-                  <LayoutDashboard className="h-4 w-4" />
-                  My Panel
+                  <Bot className="h-4 w-4" />
+                  Agent HQ
                 </Button>
               </div>
             </div>

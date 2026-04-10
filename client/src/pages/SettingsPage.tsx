@@ -45,7 +45,7 @@ import {
   Globe,
   Shield,
   Copy,
-  LayoutDashboard,
+  Bot,
 } from "lucide-react";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
@@ -355,8 +355,8 @@ export default function SettingsPage() {
                   onClick={() => navigate("/panel")}
                   data-testid="button-nav-panel"
                 >
-                  <LayoutDashboard className="h-4 w-4" />
-                  My Panel
+                  <Bot className="h-4 w-4" />
+                  Agent HQ
                 </Button>
               </div>
             </div>
