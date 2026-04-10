@@ -565,7 +565,7 @@ export default function UserPanelPage() {
                 <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
                   <Users className="h-4 w-4" /> Network
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/10 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-panel">
+                <Button variant="ghost" size="sm" className="gap-2 text-white rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-panel">
                   <AgentIcon className="h-4 w-4" /> <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
                 </Button>
               </div>
