@@ -485,14 +485,13 @@ export default function SearchPage() {
             )}
 
             <div className={`relative group/search ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.8s_both]" : ""}`} data-testid="container-search-input">
-              <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-400/20 via-violet-400/15 to-indigo-400/20 rounded-2xl blur-xl opacity-0 group-hover/search:opacity-100 transition-opacity duration-700 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
-              <div className="absolute -inset-[0.5px] rounded-xl bg-gradient-to-r from-indigo-200/40 via-violet-200/30 to-indigo-200/40 opacity-0 group-hover/search:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className={`absolute -inset-0.5 bg-gradient-to-r from-indigo-300/10 via-violet-300/8 to-indigo-300/10 rounded-xl blur-md opacity-0 group-hover/search:opacity-100 transition-opacity duration-700 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
               {firstVisit && (
                 <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                   <div className="absolute inset-0 animate-[shimmer_2s_ease-in-out_1.2s_both]" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.08) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
                 </div>
               )}
-              <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200/80 shadow-lg shadow-indigo-100/20 hover:shadow-xl hover:shadow-indigo-100/30 hover:border-indigo-200/60 transition-all duration-300 overflow-hidden">
+              <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200/80 shadow-sm shadow-slate-200/30 hover:shadow-md hover:shadow-indigo-100/15 hover:border-indigo-200/40 transition-all duration-300 overflow-hidden">
                 {hasPovOption ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
