@@ -57,6 +57,11 @@ interface SearchResult {
   createdAt?: number;
 }
 
+interface RankedSearchResult extends SearchResult {
+  composite: number;
+  trustInfluence: number | null;
+}
+
 function parseProfileEvent(event: any): SearchResult | null {
   try {
     const content = JSON.parse(event.content);
@@ -202,8 +207,8 @@ export default function SearchPage() {
     return map;
   }, [selfData]);
 
-  const sortedResults = useMemo(() => {
-    if (results.length === 0) return results;
+  const sortedResults = useMemo((): RankedSearchResult[] => {
+    if (results.length === 0) return [];
     const RELAY_WEIGHT = 0.5;
     const FRESHNESS_WEIGHT = 0.3;
     const TRUST_WEIGHT = 0.2;
@@ -215,7 +220,7 @@ export default function SearchPage() {
         const fresh = freshnessScore(r.createdAt);
         const trust = Math.min(1, Math.max(0, trustScoreMap.get(r.pubkey) ?? 0));
         const composite = RELAY_WEIGHT * relayScore + FRESHNESS_WEIGHT * fresh + TRUST_WEIGHT * trust;
-        return { ...r, composite, trustInfluence: trust > 0 ? trust : null };
+        return { ...r, composite, trustInfluence: trust > 0 ? trust : null } as RankedSearchResult;
       })
       .sort((a, b) => b.composite - a.composite);
   }, [results, trustScoreMap]);
