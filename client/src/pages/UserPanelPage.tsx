@@ -913,6 +913,43 @@ export default function UserPanelPage() {
                         );
                       })}
                     </div>
+
+                    <div className="mt-3 pt-3 border-t border-white/[0.06]" data-testid="nip85-inline-status">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-indigo-400/60">NIP-85</span>
+                          {nip85Activated ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25">
+                              <span className="relative flex h-1 w-1"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" /><span className="relative inline-flex rounded-full h-1 w-1 bg-emerald-500" /></span>
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Active</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-500/15 border border-slate-500/20">
+                              <span className="relative inline-flex rounded-full h-1 w-1 bg-slate-500" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Inactive</span>
+                            </span>
+                          )}
+                          {nip85Activated && (
+                            <span className="text-[10px] text-slate-500">
+                              Brainstorm · <span className="font-mono text-slate-400">10040</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {nip85Activated && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                              <span>Clients:</span>
+                              <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="font-semibold text-purple-400/80 hover:text-purple-300 transition-colors">Amethyst</a>
+                              <span className="text-slate-600">·</span>
+                              <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="font-semibold text-orange-400/80 hover:text-orange-300 transition-colors">Nostria</a>
+                            </div>
+                          )}
+                          <a href="/settings" className="text-[10px] text-cyan-500/60 hover:text-cyan-400 transition-colors" data-testid="link-nip85-settings">
+                            Manage →
+                          </a>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
