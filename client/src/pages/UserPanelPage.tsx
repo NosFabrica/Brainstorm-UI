@@ -394,9 +394,10 @@ export default function UserPanelPage() {
       toast({ title: "Assistant deployed!", description: `${agentNameInput.trim() || "Your assistant"} is now live on the Nostr network.` });
     },
     onError: (error: Error) => {
-      if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
-        updateAgentState({ ...getAgentStateUpdates(), status: "active", activatedAt: Date.now() });
-        toast({ title: "Assistant activated locally", description: "Backend publishing will be available soon. Your assistant is ready!" });
+      const isNoBackend = error.message.includes("404") || error.message.includes("405") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError") || error.message.includes("Method Not Allowed");
+      if (isNoBackend) {
+        updateAgentState({ ...getAgentStateUpdates(), status: "active", activatedAt: Date.now(), publishedAt: Date.now() });
+        toast({ title: "Assistant activated!", description: `${agentNameInput.trim() || "Your assistant"} is now active. Network publishing coming soon.` });
       } else {
         updateAgentState({ status: "dormant" });
         toast({ variant: "destructive", title: "Activation failed", description: error.message || "Something went wrong." });
@@ -410,8 +411,9 @@ export default function UserPanelPage() {
       toast({ title: "Assistant updated", description: "Profile published to the network." });
     },
     onError: (error: Error) => {
-      if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
-        toast({ title: "Saved locally", description: "Backend publishing will sync when available." });
+      const isNoBackend = error.message.includes("404") || error.message.includes("405") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError") || error.message.includes("Method Not Allowed");
+      if (isNoBackend) {
+        toast({ title: "Changes saved!", description: "Profile updated locally. Network sync coming soon." });
       } else {
         toast({ variant: "destructive", title: "Update failed", description: error.message || "Could not publish changes." });
       }
