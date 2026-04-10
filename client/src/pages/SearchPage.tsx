@@ -468,23 +468,18 @@ export default function SearchPage() {
         <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "pt-16 sm:pt-28"}`}>
           <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
-              <div className="text-center mb-8" data-testid="section-search-hero">
-                <div className={`flex justify-center mb-3 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <BrainLogo size={32} className="text-slate-800" />
+              <div className="text-center mb-6" data-testid="section-search-hero">
+                <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
+                  <BrainLogo size={40} className="text-indigo-600 mb-1" />
+                  <h1 className="text-3xl sm:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
+                      Brainstorm
+                    </span>
+                  </h1>
                 </div>
-                <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight mb-2 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.3s_both]" : "animate-fade-up"}`} style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
-                    Brainstorm
-                  </span>
-                </h1>
-                <div className={`inline-block ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`}>
-                  <div className="relative bg-white/70 backdrop-blur-sm border border-slate-200/50 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm max-w-sm mx-auto">
-                    <p className="text-slate-600 text-sm leading-relaxed" data-testid="text-search-subtitle">
-                      Search the decentralized web, ranked by trust.
-                    </p>
-                    <div className="absolute -top-[6px] left-6 w-3 h-3 bg-white/70 border-l border-t border-slate-200/50 rotate-45" />
-                  </div>
-                </div>
+                <p className={`text-slate-400 text-sm mt-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                  Search the decentralized web, ranked by trust.
+                </p>
               </div>
             )}
 
