@@ -10,11 +10,12 @@ interface ImageUploadProps {
   className?: string;
 }
 
-async function uploadToNostrBuild(file: File): Promise<string> {
+async function uploadImage(file: File): Promise<string> {
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("fileToUpload", file);
+  formData.append("reqtype", "fileupload");
 
-  const response = await fetch("https://nostr.build/api/v2/upload/files", {
+  const response = await fetch("https://catbox.moe/user/api.php", {
     method: "POST",
     body: formData,
   });
@@ -23,10 +24,9 @@ async function uploadToNostrBuild(file: File): Promise<string> {
     throw new Error(`Upload failed (${response.status})`);
   }
 
-  const data = await response.json();
-  const url = data?.data?.[0]?.url;
-  if (!url) throw new Error("No URL returned from upload");
-  return url;
+  const url = await response.text();
+  if (!url || !url.startsWith("http")) throw new Error("Upload failed — no URL returned");
+  return url.trim();
 }
 
 export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "" }: ImageUploadProps) {
@@ -47,7 +47,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
     setError(null);
     setUploading(true);
     try {
-      const url = await uploadToNostrBuild(file);
+      const url = await uploadImage(file);
       onChange(url);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload failed");

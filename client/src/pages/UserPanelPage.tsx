@@ -791,7 +791,7 @@ export default function UserPanelPage() {
                       {agentState.status === "activating" ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> Deploying...</>
                       ) : (
-                        <><Rocket className="h-4 w-4" /> Activate Assistant</>
+                        <><AgentIcon className="h-4 w-4" /> Activate Assistant</>
                       )}
                     </Button>
 
