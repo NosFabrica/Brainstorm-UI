@@ -603,21 +603,16 @@ export default function SearchPage() {
           </div>
 
           {!hasSearched && (
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-10 animate-fade-up" style={{ animationDelay: "0.15s" }}>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="section-search-features">
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-6 animate-fade-up" style={{ animationDelay: "0.15s" }}>
+              <div className="flex items-center justify-center gap-6 sm:gap-8" data-testid="section-search-features">
                 {[
-                  { icon: Users, title: "Profile Discovery", desc: "Search across millions of indexed Nostr profiles by name or handle." },
-                  { icon: TrendingUp, title: "Trust Ranked", desc: "Results scored by your Web of Trust — see who your network trusts." },
-                  { icon: CheckCircle2, title: "Identity Verified", desc: "NIP-05 verification and trust signals shown at a glance." },
+                  { icon: Users, label: "Profile search" },
+                  { icon: TrendingUp, label: "Trust ranked" },
+                  { icon: CheckCircle2, label: "Identity verified" },
                 ].map((f, i) => (
-                  <div key={i} className="flex items-start gap-3 p-4 rounded-xl bg-white/60 border border-slate-100 hover:border-indigo-200/50 transition-colors" data-testid={`card-search-feature-${i}`}>
-                    <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
-                      <f.icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-700">{f.title}</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{f.desc}</p>
-                    </div>
+                  <div key={i} className="flex items-center gap-1.5" data-testid={`card-search-feature-${i}`}>
+                    <f.icon className="h-3.5 w-3.5 text-indigo-400" />
+                    <span className="text-xs text-slate-400">{f.label}</span>
                   </div>
                 ))}
               </div>
