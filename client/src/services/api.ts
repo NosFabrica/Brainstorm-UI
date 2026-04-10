@@ -231,6 +231,26 @@ export const apiClient = {
     return await response.json();
   },
 
+  async publishBrainstormAssistantProfile() {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/user/publishAssistantProfile`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (response.status === 404) {
+      throw new Error("404 - Endpoint not found");
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Publish failed (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async getAdminStats(): Promise<{
     totalUsers: number;
     scoredUsers: number;

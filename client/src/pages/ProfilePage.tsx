@@ -30,6 +30,7 @@ import {
   Flag,
   MoreVertical,
   HelpCircle,
+  LayoutDashboard,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1181,6 +1182,10 @@ export default function ProfilePage() {
                 >
                   <User className="h-4 w-4" />
                   Network
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/panel")} data-testid="button-nav-panel">
+                  <LayoutDashboard className="h-4 w-4" />
+                  My Panel
                 </Button>
               </div>
             </div>
