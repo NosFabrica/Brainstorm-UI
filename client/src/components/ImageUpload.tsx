@@ -72,8 +72,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
 
   const isSquare = aspect === "square";
   const containerClass = isSquare
-    ? "w-28 h-28 rounded-2xl"
-    : "w-full h-32 rounded-xl";
+    ? "w-20 h-20 rounded-xl"
+    : "w-full h-24 rounded-xl";
 
   if (value) {
     return (

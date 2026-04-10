@@ -644,134 +644,118 @@ export default function UserPanelPage() {
 
               <div className="relative p-6 sm:p-8">
                 {!agentIsLive ? (
-                  <div className="max-w-2xl mx-auto space-y-6" data-testid="agent-activation-flow">
-                    <div className="text-center space-y-2">
-                      <div className="inline-flex items-center justify-center mb-2">
-                        <div className="relative">
-                          <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.15)]">
-                            {agentPictureInput ? (
-                              <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-3xl object-cover" />
-                            ) : (
-                              <AgentIcon className="h-10 w-10 text-cyan-400" />
-                            )}
-                          </div>
-                          <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-slate-800 border-2 border-cyan-500/40 flex items-center justify-center">
-                            <Sparkles className="h-3 w-3 text-cyan-400" />
-                          </div>
+                  <div className="max-w-md mx-auto space-y-4" data-testid="agent-activation-flow">
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center">
+                          {agentPictureInput ? (
+                            <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-2xl object-cover" />
+                          ) : (
+                            <AgentIcon className="h-6 w-6 text-cyan-400" />
+                          )}
                         </div>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-activate-title">
-                        Create Your Assistant
-                      </h2>
-                      <p className="text-sm text-slate-400 max-w-md mx-auto">
-                        Your assistant represents you on the Nostr trust network. It grows with your engagement and builds trust across the ecosystem.
-                      </p>
+                      <div>
+                        <h2 className="text-lg font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-activate-title">
+                          Create Your Assistant
+                        </h2>
+                        <p className="text-xs text-slate-400">Deploy a trust agent to represent you on Nostr.</p>
+                      </div>
                     </div>
 
-                    <div className="max-w-lg mx-auto space-y-5">
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Identity</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Name your assistant *</label>
-                            <Input
-                              placeholder="e.g. TrustBot, Guardian, Sentinel..."
-                              value={agentNameInput}
-                              onChange={e => setAgentNameInput(e.target.value)}
-                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                              data-testid="input-agent-name"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Bio <span className="text-slate-500">(optional)</span></label>
-                            <Input
-                              placeholder="What does your assistant do?"
-                              value={agentDescInput}
-                              onChange={e => setAgentDescInput(e.target.value)}
-                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                              data-testid="input-agent-desc"
-                            />
-                          </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Name *</label>
+                          <Input
+                            placeholder="e.g. TrustBot, Guardian..."
+                            value={agentNameInput}
+                            onChange={e => setAgentNameInput(e.target.value)}
+                            className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 h-9 text-sm"
+                            data-testid="input-agent-name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Bio</label>
+                          <Input
+                            placeholder="What does your assistant do?"
+                            value={agentDescInput}
+                            onChange={e => setAgentDescInput(e.target.value)}
+                            className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 h-9 text-sm"
+                            data-testid="input-agent-desc"
+                          />
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Visuals</p>
-                        <div className="flex flex-col sm:flex-row gap-4 items-start">
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Profile picture</label>
-                            <ImageUpload
-                              value={agentPictureInput}
-                              onChange={setAgentPictureInput}
-                              onRemove={() => setAgentPictureInput("")}
-                              aspect="square"
-                            />
-                          </div>
-                          <div className="flex-1 w-full">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Banner</label>
-                            <ImageUpload
-                              value={agentBannerInput}
-                              onChange={setAgentBannerInput}
-                              onRemove={() => setAgentBannerInput("")}
-                              aspect="banner"
-                            />
-                          </div>
+                      <div className="flex gap-3 items-start">
+                        <div className="shrink-0">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Avatar</label>
+                          <ImageUpload
+                            value={agentPictureInput}
+                            onChange={setAgentPictureInput}
+                            onRemove={() => setAgentPictureInput("")}
+                            aspect="square"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Banner</label>
+                          <ImageUpload
+                            value={agentBannerInput}
+                            onChange={setAgentBannerInput}
+                            onRemove={() => setAgentBannerInput("")}
+                            aspect="banner"
+                          />
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Connections</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Lightning address <span className="text-slate-500">(optional)</span></label>
-                            <Input
-                              placeholder="you@getalby.com"
-                              value={agentLud16Input}
-                              onChange={e => setAgentLud16Input(e.target.value)}
-                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                              data-testid="input-agent-lud16"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">NIP-05 <span className="text-slate-500">(optional)</span></label>
-                            <Input
-                              placeholder="you@nostr.com"
-                              value={agentNip05Input}
-                              onChange={e => setAgentNip05Input(e.target.value)}
-                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                              data-testid="input-agent-nip05"
-                            />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Website <span className="text-slate-500">(optional)</span></label>
-                            <Input
-                              placeholder="https://yoursite.com"
-                              value={agentWebsiteInput}
-                              onChange={e => setAgentWebsiteInput(e.target.value)}
-                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                              data-testid="input-agent-website"
-                            />
-                          </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Lightning</label>
+                          <Input
+                            placeholder="you@getalby.com"
+                            value={agentLud16Input}
+                            onChange={e => setAgentLud16Input(e.target.value)}
+                            className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 h-9 text-sm"
+                            data-testid="input-agent-lud16"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">NIP-05</label>
+                          <Input
+                            placeholder="you@nostr.com"
+                            value={agentNip05Input}
+                            onChange={e => setAgentNip05Input(e.target.value)}
+                            className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 h-9 text-sm"
+                            data-testid="input-agent-nip05"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Website</label>
+                          <Input
+                            placeholder="https://yoursite.com"
+                            value={agentWebsiteInput}
+                            onChange={e => setAgentWebsiteInput(e.target.value)}
+                            className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20 h-9 text-sm"
+                            data-testid="input-agent-website"
+                          />
                         </div>
                       </div>
-
-                      <Button
-                        onClick={handleActivateAgent}
-                        disabled={agentState.status === "activating"}
-                        className="w-full bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold py-5 text-sm gap-2 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] transition-all duration-300"
-                        data-testid="button-activate-agent"
-                      >
-                        {agentState.status === "activating" ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> Deploying your assistant...</>
-                        ) : (
-                          <><Rocket className="h-4 w-4" /> Activate Assistant</>
-                        )}
-                      </Button>
                     </div>
 
-                    <div className="pt-4">
-                      <StatusLevelBar currentLevel={-1} />
-                    </div>
+                    <Button
+                      onClick={handleActivateAgent}
+                      disabled={agentState.status === "activating"}
+                      className="w-full bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold py-4 text-sm gap-2 shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] transition-all duration-300"
+                      data-testid="button-activate-agent"
+                    >
+                      {agentState.status === "activating" ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Deploying...</>
+                      ) : (
+                        <><Rocket className="h-4 w-4" /> Activate Assistant</>
+                      )}
+                    </Button>
+
+                    <StatusLevelBar currentLevel={-1} />
                   </div>
                 ) : (
                   <div className="space-y-6" data-testid="agent-live-view">
