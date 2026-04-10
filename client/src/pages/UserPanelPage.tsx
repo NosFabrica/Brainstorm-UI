@@ -1032,7 +1032,9 @@ export default function UserPanelPage() {
                   <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Last Calc</span>
                   <span className="text-xs text-white/70" data-testid="text-overview-last-calc">{formatRelativeTime(lastCalculated)}</span>
                 </div>
-                <a href="/settings" className="text-[10px] text-cyan-500/50 hover:text-cyan-400 transition-colors ml-auto" data-testid="link-nip85-settings">Manage →</a>
+                <a href="/settings" className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 hover:text-cyan-300 px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-all ml-auto" data-testid="link-nip85-settings">
+                  <SettingsIcon className="h-3 w-3" /> Manage
+                </a>
               </div>
             )}
           </div>
