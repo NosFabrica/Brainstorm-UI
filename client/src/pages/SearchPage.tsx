@@ -500,51 +500,38 @@ export default function SearchPage() {
                         <ChevronDown className="h-3 w-3 text-slate-400 group-hover/pov:text-slate-600 transition-colors" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-72 bg-white border-slate-200/80 shadow-lg shadow-slate-200/30 p-1.5 rounded-xl" data-testid="dropdown-pov">
-                      <DropdownMenuLabel className="text-[10px] font-medium tracking-[0.08em] uppercase text-slate-400 px-3 py-1.5">
-                        Point of View
-                      </DropdownMenuLabel>
+                    <DropdownMenuContent align="start" className="min-w-[200px] bg-white border-slate-200/60 shadow-md shadow-slate-100/50 p-1 rounded-lg" data-testid="dropdown-pov">
                       <DropdownMenuItem
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors focus:bg-indigo-50/50 focus:text-slate-900 ${pov === "nosfabrica" ? "bg-indigo-50/60" : ""}`}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-indigo-50/40 focus:text-slate-800 ${pov === "nosfabrica" ? "bg-indigo-50/40" : ""}`}
                         onClick={() => handlePovSwitch("nosfabrica")}
                         data-testid="pov-option-nosfabrica"
                       >
-                        <Avatar className="h-8 w-8 border border-indigo-200/60 shrink-0">
+                        <Avatar className="h-5 w-5 shrink-0">
                           <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
                         </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-slate-800">NosFabrica</span>
-                            {pov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-500" />}
-                          </div>
-                          <p className="text-[11px] text-slate-400 leading-tight">House Web of Trust scores</p>
-                        </div>
+                        <span className="text-[13px] text-slate-700">NosFabrica</span>
+                        {pov === "nosfabrica" && <Check className="h-3 w-3 text-indigo-400 ml-auto" />}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors focus:bg-emerald-50/50 focus:text-slate-900 ${pov === "mywot" ? "bg-emerald-50/60" : ""}`}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-emerald-50/40 focus:text-slate-800 ${pov === "mywot" ? "bg-emerald-50/40" : ""}`}
                         onClick={() => handlePovSwitch("mywot")}
                         data-testid="pov-option-mywot"
                       >
-                        <Avatar className="h-8 w-8 border border-emerald-200/60 shrink-0">
+                        <Avatar className="h-5 w-5 shrink-0">
                           {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                          <AvatarFallback className="bg-emerald-50/60 text-emerald-600 font-medium text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                          <AvatarFallback className="bg-slate-100 text-slate-500 font-medium text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-slate-800 truncate">{user.displayName || "My WoT"}</span>
-                            {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-500" />}
-                          </div>
-                          <p className="text-[11px] text-slate-400 leading-tight">Your personal Web of Trust scores</p>
-                        </div>
+                        <span className="text-[13px] text-slate-700 truncate">{user.displayName || "My WoT"}</span>
+                        {pov === "mywot" && <Check className="h-3 w-3 text-emerald-400 ml-auto" />}
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-1 bg-slate-100/80" />
+                      <DropdownMenuSeparator className="my-0.5 bg-slate-100/60" />
                       <DropdownMenuItem
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer focus:bg-slate-50/80 focus:text-slate-600 text-slate-400"
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer focus:bg-slate-50/60 focus:text-slate-500 text-slate-400"
                         onClick={() => navigate("/personalization")}
                         data-testid="link-learn-more"
                       >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="text-xs">How personalization works</span>
+                        <Eye className="h-3 w-3" />
+                        <span className="text-xs">Learn more</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
