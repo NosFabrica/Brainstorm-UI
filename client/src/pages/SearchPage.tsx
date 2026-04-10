@@ -385,18 +385,21 @@ export default function SearchPage() {
         <div className={`absolute top-40 -left-40 w-[300px] sm:w-[400px] h-[300px] sm:h-[400px] bg-gradient-to-br from-indigo-100/40 to-transparent rounded-full blur-3xl ${firstVisit ? "animate-[orbDriftLeft_12s_ease-in-out_infinite,orbFadeIn_2s_ease-out_forwards]" : ""}`} />
         <div className={`absolute top-60 -right-40 w-[300px] sm:w-[400px] h-[300px] sm:h-[400px] bg-gradient-to-bl from-violet-100/30 to-transparent rounded-full blur-3xl ${firstVisit ? "animate-[orbDriftRight_10s_ease-in-out_infinite,orbFadeIn_2.5s_ease-out_forwards]" : ""}`} />
 
-        <div className="absolute top-1/4 left-1/4 w-1 h-1 rounded-full bg-indigo-300/40 animate-[floatDot_6s_ease-in-out_infinite]" />
-        <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 rounded-full bg-violet-300/30 animate-[floatDot_8s_ease-in-out_1s_infinite]" />
-        <div className="absolute top-2/3 left-1/3 w-1 h-1 rounded-full bg-indigo-200/50 animate-[floatDot_7s_ease-in-out_2s_infinite]" />
-        <div className="absolute top-1/2 right-1/4 w-0.5 h-0.5 rounded-full bg-violet-400/25 animate-[floatDot_9s_ease-in-out_0.5s_infinite]" />
-        <div className="absolute top-[15%] right-[15%] w-1 h-1 rounded-full bg-indigo-300/30 animate-[floatDot_10s_ease-in-out_3s_infinite]" />
-        <div className="absolute bottom-1/4 left-[15%] w-1.5 h-1.5 rounded-full bg-violet-200/35 animate-[floatDot_7.5s_ease-in-out_1.5s_infinite]" />
+        <div className="absolute top-[22%] left-[18%] w-2 h-2 rounded-full bg-indigo-400/60 animate-[floatDot_6s_ease-in-out_infinite]" />
+        <div className="absolute top-[30%] right-[28%] w-2.5 h-2.5 rounded-full bg-violet-400/50 animate-[floatDot_8s_ease-in-out_1s_infinite]" />
+        <div className="absolute top-[65%] left-[28%] w-2 h-2 rounded-full bg-indigo-300/55 animate-[floatDot_7s_ease-in-out_2s_infinite]" />
+        <div className="absolute top-[48%] right-[20%] w-1.5 h-1.5 rounded-full bg-violet-500/40 animate-[floatDot_9s_ease-in-out_0.5s_infinite]" />
+        <div className="absolute top-[12%] right-[12%] w-2 h-2 rounded-full bg-indigo-400/45 animate-[floatDot_10s_ease-in-out_3s_infinite]" />
+        <div className="absolute bottom-[22%] left-[12%] w-2.5 h-2.5 rounded-full bg-violet-300/50 animate-[floatDot_7.5s_ease-in-out_1.5s_infinite]" />
+        <div className="absolute top-[75%] right-[35%] w-1.5 h-1.5 rounded-full bg-indigo-300/40 animate-[floatDot_11s_ease-in-out_4s_infinite]" />
+        <div className="absolute top-[40%] left-[8%] w-2 h-2 rounded-full bg-violet-400/45 animate-[floatDot_8.5s_ease-in-out_2.5s_infinite]" />
 
-        <div className="absolute top-[20%] left-[10%] w-[200px] h-[200px] border border-indigo-200/[0.07] rounded-full" />
-        <div className="absolute top-[50%] right-[5%] w-[150px] h-[150px] border border-violet-200/[0.06] rounded-full" />
-        <div className="absolute bottom-[15%] left-[30%] w-[100px] h-[100px] border border-indigo-100/[0.08] rounded-full" />
+        <div className="absolute top-[18%] left-[8%] w-[220px] h-[220px] border border-indigo-300/[0.12] rounded-full" />
+        <div className="absolute top-[45%] right-[3%] w-[180px] h-[180px] border border-violet-300/[0.10] rounded-full" />
+        <div className="absolute bottom-[12%] left-[25%] w-[140px] h-[140px] border border-indigo-200/[0.12] rounded-full" />
+        <div className="absolute top-[8%] right-[30%] w-[100px] h-[100px] border border-violet-200/[0.08] rounded-full" />
 
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundSize: "200px 200px" }} />
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundSize: "200px 200px" }} />
       </div>
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
