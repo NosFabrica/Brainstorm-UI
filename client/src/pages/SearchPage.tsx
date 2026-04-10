@@ -468,23 +468,27 @@ export default function SearchPage() {
         <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "pt-16 sm:pt-28"}`}>
           <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
-              <div className="mb-6" data-testid="section-search-hero">
-                <div className={`flex items-center gap-3 mb-5 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-indigo-500/20 rounded-xl blur-lg" />
-                    <div className="relative p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/20">
-                      <BrainLogo size={20} className="text-white" />
+              <div className="text-center mb-8" data-testid="section-search-hero">
+                <div className={`flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
+                  <div className="relative mb-4">
+                    <div className="absolute inset-0 bg-indigo-400/15 rounded-full blur-xl scale-150" />
+                    <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-indigo-600 shadow-lg shadow-indigo-400/20 flex items-center justify-center">
+                      <BrainLogo size={22} className="text-white" />
                     </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#F8FAFC]" />
                   </div>
-                  <div>
-                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
-                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-600 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
-                        Brainstorm
-                      </span>
-                    </h1>
-                    <p className="text-slate-400 text-[11px] mt-0.5 tracking-wide" data-testid="text-search-subtitle">
+                </div>
+                <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight mb-2 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.3s_both]" : "animate-fade-up"}`} style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
+                    Brainstorm
+                  </span>
+                </h1>
+                <div className={`inline-block ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`}>
+                  <div className="relative bg-white/70 backdrop-blur-sm border border-slate-200/50 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm max-w-sm mx-auto">
+                    <p className="text-slate-600 text-sm leading-relaxed" data-testid="text-search-subtitle">
                       Search the decentralized web, ranked by trust.
                     </p>
+                    <div className="absolute -top-[6px] left-6 w-3 h-3 bg-white/70 border-l border-t border-slate-200/50 rotate-45" />
                   </div>
                 </div>
               </div>
