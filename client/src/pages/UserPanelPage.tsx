@@ -721,7 +721,7 @@ export default function UserPanelPage() {
                         data-testid="input-agent-desc"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[72px_1fr] gap-3 items-end">
                       <div>
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Avatar</label>
                         <ImageUpload
