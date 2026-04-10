@@ -474,14 +474,12 @@ export default function SearchPage() {
                     Brainstorm
                   </span>
                 </h1>
-                <div className={`flex items-center justify-center gap-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`}>
-                  <p className="text-slate-500 text-sm" data-testid="text-search-subtitle">
-                    Search the decentralized web, ranked by trust.
-                  </p>
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 border border-indigo-200/20 backdrop-blur-sm">
-                    <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                    <span className="text-[9px] font-semibold tracking-[0.1em] text-indigo-600/70 uppercase">Open Protocol</span>
-                  </div>
+                <p className={`text-slate-500 text-sm ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                  Search the decentralized web, ranked by trust.
+                </p>
+                <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 border border-indigo-200/20 backdrop-blur-sm mt-3 ${firstVisit ? "animate-[staggerUp_0.5s_ease-out_0.7s_both]" : "animate-fade-up"}`}>
+                  <div className="w-1 h-1 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
+                  <span className="text-[9px] font-semibold tracking-[0.1em] text-indigo-600/70 uppercase">Open Protocol</span>
                 </div>
               </div>
             )}
