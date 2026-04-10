@@ -690,8 +690,8 @@ export default function SearchPage() {
         </div>
       </main>
 
-      <div className="w-full px-6 sm:px-12 py-4 mt-auto">
-        <div className="max-w-4xl mx-auto flex items-center justify-between text-slate-400" data-testid="section-search-features">
+      <div className="w-full py-4 mt-auto">
+        <div className="max-w-xl mx-auto flex items-center justify-center gap-6 text-slate-400" data-testid="section-search-features">
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
             <Users className="h-3.5 w-3.5 text-slate-300" />
             <span className="text-[11px] tracking-wide">Profile search</span>
