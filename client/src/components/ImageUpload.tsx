@@ -72,30 +72,30 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
 
   const isSquare = aspect === "square";
   const containerClass = isSquare
-    ? "w-20 h-20 rounded-xl"
-    : "w-full h-24 rounded-xl";
+    ? "w-[72px] h-[72px] rounded-xl"
+    : "w-full h-[72px] rounded-xl";
 
   if (value) {
     return (
       <div className={`relative group ${containerClass} overflow-hidden border border-white/10 ${className}`}>
         <img src={value} alt={label || "Uploaded"} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+            className="p-1 rounded-md bg-white/20 hover:bg-white/30 transition-colors"
             data-testid={`button-change-${aspect}`}
           >
-            <Upload className="h-4 w-4 text-white" />
+            <Upload className="h-3.5 w-3.5 text-white" />
           </button>
           {onRemove && (
             <button
               type="button"
               onClick={onRemove}
-              className="p-1.5 rounded-lg bg-white/20 hover:bg-red-500/50 transition-colors"
+              className="p-1 rounded-md bg-white/20 hover:bg-red-500/50 transition-colors"
               data-testid={`button-remove-${aspect}`}
             >
-              <X className="h-4 w-4 text-white" />
+              <X className="h-3.5 w-3.5 text-white" />
             </button>
           )}
         </div>
@@ -113,7 +113,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
   return (
     <div className={className}>
       <div
-        className={`${containerClass} border-2 border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-1.5 ${
+        className={`${containerClass} border border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
           dragOver
             ? "border-cyan-400 bg-cyan-500/10"
             : "border-white/15 hover:border-cyan-500/40 hover:bg-white/[0.03]"
@@ -125,12 +125,12 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
         data-testid={`upload-${aspect}`}
       >
         {uploading ? (
-          <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
+          <Loader2 className="h-4 w-4 text-cyan-400 animate-spin" />
         ) : (
           <>
-            <ImageIcon className="h-5 w-5 text-slate-500" />
-            <span className="text-[10px] text-slate-500 text-center px-2">
-              {isSquare ? "Drop or click" : "Drop banner or click to browse"}
+            <ImageIcon className="h-4 w-4 text-slate-500" />
+            <span className="text-[9px] text-slate-500 text-center leading-tight">
+              {isSquare ? "Upload" : "Upload banner"}
             </span>
           </>
         )}

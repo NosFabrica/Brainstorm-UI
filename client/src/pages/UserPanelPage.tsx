@@ -664,7 +664,7 @@ export default function UserPanelPage() {
                     </div>
 
                     <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div>
                           <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Name *</label>
                           <Input
@@ -687,7 +687,7 @@ export default function UserPanelPage() {
                         </div>
                       </div>
 
-                      <div className="flex gap-3 items-start">
+                      <div className="flex gap-2.5 items-end">
                         <div className="shrink-0">
                           <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Avatar</label>
                           <ImageUpload
@@ -708,7 +708,7 @@ export default function UserPanelPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div>
                           <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Lightning</label>
                           <Input
@@ -729,7 +729,7 @@ export default function UserPanelPage() {
                             data-testid="input-agent-nip05"
                           />
                         </div>
-                        <div>
+                        <div className="col-span-2">
                           <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block mb-1">Website</label>
                           <Input
                             placeholder="https://yoursite.com"
@@ -903,44 +903,38 @@ export default function UserPanelPage() {
                     </div>
                   </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Visuals</p>
-                  <div className="flex flex-col sm:flex-row gap-4 items-start">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Profile Picture</label>
-                      <ImageUpload
-                        value={agentPictureInput}
-                        onChange={setAgentPictureInput}
-                        onRemove={() => setAgentPictureInput("")}
-                        aspect="square"
-                      />
-                    </div>
-                    <div className="flex-1 w-full">
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Banner</label>
-                      <ImageUpload
-                        value={agentBannerInput}
-                        onChange={setAgentBannerInput}
-                        onRemove={() => setAgentBannerInput("")}
-                        aspect="banner"
-                      />
-                    </div>
+                <div className="flex gap-3 items-end">
+                  <div className="shrink-0">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Avatar</label>
+                    <ImageUpload
+                      value={agentPictureInput}
+                      onChange={setAgentPictureInput}
+                      onRemove={() => setAgentPictureInput("")}
+                      aspect="square"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Banner</label>
+                    <ImageUpload
+                      value={agentBannerInput}
+                      onChange={setAgentBannerInput}
+                      onRemove={() => setAgentBannerInput("")}
+                      aspect="banner"
+                    />
                   </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Connections</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Lightning Address</label>
-                      <Input value={agentLud16Input} onChange={e => setAgentLud16Input(e.target.value)} placeholder="you@getalby.com" className="text-sm" data-testid="input-edit-agent-lud16" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">NIP-05</label>
-                      <Input value={agentNip05Input} onChange={e => setAgentNip05Input(e.target.value)} placeholder="you@nostr.com" className="text-sm" data-testid="input-edit-agent-nip05" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Website</label>
-                      <Input value={agentWebsiteInput} onChange={e => setAgentWebsiteInput(e.target.value)} placeholder="https://yoursite.com" className="text-sm" data-testid="input-edit-agent-website" />
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Lightning</label>
+                    <Input value={agentLud16Input} onChange={e => setAgentLud16Input(e.target.value)} placeholder="you@getalby.com" className="text-sm" data-testid="input-edit-agent-lud16" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">NIP-05</label>
+                    <Input value={agentNip05Input} onChange={e => setAgentNip05Input(e.target.value)} placeholder="you@nostr.com" className="text-sm" data-testid="input-edit-agent-nip05" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Website</label>
+                    <Input value={agentWebsiteInput} onChange={e => setAgentWebsiteInput(e.target.value)} placeholder="https://yoursite.com" className="text-sm" data-testid="input-edit-agent-website" />
                   </div>
                 </div>
                 <Button size="sm" onClick={handleUpdateAgent} className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5" data-testid="button-save-agent">
