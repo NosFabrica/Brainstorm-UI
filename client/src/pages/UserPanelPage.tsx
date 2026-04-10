@@ -629,12 +629,12 @@ export default function UserPanelPage() {
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Agent Suite
                 </span>
               </h1>
-              <p className="text-slate-600 font-medium" data-testid="text-panel-subtitle">
+              <p className="text-sm sm:text-base text-slate-600 font-medium" data-testid="text-panel-subtitle">
                 Build your trust assistant — it grows with your network and earns trust on your behalf.
               </p>
             </div>
@@ -748,7 +748,7 @@ export default function UserPanelPage() {
                         <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-amber-400/80">Connections</span>
                         <span className="text-[9px] italic text-slate-500 ml-1">optional</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         <div>
                           <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Lightning</label>
                           <Input
@@ -966,7 +966,7 @@ export default function UserPanelPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Lightning</label>
                     <Input value={agentLud16Input} onChange={e => setAgentLud16Input(e.target.value)} placeholder="you@getalby.com" className="text-sm" data-testid="input-edit-agent-lud16" />
@@ -975,7 +975,7 @@ export default function UserPanelPage() {
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">NIP-05</label>
                     <Input value={agentNip05Input} onChange={e => setAgentNip05Input(e.target.value)} placeholder="you@nostr.com" className="text-sm" data-testid="input-edit-agent-nip05" />
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Website</label>
                     <Input value={agentWebsiteInput} onChange={e => setAgentWebsiteInput(e.target.value)} placeholder="https://yoursite.com" className="text-sm" data-testid="input-edit-agent-website" />
                   </div>
@@ -1008,8 +1008,8 @@ export default function UserPanelPage() {
                     <SettingsIcon className="h-3 w-3" /> Manage
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                  <div data-testid="nip85-inline-status">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="col-span-2 sm:col-span-1" data-testid="nip85-inline-status">
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider block mb-1">NIP-85</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {nip85Activated ? (
@@ -1074,16 +1074,18 @@ export default function UserPanelPage() {
                     </Button>
                   </div>
                   {lookedUpUser && (
-                    <div className="mt-3 flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200" data-testid="card-looked-up-user">
-                      <Avatar className="h-9 w-9 border border-slate-100">
-                        {lookedUpUser.picture ? <AvatarImage src={lookedUpUser.picture} alt={lookedUpUser.displayName || "User"} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">{(lookedUpUser.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate" data-testid="text-looked-up-name">{lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}</p>
-                        <p className="text-[10px] text-slate-400 font-mono truncate">{lookedUpUser.npub.slice(0, 20)}...</p>
+                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200" data-testid="card-looked-up-user">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-9 w-9 border border-slate-100 shrink-0">
+                          {lookedUpUser.picture ? <AvatarImage src={lookedUpUser.picture} alt={lookedUpUser.displayName || "User"} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">{(lookedUpUser.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 truncate" data-testid="text-looked-up-name">{lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}</p>
+                          <p className="text-[10px] text-slate-400 font-mono truncate">{lookedUpUser.npub.slice(0, 20)}...</p>
+                        </div>
                       </div>
-                      <div className="flex gap-1.5 shrink-0">
+                      <div className="flex gap-1.5 shrink-0 sm:ml-auto">
                         {!socialActions.isSelf(lookedUpUser.pubkey) && !socialActions.isFollowing(lookedUpUser.pubkey) && (
                           <Button size="sm" variant="outline" onClick={handleFollowLookedUp} disabled={socialActions.isPending("follow", lookedUpUser.pubkey)} className="gap-1 text-xs" data-testid="button-follow-looked-up">
                             <UserPlus className="h-3 w-3" /> Follow
@@ -1178,7 +1180,7 @@ export default function UserPanelPage() {
                     <p className="text-xs text-slate-500">Trust scores for accounts you follow ({followingCount})</p>
                   </div>
                 </div>
-                <Input placeholder="Search by name or npub..." value={scoreSearch} onChange={e => setScoreSearch(e.target.value)} className="text-xs h-8 w-48 sm:w-56" data-testid="input-score-search" />
+                <Input placeholder="Search by name or npub..." value={scoreSearch} onChange={e => setScoreSearch(e.target.value)} className="text-xs h-8 w-full sm:w-56" data-testid="input-score-search" />
               </div>
             </div>
             <div className="p-5">
