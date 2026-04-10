@@ -101,6 +101,7 @@ function searchRelay(query: string, observerPubkey?: string, limit = 30): Promis
         if (observerPubkey) {
           searchStr += ` observer:${observerPubkey}`;
         }
+        searchStr += ` sort:followers:desc`;
         const req = JSON.stringify(["REQ", "bs-search", {
           kinds: [0],
           search: searchStr,
