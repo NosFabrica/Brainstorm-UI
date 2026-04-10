@@ -128,8 +128,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
       setError("Please select an image file");
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
-      setError("Image must be under 5MB");
+    if (file.size > 50 * 1024 * 1024) {
+      setError("Image must be under 50MB");
       return;
     }
     setError(null);
