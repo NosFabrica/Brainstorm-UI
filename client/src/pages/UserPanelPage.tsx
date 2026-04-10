@@ -62,6 +62,7 @@ import {
   Signal,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { ImageUpload } from "@/components/ImageUpload";
 import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -103,12 +104,17 @@ interface TaHistoryEntry {
 interface AgentState {
   name: string;
   description: string;
+  picture: string;
+  banner: string;
+  lud16: string;
+  nip05: string;
+  website: string;
   status: AgentStatus;
   activatedAt: number | null;
   publishedAt: number | null;
 }
 
-const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; bgClass: string; borderClass: string; icon: typeof Zap; description: string; level: number }> = {
+const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; bgClass: string; borderClass: string; icon: React.ComponentType<{ className?: string }>; description: string; level: number }> = {
   dormant: { label: "Dormant", color: "text-slate-400", bgClass: "bg-slate-500/20", borderClass: "border-slate-500/30", icon: AgentIcon, description: "Your agent awaits activation", level: 0 },
   activating: { label: "Activating", color: "text-amber-400", bgClass: "bg-amber-500/20", borderClass: "border-amber-500/30", icon: Loader2, description: "Powering up...", level: 0 },
   active: { label: "Active", color: "text-emerald-400", bgClass: "bg-emerald-500/20", borderClass: "border-emerald-500/30", icon: Zap, description: "Published to the Nostr network", level: 1 },
@@ -122,6 +128,9 @@ const ACHIEVEMENTS = [
   { id: "named", label: "Identity", description: "Named your agent", icon: AgentIcon, check: (a: AgentState) => !!a.name },
   { id: "published", label: "On the Grid", description: "Published to Nostr relays", icon: Globe, check: (a: AgentState) => !!a.publishedAt },
   { id: "described", label: "Story Told", description: "Added a description", icon: Sparkles, check: (a: AgentState) => !!a.description },
+  { id: "portrait", label: "Portrait", description: "Added a profile picture", icon: Eye, check: (a: AgentState) => !!a.picture },
+  { id: "lightning", label: "Lightning Rod", description: "Added a lightning address", icon: Zap, check: (a: AgentState) => !!a.lud16 },
+  { id: "verified", label: "Verified", description: "Added NIP-05 identity", icon: Shield, check: (a: AgentState) => !!a.nip05 },
 ];
 
 function getDefaultAgentState(): AgentState {
@@ -129,10 +138,15 @@ function getDefaultAgentState(): AgentState {
     const stored = localStorage.getItem("brainstorm_agent_state");
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { name: parsed.name || "", description: parsed.description || "", status: parsed.status || "dormant", activatedAt: parsed.activatedAt || null, publishedAt: parsed.publishedAt || null };
+      return {
+        name: parsed.name || "", description: parsed.description || "",
+        picture: parsed.picture || "", banner: parsed.banner || "",
+        lud16: parsed.lud16 || "", nip05: parsed.nip05 || "", website: parsed.website || "",
+        status: parsed.status || "dormant", activatedAt: parsed.activatedAt || null, publishedAt: parsed.publishedAt || null,
+      };
     }
   } catch {}
-  return { name: "", description: "", status: "dormant", activatedAt: null, publishedAt: null };
+  return { name: "", description: "", picture: "", banner: "", lud16: "", nip05: "", website: "", status: "dormant", activatedAt: null, publishedAt: null };
 }
 
 function saveAgentState(state: AgentState) {
@@ -177,6 +191,11 @@ export default function UserPanelPage() {
   const [agentState, setAgentState] = useState<AgentState>(getDefaultAgentState);
   const [agentNameInput, setAgentNameInput] = useState(() => getDefaultAgentState().name);
   const [agentDescInput, setAgentDescInput] = useState(() => getDefaultAgentState().description);
+  const [agentPictureInput, setAgentPictureInput] = useState(() => getDefaultAgentState().picture);
+  const [agentBannerInput, setAgentBannerInput] = useState(() => getDefaultAgentState().banner);
+  const [agentLud16Input, setAgentLud16Input] = useState(() => getDefaultAgentState().lud16);
+  const [agentNip05Input, setAgentNip05Input] = useState(() => getDefaultAgentState().nip05);
+  const [agentWebsiteInput, setAgentWebsiteInput] = useState(() => getDefaultAgentState().website);
   const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
   const [npubInput, setNpubInput] = useState("");
   const [lookedUpUser, setLookedUpUser] = useState<LookedUpUser | null>(null);
@@ -345,15 +364,35 @@ export default function UserPanelPage() {
     return entries;
   }, [grapeRank]);
 
+  const getProfilePayload = useCallback(() => ({
+    name: agentNameInput.trim(),
+    about: agentDescInput.trim(),
+    picture: agentPictureInput,
+    banner: agentBannerInput,
+    lud16: agentLud16Input.trim(),
+    nip05: agentNip05Input.trim(),
+    website: agentWebsiteInput.trim(),
+  }), [agentNameInput, agentDescInput, agentPictureInput, agentBannerInput, agentLud16Input, agentNip05Input, agentWebsiteInput]);
+
+  const getAgentStateUpdates = useCallback(() => ({
+    name: agentNameInput.trim(),
+    description: agentDescInput.trim(),
+    picture: agentPictureInput,
+    banner: agentBannerInput,
+    lud16: agentLud16Input.trim(),
+    nip05: agentNip05Input.trim(),
+    website: agentWebsiteInput.trim(),
+  }), [agentNameInput, agentDescInput, agentPictureInput, agentBannerInput, agentLud16Input, agentNip05Input, agentWebsiteInput]);
+
   const publishBrainstormProfile = useMutation({
-    mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(),
+    mutationFn: async () => await apiClient.publishBrainstormAssistantProfile(getProfilePayload()),
     onSuccess: () => {
-      updateAgentState({ status: "active", publishedAt: Date.now() });
-      toast({ title: "Agent deployed!", description: `${agentState.name || "Your agent"} is now live on the Nostr network.` });
+      updateAgentState({ ...getAgentStateUpdates(), status: "active", publishedAt: Date.now() });
+      toast({ title: "Agent deployed!", description: `${agentNameInput.trim() || "Your agent"} is now live on the Nostr network.` });
     },
     onError: (error: Error) => {
       if (error.message.includes("404") || error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
-        updateAgentState({ status: "active", activatedAt: Date.now() });
+        updateAgentState({ ...getAgentStateUpdates(), status: "active", activatedAt: Date.now() });
         toast({ title: "Agent activated locally", description: "Backend publishing will be available soon. Your agent is ready!" });
       } else {
         updateAgentState({ status: "dormant" });
@@ -364,7 +403,7 @@ export default function UserPanelPage() {
 
   const handleActivateAgent = () => {
     if (!agentNameInput.trim()) {
-      toast({ variant: "destructive", title: "Name your agent", description: "Give your agent a name before activating." });
+      toast({ variant: "destructive", title: "Name your sidekick", description: "Give your sidekick a name before activating." });
       return;
     }
     setActivateConfirmOpen(true);
@@ -372,13 +411,14 @@ export default function UserPanelPage() {
 
   const handleConfirmActivation = () => {
     setActivateConfirmOpen(false);
-    updateAgentState({ name: agentNameInput.trim(), description: agentDescInput.trim(), status: "activating", activatedAt: Date.now() });
+    updateAgentState({ ...getAgentStateUpdates(), status: "activating", activatedAt: Date.now() });
     publishBrainstormProfile.mutate();
   };
 
   const handleUpdateAgent = () => {
-    updateAgentState({ name: agentNameInput.trim(), description: agentDescInput.trim() });
-    toast({ title: "Agent updated", description: "Your agent profile has been saved." });
+    updateAgentState(getAgentStateUpdates());
+    publishBrainstormProfile.mutate();
+    toast({ title: "Sidekick updated", description: "Your sidekick's profile has been saved." });
   };
 
   const resolveNpubInput = (): string | null => {
@@ -489,7 +529,7 @@ export default function UserPanelPage() {
                 </div>
                 <div className="leading-tight text-left min-w-0">
                   <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80">Brainstorm</p>
-                  <p className="text-sm font-bold text-white" style={{ fontFamily: "var(--font-display)" }}>Agent HQ</p>
+                  <p className="text-sm font-bold bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent" style={{ fontFamily: "var(--font-display)" }}>Agent Suite</p>
                 </div>
               </button>
 
@@ -509,7 +549,7 @@ export default function UserPanelPage() {
                   <Users className="h-4 w-4" /> Network
                 </Button>
                 <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/10 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200" data-testid="button-nav-panel">
-                  <AgentIcon className="h-4 w-4" /> Agent HQ
+                  <AgentIcon className="h-4 w-4" /> <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
                 </Button>
               </div>
             </div>
@@ -570,15 +610,15 @@ export default function UserPanelPage() {
             <div className="space-y-2" data-testid="section-panel-header">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Agent Headquarters</p>
+                <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Sidekick on Nostr</p>
               </div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-panel-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Agent HQ
+                  Agent Suite
                 </span>
               </h1>
               <p className="text-slate-600 font-medium" data-testid="text-panel-subtitle">
-                Your personal trust agent on the Nostr network.
+                Build your trust sidekick — grow together, earn trust together.
               </p>
             </div>
           </div>
@@ -591,48 +631,117 @@ export default function UserPanelPage() {
 
               <div className="relative p-6 sm:p-8">
                 {!agentIsLive ? (
-                  <div className="max-w-2xl mx-auto text-center space-y-6" data-testid="agent-activation-flow">
-                    <div className="inline-flex items-center justify-center">
-                      <div className="relative">
-                        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.15)]">
-                          <AgentIcon className="h-10 w-10 text-cyan-400" />
-                        </div>
-                        <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-slate-800 border-2 border-cyan-500/40 flex items-center justify-center">
-                          <Sparkles className="h-3 w-3 text-cyan-400" />
+                  <div className="max-w-2xl mx-auto space-y-6" data-testid="agent-activation-flow">
+                    <div className="text-center space-y-2">
+                      <div className="inline-flex items-center justify-center mb-2">
+                        <div className="relative">
+                          <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.15)]">
+                            {agentPictureInput ? (
+                              <img src={agentPictureInput} alt="Agent" className="h-full w-full rounded-3xl object-cover" />
+                            ) : (
+                              <AgentIcon className="h-10 w-10 text-cyan-400" />
+                            )}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-slate-800 border-2 border-cyan-500/40 flex items-center justify-center">
+                            <Sparkles className="h-3 w-3 text-cyan-400" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
                       <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-activate-title">
-                        Activate Your Agent
+                        Create Your Sidekick
                       </h2>
                       <p className="text-sm text-slate-400 max-w-md mx-auto">
-                        Deploy a personal trust agent to the Nostr network. It represents your Brainstorm presence across the ecosystem.
+                        Your sidekick represents you on the Nostr trust network. It grows with you — the more you engage, the stronger it becomes.
                       </p>
                     </div>
 
-                    <div className="max-w-sm mx-auto space-y-3">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Name your agent</label>
-                        <Input
-                          placeholder="e.g. TrustBot, Guardian, Sentinel..."
-                          value={agentNameInput}
-                          onChange={e => setAgentNameInput(e.target.value)}
-                          className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                          data-testid="input-agent-name"
-                        />
+                    <div className="max-w-lg mx-auto space-y-5">
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Identity</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Name your sidekick *</label>
+                            <Input
+                              placeholder="e.g. TrustBot, Guardian, Sentinel..."
+                              value={agentNameInput}
+                              onChange={e => setAgentNameInput(e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
+                              data-testid="input-agent-name"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Bio <span className="text-slate-500">(optional)</span></label>
+                            <Input
+                              placeholder="What makes your sidekick special?"
+                              value={agentDescInput}
+                              onChange={e => setAgentDescInput(e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
+                              data-testid="input-agent-desc"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Description <span className="text-slate-500">(optional)</span></label>
-                        <Input
-                          placeholder="What does your agent do?"
-                          value={agentDescInput}
-                          onChange={e => setAgentDescInput(e.target.value)}
-                          className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
-                          data-testid="input-agent-desc"
-                        />
+
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Visuals</p>
+                        <div className="flex flex-col sm:flex-row gap-4 items-start">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Profile picture</label>
+                            <ImageUpload
+                              value={agentPictureInput}
+                              onChange={setAgentPictureInput}
+                              onRemove={() => setAgentPictureInput("")}
+                              aspect="square"
+                            />
+                          </div>
+                          <div className="flex-1 w-full">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Banner</label>
+                            <ImageUpload
+                              value={agentBannerInput}
+                              onChange={setAgentBannerInput}
+                              onRemove={() => setAgentBannerInput("")}
+                              aspect="banner"
+                            />
+                          </div>
+                        </div>
                       </div>
+
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/50">Connections</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Lightning address <span className="text-slate-500">(optional)</span></label>
+                            <Input
+                              placeholder="you@getalby.com"
+                              value={agentLud16Input}
+                              onChange={e => setAgentLud16Input(e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
+                              data-testid="input-agent-lud16"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">NIP-05 <span className="text-slate-500">(optional)</span></label>
+                            <Input
+                              placeholder="you@nostr.com"
+                              value={agentNip05Input}
+                              onChange={e => setAgentNip05Input(e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
+                              data-testid="input-agent-nip05"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70 block text-left mb-1.5">Website <span className="text-slate-500">(optional)</span></label>
+                            <Input
+                              placeholder="https://yoursite.com"
+                              value={agentWebsiteInput}
+                              onChange={e => setAgentWebsiteInput(e.target.value)}
+                              className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-cyan-500/20"
+                              data-testid="input-agent-website"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <Button
                         onClick={handleActivateAgent}
                         disabled={agentState.status === "activating"}
@@ -640,9 +749,9 @@ export default function UserPanelPage() {
                         data-testid="button-activate-agent"
                       >
                         {agentState.status === "activating" ? (
-                          <><Loader2 className="h-4 w-4 animate-spin" /> Deploying...</>
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Deploying your sidekick...</>
                         ) : (
-                          <><Rocket className="h-4 w-4" /> Activate Agent</>
+                          <><Rocket className="h-4 w-4" /> Activate Sidekick</>
                         )}
                       </Button>
                     </div>
@@ -653,10 +762,20 @@ export default function UserPanelPage() {
                   </div>
                 ) : (
                   <div className="space-y-6" data-testid="agent-live-view">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                    {agentState.banner && (
+                      <div className="relative -mx-6 sm:-mx-8 -mt-6 sm:-mt-8 h-32 sm:h-40 overflow-hidden rounded-t-2xl">
+                        <img src={agentState.banner} alt="Banner" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" />
+                      </div>
+                    )}
+                    <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-6 ${agentState.banner ? "-mt-12 relative z-10 px-2" : ""}`}>
                       <div className="relative shrink-0">
-                        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.2)]">
-                          <AgentIcon className="h-10 w-10 text-cyan-300" />
+                        <div className={`h-20 w-20 rounded-3xl overflow-hidden border border-cyan-500/30 flex items-center justify-center shadow-[0_0_40px_rgba(6,182,212,0.2)] ${agentState.picture ? "" : "bg-gradient-to-br from-cyan-500/20 to-emerald-500/20"}`}>
+                          {agentState.picture ? (
+                            <img src={agentState.picture} alt={agentState.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <AgentIcon className="h-10 w-10 text-cyan-300" />
+                          )}
                         </div>
                         <div className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center shadow-[0_0_10px_rgba(52,211,153,0.5)]">
                           <Activity className="h-3.5 w-3.5 text-white" />
@@ -666,7 +785,7 @@ export default function UserPanelPage() {
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center gap-3 flex-wrap">
                           <h2 className="text-2xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agent-name">
-                            {agentState.name || "Unnamed Agent"}
+                            {agentState.name || "Unnamed Sidekick"}
                           </h2>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${statusConfig.bgClass} border ${statusConfig.borderClass}`} data-testid="badge-agent-status">
                             <span className="relative flex h-1.5 w-1.5">
@@ -679,7 +798,7 @@ export default function UserPanelPage() {
                         {agentState.description && (
                           <p className="text-sm text-slate-400" data-testid="text-agent-desc">{agentState.description}</p>
                         )}
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
                           {agentState.activatedAt && (
                             <span className="flex items-center gap-1" data-testid="text-agent-activated-at">
                               <Zap className="h-3 w-3 text-cyan-500" />
@@ -695,6 +814,24 @@ export default function UserPanelPage() {
                               <CheckCircle2 className="h-3 w-3 text-emerald-400" />
                               NIP-85 Active
                             </span>
+                          )}
+                          {agentState.lud16 && (
+                            <span className="flex items-center gap-1" data-testid="text-agent-lud16">
+                              <Zap className="h-3 w-3 text-amber-400" />
+                              {agentState.lud16}
+                            </span>
+                          )}
+                          {agentState.nip05 && (
+                            <span className="flex items-center gap-1" data-testid="text-agent-nip05">
+                              <CheckCircle2 className="h-3 w-3 text-purple-400" />
+                              {agentState.nip05}
+                            </span>
+                          )}
+                          {agentState.website && (
+                            <a href={agentState.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-cyan-400 transition-colors" data-testid="link-agent-website">
+                              <Globe className="h-3 w-3 text-cyan-400" />
+                              {agentState.website.replace(/^https?:\/\//, "")}
+                            </a>
                           )}
                         </div>
                       </div>
@@ -750,20 +887,63 @@ export default function UserPanelPage() {
                     <AgentIcon className="h-4 w-4 text-cyan-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Agent</h2>
-                    <p className="text-xs text-slate-500">Update your agent's identity</p>
+                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Sidekick</h2>
+                    <p className="text-xs text-slate-500">Update your sidekick's profile and connections</p>
                   </div>
                 </div>
               </div>
-              <div className="p-5 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Agent Name</label>
-                    <Input value={agentNameInput} onChange={e => setAgentNameInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-name" />
+              <div className="p-5 space-y-5">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Identity</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Sidekick Name</label>
+                      <Input value={agentNameInput} onChange={e => setAgentNameInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-name" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Bio</label>
+                      <Input value={agentDescInput} onChange={e => setAgentDescInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-desc" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Description</label>
-                    <Input value={agentDescInput} onChange={e => setAgentDescInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-desc" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Visuals</p>
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Profile Picture</label>
+                      <ImageUpload
+                        value={agentPictureInput}
+                        onChange={setAgentPictureInput}
+                        onRemove={() => setAgentPictureInput("")}
+                        aspect="square"
+                      />
+                    </div>
+                    <div className="flex-1 w-full">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Banner</label>
+                      <ImageUpload
+                        value={agentBannerInput}
+                        onChange={setAgentBannerInput}
+                        onRemove={() => setAgentBannerInput("")}
+                        aspect="banner"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Connections</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Lightning Address</label>
+                      <Input value={agentLud16Input} onChange={e => setAgentLud16Input(e.target.value)} placeholder="you@getalby.com" className="text-sm" data-testid="input-edit-agent-lud16" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">NIP-05</label>
+                      <Input value={agentNip05Input} onChange={e => setAgentNip05Input(e.target.value)} placeholder="you@nostr.com" className="text-sm" data-testid="input-edit-agent-nip05" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Website</label>
+                      <Input value={agentWebsiteInput} onChange={e => setAgentWebsiteInput(e.target.value)} placeholder="https://yoursite.com" className="text-sm" data-testid="input-edit-agent-website" />
+                    </div>
                   </div>
                 </div>
                 <Button size="sm" onClick={handleUpdateAgent} className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5" data-testid="button-save-agent">

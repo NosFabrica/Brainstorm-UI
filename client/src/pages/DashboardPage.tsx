@@ -755,7 +755,7 @@ export default function DashboardPage() {
                   </Button>
                   <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/panel")} data-testid="button-nav-panel">
                     <AgentIcon className="h-4 w-4" />
-                    Agent HQ
+                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
                   </Button>
                 </div>
               </div>

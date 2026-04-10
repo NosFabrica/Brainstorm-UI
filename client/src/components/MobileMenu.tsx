@@ -34,7 +34,7 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
-  { path: "/panel", label: "Agent HQ", icon: AgentIcon },
+  { path: "/panel", label: "Agent Suite", icon: AgentIcon, special: true },
 ];
 
 const helpNav = [
@@ -50,7 +50,7 @@ function NavButton({
   onClose,
   navigate,
 }: {
-  item: { path: string; label: string; icon: React.ComponentType<{ className?: string }> };
+  item: { path: string; label: string; icon: React.ComponentType<{ className?: string }>; special?: boolean };
   active: boolean;
   disabled?: boolean;
   disabledTitle?: string;
@@ -85,7 +85,9 @@ function NavButton({
           (disabled ? "text-slate-500" : active ? "text-indigo-200" : "text-slate-200/80")
         }
       />
-      {item.label}
+      {item.special ? (
+        <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">{item.label}</span>
+      ) : item.label}
     </Button>
   );
 }
