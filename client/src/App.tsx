@@ -40,7 +40,7 @@ function Router() {
         <Route path="/network" component={NetworkPage} />
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/faq" component={FaqPage} />
-        <Route path="/panel" component={UserPanelPage} />
+        <Route path="/agentsuite" component={UserPanelPage} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
