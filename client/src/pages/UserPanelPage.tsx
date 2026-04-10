@@ -640,7 +640,12 @@ export default function UserPanelPage() {
             <div className="bg-gradient-to-br from-slate-950 via-[#0c1929] to-slate-950 relative">
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_60%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(124,134,255,0.08),transparent_60%)]" />
+              <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: "linear-gradient(rgba(6,182,212,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.5) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle, rgba(124,134,255,0.8) 1px, transparent 1px)", backgroundSize: "24px 24px", backgroundPosition: "12px 12px" }} />
+              <div className="absolute top-0 right-0 w-64 h-64 opacity-[0.04]" style={{ backgroundImage: "conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(6,182,212,0.6) 60deg, transparent 120deg, rgba(124,134,255,0.4) 240deg, transparent 360deg)" }} />
+              <div className="absolute bottom-0 left-0 w-48 h-48 opacity-[0.03]" style={{ backgroundImage: "conic-gradient(from 180deg at 50% 50%, transparent 0deg, rgba(124,134,255,0.6) 90deg, transparent 180deg)" }} />
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/20 to-transparent" />
 
               <div className="relative p-6 sm:p-8">
                 {!agentIsLive ? (
