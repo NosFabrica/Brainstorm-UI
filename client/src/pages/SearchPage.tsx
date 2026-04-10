@@ -479,7 +479,7 @@ export default function SearchPage() {
                   </span>
                 </h1>
                 <p className={`text-slate-500 text-sm max-w-lg mx-auto ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.6s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
-                  Search the decentralized web, ranked by trust.
+                  Signal Engine Optimization — rank signals, not pages.
                 </p>
               </div>
             )}
