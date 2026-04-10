@@ -373,7 +373,12 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-search">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.18] pointer-events-none" />
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.15]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-b from-indigo-200/30 via-violet-100/20 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-40 -left-40 w-[400px] h-[400px] bg-gradient-to-br from-indigo-100/40 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-60 -right-40 w-[400px] h-[400px] bg-gradient-to-bl from-violet-100/30 to-transparent rounded-full blur-3xl" />
+      </div>
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
@@ -459,9 +464,9 @@ export default function SearchPage() {
           <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
               <div className="text-center mb-8 animate-fade-up" data-testid="section-search-hero">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm mb-4">
-                  <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                  <span className="text-[10px] font-bold tracking-[0.15em] text-indigo-900 uppercase">Web of Trust Search</span>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 border border-indigo-200/30 shadow-sm shadow-indigo-100/30 backdrop-blur-sm mb-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_6px_#6366f1] animate-pulse" />
+                  <span className="text-[10px] font-semibold tracking-[0.12em] text-indigo-700 uppercase">Web of Trust</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
@@ -475,8 +480,9 @@ export default function SearchPage() {
             )}
 
             <div className="relative group/search" data-testid="container-search-input">
-              <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-violet-500/20 to-indigo-500/20 rounded-2xl blur-lg opacity-0 group-hover/search:opacity-100 transition-opacity duration-500 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
-              <div className="relative flex items-center bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50 hover:shadow-xl hover:border-indigo-300/50 transition-all duration-300 overflow-hidden">
+              <div className={`absolute -inset-1 bg-gradient-to-r from-indigo-400/20 via-violet-400/15 to-indigo-400/20 rounded-2xl blur-xl opacity-0 group-hover/search:opacity-100 transition-opacity duration-700 ${isSearching ? "opacity-100 animate-pulse" : ""}`} />
+              <div className="absolute -inset-[0.5px] rounded-xl bg-gradient-to-r from-indigo-200/40 via-violet-200/30 to-indigo-200/40 opacity-0 group-hover/search:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="relative flex items-center bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200/80 shadow-lg shadow-indigo-100/20 hover:shadow-xl hover:shadow-indigo-100/30 hover:border-indigo-200/60 transition-all duration-300 overflow-hidden">
                 {hasPovOption ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -690,20 +696,21 @@ export default function SearchPage() {
         </div>
       </main>
 
-      <div className="w-full py-4 mt-auto">
+      <div className="w-full py-5 mt-auto relative">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/40 to-transparent" />
         <div className="max-w-xl mx-auto flex items-center justify-center gap-6 text-slate-400" data-testid="section-search-features">
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
-            <Users className="h-3.5 w-3.5 text-slate-300" />
+            <Users className="h-3.5 w-3.5 text-indigo-300" />
             <span className="text-[11px] tracking-wide">Profile search</span>
           </div>
-          <div className="w-px h-3 bg-slate-200" />
+          <div className="w-px h-3 bg-slate-200/60" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-1">
-            <TrendingUp className="h-3.5 w-3.5 text-slate-300" />
+            <TrendingUp className="h-3.5 w-3.5 text-indigo-300" />
             <span className="text-[11px] tracking-wide">Trust ranked</span>
           </div>
-          <div className="w-px h-3 bg-slate-200" />
+          <div className="w-px h-3 bg-slate-200/60" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-slate-300" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-indigo-300" />
             <span className="text-[11px] tracking-wide">Identity verified</span>
           </div>
         </div>
