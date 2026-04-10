@@ -471,7 +471,7 @@ export default function SearchPage() {
               <div className="text-center mb-8" data-testid="section-search-hero">
                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 border border-indigo-200/30 shadow-sm shadow-indigo-100/30 backdrop-blur-sm mb-4 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.2s_both]" : "animate-fade-up"}`}>
                   <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 shadow-[0_0_6px_#6366f1] animate-pulse" />
-                  <span className="text-[10px] font-semibold tracking-[0.12em] text-indigo-700 uppercase">Web of Trust</span>
+                  <span className="text-[10px] font-semibold tracking-[0.12em] text-indigo-700 uppercase">Open Protocol</span>
                 </div>
                 <h1 className={`text-3xl sm:text-4xl font-bold tracking-tight mb-3 ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.4s_both]" : "animate-fade-up"}`} style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
