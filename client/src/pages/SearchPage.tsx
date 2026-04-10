@@ -346,16 +346,20 @@ export default function SearchPage() {
     }
   }, [query, observerPubkey, navigate]);
 
+  const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
     if (newPov === pov) return;
     setPov(newPov);
   }, [pov]);
 
   useEffect(() => {
-    if (hasSearched && query.trim()) {
-      handleSearch();
+    if (prevPovRef.current !== pov) {
+      prevPovRef.current = pov;
+      if (hasSearched && query.trim()) {
+        handleSearch();
+      }
     }
-  }, [pov]);
+  }, [pov, hasSearched, query, handleSearch]);
 
   const handleLogout = () => {
     logout();
@@ -530,7 +534,7 @@ export default function SearchPage() {
                             <span className="text-sm font-semibold text-slate-900 truncate">{user.displayName || "My WoT"}</span>
                             {pov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
                           </div>
-                          <p className="text-[11px] text-slate-500 leading-tight">Your personal Web of Trust</p>
+                          <p className="text-[11px] text-slate-500 leading-tight">Your personal Web of Trust scores</p>
                         </div>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
