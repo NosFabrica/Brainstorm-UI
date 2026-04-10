@@ -700,44 +700,43 @@ export default function UserPanelPage() {
                 {!agentIsLive ? (
                   <div className="max-w-md mx-auto space-y-4" data-testid="agent-activation-flow">
 
-                    <div className="space-y-4">
-                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-3">
-                        <div className="flex items-center gap-1.5 mb-1">
+                    <div className="space-y-2.5">
+                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
                           <div className="h-1 w-1 rounded-full bg-cyan-400" />
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-cyan-400/80">Identity</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2.5">
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Name *</label>
-                            <Input
-                              placeholder="e.g. TrustBot, Guardian..."
-                              value={agentNameInput}
-                              onChange={e => setAgentNameInput(e.target.value)}
-                              className="bg-white/[0.07] border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/25 focus:bg-white/[0.09] h-9 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
-                              data-testid="input-agent-name"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Bio</label>
-                            <Input
-                              placeholder="What does your assistant do?"
-                              value={agentDescInput}
-                              onChange={e => setAgentDescInput(e.target.value)}
-                              className="bg-white/[0.07] border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/25 focus:bg-white/[0.09] h-9 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
-                              data-testid="input-agent-desc"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Name *</label>
+                          <Input
+                            placeholder="e.g. TrustBot, Guardian..."
+                            value={agentNameInput}
+                            onChange={e => setAgentNameInput(e.target.value)}
+                            className="bg-white/[0.07] border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/25 focus:bg-white/[0.09] h-9 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)]"
+                            data-testid="input-agent-name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Bio</label>
+                          <textarea
+                            placeholder="What does your assistant do? Describe its role and purpose..."
+                            value={agentDescInput}
+                            onChange={e => setAgentDescInput(e.target.value)}
+                            rows={3}
+                            className="w-full rounded-md bg-white/[0.07] border border-white/15 text-white placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/25 focus:bg-white/[0.09] px-3 py-2 text-sm transition-all duration-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] resize-none outline-none"
+                            data-testid="input-agent-desc"
+                          />
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-3">
-                        <div className="flex items-center gap-1.5 mb-1">
+                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
                           <div className="h-1 w-1 rounded-full bg-indigo-400" />
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-indigo-400/80">Visuals</span>
                         </div>
                         <div className="flex gap-2.5 items-end">
                           <div className="shrink-0">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Avatar</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Avatar</label>
                             <ImageUpload
                               value={agentPictureInput}
                               onChange={setAgentPictureInput}
@@ -746,7 +745,7 @@ export default function UserPanelPage() {
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1.5">Banner</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-300 block mb-1">Banner</label>
                             <ImageUpload
                               value={agentBannerInput}
                               onChange={setAgentBannerInput}
@@ -757,8 +756,8 @@ export default function UserPanelPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-3">
-                        <div className="flex items-center gap-1.5 mb-1">
+                      <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
                           <div className="h-1 w-1 rounded-full bg-amber-400" />
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-amber-400/80">Connections</span>
                           <span className="text-[9px] italic text-slate-500 ml-1">optional</span>
