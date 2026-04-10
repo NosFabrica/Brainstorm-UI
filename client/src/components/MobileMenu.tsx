@@ -34,7 +34,7 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
-  { path: "/agentsuite", label: "Agent HQ", icon: AgentIcon, special: true },
+  { path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true },
 ];
 
 const helpNav = [
