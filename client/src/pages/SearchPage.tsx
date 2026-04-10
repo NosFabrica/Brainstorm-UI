@@ -602,23 +602,6 @@ export default function SearchPage() {
             </div>
           </div>
 
-          {!hasSearched && (
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-6 animate-fade-up" style={{ animationDelay: "0.15s" }}>
-              <div className="flex items-center justify-center gap-6 sm:gap-8" data-testid="section-search-features">
-                {[
-                  { icon: Users, label: "Profile search" },
-                  { icon: TrendingUp, label: "Trust ranked" },
-                  { icon: CheckCircle2, label: "Identity verified" },
-                ].map((f, i) => (
-                  <div key={i} className="flex items-center gap-1.5" data-testid={`card-search-feature-${i}`}>
-                    <f.icon className="h-3.5 w-3.5 text-indigo-400" />
-                    <span className="text-xs text-slate-400">{f.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {isSearching && (
             <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-6">
               <div className="space-y-3" data-testid="container-search-loading">
@@ -706,6 +689,25 @@ export default function SearchPage() {
           )}
         </div>
       </main>
+
+      <div className="w-full px-6 sm:px-12 py-4 mt-auto">
+        <div className="max-w-4xl mx-auto flex items-center justify-between text-slate-400" data-testid="section-search-features">
+          <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
+            <Users className="h-3.5 w-3.5 text-slate-300" />
+            <span className="text-[11px] tracking-wide">Profile search</span>
+          </div>
+          <div className="w-px h-3 bg-slate-200" />
+          <div className="flex items-center gap-1.5" data-testid="card-search-feature-1">
+            <TrendingUp className="h-3.5 w-3.5 text-slate-300" />
+            <span className="text-[11px] tracking-wide">Trust ranked</span>
+          </div>
+          <div className="w-px h-3 bg-slate-200" />
+          <div className="flex items-center gap-1.5" data-testid="card-search-feature-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-slate-300" />
+            <span className="text-[11px] tracking-wide">Identity verified</span>
+          </div>
+        </div>
+      </div>
 
       <Footer />
     </div>
