@@ -460,21 +460,21 @@ export default function SearchPage() {
 
       <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} currentPath={location} navigate={navigate} calcDone={calcDone} user={user} onLogout={handleLogout} isAdmin={isAdminPubkey(user?.pubkey)} />
 
-      <main className="relative z-10 w-full flex-1">
-        <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "pt-16 sm:pt-28"}`}>
-          <div className={`max-w-2xl mx-auto px-4 sm:px-6 transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
+      <main className="relative z-10 w-full flex-1 flex flex-col">
+        <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "flex-1 flex flex-col justify-center -mt-12 sm:-mt-16"}`}>
+          <div className={`max-w-2xl mx-auto px-4 sm:px-6 w-full transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
             {!hasSearched && (
-              <div className="text-center mb-6" data-testid="section-search-hero">
+              <div className="text-center mb-8 sm:mb-10" data-testid="section-search-hero">
                 <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <BrainLogo size={36} className="text-indigo-600 mb-1 sm:hidden" />
-                  <BrainLogo size={40} className="text-indigo-600 mb-1 hidden sm:block" />
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                  <BrainLogo size={48} className="text-indigo-600 mb-2 sm:hidden" />
+                  <BrainLogo size={56} className="text-indigo-600 mb-2 hidden sm:block" />
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
                       Brainstorm
                     </span>
                   </h1>
                 </div>
-                <p className={`text-slate-400 text-xs sm:text-sm mt-1.5 sm:mt-2 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                <p className={`text-slate-400 text-sm sm:text-base mt-2 sm:mt-3 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   Search the decentralized web, ranked by trust.
                 </p>
               </div>
