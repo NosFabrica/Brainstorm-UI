@@ -565,7 +565,7 @@ export default function SearchPage() {
                 )}
                 <Input
                   ref={inputRef}
-                  placeholder="Search signal optimization"
+                  placeholder="Signal Engine Optimization — rank signals, not pages."
                   className="border-0 shadow-none focus-visible:ring-0 h-12 sm:h-14 text-sm sm:text-base bg-transparent placeholder:text-slate-400"
                   value={query}
                   onChange={(e) => {
