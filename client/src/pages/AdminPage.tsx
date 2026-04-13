@@ -63,6 +63,7 @@ import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
+import { AdminIcon } from "@/components/AdminIcon";
 import { useToast } from "@/hooks/use-toast";
 
 type AdminTab = "overview" | "users" | "health" | "activity";
@@ -715,9 +716,9 @@ export default function AdminPage() {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>Admin Dashboard</span>
+                  <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                    <AdminIcon className="mr-2 h-4 w-4" />
+                    <span>Admin</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-signout">

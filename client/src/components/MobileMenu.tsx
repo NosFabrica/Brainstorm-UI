@@ -10,8 +10,8 @@ import {
   BookOpen,
   Settings as SettingsIcon,
   LogOut,
-  Shield,
 } from "lucide-react";
+import { AdminIcon } from "@/components/AdminIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 
 interface MobileMenuProps {
@@ -192,7 +192,7 @@ export function MobileMenu({
                 />
                 {isAdmin && (
                   <NavButton
-                    item={{ path: "/admin", label: "Admin", icon: Shield }}
+                    item={{ path: "/admin", label: "Admin", icon: AdminIcon }}
                     active={currentPath === "/admin"}
                     onClose={onClose}
                     navigate={navigate}

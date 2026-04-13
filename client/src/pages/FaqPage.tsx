@@ -12,7 +12,6 @@ import {
   HelpCircle,
   ChevronDown,
   ArrowLeft,
-  Shield,
   Copy,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -30,6 +29,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
+import { AdminIcon } from "@/components/AdminIcon";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -211,9 +211,9 @@ export default function FaqPage() {
                       <span>Settings</span>
                     </DropdownMenuItem>
                     {isAdminPubkey(user?.pubkey) && (
-                      <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                        <Shield className="mr-2 h-4 w-4" />
-                        <span>Admin Dashboard</span>
+                      <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                        <AdminIcon className="mr-2 h-4 w-4" />
+                        <span>Admin</span>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator className="bg-indigo-100" />
