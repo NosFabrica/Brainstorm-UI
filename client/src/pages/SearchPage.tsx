@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Shield,
   Copy,
+  Zap,
   Users,
   BadgeCheck,
   Clock,
@@ -633,6 +634,12 @@ export default function SearchPage() {
                             </span>
                           )}
                         </div>
+                        {result.lud16 && (
+                          <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
+                            <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                            {result.lud16}
+                          </p>
+                        )}
                         {result.about && (
                           <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
                             {truncateAbout(result.about)}
@@ -651,8 +658,17 @@ export default function SearchPage() {
                               {formatFollowers(result.wotFollowers)}
                             </span>
                           )}
-                          <span className="text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
                             {result.npub.slice(0, 12)}...
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                              data-testid={`button-copy-npub-${idx}`}
+                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(result.npub); }}
+                            >
+                              <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
+                            </span>
                           </span>
                         </div>
                       </div>
