@@ -345,17 +345,18 @@ export default function SearchPage() {
       </div>
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-3 sm:gap-6">
               <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
+                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </div>
-              <button type="button" className="flex items-center gap-2" onClick={() => navigate("/dashboard")} data-testid="button-brand">
-                <BrainLogo size={28} className="text-indigo-500" />
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</h1>
+              <button type="button" className="flex items-center gap-1.5 sm:gap-2" onClick={() => navigate("/dashboard")} data-testid="button-brand">
+                <BrainLogo size={24} className="text-indigo-500 sm:hidden" />
+                <BrainLogo size={28} className="text-indigo-500 hidden sm:block" />
+                <h1 className="text-base sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</h1>
               </button>
               <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
                 <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
@@ -425,26 +426,26 @@ export default function SearchPage() {
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
         <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "flex-1 flex flex-col justify-center -mt-12 sm:-mt-16"}`}>
-          <div className={`max-w-2xl mx-auto px-4 sm:px-6 w-full transition-all duration-500 ${hasSearched ? "mb-6" : "mb-0"}`}>
+          <div className={`max-w-2xl mx-auto px-3 sm:px-6 w-full transition-all duration-500 ${hasSearched ? "mb-4 sm:mb-6" : "mb-0"}`}>
             {!hasSearched && (
-              <div className="text-center mb-8 sm:mb-10" data-testid="section-search-hero">
+              <div className="text-center mb-6 sm:mb-10" data-testid="section-search-hero">
                 <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <BrainLogo size={48} className="text-indigo-600 mb-2 sm:hidden" />
+                  <BrainLogo size={36} className="text-indigo-600 mb-2 sm:hidden" />
                   <BrainLogo size={44} className="text-indigo-600 mb-2 hidden sm:block" />
-                  <h1 className="text-4xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
                       Brainstorm
                     </span>
                   </h1>
                 </div>
-                <p className={`text-slate-400/70 text-[11px] sm:text-xs mt-3 px-2 tracking-wide ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                <p className={`text-slate-400/70 text-[10px] sm:text-xs mt-2 sm:mt-3 px-1 sm:px-2 tracking-wide leading-relaxed ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
                   The future of <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-violet-400 font-medium">Signal Engine Optimization</span> — search by trust, not pages.
                 </p>
               </div>
             )}
 
             <div className={`relative ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.8s_both]" : ""}`} data-testid="container-search-input">
-              <div className="relative flex items-center bg-white rounded-2xl border border-slate-200 shadow-[0_1px_6px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)] focus-within:shadow-[0_2px_12px_rgba(99,102,241,0.1)] focus-within:border-indigo-200 transition-all duration-300">
+              <div className="relative flex items-center bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-[0_1px_6px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)] focus-within:shadow-[0_2px_12px_rgba(99,102,241,0.1)] focus-within:border-indigo-200 transition-all duration-300">
                 {hasPovOption ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -518,8 +519,8 @@ export default function SearchPage() {
                 )}
                 <Input
                   ref={inputRef}
-                  placeholder="Search by name, npub, or NIP-05..."
-                  className="border-0 shadow-none focus-visible:ring-0 h-12 sm:h-14 text-sm sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0"
+                  placeholder="Search by name or npub..."
+                  className="border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -542,18 +543,18 @@ export default function SearchPage() {
                 <Button
                   onClick={handleSearch}
                   disabled={isSearching || !query.trim()}
-                  className="h-9 sm:h-10 px-5 sm:px-6 mr-1.5 sm:mr-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium text-xs sm:text-sm shrink-0 transition-all"
+                  className="h-8 sm:h-10 px-3 sm:px-6 mr-1 sm:mr-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm shrink-0 transition-all"
                   data-testid="button-search"
                 >
-                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
               {!hasSearched && (
-                <div className={`flex flex-wrap items-center justify-center gap-2 mt-5 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_1s_both]" : ""}`} data-testid="container-suggestions">
+                <div className={`flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-5 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_1s_both]" : ""}`} data-testid="container-suggestions">
                   {["bitcoin", "developers", "designers", "nostr", "privacy"].map((term) => (
                     <button
                       key={term}
-                      className="px-3 py-1.5 text-xs text-slate-500 bg-white/80 border border-slate-200/80 rounded-full hover:bg-white hover:border-slate-300 hover:text-slate-700 transition-all"
+                      className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs text-slate-500 bg-white/80 border border-slate-200/80 rounded-full hover:bg-white hover:border-slate-300 hover:text-slate-700 active:bg-slate-50 transition-all"
                       onClick={() => { setQuery(term); handleSearch(term); }}
                       data-testid={`suggestion-${term}`}
                     >
@@ -578,13 +579,13 @@ export default function SearchPage() {
           </div>
 
           {isSearching && (
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-6">
-              <div className="space-y-3" data-testid="container-search-loading">
+            <div className="max-w-3xl mx-auto px-3 sm:px-6 mt-4 sm:mt-6">
+              <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-white/70 border border-slate-100 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
-                    <div className="h-11 w-11 rounded-full bg-slate-200 shrink-0" />
+                  <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 border border-slate-100 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
+                    <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 shrink-0" />
                     <div className="flex-1 space-y-2 pt-1">
-                      <div className="h-3.5 bg-slate-200 rounded-full w-36" />
+                      <div className="h-3 sm:h-3.5 bg-slate-200 rounded-full w-28 sm:w-36" />
                       <div className="h-2.5 bg-slate-100 rounded-full w-full max-w-md" />
                     </div>
                   </div>
@@ -594,8 +595,8 @@ export default function SearchPage() {
           )}
 
           {!isSearching && hasSearched && results.length > 0 && (
-            <div className="max-w-3xl mx-auto px-4 sm:px-6">
-              <p className="text-[11px] text-slate-400 mb-3 px-1" data-testid="text-search-stats">
+            <div className="max-w-3xl mx-auto px-3 sm:px-6">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 sm:mb-3 px-1" data-testid="text-search-stats">
                 About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
               <div className="divide-y divide-slate-100" data-testid="container-search-results">
@@ -604,11 +605,11 @@ export default function SearchPage() {
                   return (
                     <button
                       key={result.pubkey}
-                      className={`w-full flex items-start gap-4 py-4 px-3 sm:px-4 hover:bg-white/80 rounded-lg transition-all duration-150 text-left group cursor-pointer ${isStale ? "opacity-75" : ""}`}
+                      className={`w-full flex items-start gap-3 sm:gap-4 py-3 sm:py-4 px-2 sm:px-4 hover:bg-white/80 active:bg-white/90 rounded-lg transition-all duration-150 text-left group cursor-pointer ${isStale ? "opacity-75" : ""}`}
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
-                      <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border border-slate-200/80 shrink-0 mt-0.5">
+                      <Avatar className="h-9 w-9 sm:h-11 sm:w-11 border border-slate-200/80 shrink-0 mt-0.5">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                         <AvatarFallback className="bg-slate-50 text-slate-600 font-semibold text-xs">
                           {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
@@ -666,9 +667,9 @@ export default function SearchPage() {
           )}
 
           {showNoResults && (
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-12 text-center" data-testid="container-no-results">
-              <div className="p-8 rounded-2xl bg-white/60 border border-slate-100">
-                <Radar className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+            <div className="max-w-2xl mx-auto px-3 sm:px-6 mt-8 sm:mt-12 text-center" data-testid="container-no-results">
+              <div className="p-6 sm:p-8 rounded-xl sm:rounded-2xl bg-white/60 border border-slate-100">
+                <Radar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-slate-700 mb-1">No profiles found</h3>
                 <p className="text-xs text-slate-500">Try a different name or paste an npub directly.</p>
               </div>
@@ -677,16 +678,16 @@ export default function SearchPage() {
         </div>
       </main>
 
-      <div className="w-full py-5 mt-auto relative">
+      <div className="w-full py-4 sm:py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-slate-200/40" />
-        <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4" data-testid="section-search-features">
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><TrustRankIcon className="h-3 w-3 text-slate-300" />Trust ranked</span>
-          <span className="text-[11px] text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><ProfileCardIcon className="h-3 w-3 text-slate-300" />Profile search</span>
-          <span className="text-[11px] text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2"><UserPovIcon className="h-3 w-3 text-slate-300" />Identity verified</span>
-          <span className="text-[11px] text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide"><Telescope className="h-3 w-3 text-slate-300" />Open protocol</span>
+        <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-5 gap-y-1 px-3 sm:px-4" data-testid="section-search-features">
+          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><TrustRankIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-300" />Trust ranked</span>
+          <span className="text-[9px] sm:text-[11px] text-slate-300">·</span>
+          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><ProfileCardIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-300" />Profile search</span>
+          <span className="text-[9px] sm:text-[11px] text-slate-300">·</span>
+          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2"><UserPovIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-300" />Identity verified</span>
+          <span className="text-[9px] sm:text-[11px] text-slate-300">·</span>
+          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] text-slate-400 font-medium tracking-wide"><Telescope className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-300" />Open protocol</span>
         </div>
       </div>
 
