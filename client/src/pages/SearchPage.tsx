@@ -20,6 +20,7 @@ import {
   Check,
   ChevronDown,
   Radar,
+  SlidersHorizontal,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { TrustRankIcon } from "@/components/TrustRankIcon";
@@ -168,6 +169,11 @@ export default function SearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
+  const [filterRank, setFilterRank] = useState<number | null>(null);
+  const [filterMinFollowers, setFilterMinFollowers] = useState<number | null>(null);
+  const [filterHasLightning, setFilterHasLightning] = useState(false);
+  const [filterHasWebsite, setFilterHasWebsite] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
   const [pov, setPov] = useState<SearchPov>("nosfabrica");
@@ -254,9 +260,17 @@ export default function SearchPage() {
     return pubkey;
   };
 
+  const resetFilters = useCallback(() => {
+    setFilterRank(null);
+    setFilterMinFollowers(null);
+    setFilterHasLightning(false);
+    setFilterHasWebsite(false);
+  }, []);
+
   const handleSearch = useCallback(async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    resetFilters();
 
     if (isLikelyNpub(q)) {
       try {
@@ -306,7 +320,7 @@ export default function SearchPage() {
         setIsSearching(false);
       }
     }
-  }, [query, pov, user?.pubkey, navigate]);
+  }, [query, pov, user?.pubkey, navigate, resetFilters]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -592,13 +606,93 @@ export default function SearchPage() {
             </div>
           )}
 
-          {!isSearching && hasSearched && results.length > 0 && (
+          {!isSearching && hasSearched && results.length > 0 && (() => {
+            const hasActiveFilters = filterRank !== null || filterMinFollowers !== null || filterHasLightning || filterHasWebsite;
+            const filteredResults = results.filter((r) => {
+              if (filterRank !== null && (r.wotRank == null || r.wotRank > filterRank)) return false;
+              if (filterMinFollowers !== null && (r.wotFollowers == null || r.wotFollowers < filterMinFollowers)) return false;
+              if (filterHasLightning && !r.lud16) return false;
+              if (filterHasWebsite && !r.website) return false;
+              return true;
+            });
+            return (
             <div className="max-w-3xl mx-auto px-3 sm:px-6">
-              <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 sm:mb-3 px-1" data-testid="text-search-stats">
-                About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
-              </p>
+              <div className="flex items-center justify-between mb-2 sm:mb-3 px-1">
+                <p className="text-[10px] sm:text-[11px] text-slate-400" data-testid="text-search-stats">
+                  {hasActiveFilters
+                    ? `Showing ${filteredResults.length} of ${results.length} result${results.length !== 1 ? "s" : ""}`
+                    : `About ${results.length} result${results.length !== 1 ? "s" : ""}`
+                  } ({(searchTime / 1000).toFixed(2)} seconds)
+                </p>
+                <button
+                  className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${showFilters || hasActiveFilters ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent"}`}
+                  onClick={() => setShowFilters(!showFilters)}
+                  data-testid="button-toggle-filters"
+                >
+                  <SlidersHorizontal className="h-2.5 w-2.5" />
+                  Filters{hasActiveFilters ? " ●" : ""}
+                </button>
+              </div>
+              {showFilters && (
+                <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5" data-testid="container-filters">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Rank</span>
+                    {([["All", null], ["Top 100", 100], ["Top 500", 500], ["Top 1K", 1000]] as [string, number | null][]).map(([label, val]) => (
+                      <button
+                        key={label}
+                        className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterRank === val ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
+                        onClick={() => setFilterRank(val)}
+                        data-testid={`filter-rank-${label.toLowerCase().replace(/\s/g, "")}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Followers</span>
+                    {([["Any", null], ["1K+", 1000], ["5K+", 5000], ["10K+", 10000]] as [string, number | null][]).map(([label, val]) => (
+                      <button
+                        key={label}
+                        className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterMinFollowers === val ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
+                        onClick={() => setFilterMinFollowers(val)}
+                        data-testid={`filter-followers-${label.toLowerCase().replace(/[+\s]/g, "")}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Profile</span>
+                    <button
+                      className={`inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterHasLightning ? "bg-amber-500 text-white border-amber-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
+                      onClick={() => setFilterHasLightning(!filterHasLightning)}
+                      data-testid="filter-has-lightning"
+                    >
+                      <Zap className="h-2.5 w-2.5" />
+                      Lightning
+                    </button>
+                    <button
+                      className={`inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterHasWebsite ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
+                      onClick={() => setFilterHasWebsite(!filterHasWebsite)}
+                      data-testid="filter-has-website"
+                    >
+                      <Globe className="h-2.5 w-2.5" />
+                      Website
+                    </button>
+                    {hasActiveFilters && (
+                      <button
+                        className="px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full text-slate-400 hover:text-slate-600 transition-colors"
+                        onClick={resetFilters}
+                        data-testid="button-clear-filters"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
-                {results.map((result, idx) => {
+                {filteredResults.map((result, idx) => {
                   const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                   const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                   return (
@@ -683,7 +777,8 @@ export default function SearchPage() {
                 })}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {showNoResults && (
             <div className="max-w-2xl mx-auto px-3 sm:px-6 mt-8 sm:mt-12 text-center" data-testid="container-no-results">
