@@ -700,6 +700,19 @@ export default function SearchPage() {
                   </div>
                 </div>
               )}
+              {hasActiveFilters && filteredResults.length === 0 && (
+                <div className="text-center py-6 sm:py-8" data-testid="container-no-filter-results">
+                  <p className="text-sm text-slate-500 font-medium">No profiles match these filters</p>
+                  <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or search for different terms</p>
+                  <button
+                    className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-100"
+                    onClick={resetFilters}
+                    data-testid="button-clear-filters-empty"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
               <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
                 {filteredResults.map((result, idx) => {
                   const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
