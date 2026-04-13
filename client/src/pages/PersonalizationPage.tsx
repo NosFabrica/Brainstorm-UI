@@ -13,11 +13,11 @@ import {
   User,
   Telescope,
   Key,
-  Radar,
   Fingerprint,
 } from "lucide-react";
 import { ProfileCardIcon } from "@/components/ProfileCardIcon";
 import { TrustRankIcon } from "@/components/TrustRankIcon";
+import { HousePovIcon } from "@/components/HousePovIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -175,7 +175,7 @@ export default function PersonalizationPage() {
               <div className="space-y-3">
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-white/70 border border-slate-100">
                   <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
-                    <Radar className="h-4 w-4" />
+                    <HousePovIcon className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">House Point of View</h3>
