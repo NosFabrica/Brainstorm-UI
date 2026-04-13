@@ -2,12 +2,15 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function spaFallbackPlugin() {
   return {
     name: "spa-fallback",
     closeBundle() {
-      const dist = path.resolve(import.meta.dirname, "dist");
+      const dist = path.resolve(__dirname, "dist");
       const index = path.join(dist, "index.html");
       if (fs.existsSync(index)) {
         fs.copyFileSync(index, path.join(dist, "200.html"));
@@ -22,13 +25,13 @@ export default defineConfig({
   plugins: [react(), spaFallbackPlugin()],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@": path.resolve(__dirname, "client", "src"),
+      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
-  root: path.resolve(import.meta.dirname, "client"),
+  root: path.resolve(__dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
+    outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
   },
   server: {
