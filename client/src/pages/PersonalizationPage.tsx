@@ -13,11 +13,11 @@ import {
   User,
   Telescope,
   Key,
-  Sparkles,
   Radar,
   Fingerprint,
   Flame,
 } from "lucide-react";
+import { ProfileCardIcon } from "@/components/ProfileCardIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -209,7 +209,7 @@ export default function PersonalizationPage() {
             <section data-testid="section-getting-personalized">
               <div className="flex items-center gap-2 mb-3">
                 <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                  <Sparkles className="h-4 w-4" />
+                  <ProfileCardIcon className="h-4 w-4" />
                 </div>
                 <h2 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Getting Personalized</h2>
               </div>
@@ -219,7 +219,7 @@ export default function PersonalizationPage() {
               <div className="space-y-2">
                 {[
                   { step: "1", icon: Key, text: "Sign in with a nostr browser extension (NIP-07)" },
-                  { step: "2", icon: Sparkles, text: "Calculate your Grapevine at brainstorm.nosfabrica.com" },
+                  { step: "2", icon: ProfileCardIcon, text: "Calculate your Grapevine at brainstorm.nosfabrica.com" },
                   { step: "3", icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters" },
                   { step: "4", icon: Telescope, text: 'Switch to "My Point of View" from the search page' },
                 ].map((item) => (
