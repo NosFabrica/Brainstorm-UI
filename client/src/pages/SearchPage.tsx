@@ -15,7 +15,6 @@ import {
   Copy,
   Users,
   BadgeCheck,
-  ArrowUpRight,
   Clock,
   Telescope,
   Check,
@@ -599,33 +598,34 @@ export default function SearchPage() {
               <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 sm:mb-3 px-1" data-testid="text-search-stats">
                 About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
-              <div className="divide-y divide-slate-100" data-testid="container-search-results">
+              <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
                 {results.map((result, idx) => {
                   const isStale = result.createdAt ? (Date.now() / 1000 - result.createdAt) > 365 * 86400 : false;
+                  const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                   return (
                     <button
                       key={result.pubkey}
-                      className={`w-full flex items-start gap-3 sm:gap-4 py-3 sm:py-4 px-2 sm:px-4 hover:bg-white/80 active:bg-white/90 rounded-lg transition-all duration-150 text-left group cursor-pointer ${isStale ? "opacity-75" : ""}`}
+                      className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer ${isStale ? "opacity-75" : ""}`}
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
-                      <Avatar className="h-9 w-9 sm:h-11 sm:w-11 border border-slate-200/80 shrink-0 mt-0.5">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border border-slate-200/80 shrink-0">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-slate-50 text-slate-600 font-semibold text-xs">
+                        <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
                           {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                        {result.nip05 && (
+                          <p className="text-[10px] sm:text-[11px] text-indigo-500 font-medium truncate mb-0.5" data-testid={`badge-nip05-${idx}`}>
+                            <BadgeCheck className="h-2.5 w-2.5 inline-block mr-0.5 -mt-px" />
+                            {result.nip05}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
-                          {result.nip05 && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 font-normal shrink-0" data-testid={`badge-nip05-${idx}`}>
-                              <BadgeCheck className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
-                              <span className="truncate max-w-[80px] sm:max-w-[180px]">{result.nip05}</span>
-                            </span>
-                          )}
                           {isStale && result.createdAt && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-normal shrink-0" data-testid={`badge-stale-${idx}`}>
                               <Clock className="h-2.5 w-2.5" />
@@ -633,32 +633,32 @@ export default function SearchPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5" data-testid={`text-result-npub-${idx}`}>
-                          {result.npub.slice(0, 16)}...{result.npub.slice(-6)}
-                        </p>
                         {result.about && (
-                          <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
+                          <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
                             {truncateAbout(result.about)}
                           </p>
                         )}
-                        {(result.wotRank != null || result.wotFollowers != null) && (
-                          <div className="flex items-center gap-2 mt-1.5">
-                            {result.wotRank != null && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-rank-${idx}`}>
-                                <TrustRankIcon className="h-2.5 w-2.5" />
-                                rank {result.wotRank}
-                              </span>
-                            )}
-                            {result.wotFollowers != null && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
-                                <Users className="h-2.5 w-2.5" />
-                                {result.wotFollowers} followers
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
+                          {result.wotRank != null && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
+                              <TrustRankIcon className="h-2.5 w-2.5" />
+                              #{result.wotRank}
+                            </span>
+                          )}
+                          {result.wotFollowers != null && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
+                              <Users className="h-2.5 w-2.5" />
+                              {formatFollowers(result.wotFollowers)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
+                            {result.npub.slice(0, 12)}...
+                          </span>
+                        </div>
                       </div>
-                      <ArrowUpRight className="h-4 w-4 text-slate-200 group-hover:text-indigo-400 transition-colors shrink-0 mt-1.5 hidden sm:block" />
+                      <span className="text-[11px] text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
+                        View →
+                      </span>
                     </button>
                   );
                 })}
