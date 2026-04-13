@@ -49,7 +49,7 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 type SearchPov = "nosfabrica" | "mywot";
 
 const SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
-const NOSFABRICA_OBSERVER = "be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a";
+const NOSFABRICA_OBSERVER = "15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270";
 
 interface SearchResult {
   pubkey: string;
@@ -116,7 +116,7 @@ function searchRelay(query: string, observerPubkey?: string, limit = 30): Promis
         if (observerPubkey) {
           searchStr += ` observer:${observerPubkey}`;
         }
-        searchStr += ` sort:followers:desc`;
+        searchStr += ` sort:followers:desc filter:rank:gte:2`;
         const req = JSON.stringify(["REQ", "bs-search", {
           kinds: [0],
           search: searchStr,
