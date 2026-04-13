@@ -680,9 +680,9 @@ export default function AdminPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                <Shield className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Admin</span>
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30">
+                <AdminIcon className="h-3.5 w-3.5 text-red-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-300">Admin</span>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
