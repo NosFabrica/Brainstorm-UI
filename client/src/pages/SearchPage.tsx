@@ -674,15 +674,16 @@ export default function SearchPage() {
         </div>
       </main>
 
-      <div className="w-full py-4 mt-auto relative">
-        <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4" data-testid="section-search-features">
-          <span className="text-[10px] text-slate-300 tracking-wide" data-testid="card-search-feature-0">Trust ranked</span>
-          <span className="text-[10px] text-slate-200">·</span>
-          <span className="text-[10px] text-slate-300 tracking-wide" data-testid="card-search-feature-1">Profile search</span>
-          <span className="text-[10px] text-slate-200">·</span>
-          <span className="text-[10px] text-slate-300 tracking-wide" data-testid="card-search-feature-2">Identity verified</span>
-          <span className="text-[10px] text-slate-200">·</span>
-          <span className="text-[10px] text-slate-300 tracking-wide">Open protocol</span>
+      <div className="w-full py-5 mt-auto relative">
+        <div className="absolute inset-x-0 top-0 h-px bg-slate-200/40" />
+        <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4" data-testid="section-search-features">
+          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0">Trust ranked</span>
+          <span className="text-[11px] text-slate-300">·</span>
+          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1">Profile search</span>
+          <span className="text-[11px] text-slate-300">·</span>
+          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2">Identity verified</span>
+          <span className="text-[11px] text-slate-300">·</span>
+          <span className="text-[11px] text-slate-400 font-medium tracking-wide">Open protocol</span>
         </div>
       </div>
 
