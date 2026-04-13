@@ -611,14 +611,8 @@ export default function SearchPage() {
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
-                      {result.banner && (
-                        <div className="relative w-full h-10 sm:h-14 overflow-hidden" data-testid={`banner-${idx}`}>
-                          <img src={result.banner} alt="" className="w-full h-full object-cover opacity-30 blur-[1px]" />
-                          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-white/90" />
-                        </div>
-                      )}
-                      <div className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-white/95 ${result.banner ? "-mt-3 sm:-mt-4 relative rounded-t-lg mx-1 sm:mx-2" : ""}`}>
-                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 ${result.banner ? "border-white shadow-sm ring-1 ring-slate-100" : "border-slate-200/80"}`}>
+                      <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
+                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80">
                           {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                           <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
                             {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
