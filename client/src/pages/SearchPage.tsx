@@ -430,8 +430,14 @@ export default function SearchPage() {
                     </span>
                   </h1>
                 </div>
-                <p className={`text-slate-400 text-sm sm:text-sm mt-2 sm:mt-2 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.4s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
-                  Search the decentralized web, ranked by trust.
+                <p className={`mt-3 sm:mt-4 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.3s_both]" : "animate-fade-up"}`} data-testid="text-search-tagline">
+                  <span className="text-xs sm:text-sm tracking-widest uppercase text-slate-400/80 font-medium">The future of</span>
+                  <span className="block text-sm sm:text-base font-semibold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 mt-0.5" style={{ fontFamily: "var(--font-display)" }}>
+                    Signal Engine Optimization
+                  </span>
+                </p>
+                <p className={`text-slate-400 text-xs sm:text-sm mt-2 px-2 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.5s_both]" : "animate-fade-up"}`} data-testid="text-search-subtitle">
+                  Search by trust, not pages.
                 </p>
               </div>
             )}
