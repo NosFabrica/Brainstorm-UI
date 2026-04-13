@@ -14,6 +14,7 @@ import {
   Shield,
   Copy,
   Zap,
+  Globe,
   Users,
   Clock,
   Telescope,
@@ -602,72 +603,95 @@ export default function SearchPage() {
                 {results.map((result, idx) => {
                   const isStale = result.createdAt ? (Date.now() / 1000 - result.createdAt) > 365 * 86400 : false;
                   const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+                  const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                   return (
                     <button
                       key={result.pubkey}
-                      className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer ${isStale ? "opacity-75" : ""}`}
+                      className={`w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden ${isStale ? "opacity-75" : ""}`}
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border border-slate-200/80 shrink-0">
-                        {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
-                          {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
-                            {getDisplayLabel(result)}
-                          </span>
-                          {isStale && result.createdAt && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-normal shrink-0" data-testid={`badge-stale-${idx}`}>
-                              <Clock className="h-2.5 w-2.5" />
-                              {getRelativeTime(result.createdAt)}
-                            </span>
-                          )}
+                      {result.banner && (
+                        <div className="relative w-full h-14 sm:h-20 overflow-hidden" data-testid={`banner-${idx}`}>
+                          <img src={result.banner} alt="" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/90" />
                         </div>
-                        {result.lud16 && (
-                          <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
-                            <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
-                            {result.lud16}
-                          </p>
-                        )}
-                        {result.about && (
-                          <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
-                            {truncateAbout(result.about)}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
-                              <TrustRankIcon className="h-2.5 w-2.5" />
-                              #{result.wotRank}
+                      )}
+                      <div className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 ${result.banner ? "pt-0 sm:pt-0 -mt-5 sm:-mt-6 relative" : ""}`}>
+                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 ${result.banner ? "border-white shadow-sm" : "border-slate-200/80"}`}>
+                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
+                            {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                              {getDisplayLabel(result)}
                             </span>
+                            {isStale && result.createdAt && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-normal shrink-0" data-testid={`badge-stale-${idx}`}>
+                                <Clock className="h-2.5 w-2.5" />
+                                {getRelativeTime(result.createdAt)}
+                              </span>
+                            )}
+                          </div>
+                          {result.lud16 && (
+                            <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
+                              <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                              {result.lud16}
+                            </p>
                           )}
-                          {result.wotFollowers != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
-                              <Users className="h-2.5 w-2.5" />
-                              {formatFollowers(result.wotFollowers)}
-                            </span>
+                          {websiteDisplay && (
+                            <p className="text-[10px] sm:text-[11px] text-emerald-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
+                              <Globe className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                              <a
+                                href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:underline truncate"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {websiteDisplay}
+                              </a>
+                            </p>
                           )}
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
-                            {result.npub.slice(0, 12)}...
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
-                              data-testid={`button-copy-npub-${idx}`}
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(result.npub); }}
-                            >
-                              <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
+                          {result.about && (
+                            <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
+                              {truncateAbout(result.about)}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
+                            {result.wotRank != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
+                                <TrustRankIcon className="h-2.5 w-2.5" />
+                                #{result.wotRank}
+                              </span>
+                            )}
+                            {result.wotFollowers != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
+                                <Users className="h-2.5 w-2.5" />
+                                {formatFollowers(result.wotFollowers)}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
+                              {result.npub.slice(0, 12)}...
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                                data-testid={`button-copy-npub-${idx}`}
+                                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(result.npub); }}
+                              >
+                                <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
+                              </span>
                             </span>
-                          </span>
+                          </div>
                         </div>
+                        <span className="text-[11px] text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
+                          View →
+                        </span>
                       </div>
-                      <span className="text-[11px] text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
-                        View →
-                      </span>
                     </button>
                   );
                 })}
