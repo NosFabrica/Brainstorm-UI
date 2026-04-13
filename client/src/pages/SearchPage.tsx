@@ -706,13 +706,13 @@ export default function SearchPage() {
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-200/40 to-transparent" />
         <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-4 text-slate-400" data-testid="section-search-features">
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-0">
-            <Users className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
-            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Profile search</span>
+            <TrendingUp className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Trust ranked</span>
           </div>
           <div className="w-px h-3 bg-slate-200/60 hidden sm:block" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-1">
-            <TrendingUp className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
-            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Trust ranked</span>
+            <Users className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+            <span className="text-[10px] sm:text-[11px] tracking-wide whitespace-nowrap">Profile search</span>
           </div>
           <div className="w-px h-3 bg-slate-200/60 hidden sm:block" />
           <div className="flex items-center gap-1.5" data-testid="card-search-feature-2">
