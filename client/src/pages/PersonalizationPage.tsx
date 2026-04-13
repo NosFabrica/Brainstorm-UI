@@ -13,11 +13,11 @@ import {
   User,
   Telescope,
   Key,
-  Fingerprint,
 } from "lucide-react";
 import { ProfileCardIcon } from "@/components/ProfileCardIcon";
 import { TrustRankIcon } from "@/components/TrustRankIcon";
 import { HousePovIcon } from "@/components/HousePovIcon";
+import { UserPovIcon } from "@/components/UserPovIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -184,7 +184,7 @@ export default function PersonalizationPage() {
                 </div>
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-white/70 border border-slate-100">
                   <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0 mt-0.5">
-                    <Fingerprint className="h-4 w-4" />
+                    <UserPovIcon className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">My Point of View</h3>
