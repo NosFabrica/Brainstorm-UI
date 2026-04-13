@@ -169,7 +169,7 @@ export default function SearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
-  const [filterRank, setFilterRank] = useState<number | null>(null);
+  const [filterRank, setFilterRank] = useState<[number, number] | null>(null);
   const [filterMinFollowers, setFilterMinFollowers] = useState<number | null>(null);
   const [filterHasLightning, setFilterHasLightning] = useState(false);
   const [filterHasWebsite, setFilterHasWebsite] = useState(false);
@@ -608,8 +608,14 @@ export default function SearchPage() {
 
           {!isSearching && hasSearched && results.length > 0 && (() => {
             const hasActiveFilters = filterRank !== null || filterMinFollowers !== null || filterHasLightning || filterHasWebsite;
+            const maxRank = results.reduce((max, r) => r.wotRank != null && r.wotRank > max ? r.wotRank : max, 1);
+            const getTrustScore = (rank: number) => Math.round(Math.max(0, Math.min(100, 100 - (rank / maxRank) * 100)));
             const filteredResults = results.filter((r) => {
-              if (filterRank !== null && (r.wotRank == null || r.wotRank > filterRank)) return false;
+              if (filterRank !== null) {
+                if (r.wotRank == null) return false;
+                const score = getTrustScore(r.wotRank);
+                if (score < filterRank[0] || score > filterRank[1]) return false;
+              }
               if (filterMinFollowers !== null && (r.wotFollowers == null || r.wotFollowers < filterMinFollowers)) return false;
               if (filterHasLightning && !r.lud16) return false;
               if (filterHasWebsite && !r.website) return false;
@@ -636,17 +642,20 @@ export default function SearchPage() {
               {showFilters && (
                 <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5" data-testid="container-filters">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Rank</span>
-                    {([["All", null], ["Top 100", 100], ["Top 500", 500], ["Top 1K", 1000]] as [string, number | null][]).map(([label, val]) => (
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Score</span>
+                    {([["All", null], ["76–100", [76, 100]], ["51–75", [51, 75]], ["26–50", [26, 50]], ["0–25", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
+                      const isActive = filterRank === null ? val === null : val !== null && filterRank[0] === val[0] && filterRank[1] === val[1];
+                      return (
                       <button
                         key={label}
-                        className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterRank === val ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
+                        className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${isActive ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
                         onClick={() => setFilterRank(val)}
-                        data-testid={`filter-rank-${label.toLowerCase().replace(/\s/g, "")}`}
+                        data-testid={`filter-rank-${label.toLowerCase().replace(/[–\s]/g, "")}`}
                       >
                         {label}
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Followers</span>
