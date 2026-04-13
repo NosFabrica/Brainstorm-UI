@@ -14,13 +14,15 @@ import {
   Shield,
   Copy,
   Users,
-  CheckCircle2,
-  TrendingUp,
-  ExternalLink,
+  BadgeCheck,
+  Flame,
+  ArrowUpRight,
   Clock,
-  Eye,
+  Telescope,
   Check,
   ChevronDown,
+  Fingerprint,
+  Radar,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
@@ -495,7 +497,7 @@ export default function SearchPage() {
                         onClick={() => navigate("/personalization")}
                         data-testid="link-learn-more"
                       >
-                        <Eye className="h-3 w-3" />
+                        <Telescope className="h-3 w-3" />
                         <span className="text-xs">Learn more</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -563,7 +565,7 @@ export default function SearchPage() {
                 <div className="flex items-center mt-2.5 px-1">
                   {hasPovOption && (
                     <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
-                      <Eye className="h-3 w-3 text-slate-300" />
+                      <Telescope className="h-3 w-3 text-slate-400" />
                       <p className="text-[11px] text-slate-400">
                         Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
                       </p>
@@ -618,7 +620,7 @@ export default function SearchPage() {
                           </span>
                           {result.nip05 && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 font-normal shrink-0" data-testid={`badge-nip05-${idx}`}>
-                              <CheckCircle2 className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                              <BadgeCheck className="h-2.5 w-2.5 text-indigo-400 shrink-0" />
                               <span className="truncate max-w-[80px] sm:max-w-[180px]">{result.nip05}</span>
                             </span>
                           )}
@@ -641,7 +643,7 @@ export default function SearchPage() {
                           <div className="flex items-center gap-2 mt-1.5">
                             {result.wotRank != null && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-rank-${idx}`}>
-                                <TrendingUp className="h-2.5 w-2.5" />
+                                <Flame className="h-2.5 w-2.5" />
                                 rank {result.wotRank}
                               </span>
                             )}
@@ -654,7 +656,7 @@ export default function SearchPage() {
                           </div>
                         )}
                       </div>
-                      <ExternalLink className="h-4 w-4 text-slate-200 group-hover:text-indigo-400 transition-colors shrink-0 mt-1.5 hidden sm:block" />
+                      <ArrowUpRight className="h-4 w-4 text-slate-200 group-hover:text-indigo-400 transition-colors shrink-0 mt-1.5 hidden sm:block" />
                     </button>
                   );
                 })}
@@ -665,7 +667,7 @@ export default function SearchPage() {
           {showNoResults && (
             <div className="max-w-2xl mx-auto px-4 sm:px-6 mt-12 text-center" data-testid="container-no-results">
               <div className="p-8 rounded-2xl bg-white/60 border border-slate-100">
-                <SearchIcon className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                <Radar className="h-10 w-10 text-slate-300 mx-auto mb-3" />
                 <h3 className="text-sm font-semibold text-slate-700 mb-1">No profiles found</h3>
                 <p className="text-xs text-slate-500">Try a different name or paste an npub directly.</p>
               </div>
@@ -677,13 +679,13 @@ export default function SearchPage() {
       <div className="w-full py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-slate-200/40" />
         <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4" data-testid="section-search-features">
-          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0">Trust ranked</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><Flame className="h-3 w-3 text-slate-300" />Trust ranked</span>
           <span className="text-[11px] text-slate-300">·</span>
-          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1">Profile search</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><Radar className="h-3 w-3 text-slate-300" />Profile search</span>
           <span className="text-[11px] text-slate-300">·</span>
-          <span className="text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2">Identity verified</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2"><Fingerprint className="h-3 w-3 text-slate-300" />Identity verified</span>
           <span className="text-[11px] text-slate-300">·</span>
-          <span className="text-[11px] text-slate-400 font-medium tracking-wide">Open protocol</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide"><Telescope className="h-3 w-3 text-slate-300" />Open protocol</span>
         </div>
       </div>
 
