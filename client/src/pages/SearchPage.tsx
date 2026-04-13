@@ -612,13 +612,13 @@ export default function SearchPage() {
                       data-testid={`result-profile-${idx}`}
                     >
                       {result.banner && (
-                        <div className="relative w-full h-14 sm:h-20 overflow-hidden" data-testid={`banner-${idx}`}>
+                        <div className="relative w-full h-16 sm:h-24 overflow-hidden" data-testid={`banner-${idx}`}>
                           <img src={result.banner} alt="" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/90" />
+                          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-white/80" />
                         </div>
                       )}
-                      <div className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 ${result.banner ? "pt-0 sm:pt-0 -mt-5 sm:-mt-6 relative" : ""}`}>
-                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 ${result.banner ? "border-white shadow-sm" : "border-slate-200/80"}`}>
+                      <div className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-white/95 ${result.banner ? "-mt-3 sm:-mt-4 relative rounded-t-lg mx-1 sm:mx-2" : ""}`}>
+                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 ${result.banner ? "border-white shadow-sm ring-1 ring-slate-100" : "border-slate-200/80"}`}>
                           {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                           <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
                             {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
