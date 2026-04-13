@@ -608,13 +608,10 @@ export default function SearchPage() {
 
           {!isSearching && hasSearched && results.length > 0 && (() => {
             const hasActiveFilters = filterRank !== null || filterMinFollowers !== null || filterHasLightning || filterHasWebsite;
-            const TOTAL_PROFILES = 12500;
-            const getTrustScore = (rank: number) => Math.round(Math.max(0, Math.min(100, (1 - rank / TOTAL_PROFILES) * 100)));
             const filteredResults = results.filter((r) => {
               if (filterRank !== null) {
                 if (r.wotRank == null) return false;
-                const score = getTrustScore(r.wotRank);
-                if (score < filterRank[0] || score > filterRank[1]) return false;
+                if (r.wotRank < filterRank[0] || r.wotRank > filterRank[1]) return false;
               }
               if (filterMinFollowers !== null && (r.wotFollowers == null || r.wotFollowers < filterMinFollowers)) return false;
               if (filterHasLightning && !r.lud16) return false;
