@@ -643,7 +643,7 @@ export default function SearchPage() {
                 <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5 relative" data-testid="container-filters">
                   {hasActiveFilters && (
                     <button
-                      className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] sm:text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-colors border border-slate-200"
+                      className="absolute bottom-2 right-2 sm:top-2.5 sm:bottom-auto sm:right-2.5 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] sm:text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-colors border border-slate-200"
                       onClick={resetFilters}
                       data-testid="button-clear-filters"
                     >
