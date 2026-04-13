@@ -640,7 +640,16 @@ export default function SearchPage() {
                 </button>
               </div>
               {showFilters && (
-                <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5" data-testid="container-filters">
+                <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5 relative" data-testid="container-filters">
+                  {hasActiveFilters && (
+                    <button
+                      className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] sm:text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-colors border border-slate-200"
+                      onClick={resetFilters}
+                      data-testid="button-clear-filters"
+                    >
+                      Clear all
+                    </button>
+                  )}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Trust</span>
                     {([["All", null], ["100–76", [76, 100]], ["75–51", [51, 75]], ["50–26", [26, 50]], ["25–0", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
@@ -688,15 +697,6 @@ export default function SearchPage() {
                       <Globe className="h-2.5 w-2.5" />
                       Website
                     </button>
-                    {hasActiveFilters && (
-                      <button
-                        className="px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-                        onClick={resetFilters}
-                        data-testid="button-clear-filters"
-                      >
-                        Clear all
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
