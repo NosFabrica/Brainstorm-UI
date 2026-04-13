@@ -563,10 +563,10 @@ export default function SearchPage() {
               </div>
               {!hasSearched && (
                 <div className={`flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-5 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_1s_both]" : ""}`} data-testid="container-suggestions">
-                  {["bitcoin", "nostr", "privacy", "developers", "clients", "podcasts"].map((term) => (
+                  {["bitcoin", "nostr", "privacy", "developers", "clients", "podcasts"].map((term, i) => (
                     <button
                       key={term}
-                      className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs text-slate-500 bg-white/80 border border-slate-200/80 rounded-full hover:bg-white hover:border-slate-300 hover:text-slate-700 active:bg-slate-50 transition-all"
+                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs text-slate-500 bg-white/80 border border-slate-200/80 rounded-full hover:bg-white hover:border-slate-300 hover:text-slate-700 active:bg-slate-50 transition-all ${i >= 4 ? "hidden sm:inline-flex" : ""}`}
                       onClick={() => { setQuery(term); handleSearch(term); }}
                       data-testid={`suggestion-${term}`}
                     >
