@@ -357,34 +357,37 @@ export default function SearchPage() {
                 <BrainLogo size={28} className="text-indigo-500" />
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</h1>
               </button>
-              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
-                  <Home className="h-4 w-4" /> Dashboard
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-nav-search">
-                  <SearchIcon className="h-4 w-4" /> Search
-                </Button>
-                <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
-                  <User className="h-4 w-4" /> Network
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                  <AgentIcon className="h-4 w-4" />
-                  <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                </Button>
+              <div className="hidden lg:flex items-center ml-2" data-testid="row-nav-links">
+                <div className="w-px h-5 bg-white/10 mr-3" />
+                <div className="flex items-center gap-0.5">
+                  <button className="relative px-3 py-1.5 text-[13px] font-medium text-slate-400 hover:text-white transition-colors rounded-md flex items-center gap-1.5 no-default-hover-elevate no-default-active-elevate" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
+                    <Home className="h-3.5 w-3.5" /> Dashboard
+                  </button>
+                  <button className="relative px-3 py-1.5 text-[13px] font-medium text-white transition-colors rounded-md flex items-center gap-1.5 no-default-hover-elevate no-default-active-elevate" data-testid="button-nav-search">
+                    <SearchIcon className="h-3.5 w-3.5" /> Search
+                    <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-indigo-400 rounded-full" />
+                  </button>
+                  <button className={`relative px-3 py-1.5 text-[13px] font-medium transition-colors rounded-md flex items-center gap-1.5 no-default-hover-elevate no-default-active-elevate ${calcDone ? "text-slate-400 hover:text-white" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
+                    <User className="h-3.5 w-3.5" /> Network
+                  </button>
+                  <button className="relative px-3 py-1.5 text-[13px] font-medium text-slate-400 hover:text-white transition-colors rounded-md flex items-center gap-1.5 no-default-hover-elevate no-default-active-elevate" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
+                    <AgentIcon className="h-3.5 w-3.5" /> Agent Suite
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                  <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity p-1.5 rounded-lg hover:bg-white/5" data-testid="button-user-menu">
+                    <Avatar className="h-8 w-8 border border-white/20">
                       {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" /> : null}
-                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                      <AvatarFallback className="bg-slate-700 text-slate-200 font-semibold text-xs">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                     </Avatar>
-                    <div className="hidden md:flex flex-col items-start mr-2">
-                      <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                      <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
+                    <div className="hidden md:flex flex-col items-start mr-1">
+                      <span className="text-[13px] font-semibold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
+                      <span className="text-[11px] text-slate-400 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
                     </div>
                   </div>
                 </DropdownMenuTrigger>
