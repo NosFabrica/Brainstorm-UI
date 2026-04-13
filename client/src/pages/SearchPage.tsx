@@ -16,7 +16,6 @@ import {
   Zap,
   Globe,
   Users,
-  Clock,
   Telescope,
   Check,
   ChevronDown,
@@ -45,7 +44,6 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { getRelativeTime } from "@/utils/trustTiers";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 type SearchPov = "nosfabrica" | "mywot";
@@ -601,13 +599,12 @@ export default function SearchPage() {
               </p>
               <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
                 {results.map((result, idx) => {
-                  const isStale = result.createdAt ? (Date.now() / 1000 - result.createdAt) > 365 * 86400 : false;
                   const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                   const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                   return (
                     <button
                       key={result.pubkey}
-                      className={`w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden ${isStale ? "opacity-75" : ""}`}
+                      className="w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
                       onClick={() => navigate(`/profile/${result.npub}`)}
                       data-testid={`result-profile-${idx}`}
                     >
@@ -623,12 +620,6 @@ export default function SearchPage() {
                             <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                               {getDisplayLabel(result)}
                             </span>
-                            {isStale && result.createdAt && (
-                              <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 font-normal shrink-0" data-testid={`badge-stale-${idx}`}>
-                                <Clock className="h-2.5 w-2.5" />
-                                {getRelativeTime(result.createdAt)}
-                              </span>
-                            )}
                           </div>
                           {result.lud16 && (
                             <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
