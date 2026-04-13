@@ -612,9 +612,9 @@ export default function SearchPage() {
                       data-testid={`result-profile-${idx}`}
                     >
                       {result.banner && (
-                        <div className="relative w-full h-16 sm:h-24 overflow-hidden" data-testid={`banner-${idx}`}>
-                          <img src={result.banner} alt="" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-white/80" />
+                        <div className="relative w-full h-10 sm:h-14 overflow-hidden" data-testid={`banner-${idx}`}>
+                          <img src={result.banner} alt="" className="w-full h-full object-cover opacity-30 blur-[1px]" />
+                          <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-white/90" />
                         </div>
                       )}
                       <div className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-white/95 ${result.banner ? "-mt-3 sm:-mt-4 relative rounded-t-lg mx-1 sm:mx-2" : ""}`}>
