@@ -762,7 +762,6 @@ export default function SearchPage() {
                           <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                             {result.wotRank != null && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
-                                <TrustRankIcon className="h-2.5 w-2.5" />
                                 <BrainLogo size={10} className="shrink-0" />
                                 {result.wotRank}
                               </span>
