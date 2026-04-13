@@ -20,11 +20,12 @@ import {
   Telescope,
   Check,
   ChevronDown,
-  Fingerprint,
   Radar,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { TrustRankIcon } from "@/components/TrustRankIcon";
+import { ProfileCardIcon } from "@/components/ProfileCardIcon";
+import { UserPovIcon } from "@/components/UserPovIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -681,9 +682,9 @@ export default function SearchPage() {
         <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4" data-testid="section-search-features">
           <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><TrustRankIcon className="h-3 w-3 text-slate-300" />Trust ranked</span>
           <span className="text-[11px] text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><Radar className="h-3 w-3 text-slate-300" />Profile search</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><ProfileCardIcon className="h-3 w-3 text-slate-300" />Profile search</span>
           <span className="text-[11px] text-slate-300">·</span>
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2"><Fingerprint className="h-3 w-3 text-slate-300" />Identity verified</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-2"><UserPovIcon className="h-3 w-3 text-slate-300" />Identity verified</span>
           <span className="text-[11px] text-slate-300">·</span>
           <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide"><Telescope className="h-3 w-3 text-slate-300" />Open protocol</span>
         </div>
