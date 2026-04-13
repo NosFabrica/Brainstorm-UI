@@ -15,7 +15,6 @@ import {
   Copy,
   Users,
   BadgeCheck,
-  Flame,
   ArrowUpRight,
   Clock,
   Telescope,
@@ -25,6 +24,7 @@ import {
   Radar,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { TrustRankIcon } from "@/components/TrustRankIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -643,7 +643,7 @@ export default function SearchPage() {
                           <div className="flex items-center gap-2 mt-1.5">
                             {result.wotRank != null && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-normal px-1.5 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-rank-${idx}`}>
-                                <Flame className="h-2.5 w-2.5" />
+                                <TrustRankIcon className="h-2.5 w-2.5" />
                                 rank {result.wotRank}
                               </span>
                             )}
@@ -679,7 +679,7 @@ export default function SearchPage() {
       <div className="w-full py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-slate-200/40" />
         <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4" data-testid="section-search-features">
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><Flame className="h-3 w-3 text-slate-300" />Trust ranked</span>
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-0"><TrustRankIcon className="h-3 w-3 text-slate-300" />Trust ranked</span>
           <span className="text-[11px] text-slate-300">·</span>
           <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium tracking-wide" data-testid="card-search-feature-1"><Radar className="h-3 w-3 text-slate-300" />Profile search</span>
           <span className="text-[11px] text-slate-300">·</span>

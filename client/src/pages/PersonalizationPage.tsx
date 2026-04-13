@@ -15,9 +15,9 @@ import {
   Key,
   Radar,
   Fingerprint,
-  Flame,
 } from "lucide-react";
 import { ProfileCardIcon } from "@/components/ProfileCardIcon";
+import { TrustRankIcon } from "@/components/TrustRankIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -197,7 +197,7 @@ export default function PersonalizationPage() {
             <section data-testid="section-trust-scores">
               <div className="flex items-center gap-2 mb-3">
                 <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                  <Flame className="h-4 w-4" />
+                  <TrustRankIcon className="h-4 w-4" />
                 </div>
                 <h2 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>What are Trust Scores?</h2>
               </div>
