@@ -15,7 +15,6 @@ import {
   Copy,
   Zap,
   Users,
-  BadgeCheck,
   Clock,
   Telescope,
   Check,
@@ -617,12 +616,6 @@ export default function SearchPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        {result.nip05 && (
-                          <p className="text-[10px] sm:text-[11px] text-indigo-500 font-medium truncate mb-0.5" data-testid={`badge-nip05-${idx}`}>
-                            <BadgeCheck className="h-2.5 w-2.5 inline-block mr-0.5 -mt-px" />
-                            {result.nip05}
-                          </p>
-                        )}
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
