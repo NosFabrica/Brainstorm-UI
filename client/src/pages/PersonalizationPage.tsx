@@ -11,10 +11,12 @@ import {
   Search,
   ArrowLeft,
   User,
-  Eye,
+  Telescope,
   Key,
   Sparkles,
-  Globe,
+  Radar,
+  Fingerprint,
+  Flame,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { Button } from "@/components/ui/button";
@@ -163,7 +165,7 @@ export default function PersonalizationPage() {
             <section data-testid="section-pov">
               <div className="flex items-center gap-2 mb-3">
                 <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                  <Eye className="h-4 w-4" />
+                  <Telescope className="h-4 w-4" />
                 </div>
                 <h2 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Two Points of View</h2>
               </div>
@@ -173,7 +175,7 @@ export default function PersonalizationPage() {
               <div className="space-y-3">
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-white/70 border border-slate-100">
                   <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0 mt-0.5">
-                    <Globe className="h-4 w-4" />
+                    <Radar className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">House Point of View</h3>
@@ -182,7 +184,7 @@ export default function PersonalizationPage() {
                 </div>
                 <div className="flex items-start gap-3 p-4 rounded-xl bg-white/70 border border-slate-100">
                   <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0 mt-0.5">
-                    <User className="h-4 w-4" />
+                    <Fingerprint className="h-4 w-4" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-slate-800">My Point of View</h3>
@@ -195,7 +197,7 @@ export default function PersonalizationPage() {
             <section data-testid="section-trust-scores">
               <div className="flex items-center gap-2 mb-3">
                 <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                  <Shield className="h-4 w-4" />
+                  <Flame className="h-4 w-4" />
                 </div>
                 <h2 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>What are Trust Scores?</h2>
               </div>
@@ -219,7 +221,7 @@ export default function PersonalizationPage() {
                   { step: "1", icon: Key, text: "Sign in with a nostr browser extension (NIP-07)" },
                   { step: "2", icon: Sparkles, text: "Calculate your Grapevine at brainstorm.nosfabrica.com" },
                   { step: "3", icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters" },
-                  { step: "4", icon: Eye, text: 'Switch to "My Point of View" from the search page' },
+                  { step: "4", icon: Telescope, text: 'Switch to "My Point of View" from the search page' },
                 ].map((item) => (
                   <div key={item.step} className="flex items-center gap-3 p-3 rounded-xl bg-white/70 border border-slate-100">
                     <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">
