@@ -643,7 +643,7 @@ export default function SearchPage() {
                 <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5" data-testid="container-filters">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Score</span>
-                    {([["All", null], ["76–100", [76, 100]], ["51–75", [51, 75]], ["26–50", [26, 50]], ["0–25", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
+                    {([["All", null], ["100–76", [76, 100]], ["75–51", [51, 75]], ["50–26", [26, 50]], ["25–0", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
                       const isActive = filterRank === null ? val === null : val !== null && filterRank[0] === val[0] && filterRank[1] === val[1];
                       return (
                       <button
