@@ -648,7 +648,7 @@ export default function SearchPage() {
                     </button>
                   )}
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Trust</span>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><BrainLogo size={10} className="shrink-0 text-slate-400" />Trust</span>
                     {([["All", null], ["100–76", [76, 100]], ["75–51", [51, 75]], ["50–26", [26, 50]], ["25–0", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
                       const isActive = filterRank === null ? val === null : val !== null && filterRank[0] === val[0] && filterRank[1] === val[1];
                       return (
@@ -664,7 +664,7 @@ export default function SearchPage() {
                     })}
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Followers</span>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><Users className="h-2.5 w-2.5 shrink-0 text-slate-400" />Followers</span>
                     {([["Any", null], ["1K+", 1000], ["5K+", 5000], ["10K+", 10000]] as [string, number | null][]).map(([label, val]) => (
                       <button
                         key={label}
@@ -677,7 +677,7 @@ export default function SearchPage() {
                     ))}
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0">Profile</span>
+                    <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><ProfileCardIcon className="h-2.5 w-2.5 shrink-0 text-slate-400" />Profile</span>
                     <button
                       className={`inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterHasLightning ? "bg-amber-500 text-white border-amber-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
                       onClick={() => setFilterHasLightning(!filterHasLightning)}
