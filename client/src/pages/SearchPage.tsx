@@ -43,13 +43,12 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { getTier, freshnessScore, getRelativeTime } from "@/utils/trustTiers";
+import { getRelativeTime } from "@/utils/trustTiers";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 type SearchPov = "nosfabrica" | "mywot";
 
-const SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
-const NOSFABRICA_OBSERVER = "15f7dafc4624b1e6b00ab7f863de1a53b71967528070ec7d1837c7a40c1c7270";
+const MEILI_API = "https://nous-clawds4.tapestry.ninja/api/search/profiles/meili";
 
 interface SearchResult {
   pubkey: string;
@@ -63,99 +62,90 @@ interface SearchResult {
   lud16?: string;
   banner?: string;
   createdAt?: number;
+  wotRank?: number | null;
+  wotFollowers?: number | null;
 }
 
-interface RankedSearchResult extends SearchResult {
-  composite: number;
-  trustInfluence: number | null;
+interface MeiliResponse {
+  success: boolean;
+  hits: MeiliHit[];
+  estimatedTotalHits?: number;
+  processingTimeMs?: number;
+  povSuffix?: string;
+  nip05Result?: { pubkey: string; npub: string } | null;
 }
 
-function parseProfileEvent(event: any): SearchResult | null {
-  try {
-    const content = JSON.parse(event.content);
-    const npub = nip19.npubEncode(event.pubkey);
-    return {
-      pubkey: event.pubkey,
-      npub,
-      name: content.name,
-      displayName: content.display_name || content.displayName,
-      picture: content.picture,
-      about: content.about,
-      nip05: content.nip05,
-      website: content.website,
-      lud16: content.lud16,
-      banner: content.banner,
-      createdAt: event.created_at,
-    };
-  } catch {
-    return null;
-  }
+interface MeiliHit {
+  pubkey: string;
+  npub: string;
+  name?: string;
+  display_name?: string;
+  displayName?: string;
+  picture?: string;
+  about?: string;
+  nip05?: string;
+  website?: string;
+  lud16?: string;
+  banner?: string;
+  created_at?: number;
+  wot_rank?: number;
+  wot_followers?: number;
 }
 
-function searchRelay(query: string, observerPubkey?: string, limit = 30): Promise<SearchResult[]> {
-  return new Promise((resolve) => {
-    const results: SearchResult[] = [];
-    const seen = new Set<string>();
-    let ws: WebSocket | null = null;
-    let resolved = false;
+function meiliHitToResult(hit: MeiliHit): SearchResult {
+  return {
+    pubkey: hit.pubkey,
+    npub: hit.npub,
+    name: hit.name,
+    displayName: hit.display_name || hit.displayName,
+    picture: hit.picture,
+    about: hit.about,
+    nip05: hit.nip05,
+    website: hit.website,
+    lud16: hit.lud16,
+    banner: hit.banner,
+    createdAt: hit.created_at,
+    wotRank: hit.wot_rank ?? null,
+    wotFollowers: hit.wot_followers ?? null,
+  };
+}
 
-    const finish = () => {
-      if (resolved) return;
-      resolved = true;
-      try { ws?.close(); } catch {}
-      resolve(results);
-    };
-
-    const timeout = setTimeout(finish, 6000);
-
-    try {
-      ws = new WebSocket(SEARCH_RELAY);
-
-      ws.onopen = () => {
-        let searchStr = query;
-        if (observerPubkey) {
-          searchStr += ` observer:${observerPubkey}`;
-        }
-        searchStr += ` sort:followers:desc filter:rank:gte:2`;
-        const req = JSON.stringify(["REQ", "bs-search", {
-          kinds: [0],
-          search: searchStr,
-          limit,
-        }]);
-        ws!.send(req);
-      };
-
-      ws.onmessage = (msg) => {
-        try {
-          const data = JSON.parse(msg.data);
-          if (data[0] === "EVENT" && data[1] === "bs-search") {
-            const event = data[2];
-            if (!seen.has(event.pubkey)) {
-              seen.add(event.pubkey);
-              const parsed = parseProfileEvent(event);
-              if (parsed) results.push(parsed);
-            }
-          } else if (data[0] === "EOSE" && data[1] === "bs-search") {
-            clearTimeout(timeout);
-            finish();
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-
-      ws.onclose = () => {
-        clearTimeout(timeout);
-        finish();
-      };
-    } catch {
-      clearTimeout(timeout);
-      finish();
-    }
+async function searchMeili(
+  query: string,
+  pov: SearchPov,
+  userPubkey?: string,
+  limit = 30,
+  offset = 0,
+): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+    offset: String(offset),
+    wotPov: pov === "nosfabrica" ? "house" : "user",
   });
+
+  if (pov === "mywot" && userPubkey) {
+    params.set("userPubkey", userPubkey);
+  }
+
+  const resp = await fetch(`${MEILI_API}?${params.toString()}`, {
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Search failed: ${resp.status}`);
+  }
+
+  const data: MeiliResponse = await resp.json();
+  if (!data.success) {
+    throw new Error("Search service unavailable");
+  }
+
+  return {
+    results: (data.hits || []).map(meiliHitToResult),
+    total: data.estimatedTotalHits || 0,
+    timeMs: data.processingTimeMs || 0,
+  };
 }
 
 function getDisplayLabel(result: SearchResult): string {
@@ -209,43 +199,8 @@ export default function SearchPage() {
     staleTime: 60_000,
   });
 
-  const trustScoreMap = useMemo(() => {
-    const map = new Map<string, number>();
-    const following = selfData?.data?.graph?.following;
-    if (!Array.isArray(following)) return map;
-    for (const entry of following) {
-      const pubkey = typeof entry === "string" ? entry : entry.pubkey;
-      const influence = typeof entry === "object" ? (entry.influence ?? 0) : 0;
-      if (pubkey) map.set(pubkey, influence);
-    }
-    return map;
-  }, [selfData]);
-
   const taPubkey = selfData?.data?.history?.ta_pubkey;
   const hasPovOption = !!taPubkey;
-
-  const observerPubkey = useMemo(() => {
-    if (pov === "nosfabrica") return NOSFABRICA_OBSERVER;
-    return user?.pubkey;
-  }, [pov, user?.pubkey]);
-
-  const sortedResults = useMemo((): RankedSearchResult[] => {
-    if (results.length === 0) return [];
-    const RELAY_WEIGHT = 0.5;
-    const FRESHNESS_WEIGHT = 0.3;
-    const TRUST_WEIGHT = 0.2;
-    const maxIdx = results.length;
-
-    return [...results]
-      .map((r, idx) => {
-        const relayScore = 1 - idx / maxIdx;
-        const fresh = freshnessScore(r.createdAt);
-        const trust = Math.min(1, Math.max(0, trustScoreMap.get(r.pubkey) ?? 0));
-        const composite = RELAY_WEIGHT * relayScore + FRESHNESS_WEIGHT * fresh + TRUST_WEIGHT * trust;
-        return { ...r, composite, trustInfluence: trust > 0 ? trust : null } as RankedSearchResult;
-      })
-      .sort((a, b) => b.composite - a.composite);
-  }, [results, trustScoreMap]);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -339,10 +294,10 @@ export default function SearchPage() {
     const start = performance.now();
 
     try {
-      const searchResults = await searchRelay(q, observerPubkey, 30);
+      const { results: searchResults, timeMs } = await searchMeili(q, pov, user?.pubkey, 30);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
-      setSearchTime(Math.round(performance.now() - start));
+      setSearchTime(timeMs || Math.round(performance.now() - start));
     } catch {
       if (searchAbortRef.current !== searchId) return;
       setResults([]);
@@ -351,7 +306,7 @@ export default function SearchPage() {
         setIsSearching(false);
       }
     }
-  }, [query, observerPubkey, navigate]);
+  }, [query, pov, user?.pubkey, navigate]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -375,8 +330,8 @@ export default function SearchPage() {
 
   if (!user || isAuthRedirecting()) return null;
 
-  const showEmptyState = !hasSearched && sortedResults.length === 0 && !isSearching;
-  const showNoResults = hasSearched && sortedResults.length === 0 && !isSearching;
+  const showEmptyState = !hasSearched && results.length === 0 && !isSearching;
+  const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-search">
@@ -605,9 +560,9 @@ export default function SearchPage() {
                     Accepts names, npubs, hex keys, or NIP-05 handles
                   </p>
                 )}
-                {hasSearched && sortedResults.length > 0 && (
+                {hasSearched && results.length > 0 && (
                   <p className="text-[10px] text-slate-400 ml-auto" data-testid="text-search-stats">
-                    {sortedResults.length} result{sortedResults.length !== 1 ? "s" : ""} in {(searchTime / 1000).toFixed(2)}s
+                    {results.length} result{results.length !== 1 ? "s" : ""} in {searchTime}ms
                   </p>
                 )}
               </div>
@@ -630,11 +585,10 @@ export default function SearchPage() {
             </div>
           )}
 
-          {!isSearching && hasSearched && sortedResults.length > 0 && (
+          {!isSearching && hasSearched && results.length > 0 && (
             <div className="max-w-3xl mx-auto px-4 sm:px-6">
               <div className="space-y-1" data-testid="container-search-results">
-                {sortedResults.map((result, idx) => {
-                  const trustInfo = result.trustInfluence !== null ? getTier(result.trustInfluence) : null;
+                {results.map((result, idx) => {
                   const isStale = result.createdAt ? (Date.now() / 1000 - result.createdAt) > 365 * 86400 : false;
                   return (
                     <button
@@ -654,12 +608,6 @@ export default function SearchPage() {
                           <span className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
-                          {trustInfo && trustInfo.name !== "Unverified" && (
-                            <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${trustInfo.badgeClass}`} data-testid={`badge-trust-${idx}`}>
-                              <Shield className="h-2.5 w-2.5" />
-                              {trustInfo.name}
-                            </span>
-                          )}
                           {result.nip05 && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0" data-testid={`badge-nip05-${idx}`}>
                               <CheckCircle2 className="h-2.5 w-2.5 shrink-0" />
@@ -680,6 +628,22 @@ export default function SearchPage() {
                           <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
                             {truncateAbout(result.about)}
                           </p>
+                        )}
+                        {(result.wotRank != null || result.wotFollowers != null) && (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            {result.wotRank != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-600" data-testid={`badge-rank-${idx}`}>
+                                <TrendingUp className="h-2.5 w-2.5" />
+                                rank: {result.wotRank}
+                              </span>
+                            )}
+                            {result.wotFollowers != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600" data-testid={`badge-followers-${idx}`}>
+                                <Users className="h-2.5 w-2.5" />
+                                followers: {result.wotFollowers}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1.5 hidden sm:block" />
