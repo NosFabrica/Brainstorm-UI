@@ -394,7 +394,15 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                           <span className="text-[9px] font-mono font-semibold text-slate-700">{item.algorithm}</span>
                         </td>
                         <td className="px-3 py-1.5 border-r border-slate-100">
-                          <span className="text-[9px] font-mono text-slate-600">{item.ta_status || "—"}</span>
+                          {item.ta_status ? (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                              item.ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                              item.ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                              "bg-slate-50 text-slate-600 border border-slate-200"
+                            }`}>{item.ta_status}</span>
+                          ) : (
+                            <span className="text-[9px] text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-1.5 border-r border-slate-100">
                           <span className="text-[9px] text-slate-600">{item.internal_publication_status || "—"}</span>
