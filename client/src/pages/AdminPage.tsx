@@ -320,21 +320,27 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
   return (
     <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
       <td colSpan={11} className="px-5 py-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[10px]">
-          <div className="space-y-2">
-            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Identity</p>
-            <div className="space-y-1.5">
-              <div>
-                <p className="text-[8px] text-slate-400 uppercase">Full Pubkey</p>
-                <p className="font-mono text-slate-700 break-all text-[9px]">{pubkey}</p>
+        <div className="space-y-4 text-[10px]">
+          <div>
+            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px] mb-2">Identity</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <p className="text-[8px] text-slate-400 uppercase mb-0.5">Full Pubkey</p>
+                <div className="flex items-center gap-1">
+                  <p className="font-mono text-slate-700 break-all text-[9px]">{pubkey}</p>
+                  <CopyButton text={pubkey} />
+                </div>
               </div>
-              <div>
-                <p className="text-[8px] text-slate-400 uppercase">Nostr npub</p>
-                <p className="font-mono text-indigo-600 break-all text-[9px]">{npub}</p>
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <p className="text-[8px] text-slate-400 uppercase mb-0.5">Nostr npub</p>
+                <div className="flex items-center gap-1">
+                  <p className="font-mono text-indigo-600 break-all text-[9px]">{npub}</p>
+                  <CopyButton text={npub} />
+                </div>
               </div>
               {taPubkey && (
-                <div>
-                  <p className="text-[8px] text-slate-400 uppercase">TA Pubkey</p>
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                  <p className="text-[8px] text-slate-400 uppercase mb-0.5">TA Pubkey</p>
                   <div className="flex items-center gap-1">
                     <p className="font-mono text-emerald-600 break-all text-[9px]">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
@@ -344,42 +350,48 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
+              {historyQuery.data && historyQuery.data.total > 0 && (
+                <span className="text-[8px] text-slate-400">{historyQuery.data.total} total</span>
+              )}
+            </div>
             {historyQuery.isLoading ? (
-              <div className="space-y-1">
-                <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
-                <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="p-3 rounded-xl bg-white border border-slate-100 animate-pulse">
+                    <div className="h-3 w-16 bg-slate-100 rounded mb-2" />
+                    <div className="h-3 w-24 bg-slate-100 rounded" />
+                  </div>
+                ))}
               </div>
             ) : historyQuery.isError ? (
               <p className="text-slate-400 italic">Failed to load history</p>
             ) : historyQuery.data && historyQuery.data.items.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-[8px] text-slate-400">{historyQuery.data.total} total calculation(s)</p>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {historyQuery.data.items.map((item, idx) => (
-                    <div key={item.private_id ?? idx} className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[7px] font-bold tracking-wide ${
-                          item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_1px_2px_rgba(16,185,129,0.1)]" :
-                          item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200 shadow-[0_1px_2px_rgba(239,68,68,0.1)]" :
-                          "bg-slate-50 text-slate-600 border border-slate-200"
-                        }`}>{item.status}</span>
-                        <span className="text-[8px] font-medium text-slate-400">{formatDate(item.created_at)}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[8px]">
-                        <span className="text-slate-500">Algorithm: <span className="font-mono font-semibold text-slate-700">{item.algorithm}</span></span>
-                        {item.ta_status && <span className="text-slate-500">TA: <span className="font-mono font-semibold text-slate-700">{item.ta_status}</span></span>}
-                      </div>
-                      {item.how_many_others_with_priority > 0 && (
-                        <span className="text-[8px] text-slate-400">Queue position: {item.how_many_others_with_priority}</span>
-                      )}
-                      {item.internal_publication_status && (
-                        <span className="text-[8px] text-slate-500 block">Pub: {item.internal_publication_status}</span>
-                      )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                {historyQuery.data.items.map((item, idx) => (
+                  <div key={item.private_id ?? idx} className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[7px] font-bold tracking-wide ${
+                        item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_1px_2px_rgba(16,185,129,0.1)]" :
+                        item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200 shadow-[0_1px_2px_rgba(239,68,68,0.1)]" :
+                        "bg-slate-50 text-slate-600 border border-slate-200"
+                      }`}>{item.status}</span>
+                      <span className="text-[8px] font-medium text-slate-400">{formatDate(item.created_at)}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center gap-3 text-[8px]">
+                      <span className="text-slate-500">Algorithm: <span className="font-mono font-semibold text-slate-700">{item.algorithm}</span></span>
+                      {item.ta_status && <span className="text-slate-500">TA: <span className="font-mono font-semibold text-slate-700">{item.ta_status}</span></span>}
+                    </div>
+                    {item.how_many_others_with_priority > 0 && (
+                      <span className="text-[8px] text-slate-400">Queue position: {item.how_many_others_with_priority}</span>
+                    )}
+                    {item.internal_publication_status && (
+                      <span className="text-[8px] text-slate-500 block">Pub: {item.internal_publication_status}</span>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-slate-400 italic">No calculation history</p>
