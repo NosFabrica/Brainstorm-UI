@@ -2505,7 +2505,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); }} />
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); }} />
                             ))}
                           </tbody>
                         </table>
