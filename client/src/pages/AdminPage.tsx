@@ -1436,7 +1436,7 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80">
                       <th className="px-2 py-2.5 align-middle w-6 border-r border-slate-200"></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
@@ -1602,10 +1602,6 @@ export default function AdminPage() {
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
                   <span className="text-[9px] text-slate-500">Data from /admin/users</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] text-amber-500 font-bold">*</span>
-                  <span className="text-[9px] text-slate-500">Data from Nostr relays, not from admin API</span>
                 </div>
                 {adminUsersQuery.isFetching && (
                   <div className="flex items-center gap-1.5 ml-auto">
