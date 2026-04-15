@@ -219,7 +219,7 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope }: {
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope, onClick }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -228,12 +228,14 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   unsupported?: boolean;
   tooltip?: string;
   scope?: "system" | "graph";
+  onClick?: () => void;
 }) {
   return (
     <div
-      className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col min-h-[120px]"
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
       title={tooltip}
+      onClick={onClick}
     >
       <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl" />
       <div className="flex items-start justify-between mb-2 relative">
@@ -557,6 +559,7 @@ export default function AdminPage() {
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
+  const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -646,6 +649,16 @@ export default function AdminPage() {
   const adminUsersList = adminUsersData?.items ?? [];
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
+
+  const filteredUsersList = useMemo(() => {
+    if (!kpiFilter) return adminUsersList;
+    return adminUsersList.filter(u => {
+      if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
+      if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
+      if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
+      return true;
+    });
+  }, [adminUsersList, kpiFilter]);
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", daysFilter],
@@ -1198,16 +1211,18 @@ export default function AdminPage() {
               value={formatNumber(hasSystemData ? adminStats!.scoredUsers : 0)}
               icon={UserCheck}
               subtitle={hasSystemData ? "Completed GrapeRank" : "From /admin/stats"}
-              tooltip={hasSystemData ? "Total users across the platform who have had GrapeRank calculated at least once." : "Requires /admin/stats endpoint."}
+              tooltip="Click to view scored users"
               scope={hasSystemData ? "system" : "graph"}
+              onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
               label="SP Adopters"
               value={formatNumber(hasSystemData ? adminStats!.spAdopters : 0)}
               icon={Shield}
               subtitle={hasSystemData ? "Published NIP-85 TA" : "From /admin/stats"}
-              tooltip={hasSystemData ? "Total users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." : "Requires /admin/stats endpoint."}
+              tooltip="Click to view SP adopters"
               scope={hasSystemData ? "system" : "graph"}
+              onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
               label="Reports Filed"
@@ -1222,8 +1237,9 @@ export default function AdminPage() {
               value={hasSystemData ? formatNumber(adminStats!.queueDepth) : (queuePosition !== null ? queuePosition.toString() : "—")}
               icon={Clock}
               subtitle={hasSystemData ? "Users awaiting calculation" : (queuePosition !== null ? "Position in queue" : "Via graperankResult")}
-              tooltip={hasSystemData ? "Total number of users currently waiting in the GrapeRank calculation queue." : "Your current position in the GrapeRank calculation queue. Lower means your next recalculation will start sooner."}
+              tooltip="Click to view queued users"
               scope={hasSystemData ? "system" : "graph"}
+              onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
             />
           </div>
 
@@ -1235,7 +1251,7 @@ export default function AdminPage() {
                 return (
                   <button
                     key={tab.key}
-                    onClick={() => { setActiveTab(tab.key); setUserPage(0); }}
+                    onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); }}
                     className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                       active
                         ? "bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white shadow-md"
@@ -1532,6 +1548,29 @@ export default function AdminPage() {
                 </Dialog>
               </div>
 
+              {kpiFilter && (
+                <div className="px-3 sm:px-5 py-2 border-b border-[#7c86ff]/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Filtered:</span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    kpiFilter === "scored" ? "bg-emerald-50 border border-emerald-200 text-emerald-700" :
+                    kpiFilter === "sp_adopters" ? "bg-indigo-50 border border-indigo-200 text-indigo-700" :
+                    "bg-amber-50 border border-amber-200 text-amber-700"
+                  }`}>
+                    {kpiFilter === "scored" && <><UserCheck className="h-3 w-3" /> Scored Users</>}
+                    {kpiFilter === "sp_adopters" && <><Shield className="h-3 w-3" /> SP Adopters</>}
+                    {kpiFilter === "queue" && <><Clock className="h-3 w-3" /> In Queue</>}
+                  </span>
+                  <button
+                    onClick={() => setKpiFilter(null)}
+                    className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-500 hover:text-slate-800 hover:bg-white/80 transition-colors"
+                    data-testid="button-clear-kpi-filter"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Clear filter
+                  </button>
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200" data-testid="table-users">
                   <thead>
@@ -1569,8 +1608,14 @@ export default function AdminPage() {
                           {userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
+                    ) : filteredUsersList.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                          No users match the current filter
+                        </td>
+                      </tr>
                     ) : (
-                      adminUsersList.map((u, i) => {
+                      filteredUsersList.map((u, i) => {
                         const isExpanded = expandedRows.has(u.pubkey);
                         const prof = userProfiles.get(u.pubkey);
                         let npub: string;
