@@ -378,49 +378,65 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                     </tr>
                   </thead>
                   <tbody>
-                    {historyQuery.data.items.map((item, idx) => (
-                      <tr key={item.private_id ?? idx} className="border-b border-slate-100 hover:bg-slate-50/40">
-                        <td className="px-3 py-1.5 whitespace-nowrap border-r border-slate-100">
-                          <span className="text-[9px] text-slate-500">{formatDate(item.created_at)}</span>
-                        </td>
-                        <td className="px-3 py-1.5 border-r border-slate-100">
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
-                            item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                            item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                            "bg-slate-50 text-slate-600 border border-slate-200"
-                          }`}>{item.status}</span>
-                        </td>
-                        <td className="px-3 py-1.5 border-r border-slate-100">
-                          <span className="text-[9px] font-mono font-semibold text-slate-700">{item.algorithm}</span>
-                        </td>
-                        <td className="px-3 py-1.5 border-r border-slate-100">
-                          {item.ta_status ? (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
-                              item.ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                              item.ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                              "bg-slate-50 text-slate-600 border border-slate-200"
-                            }`}>{item.ta_status}</span>
-                          ) : (
-                            <span className="text-[9px] text-slate-300">—</span>
+                    {historyQuery.data.items.map((item, idx) => {
+                      const hasFail = item.status.toLowerCase() === "failure" || item.ta_status?.toLowerCase() === "failure" || item.internal_publication_status?.toLowerCase() === "failure" || item.internal_publication_status?.toLowerCase() === "failed";
+                      const errorDetail = hasFail ? (item.result || null) : null;
+                      return (
+                        <Fragment key={item.private_id ?? idx}>
+                          <tr className={`border-b ${errorDetail ? "border-red-100" : "border-slate-100"} hover:bg-slate-50/40`}>
+                            <td className="px-3 py-1.5 whitespace-nowrap border-r border-slate-100">
+                              <span className="text-[9px] text-slate-500">{formatDate(item.created_at)}</span>
+                            </td>
+                            <td className="px-3 py-1.5 border-r border-slate-100">
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                                "bg-slate-50 text-slate-600 border border-slate-200"
+                              }`}>{item.status}</span>
+                            </td>
+                            <td className="px-3 py-1.5 border-r border-slate-100">
+                              <span className="text-[9px] font-mono font-semibold text-slate-700">{item.algorithm}</span>
+                            </td>
+                            <td className="px-3 py-1.5 border-r border-slate-100">
+                              {item.ta_status ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                  item.ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                  item.ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                                  "bg-slate-50 text-slate-600 border border-slate-200"
+                                }`}>{item.ta_status}</span>
+                              ) : (
+                                <span className="text-[9px] text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5 border-r border-slate-100">
+                              {item.internal_publication_status ? (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                  item.internal_publication_status.toLowerCase() === "success" || item.internal_publication_status.toLowerCase() === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                  item.internal_publication_status.toLowerCase() === "failure" || item.internal_publication_status.toLowerCase() === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
+                                  item.internal_publication_status.toLowerCase() === "pending" || item.internal_publication_status.toLowerCase() === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                  "bg-slate-50 text-slate-600 border border-slate-200"
+                                }`}>{item.internal_publication_status}</span>
+                              ) : (
+                                <span className="text-[9px] text-slate-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <span className="text-[9px] text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
+                            </td>
+                          </tr>
+                          {errorDetail && (
+                            <tr className="border-b border-red-100 bg-red-50/40">
+                              <td colSpan={6} className="px-3 py-1.5">
+                                <div className="flex items-start gap-1.5">
+                                  <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
+                                  <span className="text-[9px] text-red-700 font-mono break-all">{errorDetail}</span>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-3 py-1.5 border-r border-slate-100">
-                          {item.internal_publication_status ? (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
-                              item.internal_publication_status.toLowerCase() === "success" || item.internal_publication_status.toLowerCase() === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                              item.internal_publication_status.toLowerCase() === "failure" || item.internal_publication_status.toLowerCase() === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
-                              item.internal_publication_status.toLowerCase() === "pending" || item.internal_publication_status.toLowerCase() === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                              "bg-slate-50 text-slate-600 border border-slate-200"
-                            }`}>{item.internal_publication_status}</span>
-                          ) : (
-                            <span className="text-[9px] text-slate-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-1.5">
-                          <span className="text-[9px] text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
-                        </td>
-                      </tr>
-                    ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
