@@ -24,6 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Home,
   Search,
   Menu,
@@ -688,14 +695,23 @@ export default function AdminPage() {
     setUserPage(0);
   }, []);
 
+  const extractSafeMessage = (result: unknown, fallback: string): string => {
+    if (typeof result === "string") return result;
+    if (typeof result === "object" && result !== null) {
+      const r = result as Record<string, unknown>;
+      if (typeof r.message === "string") return r.message;
+      if (typeof r.detail === "string") return r.detail;
+      if (typeof r.status === "string") return r.status;
+    }
+    return fallback;
+  };
+
   const handleVerifyEncryption = useCallback(async () => {
     setVerifyRunning(true);
     setVerifyResult(null);
     try {
       const result = await apiClient.verifyNsecEncryption();
-      const msg = typeof result === "object" && result !== null
-        ? (result.message || result.detail || JSON.stringify(result))
-        : String(result ?? "Verification complete");
+      const msg = extractSafeMessage(result, "Verification complete");
       setVerifyResult({ success: true, message: msg });
       toast({ title: "Encryption Verified", description: msg });
     } catch (err: unknown) {
@@ -713,9 +729,7 @@ export default function AdminPage() {
     setRotateResult(null);
     try {
       const result = await apiClient.rotateNsecEncryption();
-      const msg = typeof result === "object" && result !== null
-        ? (result.message || result.detail || JSON.stringify(result))
-        : String(result ?? "Key rotation complete");
+      const msg = extractSafeMessage(result, "Key rotation complete");
       setRotateResult({ success: true, message: msg });
       setVerifyResult(null);
       toast({ title: "Key Rotated", description: msg });
@@ -1540,20 +1554,31 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
-                    {rotateConfirmOpen ? (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] text-amber-700 font-medium">Are you sure?</span>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={handleRotateEncryption}
-                          disabled={rotateRunning}
-                          className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
-                          data-testid="button-confirm-rotate"
-                        >
-                          {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                          Confirm
-                        </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRotateConfirmOpen(true)}
+                      disabled={rotateRunning || verifyRunning}
+                      className="text-xs gap-1.5 shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
+                      data-testid="button-rotate-encryption"
+                    >
+                      {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                      {rotateRunning ? "Rotating..." : "Rotate Key"}
+                    </Button>
+                  </div>
+
+                  <Dialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-amber-700">
+                          <KeyRound className="h-5 w-5" />
+                          Rotate Encryption Key
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-slate-600 pt-2">
+                          This will re-encrypt all nsec values with a new key. This is a sensitive operation and cannot be undone. Make sure you have verified encryption integrity first.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1563,21 +1588,20 @@ export default function AdminPage() {
                         >
                           Cancel
                         </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleRotateEncryption}
+                          disabled={rotateRunning}
+                          className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-confirm-rotate"
+                        >
+                          {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                          {rotateRunning ? "Rotating..." : "Confirm Rotation"}
+                        </Button>
                       </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRotateConfirmOpen(true)}
-                        disabled={rotateRunning || verifyRunning}
-                        className="text-xs gap-1.5 shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
-                        data-testid="button-rotate-encryption"
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                        Rotate Key
-                      </Button>
-                    )}
-                  </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
 
