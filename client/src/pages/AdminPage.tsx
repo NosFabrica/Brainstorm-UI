@@ -1133,11 +1133,12 @@ export default function AdminPage() {
             />
             <KpiCard
               label="Reports Filed"
-              value={formatNumber(hasSystemData ? adminStats!.totalReports : reportedByCount + reportingCount)}
+              value={hasSystemData ? formatNumber(adminStats!.totalReports) : "—"}
               icon={AlertTriangle}
-              subtitle={hasSystemData ? "Platform-wide" : "From your graph"}
-              tooltip={hasSystemData ? "Total mute and report actions filed across the entire Brainstorm platform." : "Total mute and report actions visible in your graph — combines reports you've filed and reports filed against users you follow."}
-              scope={hasSystemData ? "system" : "graph"}
+              subtitle={hasSystemData ? "Platform-wide" : "Awaiting /admin/stats"}
+              tooltip="Total mute and report actions filed across the entire Brainstorm platform. This metric requires the /admin/stats endpoint."
+              scope={hasSystemData ? "system" : undefined}
+              unsupported={!hasSystemData}
             />
             <KpiCard
               label={hasSystemData ? "Queue Depth" : "Queue Position"}
