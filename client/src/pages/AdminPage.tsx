@@ -1258,7 +1258,7 @@ export default function AdminPage() {
             />
           </div>
 
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+          <div className="hidden sm:block overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
             <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
               {tabs.map(tab => {
                 const Icon = tab.icon;
@@ -1279,6 +1279,25 @@ export default function AdminPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+          <div className="sm:hidden" data-testid="admin-tab-bar-mobile">
+            <div className="relative">
+              {(() => {
+                const ActiveIcon = tabs.find(t => t.key === activeTab)?.icon ?? BarChart3;
+                return <ActiveIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#333286] pointer-events-none" />;
+              })()}
+              <select
+                value={activeTab}
+                onChange={e => { setActiveTab(e.target.value as AdminTab); setUserPage(0); if (e.target.value === "users") setKpiFilter(null); }}
+                className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-2xl text-sm font-semibold bg-white/60 border border-[#7c86ff]/10 text-slate-800 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 shadow-sm"
+                data-testid="select-tab-mobile"
+              >
+                {tabs.map(tab => (
+                  <option key={tab.key} value={tab.key}>{tab.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             </div>
           </div>
 
