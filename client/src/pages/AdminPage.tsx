@@ -2533,7 +2533,7 @@ export default function AdminPage() {
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ID</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Req #</th>
                             </tr>
                           </thead>
                           <tbody>
