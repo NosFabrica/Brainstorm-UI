@@ -1175,32 +1175,6 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-overview">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-network-summary">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Network Summary</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Relationship breakdown from /user/self graph</p>
-                </div>
-                <div className="p-5 space-y-3">
-                  {[
-                    { label: "Followers", count: followersCount, color: "bg-emerald-500" },
-                    { label: "Following", count: followingCount, color: "bg-indigo-500" },
-                    { label: "Muted By", count: mutedByCount, color: "bg-amber-500" },
-                    { label: "Muting", count: mutingCount, color: "bg-slate-400" },
-                    { label: "Reported By", count: reportedByCount, color: "bg-red-500" },
-                    { label: "Reporting", count: reportingCount, color: "bg-orange-500" },
-                  ].map(row => (
-                    <div key={row.label} className="flex items-center justify-between" data-testid={`overview-row-${row.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <div className="flex items-center gap-2">
-                        <div className={`h-2 w-2 rounded-full ${row.color}`} />
-                        <span className="text-xs font-medium text-slate-700">{row.label}</span>
-                      </div>
-                      <span className="text-sm font-bold text-slate-900 tabular-nums">{formatNumber(row.count)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-graperank-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
