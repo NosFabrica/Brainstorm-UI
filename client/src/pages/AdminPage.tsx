@@ -1373,19 +1373,19 @@ export default function AdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[900px]" data-testid="table-users">
+                <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200" data-testid="table-users">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/50">
-                      <th className="px-2 py-2.5 align-middle w-6"></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile <span className="text-amber-500">*</span></span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
+                    <tr className="border-b border-slate-200 bg-slate-50/80">
+                      <th className="px-2 py-2.5 align-middle w-6 border-r border-slate-200"></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
@@ -1418,17 +1418,17 @@ export default function AdminPage() {
                         const isTriggering = triggeringPubkeys.has(u.pubkey);
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className="border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer" onClick={() => {
+                            <tr className="border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer" onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
-                              <td className="px-2 py-2.5">
+                              <td className="px-2 py-2.5 border-r border-slate-100">
                                 <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-profile-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-profile-${i}`}>
                                 <div className="flex items-center gap-1.5">
                                   <Avatar className="h-6 w-6 shrink-0">
                                     {prof?.picture ? (
@@ -1443,7 +1443,7 @@ export default function AdminPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5">
+                              <td className="px-2 py-2.5 border-r border-slate-100">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
                                     <span className="text-[8px] font-mono text-indigo-500/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
@@ -1455,7 +1455,7 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-pubkey-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-pubkey-${i}`}>
                                 {u.ta_pubkey ? (
                                   <div className="flex items-center gap-1">
                                     <span className="text-[8px] font-mono text-emerald-600">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
@@ -1465,7 +1465,7 @@ export default function AdminPage() {
                                   <span className="text-[8px] text-slate-300 italic">none</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-status-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-status-${i}`}>
                                 {u.latest_status ? (
                                   <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
                                     u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
@@ -1476,7 +1476,7 @@ export default function AdminPage() {
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-status-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-status-${i}`}>
                                 {u.latest_ta_status ? (
                                   <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
                                     u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
@@ -1487,20 +1487,20 @@ export default function AdminPage() {
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-algorithm-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-algorithm-${i}`}>
                                 {u.latest_algorithm ? (
                                   <span className="text-[9px] font-mono text-slate-600">{u.latest_algorithm}</span>
                                 ) : (
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-times-calc-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-times-calc-${i}`}>
                                 <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.times_calculated}</span>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-last-triggered-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-triggered-${i}`}>
                                 <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_triggered)}</span>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-last-updated-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-updated-${i}`}>
                                 <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_updated)}</span>
                               </td>
                               <td className="px-2 py-2.5 text-center">
