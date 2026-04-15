@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -58,6 +58,8 @@ import {
   Hash,
   Eye,
   LogIn,
+  Play,
+  Loader2,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
@@ -121,29 +123,50 @@ interface GrapeRankApiResponse {
   data?: GrapeRankData;
 }
 
-interface AdminUserRow {
+interface AdminUserListItem {
   pubkey: string;
-  npub: string;
-  relations: string[];
-  influence: number;
-  followerCount: number;
-  followingCount: number;
+  ta_pubkey: string | null;
+  times_calculated: number;
+  last_triggered: string;
+  last_updated: string;
+  latest_status: string | null;
+  latest_ta_status: string | null;
+  latest_algorithm: string | null;
 }
 
-interface BrainstormUserData {
-  status: "loading" | "loaded" | "error";
-  taPubkey?: string;
-  followerTotal: number;
-  followingTotal: number;
-  mutedByTotal: number;
-  reportedByTotal: number;
-  influence: number;
-  lastCalculated?: string;
-  lastTriggered?: string;
-  timesCalculated?: number;
-  followerList: string[];
-  followingList: string[];
+interface AdminUsersPage {
+  items: AdminUserListItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
 }
+
+interface BrainstormRequestInstance {
+  created_at: string;
+  updated_at: string;
+  private_id: number;
+  status: string;
+  ta_status: string | null;
+  internal_publication_status: string | null;
+  result: string | null;
+  count_values: string | null;
+  password: string;
+  algorithm: string;
+  parameters: string;
+  how_many_others_with_priority: number;
+  pubkey: string | null;
+}
+
+interface AdminUserHistoryPage {
+  items: BrainstormRequestInstance[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
+type AdminSortKey = "pubkey" | "times_calculated" | "last_triggered" | "last_updated";
 
 interface RelayLatency {
   url: string;
@@ -169,16 +192,6 @@ function formatUptime(since: Date): string {
   return `${mins}m`;
 }
 
-function extractPubkey(entry: string | GraphMember): string | null {
-  if (typeof entry === "string") return entry;
-  if (entry && typeof entry === "object" && typeof entry.pubkey === "string") return entry.pubkey;
-  return null;
-}
-
-function extractInfluence(entry: string | GraphMember): number {
-  if (typeof entry === "object" && entry !== null && typeof entry.influence === "number") return entry.influence;
-  return 0;
-}
 
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
@@ -281,14 +294,95 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-const RELATION_BADGE_STYLES: Record<string, string> = {
-  follower: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  following: "bg-indigo-50 text-indigo-700 border border-indigo-200",
-  muted_by: "bg-amber-50 text-amber-700 border border-amber-200",
-  muting: "bg-amber-50 text-amber-700 border border-amber-200",
-  reported_by: "bg-red-50 text-red-700 border border-red-200",
-  reporting: "bg-red-50 text-red-700 border border-red-200",
-};
+function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: string; taPubkey: string | null }) {
+  const historyQuery = useQuery<AdminUserHistoryPage>({
+    queryKey: ["/api/admin/users", pubkey, "history"],
+    queryFn: () => apiClient.getAdminUserHistory(pubkey, { page: 1, size: 10 }),
+    staleTime: 30_000,
+  });
+
+  const formatDate = (dateStr: string): string => {
+    try {
+      const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    } catch { return dateStr; }
+  };
+
+  return (
+    <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
+      <td colSpan={11} className="px-5 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-[10px]">
+          <div className="space-y-2">
+            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Identity</p>
+            <div className="space-y-1.5">
+              <div>
+                <p className="text-[8px] text-slate-400 uppercase">Full Pubkey</p>
+                <p className="font-mono text-slate-700 break-all text-[9px]">{pubkey}</p>
+              </div>
+              <div>
+                <p className="text-[8px] text-slate-400 uppercase">Nostr npub</p>
+                <p className="font-mono text-indigo-600 break-all text-[9px]">{npub}</p>
+              </div>
+              {taPubkey && (
+                <div>
+                  <p className="text-[8px] text-slate-400 uppercase">TA Pubkey</p>
+                  <div className="flex items-center gap-1">
+                    <p className="font-mono text-emerald-600 break-all text-[9px]">{taPubkey}</p>
+                    <CopyButton text={taPubkey} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
+            {historyQuery.isLoading ? (
+              <div className="space-y-1">
+                <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
+                <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
+              </div>
+            ) : historyQuery.isError ? (
+              <p className="text-slate-400 italic">Failed to load history</p>
+            ) : historyQuery.data && historyQuery.data.items.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-[8px] text-slate-400">{historyQuery.data.total} total calculation(s)</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {historyQuery.data.items.map((item, idx) => (
+                    <div key={item.private_id ?? idx} className="p-2 rounded-lg bg-white/60 border border-slate-100 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-semibold ${
+                          item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                          item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                          "bg-slate-50 text-slate-600 border border-slate-200"
+                        }`}>{item.status}</span>
+                        <span className="text-[8px] text-slate-400">{formatDate(item.created_at)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[8px]">
+                        <span className="text-slate-500">Algorithm: <span className="font-mono text-slate-700">{item.algorithm}</span></span>
+                        {item.ta_status && <span className="text-slate-500">TA: <span className="font-mono text-slate-700">{item.ta_status}</span></span>}
+                      </div>
+                      {item.how_many_others_with_priority > 0 && (
+                        <span className="text-[8px] text-slate-400">Queue position: {item.how_many_others_with_priority}</span>
+                      )}
+                      {item.internal_publication_status && (
+                        <span className="text-[8px] text-slate-500 block">Pub: {item.internal_publication_status}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-slate-400 italic">No calculation history</p>
+            )}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 
 export default function AdminPage() {
   const [location, navigate] = useLocation();
@@ -297,12 +391,21 @@ export default function AdminPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [userSearch, setUserSearch] = useState("");
-  const [userSort, setUserSort] = useState<SortState>({ key: "influence", dir: "desc" });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [daysFilter, setDaysFilter] = useState(30);
+  const [userSort, setUserSort] = useState<SortState>({ key: "last_triggered", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(userSearch.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -340,6 +443,52 @@ export default function AdminPage() {
   });
   const adminStats = adminStatsQuery.data ?? null;
   const hasSystemData = adminStats !== null;
+
+  const adminUsersQuery = useQuery<AdminUsersPage>({
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize],
+    queryFn: () => apiClient.getAdminUsers({
+      search: debouncedSearch || undefined,
+      sort: userSort.key,
+      order: userSort.dir,
+      days: daysFilter,
+      page: userPage + 1,
+      size: pageSize,
+    }),
+    enabled: !!user,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+
+  const adminUsersData = adminUsersQuery.data;
+  const adminUsersList = adminUsersData?.items ?? [];
+  const adminUsersTotal = adminUsersData?.total ?? 0;
+  const adminUsersTotalPages = adminUsersData?.pages ?? 1;
+
+  const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
+
+  useEffect(() => {
+    if (adminUsersList.length === 0) return;
+    let cancelled = false;
+    const toFetch = adminUsersList.filter(u => !userProfiles.has(u.pubkey));
+    if (toFetch.length === 0) return;
+    (async () => {
+      const results = await Promise.allSettled(toFetch.map(u => fetchProfile(u.pubkey, 8000)));
+      if (cancelled) return;
+      setUserProfiles(prev => {
+        const next = new Map(prev);
+        for (let i = 0; i < toFetch.length; i++) {
+          const r = results[i];
+          if (r.status === "fulfilled" && r.value) {
+            next.set(toFetch[i].pubkey, { name: r.value.display_name || r.value.name, picture: r.value.picture });
+          } else {
+            next.set(toFetch[i].pubkey, {});
+          }
+        }
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [adminUsersList]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -400,178 +549,18 @@ export default function AdminPage() {
   const lastCalcTime = historyData?.last_time_calculated_graperank ?? null;
   const lastTriggerTime = historyData?.last_time_triggered_graperank ?? null;
 
-  const allUsers = useMemo((): AdminUserRow[] => {
-    if (!network) return [];
-    const pubkeyMap = new Map<string, { relations: Set<string>; influence: number }>();
-
-    const addFromList = (list: Array<string | GraphMember> | undefined, relation: string) => {
-      if (!Array.isArray(list)) return;
-      for (const entry of list) {
-        const pk = extractPubkey(entry);
-        if (!pk) continue;
-        const inf = extractInfluence(entry);
-        const existing = pubkeyMap.get(pk);
-        if (existing) {
-          existing.relations.add(relation);
-          existing.influence = Math.max(existing.influence, inf);
-        } else {
-          pubkeyMap.set(pk, { relations: new Set([relation]), influence: inf });
-        }
-      }
-    };
-
-    addFromList(network.followed_by, "follower");
-    addFromList(network.following, "following");
-    addFromList(network.muted_by, "muted_by");
-    addFromList(network.muting, "muting");
-    addFromList(network.reported_by, "reported_by");
-    addFromList(network.reporting, "reporting");
-
-    return Array.from(pubkeyMap.entries()).map(([pk, data]) => {
-      let npub: string;
-      try { npub = nip19.npubEncode(pk); } catch { npub = pk; }
-      const rels = Array.from(data.relations);
-      return {
-        pubkey: pk,
-        npub,
-        relations: rels,
-        influence: data.influence,
-        followerCount: rels.includes("follower") ? 1 : 0,
-        followingCount: rels.includes("following") ? 1 : 0,
-      };
-    });
-  }, [network]);
-
-  const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
-
-  const [brainstormData, setBrainstormData] = useState<Map<string, BrainstormUserData>>(new Map());
-  const brainstormInFlight = useMemo(() => new Set<string>(), []);
-
-  const filteredUsers = useMemo(() => {
-    let list = allUsers;
-    if (userSearch.trim()) {
-      const q = userSearch.trim().toLowerCase();
-      list = list.filter(u => {
-        const prof = userProfiles.get(u.pubkey);
-        const bd = brainstormData.get(u.pubkey);
-        return u.pubkey.toLowerCase().includes(q) || u.npub.toLowerCase().includes(q) || u.relations.some(r => r.toLowerCase().includes(q)) || (prof?.name && prof.name.toLowerCase().includes(q)) || (bd?.taPubkey && bd.taPubkey.toLowerCase().includes(q));
-      });
+  const handleTriggerGraperank = useCallback(async (pubkey: string) => {
+    setTriggeringPubkeys(prev => new Set(prev).add(pubkey));
+    try {
+      await apiClient.triggerUserGraperank(pubkey);
+      toast({ title: "GrapeRank triggered", description: `Triggered for ${pubkey.slice(0, 12)}...` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    } catch (err: any) {
+      toast({ title: "Trigger failed", description: err?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setTriggeringPubkeys(prev => { const next = new Set(prev); next.delete(pubkey); return next; });
     }
-    const sorted = [...list];
-    sorted.sort((a, b) => {
-      const bdA = brainstormData.get(a.pubkey);
-      const bdB = brainstormData.get(b.pubkey);
-      let va: string | number, vb: string | number;
-      if (userSort.key === "influence") { va = bdA?.influence ?? a.influence; vb = bdB?.influence ?? b.influence; }
-      else if (userSort.key === "pubkey") { va = a.pubkey; vb = b.pubkey; }
-      else if (userSort.key === "relations") { va = a.relations.length; vb = b.relations.length; }
-      else if (userSort.key === "followers") { va = bdA?.followerTotal ?? 0; vb = bdB?.followerTotal ?? 0; }
-      else if (userSort.key === "following") { va = bdA?.followingTotal ?? 0; vb = bdB?.followingTotal ?? 0; }
-      else if (userSort.key === "timesCalc") { va = bdA?.timesCalculated ?? 0; vb = bdB?.timesCalculated ?? 0; }
-      else if (userSort.key === "lastCalc") { va = bdA?.lastCalculated ?? ""; vb = bdB?.lastCalculated ?? ""; }
-      else { va = a.pubkey; vb = b.pubkey; }
-      if (va < vb) return userSort.dir === "asc" ? -1 : 1;
-      if (va > vb) return userSort.dir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return sorted;
-  }, [allUsers, userSearch, userSort, userProfiles, brainstormData]);
-
-  const paginatedUsers = useMemo(() => {
-    const start = userPage * pageSize;
-    return filteredUsers.slice(start, start + pageSize);
-  }, [filteredUsers, userPage, pageSize]);
-
-  const { enrichedCount, scoredUserCount, spAdopterCount } = useMemo(() => {
-    let enriched = 0;
-    let scored = 0;
-    let adopters = 0;
-    brainstormData.forEach(bd => {
-      if (bd.status === "loaded") {
-        enriched++;
-        if (bd.timesCalculated && bd.timesCalculated > 0) scored++;
-        if (bd.taPubkey) adopters++;
-      }
-    });
-    return { enrichedCount: enriched, scoredUserCount: scored, spAdopterCount: adopters };
-  }, [brainstormData]);
-
-  useEffect(() => {
-    if (paginatedUsers.length === 0) return;
-    let cancelled = false;
-    const toFetch = paginatedUsers.filter(u => !userProfiles.has(u.pubkey));
-    if (toFetch.length === 0) return;
-    (async () => {
-      const results = await Promise.allSettled(toFetch.map(u => fetchProfile(u.pubkey, 8000)));
-      if (cancelled) return;
-      setUserProfiles(prev => {
-        const next = new Map(prev);
-        for (let i = 0; i < toFetch.length; i++) {
-          const r = results[i];
-          if (r.status === "fulfilled" && r.value) {
-            next.set(toFetch[i].pubkey, { name: r.value.display_name || r.value.name, picture: r.value.picture });
-          } else {
-            next.set(toFetch[i].pubkey, {});
-          }
-        }
-        return next;
-      });
-    })();
-    return () => { cancelled = true; };
-  }, [paginatedUsers]);
-
-  useEffect(() => {
-    if (paginatedUsers.length === 0) return;
-    const toFetch = paginatedUsers.filter(u => !brainstormData.has(u.pubkey) && !brainstormInFlight.has(u.pubkey));
-    if (toFetch.length === 0) return;
-    for (const u of toFetch) brainstormInFlight.add(u.pubkey);
-    const countArr = (arr: unknown): number => Array.isArray(arr) ? arr.length : 0;
-    const toPkList = (arr: unknown): string[] => {
-      if (!Array.isArray(arr)) return [];
-      return arr.map((e: string | GraphMember) => typeof e === "string" ? e : (e as GraphMember)?.pubkey).filter(Boolean).slice(0, 5);
-    };
-    (async () => {
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
-        const batch = toFetch.slice(i, i + BATCH_SIZE);
-        const results = await Promise.allSettled(batch.map(u => apiClient.getUserByPubkey(u.pubkey)));
-        setBrainstormData(prev => {
-          const next = new Map(prev);
-          for (let j = 0; j < batch.length; j++) {
-            brainstormInFlight.delete(batch[j].pubkey);
-            const r = results[j];
-            if (r.status === "fulfilled" && r.value?.data) {
-              const d = r.value.data;
-              const hist = d.history || {};
-              next.set(batch[j].pubkey, {
-                status: "loaded",
-                taPubkey: hist.ta_pubkey,
-                followerTotal: countArr(d.followed_by ?? d.graph?.followed_by),
-                followingTotal: countArr(d.following ?? d.graph?.following),
-                mutedByTotal: countArr(d.muted_by ?? d.graph?.muted_by),
-                reportedByTotal: countArr(d.reported_by ?? d.graph?.reported_by),
-                influence: typeof d.influence === "number" ? d.influence : 0,
-                lastCalculated: hist.last_time_calculated_graperank,
-                lastTriggered: hist.last_time_triggered_graperank,
-                timesCalculated: hist.times_calculated_graperank,
-                followerList: toPkList(d.followed_by ?? d.graph?.followed_by),
-                followingList: toPkList(d.following ?? d.graph?.following),
-              });
-            } else {
-              next.set(batch[j].pubkey, { status: "error", followerTotal: 0, followingTotal: 0, mutedByTotal: 0, reportedByTotal: 0, influence: 0, followerList: [], followingList: [] });
-            }
-          }
-          return next;
-        });
-      }
-    })();
-  }, [paginatedUsers]);
-
-  const brainstormFetchedCount = useMemo(() => {
-    let count = 0;
-    brainstormData.forEach(v => { if (v.status === "loaded") count++; });
-    return count;
-  }, [brainstormData]);
+  }, [toast, queryClient]);
 
   const formatCrmDate = (dateStr?: string): string => {
     if (!dateStr) return "";
@@ -582,7 +571,7 @@ export default function AdminPage() {
     } catch { return dateStr; }
   };
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const totalPages = adminUsersTotalPages;
 
   const handleSort = useCallback((key: string) => {
     setUserSort(prev => prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" });
@@ -764,27 +753,27 @@ export default function AdminPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
-              label={hasSystemData ? "Total Users" : "Graph Size"}
-              value={formatNumber(hasSystemData ? adminStats!.totalUsers : allUsers.length)}
+              label={hasSystemData ? "Total Users" : "Users (Admin API)"}
+              value={formatNumber(hasSystemData ? adminStats!.totalUsers : adminUsersTotal)}
               icon={Users}
-              subtitle={hasSystemData ? "All Brainstorm users" : "From /user/self graph"}
-              tooltip={hasSystemData ? "Total registered users across the entire Brainstorm platform." : "Total unique pubkeys discovered in your Web of Trust graph — includes followers, following, and extended network."}
+              subtitle={hasSystemData ? "All Brainstorm users" : `From /admin/users (${daysFilter}d)`}
+              tooltip={hasSystemData ? "Total registered users across the entire Brainstorm platform." : "Total users returned by the admin users endpoint for the selected time range."}
               scope={hasSystemData ? "system" : "graph"}
             />
             <KpiCard
               label="Scored Users"
-              value={formatNumber(hasSystemData ? adminStats!.scoredUsers : scoredUserCount)}
+              value={formatNumber(hasSystemData ? adminStats!.scoredUsers : 0)}
               icon={UserCheck}
-              subtitle={hasSystemData ? "Completed GrapeRank" : `${enrichedCount} of ${allUsers.length} enriched`}
-              tooltip={hasSystemData ? "Total users across the platform who have had GrapeRank calculated at least once." : "Users in your graph who have had GrapeRank calculated at least once. Updates as more users are enriched."}
+              subtitle={hasSystemData ? "Completed GrapeRank" : "From /admin/stats"}
+              tooltip={hasSystemData ? "Total users across the platform who have had GrapeRank calculated at least once." : "Requires /admin/stats endpoint."}
               scope={hasSystemData ? "system" : "graph"}
             />
             <KpiCard
               label="SP Adopters"
-              value={formatNumber(hasSystemData ? adminStats!.spAdopters : spAdopterCount)}
+              value={formatNumber(hasSystemData ? adminStats!.spAdopters : 0)}
               icon={Shield}
-              subtitle={hasSystemData ? "Published NIP-85 TA" : `${enrichedCount} of ${allUsers.length} enriched`}
-              tooltip={hasSystemData ? "Total users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." : "Users in your graph who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider."}
+              subtitle={hasSystemData ? "Published NIP-85 TA" : "From /admin/stats"}
+              tooltip={hasSystemData ? "Total users who have published a Trust Attestation (NIP-85) designating Brainstorm as their service provider." : "Requires /admin/stats endpoint."}
               scope={hasSystemData ? "system" : "graph"}
             />
             <KpiCard
@@ -941,8 +930,7 @@ export default function AdminPage() {
                     {[
                       { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                       { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
-                      { endpoint: "/admin/users", label: "Admin Users", status: "disconnected" as const }, // API endpoint not supported
-                      { endpoint: "/admin/system", label: "Admin System", status: "disconnected" as const }, // API endpoint not supported
+                      { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
                     ].map(ep => (
                       <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
                         <div>
@@ -965,23 +953,33 @@ export default function AdminPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-slate-500">{filteredUsers.length.toLocaleString()} users</span>
+                    <span className="text-xs text-slate-500">{adminUsersTotal.toLocaleString()} users</span>
                     <span className="text-[10px] text-slate-400">|</span>
-                    <span className="text-[10px] text-slate-400">{brainstormFetchedCount} enriched via /user/&#123;pubkey&#125;</span>
+                    <span className="text-[10px] text-slate-400">Page {(userPage + 1)} of {totalPages}</span>
                     <span className="text-[10px] text-slate-400">|</span>
-                    <span className="text-[10px] text-amber-500 font-medium">Source: /user/self network graph</span>
+                    <span className="text-[10px] text-emerald-600 font-medium">Source: /admin/users</span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Full user listing requires <span className="font-mono text-amber-600/80">/admin/users</span> endpoint (pending backend)</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Search name, npub, pubkey, relation..."
+                    placeholder="Search pubkey, npub..."
                     value={userSearch}
                     onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-72"
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-56"
                     data-testid="input-user-search"
                   />
+                  <Select value={daysFilter.toString()} onValueChange={(val) => { setDaysFilter(parseInt(val, 10)); setUserPage(0); }}>
+                    <SelectTrigger className="w-24 h-8 text-xs rounded-xl border-slate-200" data-testid="select-days-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">7 days</SelectItem>
+                      <SelectItem value="30">30 days</SelectItem>
+                      <SelectItem value="90">90 days</SelectItem>
+                      <SelectItem value="365">365 days</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
                     <SelectTrigger className="w-20 h-8 text-xs rounded-xl border-slate-200" data-testid="select-page-size">
                       <SelectValue />
@@ -996,55 +994,52 @@ export default function AdminPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1400px]" data-testid="table-users">
+                <table className="w-full text-left min-w-[900px]" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/50">
                       <th className="px-2 py-2.5 align-middle w-6"></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Nostr Identity" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brainstorm ID</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Followers" sortKey="followers" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Following" sortKey="following" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Influence" sortKey="influence" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Last Pub</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Calc" sortKey="lastCalc" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="# Calcs" sortKey="timesCalc" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-l border-amber-200/40 bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">TA Count</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Calc Status</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Runtime</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-amber-200/40 bg-amber-50/20"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last Error</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile <span className="text-amber-500">*</span></span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedUsers.length === 0 ? (
+                    {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={15} className="px-5 py-10 text-center text-sm text-slate-400">
-                          {selfQuery.isLoading ? "Loading user data..." : userSearch ? "No users match your search" : "No user data available"}
+                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                          <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
+                          Loading users...
+                        </td>
+                      </tr>
+                    ) : adminUsersQuery.isError ? (
+                      <tr>
+                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-red-400">
+                          Failed to load users. Check your admin access.
+                        </td>
+                      </tr>
+                    ) : adminUsersList.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                          {userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : (
-                      paginatedUsers.map((u, i) => {
+                      adminUsersList.map((u, i) => {
                         const isExpanded = expandedRows.has(u.pubkey);
                         const prof = userProfiles.get(u.pubkey);
-                        const bd = brainstormData.get(u.pubkey);
-                        const isLoading = !bd || bd.status === "loading";
-                        const isError = bd?.status === "error";
-                        const isLoaded = bd?.status === "loaded";
-                        const SkeletonCell = () => <div className="h-3 w-12 bg-slate-100 rounded animate-pulse" />;
-                        const AwaitingApiBadge = () => (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
-                            <Clock className="h-2.5 w-2.5" /> Awaiting API
-                          </span>
-                        );
-                        const ErrorBadge = () => (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-medium bg-red-50 text-red-600 border border-red-200">
-                            <XCircle className="h-2.5 w-2.5" /> Error
-                          </span>
-                        );
+                        let npub: string;
+                        try { npub = nip19.npubEncode(u.pubkey); } catch { npub = u.pubkey; }
+                        const isTriggering = triggeringPubkeys.has(u.pubkey);
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className={`border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer ${isError ? "bg-red-50/30" : ""}`} onClick={() => {
+                            <tr className="border-b border-slate-50 hover:bg-white/60 transition-colors cursor-pointer" onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
@@ -1064,24 +1059,16 @@ export default function AdminPage() {
                                       {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300" />}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <div className="min-w-0">
-                                    <span className="text-[9px] text-slate-700 truncate block max-w-[90px] font-medium">
-                                      {prof?.name || u.npub.slice(0, 12) + "..."}
-                                    </span>
-                                    <div className="flex gap-1 mt-0.5 flex-wrap">
-                                      {u.relations.slice(0, 2).map(r => (
-                                        <span key={r} className={`text-[7px] px-1 py-0 rounded ${RELATION_BADGE_STYLES[r] || "bg-slate-100 text-slate-500"}`}>{r}</span>
-                                      ))}
-                                      {u.relations.length > 2 && <span className="text-[7px] text-slate-400">+{u.relations.length - 2}</span>}
-                                    </div>
-                                  </div>
+                                  <span className="text-[9px] text-slate-700 truncate block max-w-[90px] font-medium">
+                                    {prof?.name || npub.slice(0, 12) + "..."}
+                                  </span>
                                 </div>
                               </td>
                               <td className="px-2 py-2.5">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-indigo-500/80">{u.npub.slice(0, 12)}...{u.npub.slice(-4)}</span>
-                                    <CopyButton text={u.npub} />
+                                    <span className="text-[8px] font-mono text-indigo-500/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
+                                    <CopyButton text={npub} />
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="text-[7px] font-mono text-slate-400">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
@@ -1089,256 +1076,81 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-brainstorm-npub-${i}`}>
-                                {isLoading ? <SkeletonCell /> : isLoaded && bd?.taPubkey ? (
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-pubkey-${i}`}>
+                                {u.ta_pubkey ? (
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-emerald-600">{bd.taPubkey.slice(0, 10)}...{bd.taPubkey.slice(-4)}</span>
-                                    <CopyButton text={bd.taPubkey} />
+                                    <span className="text-[8px] font-mono text-emerald-600">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
+                                    <CopyButton text={u.ta_pubkey} />
                                   </div>
-                                ) : isError ? (
-                                  <ErrorBadge />
                                 ) : (
                                   <span className="text-[8px] text-slate-300 italic">none</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5">
-                                {isLoading ? <SkeletonCell /> : (
-                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{isLoaded ? bd!.followerTotal.toLocaleString() : "—"}</span>
-                                )}
-                              </td>
-                              <td className="px-2 py-2.5">
-                                {isLoading ? <SkeletonCell /> : (
-                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{isLoaded ? bd!.followingTotal.toLocaleString() : "—"}</span>
-                                )}
-                              </td>
-                              <td className="px-2 py-2.5">
-                                {isLoading ? <SkeletonCell /> : (
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-10 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                      <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((isLoaded ? bd!.influence : u.influence) * 100, 100)}%` }} />
-                                    </div>
-                                    <span className="text-[9px] font-mono text-slate-600 tabular-nums">{(isLoaded ? bd!.influence : u.influence).toFixed(3)}</span>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-last-${i}`}>
-                                {isLoading ? <SkeletonCell /> : isLoaded && bd?.lastCalculated ? (
-                                  <span className="text-[9px] text-slate-600">{formatCrmDate(bd.lastCalculated)}</span>
-                                ) : isLoaded ? (
-                                  <span className="text-[8px] text-slate-300 italic">never</span>
-                                ) : isError ? (
-                                  <ErrorBadge />
+                              <td className="px-2 py-2.5" data-testid={`cell-status-${i}`}>
+                                {u.latest_status ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
+                                    u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                    u.latest_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                  }`}>{u.latest_status}</span>
                                 ) : (
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-last-calc-${i}`}>
-                                {isLoading ? <SkeletonCell /> : isLoaded && bd?.lastCalculated ? (
-                                  <span className="text-[9px] text-slate-600">{formatCrmDate(bd.lastCalculated)}</span>
-                                ) : isLoaded ? (
-                                  <span className="text-[8px] text-slate-300 italic">never</span>
-                                ) : isError ? (
-                                  <ErrorBadge />
+                              <td className="px-2 py-2.5" data-testid={`cell-ta-status-${i}`}>
+                                {u.latest_ta_status ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
+                                    u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                    u.latest_ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                  }`}>{u.latest_ta_status}</span>
+                                ) : (
+                                  <span className="text-[8px] text-slate-300">—</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-2.5" data-testid={`cell-algorithm-${i}`}>
+                                {u.latest_algorithm ? (
+                                  <span className="text-[9px] font-mono text-slate-600">{u.latest_algorithm}</span>
                                 ) : (
                                   <span className="text-[8px] text-slate-300">—</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5" data-testid={`cell-times-calc-${i}`}>
-                                {isLoading ? <SkeletonCell /> : isLoaded ? (
-                                  <span className="text-[10px] font-mono text-slate-600 tabular-nums">{bd?.timesCalculated ?? 0}</span>
-                                ) : (
-                                  <span className="text-[8px] text-slate-300">—</span>
-                                )}
+                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.times_calculated}</span>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-ta-count-${i}`}>
-                                <AwaitingApiBadge />
+                              <td className="px-2 py-2.5" data-testid={`cell-last-triggered-${i}`}>
+                                <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_triggered)}</span>
                               </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-calc-status-${i}`}>
-                                <AwaitingApiBadge />
-                              </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-runtime-${i}`}>
-                                <AwaitingApiBadge />
-                              </td>
-                              <td className="px-2 py-2.5" data-testid={`cell-last-error-${i}`}>
-                                <AwaitingApiBadge />
+                              <td className="px-2 py-2.5" data-testid={`cell-last-updated-${i}`}>
+                                <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_updated)}</span>
                               </td>
                               <td className="px-2 py-2.5 text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/profile/${u.npub}`); }}
-                                  data-testid={`button-view-user-${i}`}
-                                >
-                                  <Eye className="h-3 w-3 mr-1" /> View
-                                </Button>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${npub}`); }}
+                                    data-testid={`button-view-user-${i}`}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" /> View
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    disabled={isTriggering}
+                                    onClick={(e) => { e.stopPropagation(); handleTriggerGraperank(u.pubkey); }}
+                                    data-testid={`button-trigger-graperank-${i}`}
+                                  >
+                                    {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+                                    {isTriggering ? "..." : "Trigger"}
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                             {isExpanded && (
-                              <tr key={`${u.pubkey}-detail`} className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${i}`}>
-                                <td colSpan={15} className="px-5 py-4">
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-[10px]">
-                                    <div className="space-y-2">
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Identity</p>
-                                      <div className="space-y-1.5">
-                                        <div>
-                                          <p className="text-[8px] text-slate-400 uppercase">Full Pubkey</p>
-                                          <p className="font-mono text-slate-700 break-all text-[9px]">{u.pubkey}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-[8px] text-slate-400 uppercase">Full Nostr npub</p>
-                                          <p className="font-mono text-indigo-600 break-all text-[9px]">{u.npub}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-[8px] text-slate-400 uppercase">Brainstorm Service Key</p>
-                                          {isLoading ? (
-                                            <div className="h-3 w-32 bg-slate-100 rounded animate-pulse mt-0.5" />
-                                          ) : isLoaded && bd?.taPubkey ? (
-                                            <div className="flex items-center gap-1">
-                                              <p className="font-mono text-emerald-600 break-all text-[9px]">{bd.taPubkey}</p>
-                                              <CopyButton text={bd.taPubkey} />
-                                            </div>
-                                          ) : isError ? (
-                                            <ErrorBadge />
-                                          ) : (
-                                            <p className="text-[8px] text-slate-300 italic mt-0.5">none</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Network</p>
-                                      {isLoading ? (
-                                        <div className="space-y-1">
-                                          <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
-                                          <div className="h-3 w-16 bg-slate-100 rounded animate-pulse" />
-                                        </div>
-                                      ) : isLoaded ? (
-                                        <div className="space-y-1.5">
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Followers</span>
-                                            <span className="font-mono text-slate-700 font-medium">{bd!.followerTotal.toLocaleString()}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Following</span>
-                                            <span className="font-mono text-slate-700 font-medium">{bd!.followingTotal.toLocaleString()}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Muted By</span>
-                                            <span className="font-mono text-slate-700">{bd!.mutedByTotal}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Reported By</span>
-                                            <span className="font-mono text-slate-700">{bd!.reportedByTotal}</span>
-                                          </div>
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Influence</span>
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="font-mono text-indigo-600 font-medium">{bd!.influence.toFixed(4)}</span>
-                                              <span className={`px-1 py-0.5 rounded text-[7px] font-bold uppercase ${bd!.influence >= 0.1 ? "bg-emerald-50 text-emerald-700" : bd!.influence >= 0.01 ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
-                                                {bd!.influence >= 0.1 ? "High" : bd!.influence >= 0.01 ? "Medium" : "Low"}
-                                              </span>
-                                            </div>
-                                          </div>
-                                          {bd!.followerList.length > 0 && (
-                                            <div className="mt-1">
-                                              <p className="text-[8px] text-slate-400 uppercase mb-0.5">Top Followers (up to 5)</p>
-                                              <div className="space-y-0.5">
-                                                {bd!.followerList.map((pk, fi) => (
-                                                  <div key={fi} className="flex items-center gap-1">
-                                                    <span className="text-[7px] font-mono text-slate-500">{pk.slice(0, 8)}...{pk.slice(-4)}</span>
-                                                    <CopyButton text={pk} />
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {bd!.followingList.length > 0 && (
-                                            <div className="mt-1">
-                                              <p className="text-[8px] text-slate-400 uppercase mb-0.5">Top Following (up to 5)</p>
-                                              <div className="space-y-0.5">
-                                                {bd!.followingList.map((pk, fi) => (
-                                                  <div key={fi} className="flex items-center gap-1">
-                                                    <span className="text-[7px] font-mono text-slate-500">{pk.slice(0, 8)}...{pk.slice(-4)}</span>
-                                                    <CopyButton text={pk} />
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <p className="text-slate-400 italic">No data</p>
-                                      )}
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
-                                      {isLoading ? (
-                                        <div className="space-y-1">
-                                          <div className="h-3 w-24 bg-slate-100 rounded animate-pulse" />
-                                          <div className="h-3 w-20 bg-slate-100 rounded animate-pulse" />
-                                        </div>
-                                      ) : isLoaded ? (
-                                        <div className="space-y-1.5">
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-slate-500">Times Calculated</span>
-                                            <span className="font-mono text-slate-700 font-medium">{bd?.timesCalculated ?? 0}</span>
-                                          </div>
-                                          <div>
-                                            <span className="text-slate-500">Last Calculated</span>
-                                            <p className="font-mono text-slate-700 text-[9px] mt-0.5">{bd?.lastCalculated ? formatCrmDate(bd.lastCalculated) : "never"}</p>
-                                          </div>
-                                          <div>
-                                            <span className="text-slate-500">Last Triggered</span>
-                                            <p className="font-mono text-slate-700 text-[9px] mt-0.5">{bd?.lastTriggered ? formatCrmDate(bd.lastTriggered) : "never"}</p>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <p className="text-slate-400 italic">No data</p>
-                                      )}
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Awaiting Backend API</p>
-                                      <div className="space-y-1.5 text-[9px]">
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">First Seen Date</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">TA Publish Count</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">Calculation Status (live)</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">Runtime Duration</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">Error History Timeline</span>
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                          <Clock className="h-3 w-3 text-amber-500" />
-                                          <span className="text-slate-500">Follower/Following History</span>
-                                        </div>
-                                      </div>
-                                      <p className="text-[8px] text-amber-500 italic mt-2">Requires /admin/users and /admin/users/&#123;pubkey&#125;/history endpoints</p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-1 mt-3">
-                                    {u.relations.map(r => (
-                                      <span key={r} className={`text-[8px] px-1.5 py-0.5 rounded-full ${RELATION_BADGE_STYLES[r] || "bg-slate-100 text-slate-500 border border-slate-200"}`}>{r}</span>
-                                    ))}
-                                  </div>
-                                </td>
-                              </tr>
+                              <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} />
                             )}
                           </Fragment>
                         );
@@ -1351,18 +1163,24 @@ export default function AdminPage() {
               <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="text-[9px] text-slate-500">Live data from /user/&#123;pubkey&#125;</span>
+                  <span className="text-[9px] text-slate-500">Data from /admin/users</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full bg-amber-400" />
-                  <span className="text-[9px] text-slate-500"><span className="text-amber-500">*</span> Awaiting /admin/users endpoint</span>
+                  <span className="text-[9px] text-amber-500 font-bold">*</span>
+                  <span className="text-[9px] text-slate-500">Data from Nostr relays, not from admin API</span>
                 </div>
+                {adminUsersQuery.isFetching && (
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+                    <span className="text-[9px] text-slate-400">Refreshing...</span>
+                  </div>
+                )}
               </div>
 
               {totalPages > 1 && (
                 <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-testid="pagination-users">
                   <span className="text-xs text-slate-500">
-                    Page {userPage + 1} of {totalPages} ({filteredUsers.length} total)
+                    Page {userPage + 1} of {totalPages} ({adminUsersTotal.toLocaleString()} total)
                   </span>
                   <div className="flex items-center gap-1">
                     <Button
@@ -1474,9 +1292,7 @@ export default function AdminPage() {
                     { name: "/user/self", ok: selfQuery.isSuccess, note: selfQuery.isError ? "Query error" : selfQuery.isLoading ? "Loading..." : "OK", responseTime: selfQuery.isSuccess ? "< 2s" : "—" },
                     { name: "/user/graperank", ok: true, note: "POST trigger endpoint", responseTime: "—" },
                     { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK", responseTime: grapeRankQuery.isSuccess ? "< 2s" : "—" },
-                    { name: "/admin/users", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
-                    { name: "/admin/system", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
-                    { name: "/admin/analytics", ok: false, note: "Endpoint not supported", responseTime: "N/A" }, // API endpoint not supported
+                    { name: "/admin/users", ok: adminUsersQuery.isSuccess, note: adminUsersQuery.isError ? "Query error" : adminUsersQuery.isLoading ? "Loading..." : "OK", responseTime: adminUsersQuery.isSuccess ? "< 2s" : "—" },
                   ].map(ep => (
                     <div key={ep.name} className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
                       <div className="flex items-center gap-2">
@@ -1525,66 +1341,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* NIP-85 relay publish health */}
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-nip85-health">
-                <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-cyan-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>NIP-85 Publish Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Trust assertion event (kind 10040) publish metrics</p>
-                </div>
-                <div className="p-5 space-y-3">
-                  {/* API endpoint not supported: /admin/system — NIP-85 publish success/failure rate */}
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-3.5 w-3.5 text-[#333286]" />
-                      <span className="text-xs text-slate-700">Events Published</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
-                      <StatusBadge status="disconnected" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      <span className="text-xs text-slate-700">Publish Success Rate</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
-                      <StatusBadge status="disconnected" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                      <span className="text-xs text-slate-700">Failed Publishes</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
-                      <StatusBadge status="disconnected" />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50">
-                    <div className="flex items-center gap-2">
-                      <Wifi className="h-3.5 w-3.5 text-indigo-500" />
-                      <span className="text-xs text-slate-700">Relay Acceptance Rate</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-slate-400 italic">Requires /admin/system</span>
-                      <StatusBadge status="disconnected" />
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-400 italic pt-1">
-                    NIP-85 trust assertion publish metrics (event counts, success/failure rates, per-relay acceptance) require the /admin/system endpoint.
-                  </p>
-                </div>
-              </div>
-
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>GrapeRank Pipeline Stats</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Calculation success/failure tracking from available data</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Calculation status from /user/graperankResult</p>
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1609,9 +1370,6 @@ export default function AdminPage() {
                       <p className="text-[10px] text-slate-500">Stuck / Queued</p>
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-3 italic">
-                    Detailed per-job success/failure rates and runtime metrics require the /admin/system endpoint (not yet supported).
-                  </p>
                 </div>
               </div>
             </div>
@@ -1629,7 +1387,7 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     {[
                       { event: "Admin dashboard accessed", type: "info" as const, detail: `Authenticated as ${user.npub.slice(0, 16)}...`, timestamp: SESSION_START.toLocaleTimeString() },
-                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" as const : selfQuery.isError ? "error" as const : "info" as const), detail: selfQuery.isSuccess ? `Graph loaded — ${allUsers.length} unique pubkeys` : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
+                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" as const : selfQuery.isError ? "error" as const : "info" as const), detail: selfQuery.isSuccess ? "Graph loaded" : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
                       { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" as const : grapeRankQuery.isError ? "error" as const : "info" as const), detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading...", timestamp: grapeRankQuery.isSuccess ? "Completed" : "—" },
                       { event: "GrapeRank calculation history", type: "info" as const, detail: timesCalculated !== null ? `Calculated ${timesCalculated} time(s)` : "History not available", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
                       { event: "Last trigger", type: "info" as const, detail: lastTriggerTime ? new Date(lastTriggerTime).toLocaleString() : "—", timestamp: lastTriggerTime ? new Date(lastTriggerTime).toLocaleTimeString() : "—" },

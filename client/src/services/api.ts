@@ -289,4 +289,56 @@ export const apiClient = {
       return null;
     }
   },
+
+  async getAdminUsers(params: {
+    search?: string;
+    sort?: string;
+    order?: string;
+    days?: number;
+    page?: number;
+    size?: number;
+  } = {}) {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set("search", params.search);
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.order) qs.set("order", params.order);
+    if (params.days) qs.set("days", params.days.toString());
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${BRAINSTORM_API}/admin/users${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch admin users (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async getAdminUserHistory(pubkey: string, params: { page?: number; size?: number } = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${BRAINSTORM_API}/admin/users/${pubkey}/history${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user history (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async triggerUserGraperank(pubkey: string) {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/brainstormPubkey/${pubkey}/trigger_graperank`,
+      { method: "POST", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Failed to trigger GrapeRank (${response.status})`);
+    }
+    return await response.json();
+  },
 };
