@@ -1508,15 +1508,6 @@ export default function AdminPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${npub}`); }}
-                                    data-testid={`button-view-user-${i}`}
-                                  >
-                                    <Eye className="h-3 w-3 mr-1" /> View
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
                                     className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     disabled={isTriggering}
                                     onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
@@ -1524,6 +1515,15 @@ export default function AdminPage() {
                                   >
                                     {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
                                     {isTriggering ? "..." : "Trigger"}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${npub}`); }}
+                                    data-testid={`button-view-user-${i}`}
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" /> View
                                   </Button>
                                 </div>
                               </td>
