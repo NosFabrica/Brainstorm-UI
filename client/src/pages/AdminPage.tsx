@@ -1133,12 +1133,11 @@ export default function AdminPage() {
             />
             <KpiCard
               label="Reports Filed"
-              value={hasSystemData ? formatNumber(adminStats!.totalReports) : "—"}
+              value="—"
               icon={AlertTriangle}
-              subtitle={hasSystemData ? "Platform-wide" : "Awaiting /admin/stats"}
-              tooltip="Total mute and report actions filed across the entire Brainstorm platform. This metric requires the /admin/stats endpoint."
-              scope={hasSystemData ? "system" : undefined}
-              unsupported={!hasSystemData}
+              subtitle="Awaiting endpoint"
+              tooltip="Total mute and report actions filed across the entire Brainstorm platform. This metric requires a dedicated reporting endpoint that is not yet available."
+              unsupported
             />
             <KpiCard
               label={hasSystemData ? "Queue Depth" : "Queue Position"}
