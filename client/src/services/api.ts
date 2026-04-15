@@ -1,5 +1,4 @@
 import { extractAdminFlag } from "@/lib/jwt";
-import { updateCurrentUser } from "./nostr";
 
 const BRAINSTORM_API =
   import.meta.env.VITE_API_URL || "https://brainstormserver-staging.nosfabrica.com";
@@ -79,8 +78,14 @@ async function silentReauth(): Promise<boolean> {
       if (!token) return false;
 
       localStorage.setItem("brainstorm_session_token", token);
-      const isAdmin = extractAdminFlag(token);
-      updateCurrentUser({ isAdmin });
+      try {
+        const storedUserStr = localStorage.getItem("nostr_user");
+        if (storedUserStr) {
+          const storedUserObj = JSON.parse(storedUserStr);
+          storedUserObj.isAdmin = extractAdminFlag(token);
+          localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
+        }
+      } catch {}
       return true;
     } catch {
       return false;
