@@ -1386,7 +1386,7 @@ export default function AdminPage() {
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-right"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1503,8 +1503,8 @@ export default function AdminPage() {
                               <td className="px-2 py-2.5" data-testid={`cell-last-updated-${i}`}>
                                 <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_updated)}</span>
                               </td>
-                              <td className="px-2 py-2.5 text-right">
-                                <div className="flex items-center gap-1 justify-end">
+                              <td className="px-2 py-2.5 text-center">
+                                <div className="flex items-center gap-1 justify-center">
                                   <Button
                                     variant="ghost"
                                     size="sm"
