@@ -2286,7 +2286,7 @@ export default function AdminPage() {
                           <StatusBadge status={overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess ? "connected" : overviewActivityQuery.isError || overviewUsersQuery.isError ? "disconnected" : "degraded"} />
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="time-range-selector">
+                      <div className="mt-3 hidden sm:flex flex-wrap items-center gap-1.5" data-testid="time-range-selector">
                         {presets.map(p => (
                           <button
                             key={p}
@@ -2302,6 +2302,22 @@ export default function AdminPage() {
                             {rangeShort[p]}
                           </button>
                         ))}
+                      </div>
+                      <div className="mt-3 sm:hidden" data-testid="time-range-selector-mobile">
+                        <div className="relative">
+                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#333286] pointer-events-none" />
+                          <select
+                            value={activityTimeRange}
+                            onChange={e => setActivityTimeRange(e.target.value as ActivityTimeRange)}
+                            className="w-full appearance-none pl-8 pr-8 py-2 rounded-lg text-xs font-semibold bg-white border border-[#7c86ff]/30 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 shadow-sm"
+                            data-testid="select-time-range-mobile"
+                          >
+                            {presets.map(p => (
+                              <option key={p} value={p}>{rangeLabels[p]}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                        </div>
                       </div>
                       {activityTimeRange === "custom" && (
                         <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-xl bg-white/60 border border-indigo-100" data-testid="custom-range-picker">
