@@ -332,6 +332,21 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
+  async getAdminActivity(params: { page?: number; size?: number } = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${BRAINSTORM_API}/admin/activity${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch admin activity (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
   async triggerUserGraperank(pubkey: string) {
     const response = await authenticatedFetch(
       `${BRAINSTORM_API}/admin/brainstormPubkey/${pubkey}/trigger_graperank`,

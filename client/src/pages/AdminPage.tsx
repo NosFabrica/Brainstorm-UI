@@ -54,10 +54,8 @@ import {
   Copy,
   Globe,
   RefreshCw,
-  CalendarDays,
   Hash,
   Eye,
-  LogIn,
   Play,
   Loader2,
 } from "lucide-react";
@@ -384,6 +382,88 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
 }
 
 
+function ActivityStatusBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-slate-300">—</span>;
+  const lower = value.toLowerCase();
+  const colors = lower === "success" || lower === "done" || lower === "published"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : lower === "failure" || lower === "failed" || lower === "error"
+    ? "bg-red-50 text-red-700 border-red-200"
+    : lower === "pending" || lower === "queued" || lower === "in_progress"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-slate-50 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
+}
+
+function ActivityRow({ item, idx }: { item: BrainstormRequestInstance; idx: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const fmtDate = (d: string | null) => {
+    if (!d) return "—";
+    try {
+      const date = new Date(d.endsWith("Z") ? d : d + "Z");
+      if (isNaN(date.getTime())) return d;
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    } catch { return d; }
+  };
+  return (
+    <>
+      <tr
+        className={`border-b border-slate-100/60 cursor-pointer hover:bg-indigo-50/30 transition-colors ${idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30"}`}
+        onClick={() => setExpanded(prev => !prev)}
+        data-testid={`row-activity-${item.private_id ?? idx}`}
+      >
+        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.private_id}</td>
+        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.pubkey ? `${item.pubkey.slice(0, 8)}...${item.pubkey.slice(-4)}` : "—"}</td>
+        <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
+        <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
+        <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
+        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
+        <td className="px-2 py-2 text-center text-slate-600 text-[10px]">{item.how_many_others_with_priority}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
+      </tr>
+      {expanded && (
+        <tr className="bg-indigo-50/20">
+          <td colSpan={9} className="px-4 py-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+              {item.pubkey && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Full Pubkey</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
+                </div>
+              )}
+              {item.result && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                </div>
+              )}
+              {item.count_values && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
+                </div>
+              )}
+              {item.parameters && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
+                </div>
+              )}
+              {item.password && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Password</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.password}</p>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 export default function AdminPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -396,6 +476,8 @@ export default function AdminPage() {
   const [userSort, setUserSort] = useState<SortState>({ key: "last_triggered", dir: "desc" });
   const [userPage, setUserPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
+  const [activityPage, setActivityPage] = useState(0);
+  const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -463,6 +545,21 @@ export default function AdminPage() {
   const adminUsersList = adminUsersData?.items ?? [];
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
+
+  const adminActivityQuery = useQuery<AdminUserHistoryPage>({
+    queryKey: ["/api/admin/activity", activityPage, activityPageSize],
+    queryFn: () => apiClient.getAdminActivity({
+      page: activityPage + 1,
+      size: activityPageSize,
+    }),
+    enabled: !!user && activeTab === "activity",
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+  const activityData = adminActivityQuery.data;
+  const activityItems = activityData?.items ?? [];
+  const activityTotal = activityData?.total ?? 0;
+  const activityTotalPages = activityData?.pages ?? 1;
 
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
 
@@ -932,6 +1029,7 @@ export default function AdminPage() {
                       { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                       { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
                       { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
+                      { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : "degraded" as const },
                     ].map(ep => (
                       <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
                         <div>
@@ -1479,58 +1577,102 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-login-timeline">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Login Timeline</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">User authentication events — requires /admin/analytics endpoint</p>
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100 mb-4">
-                    <LogIn className="h-4 w-4 text-indigo-500 shrink-0" />
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-indigo-800">Current Session</p>
-                      <p className="text-[10px] text-indigo-600">Admin login at {SESSION_START.toLocaleString()} · {user.displayName || "Anonymous"} ({user.npub.slice(0, 16)}...)</p>
+                      <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Platform Activity</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">All GrapeRank calculation records from /admin/activity</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
+                      <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : "degraded"} />
                     </div>
                   </div>
-                  <div className="flex flex-col items-center justify-center py-4 text-center">
-                    <div className="h-10 w-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-2">
-                      <CalendarDays className="h-5 w-5 text-slate-300" />
-                    </div>
-                    <p className="text-xs font-semibold text-slate-400">Historical Login Data Unavailable</p>
-                    <p className="text-[10px] text-slate-400 mt-1 max-w-xs">Full login timeline with user/timestamp pairs requires a dedicated /admin/analytics endpoint (not yet supported).</p>
-                    <div className="mt-2">
-                      <StatusBadge status="disconnected" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-feature-usage">
-                <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Feature Usage Breakdown</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Page views, search queries, profile views, and GrapeRank triggers — requires /admin/analytics</p>
                 </div>
                 <div className="p-5">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                    {[
-                      { label: "Dashboard Views", icon: Home, value: "—" },
-                      { label: "Search Queries", icon: Search, value: "—" },
-                      { label: "Profile Views", icon: Eye, value: "—" },
-                      { label: "GrapeRank Triggers", icon: Zap, value: "—" },
-                    ].map(feat => (
-                      <div key={feat.label} className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid={`feature-${feat.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <feat.icon className="h-4 w-4 text-slate-300 mx-auto mb-1" />
-                        <p className="text-lg font-bold text-slate-300">{feat.value}</p>
-                        <p className="text-[10px] text-slate-400">{feat.label}</p>
+                  {adminActivityQuery.isLoading && !activityItems.length ? (
+                    <div className="space-y-2 animate-pulse">
+                      {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-slate-100 rounded-lg" />)}
+                    </div>
+                  ) : adminActivityQuery.isError ? (
+                    <div className="text-center py-8">
+                      <XCircle className="h-8 w-8 text-red-300 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-500">Failed to load activity</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{adminActivityQuery.error instanceof Error ? adminActivityQuery.error.message : "Unknown error"}</p>
+                    </div>
+                  ) : activityItems.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Activity className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-400">No activity records</p>
+                      <p className="text-[10px] text-slate-400 mt-1">No GrapeRank calculations have been recorded yet.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left" data-testid="table-platform-activity">
+                          <thead>
+                            <tr className="border-b border-slate-200/60">
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ID</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pubkey</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activityItems.map((item, idx) => (
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} />
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <StatusBadge status="disconnected" />
-                    <span className="text-[10px] text-slate-400">Requires /admin/analytics endpoint</span>
-                  </div>
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-500">Rows per page:</span>
+                          <select
+                            className="text-[10px] border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700"
+                            value={activityPageSize}
+                            onChange={(e) => { setActivityPageSize(Number(e.target.value) as PageSizeOption); setActivityPage(0); }}
+                            data-testid="select-activity-page-size"
+                          >
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-500">
+                            Page {activityPage + 1} of {activityTotalPages}
+                          </span>
+                          <div className="flex gap-1">
+                            <button
+                              className="px-2 py-1 rounded text-[10px] border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                              disabled={activityPage === 0}
+                              onClick={() => setActivityPage(p => Math.max(0, p - 1))}
+                              data-testid="button-activity-prev"
+                            >
+                              Prev
+                            </button>
+                            <button
+                              className="px-2 py-1 rounded text-[10px] border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                              disabled={activityPage + 1 >= activityTotalPages}
+                              onClick={() => setActivityPage(p => p + 1)}
+                              data-testid="button-activity-next"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand and see additional fields (result, count_values, parameters, password).</p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
