@@ -1837,7 +1837,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setRotateConfirmOpen(true)}
+                      onClick={() => { setRotateAcknowledged(false); setRotateConfirmOpen(true); }}
                       disabled={rotateRunning || verifyRunning}
                       className="text-xs gap-1.5 shrink-0 w-full sm:w-auto border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
                       data-testid="button-rotate-encryption"
