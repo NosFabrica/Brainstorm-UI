@@ -502,6 +502,7 @@ export default function AdminPage() {
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
+  const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
   const [verifyRunning, setVerifyRunning] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
   const [rotateRunning, setRotateRunning] = useState(false);
@@ -1248,6 +1249,7 @@ export default function AdminPage() {
           )}
 
           {activeTab === "users" && (
+            <>
             <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="panel-users">
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
               <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1512,7 +1514,7 @@ export default function AdminPage() {
                                     size="sm"
                                     className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     disabled={isTriggering}
-                                    onClick={(e) => { e.stopPropagation(); handleTriggerGraperank(u.pubkey); }}
+                                    onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
                                     data-testid={`button-trigger-graperank-${i}`}
                                   >
                                     {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
@@ -1579,6 +1581,53 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+
+            <Dialog open={triggerConfirmPubkey !== null} onOpenChange={(open) => { if (!open) setTriggerConfirmPubkey(null); }}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Play className="h-5 w-5 text-emerald-600" />
+                    Confirm GrapeRank Trigger
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-slate-600 pt-1">
+                    This will queue a GrapeRank calculation for the following user. Are you sure you want to proceed?
+                  </DialogDescription>
+                </DialogHeader>
+                {triggerConfirmPubkey && (
+                  <div className="pt-2 space-y-4">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pubkey</p>
+                      <p className="text-xs font-mono text-slate-800 break-all" data-testid="text-trigger-confirm-pubkey">{triggerConfirmPubkey}</p>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTriggerConfirmPubkey(null)}
+                        className="text-xs no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-cancel-trigger"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const pk = triggerConfirmPubkey;
+                          setTriggerConfirmPubkey(null);
+                          handleTriggerGraperank(pk);
+                        }}
+                        className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-confirm-trigger"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        Confirm Trigger
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            </>
           )}
 
           {activeTab === "health" && (
