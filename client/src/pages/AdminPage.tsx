@@ -358,18 +358,18 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                 <p className="text-[8px] text-slate-400">{historyQuery.data.total} total calculation(s)</p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {historyQuery.data.items.map((item, idx) => (
-                    <div key={item.private_id ?? idx} className="p-2 rounded-lg bg-white/60 border border-slate-100 space-y-1">
+                    <div key={item.private_id ?? idx} className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-semibold ${
-                          item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                          item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[7px] font-bold tracking-wide ${
+                          item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_1px_2px_rgba(16,185,129,0.1)]" :
+                          item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200 shadow-[0_1px_2px_rgba(239,68,68,0.1)]" :
                           "bg-slate-50 text-slate-600 border border-slate-200"
                         }`}>{item.status}</span>
-                        <span className="text-[8px] text-slate-400">{formatDate(item.created_at)}</span>
+                        <span className="text-[8px] font-medium text-slate-400">{formatDate(item.created_at)}</span>
                       </div>
                       <div className="flex items-center gap-3 text-[8px]">
-                        <span className="text-slate-500">Algorithm: <span className="font-mono text-slate-700">{item.algorithm}</span></span>
-                        {item.ta_status && <span className="text-slate-500">TA: <span className="font-mono text-slate-700">{item.ta_status}</span></span>}
+                        <span className="text-slate-500">Algorithm: <span className="font-mono font-semibold text-slate-700">{item.algorithm}</span></span>
+                        {item.ta_status && <span className="text-slate-500">TA: <span className="font-mono font-semibold text-slate-700">{item.ta_status}</span></span>}
                       </div>
                       {item.how_many_others_with_priority > 0 && (
                         <span className="text-[8px] text-slate-400">Queue position: {item.how_many_others_with_priority}</span>
