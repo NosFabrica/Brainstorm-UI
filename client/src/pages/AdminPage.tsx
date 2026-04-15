@@ -555,8 +555,9 @@ export default function AdminPage() {
       await apiClient.triggerUserGraperank(pubkey);
       toast({ title: "GrapeRank triggered", description: `Triggered for ${pubkey.slice(0, 12)}...` });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-    } catch (err: any) {
-      toast({ title: "Trigger failed", description: err?.message || "Unknown error", variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast({ title: "Trigger failed", description: message, variant: "destructive" });
     } finally {
       setTriggeringPubkeys(prev => { const next = new Set(prev); next.delete(pubkey); return next; });
     }
