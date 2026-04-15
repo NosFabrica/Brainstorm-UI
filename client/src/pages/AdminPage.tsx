@@ -1590,19 +1590,24 @@ export default function AdminPage() {
                     Confirm GrapeRank Trigger
                   </DialogTitle>
                   <DialogDescription className="text-sm text-slate-600 pt-1">
-                    This will queue a GrapeRank calculation for the following user. Are you sure you want to proceed?
+                    You are about to manually trigger a GrapeRank calculation. Please review the details below before confirming.
                   </DialogDescription>
                 </DialogHeader>
                 {triggerConfirmPubkey && (
                   <div className="pt-2 space-y-4">
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">What this does</p>
-                      <ul className="text-xs text-amber-900 space-y-1 list-disc list-inside">
-                        <li>Sends a request to the Brainstorm server to run a full GrapeRank calculation for this user</li>
-                        <li>The server will crawl the user's social graph and compute trust scores</li>
-                        <li>This is a resource-intensive operation and may take several minutes to complete</li>
-                        <li>Results will appear in the Activity tab once processing finishes</li>
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
+                      <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                        <li>A GrapeRank calculation request is sent to the Brainstorm staging server for this user's pubkey</li>
+                        <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
+                        <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
+                        <li>Progress and results will appear in the <span className="font-semibold">Activity tab</span> once processing begins</li>
+                        <li>If a calculation is already running for this user, a duplicate request may be queued</li>
                       </ul>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
+                      <p className="text-xs text-blue-800">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Target Pubkey</p>
