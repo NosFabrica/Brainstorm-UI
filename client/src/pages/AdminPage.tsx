@@ -1498,14 +1498,16 @@ export default function AdminPage() {
                     data-testid="input-user-search"
                   />
                   <Select value={daysFilter.toString()} onValueChange={(val) => { setDaysFilter(parseInt(val, 10)); setUserPage(0); }}>
-                    <SelectTrigger className="w-24 h-8 text-xs rounded-xl border-slate-200" data-testid="select-days-filter">
+                    <SelectTrigger className="w-28 h-8 text-xs rounded-xl border-slate-200" data-testid="select-days-filter">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="7">7 days</SelectItem>
-                      <SelectItem value="30">30 days</SelectItem>
-                      <SelectItem value="90">90 days</SelectItem>
-                      <SelectItem value="365">365 days</SelectItem>
+                      <SelectItem value="1">Last 24 Hours</SelectItem>
+                      <SelectItem value="7">This Week</SelectItem>
+                      <SelectItem value="30">This Month</SelectItem>
+                      <SelectItem value="90">This Quarter</SelectItem>
+                      <SelectItem value="365">This Year</SelectItem>
+                      <SelectItem value="9999">All Time</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
