@@ -10,6 +10,7 @@ import {
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
 import { queryClient } from "@/lib/queryClient";
+import { extractAdminFlag } from "@/lib/jwt";
 import { NostrEvent } from "applesauce-core/helpers";
 
 declare global {
@@ -30,7 +31,9 @@ export interface NostrUser {
   nip05?: string;
   profile?: ProfileContent;
   userData?: any;
+  isAdmin?: boolean;
 }
+
 
 const eventStore = new EventStore();
 
@@ -42,7 +45,15 @@ export function getCurrentUser(): NostrUser | null {
   const stored = localStorage.getItem("nostr_user");
   if (stored) {
     try {
-      currentUser = JSON.parse(stored);
+      const parsed = JSON.parse(stored) as NostrUser;
+      if (parsed.isAdmin === undefined) {
+        const token = localStorage.getItem("brainstorm_session_token");
+        if (token) {
+          parsed.isAdmin = extractAdminFlag(token);
+          localStorage.setItem("nostr_user", JSON.stringify(parsed));
+        }
+      }
+      currentUser = parsed;
       return currentUser;
     } catch {
       return null;
@@ -288,11 +299,13 @@ export async function handleLogin(): Promise<NostrUser> {
   }
   localStorage.setItem("brainstorm_session_token", token);
 
+  const isAdmin = extractAdminFlag(token);
   const npub = nip19.npubEncode(pubkey);
 
   const user: NostrUser = {
     pubkey,
     npub,
+    isAdmin,
   };
 
   setCurrentUser(user);
