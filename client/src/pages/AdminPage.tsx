@@ -1595,8 +1595,17 @@ export default function AdminPage() {
                 </DialogHeader>
                 {triggerConfirmPubkey && (
                   <div className="pt-2 space-y-4">
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1.5">What this does</p>
+                      <ul className="text-xs text-amber-900 space-y-1 list-disc list-inside">
+                        <li>Sends a request to the Brainstorm server to run a full GrapeRank calculation for this user</li>
+                        <li>The server will crawl the user's social graph and compute trust scores</li>
+                        <li>This is a resource-intensive operation and may take several minutes to complete</li>
+                        <li>Results will appear in the Activity tab once processing finishes</li>
+                      </ul>
+                    </div>
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Pubkey</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Target Pubkey</p>
                       <p className="text-xs font-mono text-slate-800 break-all" data-testid="text-trigger-confirm-pubkey">{triggerConfirmPubkey}</p>
                     </div>
                     <div className="flex justify-end gap-2">
