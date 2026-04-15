@@ -324,25 +324,25 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
           <div>
             <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px] mb-2">Identity</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
                 <p className="text-[8px] text-slate-400 uppercase mb-0.5">Full Pubkey</p>
-                <div className="flex items-center gap-1">
-                  <p className="font-mono text-slate-700 break-all text-[9px]">{pubkey}</p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <p className="font-mono text-slate-700 text-[9px] truncate">{pubkey}</p>
                   <CopyButton text={pubkey} />
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
                 <p className="text-[8px] text-slate-400 uppercase mb-0.5">Nostr npub</p>
-                <div className="flex items-center gap-1">
-                  <p className="font-mono text-indigo-600 break-all text-[9px]">{npub}</p>
+                <div className="flex items-center gap-1 min-w-0">
+                  <p className="font-mono text-indigo-600 text-[9px] truncate">{npub}</p>
                   <CopyButton text={npub} />
                 </div>
               </div>
               {taPubkey && (
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm">
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
                   <p className="text-[8px] text-slate-400 uppercase mb-0.5">TA Pubkey</p>
-                  <div className="flex items-center gap-1">
-                    <p className="font-mono text-emerald-600 break-all text-[9px]">{taPubkey}</p>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <p className="font-mono text-emerald-600 text-[9px] truncate">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
                   </div>
                 </div>
