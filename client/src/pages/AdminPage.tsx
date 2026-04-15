@@ -369,17 +369,20 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200">
+                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Date</th>
                       <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Status</th>
                       <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Algorithm</th>
                       <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">TA Status</th>
                       <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Publication</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Queue</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500">Date</th>
+                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
                     </tr>
                   </thead>
                   <tbody>
                     {historyQuery.data.items.map((item, idx) => (
                       <tr key={item.private_id ?? idx} className="border-b border-slate-100 hover:bg-slate-50/40">
+                        <td className="px-3 py-1.5 whitespace-nowrap border-r border-slate-100">
+                          <span className="text-[9px] text-slate-500">{formatDate(item.created_at)}</span>
+                        </td>
                         <td className="px-3 py-1.5 border-r border-slate-100">
                           <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
                             item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
@@ -396,11 +399,8 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                         <td className="px-3 py-1.5 border-r border-slate-100">
                           <span className="text-[9px] text-slate-600">{item.internal_publication_status || "—"}</span>
                         </td>
-                        <td className="px-3 py-1.5 border-r border-slate-100">
+                        <td className="px-3 py-1.5">
                           <span className="text-[9px] text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
-                        </td>
-                        <td className="px-3 py-1.5 whitespace-nowrap">
-                          <span className="text-[9px] text-slate-500">{formatDate(item.created_at)}</span>
                         </td>
                       </tr>
                     ))}
