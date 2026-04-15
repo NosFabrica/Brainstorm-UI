@@ -405,7 +405,16 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                           )}
                         </td>
                         <td className="px-3 py-1.5 border-r border-slate-100">
-                          <span className="text-[9px] text-slate-600">{item.internal_publication_status || "—"}</span>
+                          {item.internal_publication_status ? (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                              item.internal_publication_status.toLowerCase() === "success" || item.internal_publication_status.toLowerCase() === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                              item.internal_publication_status.toLowerCase() === "failure" || item.internal_publication_status.toLowerCase() === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
+                              item.internal_publication_status.toLowerCase() === "pending" || item.internal_publication_status.toLowerCase() === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                              "bg-slate-50 text-slate-600 border border-slate-200"
+                            }`}>{item.internal_publication_status}</span>
+                          ) : (
+                            <span className="text-[9px] text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-1.5">
                           <span className="text-[9px] text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
