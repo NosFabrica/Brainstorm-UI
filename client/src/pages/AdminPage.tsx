@@ -508,6 +508,7 @@ export default function AdminPage() {
   const [rotateRunning, setRotateRunning] = useState(false);
   const [rotateResult, setRotateResult] = useState<{ success: boolean; message: string } | null>(null);
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
+  const [rotateAcknowledged, setRotateAcknowledged] = useState(false);
   const [verifyConfirmOpen, setVerifyConfirmOpen] = useState(false);
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupInput, setLookupInput] = useState("");
@@ -1896,7 +1897,7 @@ export default function AdminPage() {
                     </DialogContent>
                   </Dialog>
 
-                  <Dialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+                  <Dialog open={rotateConfirmOpen} onOpenChange={(open) => { setRotateConfirmOpen(open); if (open) setRotateAcknowledged(false); }}>
                     <DialogContent className="sm:max-w-md">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-amber-700">
@@ -1922,6 +1923,17 @@ export default function AdminPage() {
                           <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
                           <p className="text-xs text-blue-800">Key rotation is typically done as a security precaution — for example, if you suspect the current key has been compromised or as part of a regular rotation schedule. Always run "Run Verify" first to ensure all nsec values are decryptable before rotating.</p>
                         </div>
+                        <label className="flex items-start gap-3 p-3.5 rounded-xl bg-red-50 border border-red-200 cursor-pointer select-none" data-testid="checkbox-rotate-acknowledge">
+                          <input
+                            type="checkbox"
+                            checked={rotateAcknowledged}
+                            onChange={(e) => setRotateAcknowledged(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-red-300 text-red-600 accent-red-600 shrink-0"
+                          />
+                          <span className="text-xs font-medium text-red-800 leading-relaxed">
+                            I understand this action is <span className="font-bold">irreversible</span>, the old encryption key will be permanently discarded, and I want to proceed with key rotation.
+                          </span>
+                        </label>
                         <div className="flex justify-end gap-2 pt-2">
                           <Button
                             variant="ghost"
@@ -1936,7 +1948,7 @@ export default function AdminPage() {
                             variant="destructive"
                             size="sm"
                             onClick={handleRotateEncryption}
-                            disabled={rotateRunning}
+                            disabled={rotateRunning || !rotateAcknowledged}
                             className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
                             data-testid="button-confirm-rotate"
                           >
