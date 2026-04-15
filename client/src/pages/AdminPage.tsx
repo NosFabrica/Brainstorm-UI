@@ -1251,79 +1251,130 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-overview">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-graperank-status">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>GrapeRank Pipeline</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Data from /user/graperankResult</p>
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Platform-wide GrapeRank calculation health from /admin/users</p>
                 </div>
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Calculation Status</span>
-                    {calcDone ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" /> Complete
-                      </span>
-                    ) : grapeRank ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold uppercase tracking-widest text-amber-700">
-                        <Clock className="h-3 w-3 animate-spin" /> In Progress
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        <Clock className="h-3 w-3" /> Idle
-                      </span>
+                {overviewLoading && !pipelineMetrics ? (
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  </div>
+                ) : pipelineMetrics ? (
+                  <div className="p-5 space-y-5">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Success Rate</span>
+                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.successCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                        <div className="h-full bg-red-400 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.failedCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                        <div className="h-full bg-slate-300 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.pendingCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                      </div>
+                      <div className="flex items-center gap-4 mt-1.5">
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />{pipelineMetrics.successCount} success</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.failedCount} failed</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block" />{pipelineMetrics.pendingCount} pending</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Users</p>
+                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.total)}</p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Calculations</p>
+                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.totalCalcs)}</p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Avg Calcs / User</p>
+                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{pipelineMetrics.avgCalcs}</p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Never Calculated</p>
+                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.neverCalc)}</p>
+                      </div>
+                    </div>
+
+                    {pipelineMetrics.lastPlatformActivity && (
+                      <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500">Last platform activity</span>
+                        <span className="text-xs text-slate-600">{new Date(pipelineMetrics.lastPlatformActivity.endsWith("Z") ? pipelineMetrics.lastPlatformActivity : pipelineMetrics.lastPlatformActivity + "Z").toLocaleString()}</span>
+                      </div>
                     )}
                   </div>
+                ) : (
+                  <div className="p-8 text-center text-xs text-slate-400">No user data available</div>
+                )}
+              </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Internal Publication</span>
-                    <span className="text-xs font-mono text-slate-600">{grapeRank?.internal_publication_status ?? "—"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">TA Status</span>
-                    <span className="text-xs font-mono text-slate-600">{taStatus ?? "—"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Calc Status</span>
-                    <span className="text-xs font-mono text-slate-600">{calcStatus ?? "—"}</span>
-                  </div>
-                  {queuePosition !== null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Queue Position</span>
-                      <span className="text-sm font-bold text-slate-900">{queuePosition}</span>
-                    </div>
-                  )}
-                  {lastUpdated && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Last Updated</span>
-                      <span className="text-xs text-slate-600">{new Date(lastUpdated).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {lastCreated && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Created At</span>
-                      <span className="text-xs text-slate-600">{new Date(lastCreated).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {timesCalculated !== null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Times Calculated</span>
-                      <span className="text-sm font-bold text-slate-900">{timesCalculated}</span>
-                    </div>
-                  )}
-                  {lastCalcTime && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Last Calc Time</span>
-                      <span className="text-xs text-slate-600">{new Date(lastCalcTime).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {lastTriggerTime && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-500">Last Triggered</span>
-                      <span className="text-xs text-slate-600">{new Date(lastTriggerTime).toLocaleString()}</span>
-                    </div>
-                  )}
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-ta-adoption">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">TA adoption and recent calculation activity</p>
                 </div>
+                {overviewLoading && !pipelineMetrics ? (
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  </div>
+                ) : pipelineMetrics ? (
+                  <div className="p-5 space-y-5">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Success Rate</span>
+                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.taAdoptionRate}%</span>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                        <div className="h-full bg-red-400 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taFailedCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                      </div>
+                      <div className="flex items-center gap-4 mt-1.5">
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-indigo-500 inline-block" />{pipelineMetrics.taSuccessCount} published</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.taFailedCount} failed</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-slate-200 inline-block" />{pipelineMetrics.withTaPubkey} with TA key</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Last 24h Throughput</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                          <p className="text-[10px] font-semibold text-emerald-600">Successful</p>
+                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{pipelineMetrics.recentSuccess}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-100">
+                          <p className="text-[10px] font-semibold text-red-600">Failed</p>
+                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{pipelineMetrics.recentFailed}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {Object.keys(pipelineMetrics.algoCounts).length > 0 && (
+                      <div className="border-t border-slate-100 pt-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Algorithm Distribution</p>
+                        <div className="space-y-1.5">
+                          {Object.entries(pipelineMetrics.algoCounts).sort((a, b) => b[1] - a[1]).map(([algo, count]) => (
+                            <div key={algo} className="flex items-center justify-between">
+                              <span className="text-xs font-mono text-slate-600 truncate max-w-[180px]">{algo}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${(count / pipelineMetrics.total) * 100}%` }} />
+                                </div>
+                                <span className="text-[10px] font-semibold text-slate-500 tabular-nums w-8 text-right">{count}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-xs text-slate-400">No data available</div>
+                )}
               </div>
 
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-quick-stats">
