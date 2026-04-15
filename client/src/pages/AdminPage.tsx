@@ -1043,12 +1043,12 @@ export default function AdminPage() {
                 <div className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 uppercase">NosFabrica Admin</p>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Admin Dashboard
                 </span>
               </h1>
-              <p className="text-slate-600 font-medium">
+              <p className="text-sm sm:text-base text-slate-600 font-medium">
                 System overview and management for NosFabrica operators.
               </p>
             </div>
@@ -1097,26 +1097,28 @@ export default function AdminPage() {
             />
           </div>
 
-          <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => { setActiveTab(tab.key); setUserPage(0); }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                    active
-                      ? "bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white shadow-md"
-                      : "text-slate-500 hover:text-slate-800 hover:bg-white/80"
-                  }`}
-                  data-testid={`tab-${tab.key}`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              );
-            })}
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+            <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setActiveTab(tab.key); setUserPage(0); }}
+                    className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                      active
+                        ? "bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white shadow-md"
+                        : "text-slate-500 hover:text-slate-800 hover:bg-white/80"
+                    }`}
+                    data-testid={`tab-${tab.key}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {activeTab === "overview" && (
@@ -1254,7 +1256,7 @@ export default function AdminPage() {
             <>
             <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="panel-users">
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="px-3 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
@@ -1265,13 +1267,13 @@ export default function AdminPage() {
                     <span className="text-[10px] text-emerald-600 font-medium">Source: /admin/users</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="text"
                     placeholder="Search pubkey, npub..."
                     value={userSearch}
                     onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-56"
+                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-full sm:w-56"
                     data-testid="input-user-search"
                   />
                   <Select value={daysFilter.toString()} onValueChange={(val) => { setDaysFilter(parseInt(val, 10)); setUserPage(0); }}>
@@ -1536,7 +1538,7 @@ export default function AdminPage() {
                 </table>
               </div>
 
-              <div className="px-5 py-3 border-t border-slate-100 flex items-center gap-3">
+              <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center gap-2 sm:gap-3">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
                   <span className="text-[9px] text-slate-500">Data from /admin/users</span>
@@ -1554,7 +1556,7 @@ export default function AdminPage() {
               </div>
 
               {totalPages > 1 && (
-                <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-testid="pagination-users">
+                <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2" data-testid="pagination-users">
                   <span className="text-xs text-slate-500">
                     Page {userPage + 1} of {totalPages} ({adminUsersTotal.toLocaleString()} total)
                   </span>
@@ -1650,7 +1652,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex items-center justify-between">
+                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Configured Relays</h3>
                     <p className="text-xs text-slate-500 mt-0.5">WebSocket latency probes (DCoSL + profile relays)</p>
@@ -1660,7 +1662,7 @@ export default function AdminPage() {
                     size="sm"
                     onClick={runRelayCheck}
                     disabled={relayCheckRunning}
-                    className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                    className="text-xs gap-1.5 w-full sm:w-auto no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-recheck-relays"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${relayCheckRunning ? "animate-spin" : ""}`} />
@@ -1672,8 +1674,8 @@ export default function AdminPage() {
                     const latencyInfo = relayLatencies.find(r => r.url === relay);
                     const relayStatus = latencyInfo?.status ?? (relayCheckRunning ? "degraded" as const : "connected" as const);
                     return (
-                      <div key={relay} className="flex items-center justify-between p-3 rounded-xl bg-white/60 border border-slate-100" data-testid={`relay-row-${idx}`}>
-                        <div className="flex items-center gap-3">
+                      <div key={relay} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-white/60 border border-slate-100" data-testid={`relay-row-${idx}`}>
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
                             relayStatus === "connected" ? "bg-emerald-50 border border-emerald-200" :
                             relayStatus === "degraded" ? "bg-amber-50 border border-amber-200" :
@@ -1687,7 +1689,7 @@ export default function AdminPage() {
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-slate-800">{relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}</p>
-                            <p className="text-[10px] font-mono text-slate-400">{relay}</p>
+                            <p className="text-[10px] font-mono text-slate-400 truncate max-w-[200px] sm:max-w-none">{relay}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -1731,12 +1733,12 @@ export default function AdminPage() {
                     { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK", responseTime: grapeRankQuery.isSuccess ? "< 2s" : "—" },
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, note: adminUsersQuery.isError ? "Query error" : adminUsersQuery.isLoading ? "Loading..." : "OK", responseTime: adminUsersQuery.isSuccess ? "< 2s" : "—" },
                   ].map(ep => (
-                    <div key={ep.name} className="flex items-center justify-between p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
+                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
                       <div className="flex items-center gap-2">
-                        {ep.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 text-red-400" />}
-                        <span className="text-xs font-mono text-slate-700">{ep.name}</span>
+                        {ep.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                        <span className="text-xs font-mono text-slate-700 truncate">{ep.name}</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 ml-5 sm:ml-0">
                         <span className="text-[10px] font-mono text-slate-400">{ep.responseTime}</span>
                         <span className="text-[10px] text-slate-400">{ep.note}</span>
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${ep.ok ? "text-emerald-600" : "text-red-500"}`}>{ep.ok ? "OK" : "ERR"}</span>
@@ -1785,8 +1787,8 @@ export default function AdminPage() {
                   <p className="text-xs text-slate-500 mt-0.5">Nsec-at-rest encryption key management</p>
                 </div>
                 <div className="p-5 space-y-4">
-                  <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-verify-row">
-                    <div className="flex items-start gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-verify-row">
+                    <div className="flex items-start gap-3 min-w-0">
                       <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
                         <ShieldCheck className="h-4 w-4 text-emerald-600" />
                       </div>
@@ -1808,7 +1810,7 @@ export default function AdminPage() {
                       size="sm"
                       onClick={() => setVerifyConfirmOpen(true)}
                       disabled={verifyRunning || rotateRunning}
-                      className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
+                      className="text-xs gap-1.5 shrink-0 w-full sm:w-auto no-default-hover-elevate no-default-active-elevate"
                       data-testid="button-verify-encryption"
                     >
                       {verifyRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
@@ -1816,8 +1818,8 @@ export default function AdminPage() {
                     </Button>
                   </div>
 
-                  <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-rotate-row">
-                    <div className="flex items-start gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-rotate-row">
+                    <div className="flex items-start gap-3 min-w-0">
                       <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
                         <KeyRound className="h-4 w-4 text-amber-600" />
                       </div>
@@ -1836,7 +1838,7 @@ export default function AdminPage() {
                       size="sm"
                       onClick={() => setRotateConfirmOpen(true)}
                       disabled={rotateRunning || verifyRunning}
-                      className="text-xs gap-1.5 shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
+                      className="text-xs gap-1.5 shrink-0 w-full sm:w-auto border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
                       data-testid="button-rotate-encryption"
                     >
                       {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
@@ -2057,7 +2059,7 @@ export default function AdminPage() {
                     }
                     return (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left" data-testid="table-error-log">
+                        <table className="w-full text-left min-w-[500px]" data-testid="table-error-log">
                           <thead>
                             <tr className="border-b border-slate-100">
                               <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
@@ -2087,13 +2089,13 @@ export default function AdminPage() {
 
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <div className="flex items-center justify-between">
+                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Platform Activity</h3>
                       <p className="text-xs text-slate-500 mt-0.5">All GrapeRank calculation records from /admin/activity</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
                       <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : "degraded"} />
                       <Button
@@ -2109,7 +2111,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-                <div className="p-5">
+                <div className="p-3 sm:p-5">
                   {adminActivityQuery.isLoading && !activityItems.length ? (
                     <div className="space-y-2 animate-pulse">
                       {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-slate-100 rounded-lg" />)}
@@ -2129,7 +2131,7 @@ export default function AdminPage() {
                   ) : (
                     <>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left" data-testid="table-platform-activity">
+                        <table className="w-full text-left min-w-[700px]" data-testid="table-platform-activity">
                           <thead>
                             <tr className="border-b border-slate-200/60">
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ID</th>
@@ -2150,7 +2152,7 @@ export default function AdminPage() {
                           </tbody>
                         </table>
                       </div>
-                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-100">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-500">Rows per page:</span>
                           <select
