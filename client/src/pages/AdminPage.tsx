@@ -352,31 +352,38 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px]">Calculation History</p>
+          <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-[#333286]" />
+                <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
+              </div>
               {historyQuery.data && historyQuery.data.total > 0 && (
-                <span className="text-[8px] text-slate-400">{historyQuery.data.total} total</span>
+                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{historyQuery.data.total} records</span>
               )}
             </div>
             {historyQuery.isLoading ? (
-              <div className="space-y-1">
-                <div className="h-3 w-full bg-slate-100 rounded animate-pulse" />
-                <div className="h-3 w-full bg-slate-100 rounded animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
+                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
+                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
               </div>
             ) : historyQuery.isError ? (
-              <p className="text-slate-400 italic">Failed to load history</p>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+                <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+                <p className="text-xs text-red-600">Failed to load calculation history</p>
+              </div>
             ) : historyQuery.data && historyQuery.data.items.length > 0 ? (
-              <div className="overflow-x-auto max-h-64 overflow-y-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 shadow-sm">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-200">
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Date</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Status</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Algorithm</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">TA Status</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500 border-r border-slate-200">Publication</th>
-                      <th className="px-3 py-1.5 text-[8px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-100 border-b-2 border-slate-200">
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Date</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Status</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Algorithm</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">TA Status</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Publication</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Queue</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -385,53 +392,53 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                       const errorDetail = hasFail ? (item.result || null) : null;
                       return (
                         <Fragment key={item.private_id ?? idx}>
-                          <tr className={`border-b ${errorDetail ? "border-red-100" : "border-slate-100"} hover:bg-slate-50/40`}>
-                            <td className="px-3 py-1.5 whitespace-nowrap border-r border-slate-100">
-                              <span className="text-[9px] text-slate-500">{formatDate(item.created_at)}</span>
+                          <tr className={`border-b ${errorDetail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
+                            <td className="px-3 py-2.5 whitespace-nowrap">
+                              <span className="text-[11px] font-medium text-slate-700">{formatDate(item.created_at)}</span>
                             </td>
-                            <td className="px-3 py-1.5 border-r border-slate-100">
-                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                            <td className="px-3 py-2.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
                                 item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                                 item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
                                 "bg-slate-50 text-slate-600 border border-slate-200"
                               }`}>{item.status}</span>
                             </td>
-                            <td className="px-3 py-1.5 border-r border-slate-100">
-                              <span className="text-[9px] font-mono font-semibold text-slate-700">{item.algorithm}</span>
+                            <td className="px-3 py-2.5">
+                              <span className="text-[11px] font-mono font-semibold text-[#333286]">{item.algorithm}</span>
                             </td>
-                            <td className="px-3 py-1.5 border-r border-slate-100">
+                            <td className="px-3 py-2.5">
                               {item.ta_status ? (
-                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
                                   item.ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                                   item.ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
                                   "bg-slate-50 text-slate-600 border border-slate-200"
                                 }`}>{item.ta_status}</span>
                               ) : (
-                                <span className="text-[9px] text-slate-300">—</span>
+                                <span className="text-[11px] text-slate-300">—</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5 border-r border-slate-100">
+                            <td className="px-3 py-2.5">
                               {item.internal_publication_status ? (
-                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[7px] font-bold ${
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
                                   item.internal_publication_status.toLowerCase() === "success" || item.internal_publication_status.toLowerCase() === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                                   item.internal_publication_status.toLowerCase() === "failure" || item.internal_publication_status.toLowerCase() === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
                                   item.internal_publication_status.toLowerCase() === "pending" || item.internal_publication_status.toLowerCase() === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
                                   "bg-slate-50 text-slate-600 border border-slate-200"
                                 }`}>{item.internal_publication_status}</span>
                               ) : (
-                                <span className="text-[9px] text-slate-300">—</span>
+                                <span className="text-[11px] text-slate-300">—</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5">
-                              <span className="text-[9px] text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
+                            <td className="px-3 py-2.5">
+                              <span className="text-[11px] font-medium text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
                             </td>
                           </tr>
                           {errorDetail && (
-                            <tr className="border-b border-red-100 bg-red-50/40">
-                              <td colSpan={6} className="px-3 py-1.5">
-                                <div className="flex items-start gap-1.5">
-                                  <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
-                                  <span className="text-[9px] text-red-700 font-mono break-all">{errorDetail}</span>
+                            <tr className="border-b border-red-200 bg-red-50/60">
+                              <td colSpan={6} className="px-4 py-2">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                  <span className="text-[11px] text-red-700 font-mono break-all">{errorDetail}</span>
                                 </div>
                               </td>
                             </tr>
@@ -443,7 +450,10 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                 </table>
               </div>
             ) : (
-              <p className="text-slate-400 italic">No calculation history</p>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <Clock className="h-4 w-4 text-slate-300" />
+                <p className="text-xs text-slate-400">No calculation history available</p>
+              </div>
             )}
           </div>
         </div>
