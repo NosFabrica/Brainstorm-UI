@@ -67,6 +67,7 @@ import {
   Loader2,
   ShieldCheck,
   KeyRound,
+  UserPlus,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
@@ -496,6 +497,11 @@ export default function AdminPage() {
   const [rotateRunning, setRotateRunning] = useState(false);
   const [rotateResult, setRotateResult] = useState<{ success: boolean; message: string } | null>(null);
   const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
+  const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupInput, setLookupInput] = useState("");
+  const [lookupRunning, setLookupRunning] = useState(false);
+  const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -741,6 +747,61 @@ export default function AdminPage() {
       setRotateRunning(false);
     }
   }, [toast]);
+
+  const handleLookupPubkey = useCallback(async () => {
+    const raw = lookupInput.trim();
+    if (!raw) {
+      setLookupError("Please enter a pubkey or npub");
+      return;
+    }
+    let hexPubkey = raw;
+    if (raw.startsWith("npub")) {
+      try {
+        const decoded = nip19.decode(raw);
+        if (decoded.type === "npub") {
+          hexPubkey = decoded.data;
+        } else {
+          setLookupError("Invalid npub format");
+          return;
+        }
+      } catch {
+        setLookupError("Invalid npub — could not decode");
+        return;
+      }
+    } else if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
+      setLookupError("Invalid pubkey — expected 64-char hex or npub");
+      return;
+    }
+    setLookupRunning(true);
+    setLookupError(null);
+    setLookupResult(null);
+    try {
+      const result = await apiClient.getBrainstormPubkey(hexPubkey);
+      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+      const brainstormPubkey = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
+        : typeof data.ta_pubkey === "string" ? data.ta_pubkey
+        : typeof data.pubkey === "string" ? data.pubkey : null;
+      const isNew = data.created === true || data.is_new === true;
+      const safeFields: Record<string, unknown> = {};
+      for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
+        if (key in data) safeFields[key] = data[key];
+      }
+      if (isNew) {
+        setLookupResult({ success: true, message: "User onboarded — first GrapeRank calculation triggered", data: safeFields });
+        toast({ title: "User Onboarded", description: brainstormPubkey ? `Brainstorm pubkey: ${brainstormPubkey.slice(0, 16)}...` : "New user created" });
+      } else {
+        setLookupResult({ success: true, message: "User found", data: safeFields });
+        toast({ title: "User Found", description: brainstormPubkey ? `Brainstorm pubkey: ${brainstormPubkey.slice(0, 16)}...` : "Existing user" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/admin/users"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setLookupError(msg);
+      toast({ title: "Lookup Failed", description: msg, variant: "destructive" });
+    } finally {
+      setLookupRunning(false);
+    }
+  }, [lookupInput, toast, queryClient]);
 
   const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
   const followersCount = getListLength(network?.followed_by);
@@ -1150,7 +1211,78 @@ export default function AdminPage() {
                       <SelectItem value="100">100</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setLookupOpen(true); setLookupInput(""); setLookupResult(null); setLookupError(null); }}
+                    className="text-xs gap-1.5 h-8 no-default-hover-elevate no-default-active-elevate"
+                    data-testid="button-lookup-pubkey"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Lookup
+                  </Button>
                 </div>
+
+                <Dialog open={lookupOpen} onOpenChange={(open) => { setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); } }}>
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <UserPlus className="h-5 w-5 text-[#333286]" />
+                        Lookup / Onboard Pubkey
+                      </DialogTitle>
+                      <DialogDescription className="text-sm text-slate-600 pt-1">
+                        Enter a Nostr pubkey (hex) or npub to look up or onboard a user. If the user doesn't exist, their record will be created and a GrapeRank calculation will be triggered.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="npub1... or 64-char hex pubkey"
+                          value={lookupInput}
+                          onChange={e => { setLookupInput(e.target.value); setLookupError(null); }}
+                          onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
+                          className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                          data-testid="input-lookup-pubkey"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleLookupPubkey}
+                          disabled={lookupRunning || !lookupInput.trim()}
+                          className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-submit-lookup"
+                        >
+                          {lookupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                          {lookupRunning ? "Looking up..." : "Lookup"}
+                        </Button>
+                      </div>
+                      {lookupError && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="lookup-error">
+                          <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                          <p className="text-xs text-red-700">{lookupError}</p>
+                        </div>
+                      )}
+                      {lookupResult && (
+                        <div className={`p-4 rounded-xl border ${lookupResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`} data-testid="lookup-result">
+                          <div className="flex items-center gap-2 mb-2">
+                            {lookupResult.success ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                            <p className={`text-xs font-semibold ${lookupResult.success ? "text-emerald-800" : "text-red-800"}`}>{lookupResult.message}</p>
+                          </div>
+                          {lookupResult.data && Object.keys(lookupResult.data).length > 0 && (
+                            <div className="space-y-1.5 mt-3 pt-3 border-t border-emerald-200/60">
+                              {Object.entries(lookupResult.data).map(([key, value]) => (
+                                <div key={key} className="flex items-center justify-between">
+                                  <span className="text-[10px] font-medium text-slate-600">{key}</span>
+                                  <span className="text-[10px] font-mono text-slate-800 max-w-[280px] truncate">{String(value)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="overflow-x-auto">

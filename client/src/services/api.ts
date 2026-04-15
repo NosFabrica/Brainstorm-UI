@@ -347,6 +347,20 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
+  async getBrainstormPubkey(nostrPubkey: string) {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/brainstormPubkey/${nostrPubkey}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Failed to lookup pubkey (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
   async verifyNsecEncryption() {
     const response = await authenticatedFetch(
       `${BRAINSTORM_API}/admin/nsec-encryption/verify`,
