@@ -772,6 +772,7 @@ export default function AdminPage() {
       setLookupError("Invalid pubkey — expected 64-char hex or npub");
       return;
     }
+    hexPubkey = hexPubkey.toLowerCase();
     setLookupRunning(true);
     setLookupError(null);
     setLookupResult(null);
@@ -1219,7 +1220,7 @@ export default function AdminPage() {
                     data-testid="button-lookup-pubkey"
                   >
                     <UserPlus className="h-3.5 w-3.5" />
-                    Lookup
+                    Lookup Pubkey
                   </Button>
                 </div>
 
