@@ -277,13 +277,14 @@ export const apiClient = {
         { signal: AbortSignal.timeout(10000) },
       );
       if (!response.ok) return null;
-      const data = await response.json();
+      const json = await response.json();
+      const stats = json?.data ?? json;
       return {
-        totalUsers: data?.total_users ?? data?.totalUsers ?? 0,
-        scoredUsers: data?.scored_users ?? data?.scoredUsers ?? 0,
-        spAdopters: data?.sp_adopters ?? data?.spAdopters ?? 0,
-        totalReports: data?.total_reports ?? data?.totalReports ?? 0,
-        queueDepth: data?.queue_depth ?? data?.queueDepth ?? 0,
+        totalUsers: stats?.total_users ?? stats?.totalUsers ?? 0,
+        scoredUsers: stats?.scored_users ?? stats?.scoredUsers ?? 0,
+        spAdopters: stats?.sp_adopters ?? stats?.spAdopters ?? 0,
+        totalReports: stats?.total_reports ?? stats?.totalReports ?? 0,
+        queueDepth: stats?.queue_depth ?? stats?.queueDepth ?? 0,
       };
     } catch {
       return null;
@@ -312,7 +313,8 @@ export const apiClient = {
     if (!response.ok) {
       throw new Error(`Failed to fetch admin users (${response.status})`);
     }
-    return await response.json();
+    const json = await response.json();
+    return json?.data ?? json;
   },
 
   async getAdminUserHistory(pubkey: string, params: { page?: number; size?: number } = {}) {
@@ -326,7 +328,8 @@ export const apiClient = {
     if (!response.ok) {
       throw new Error(`Failed to fetch user history (${response.status})`);
     }
-    return await response.json();
+    const json = await response.json();
+    return json?.data ?? json;
   },
 
   async triggerUserGraperank(pubkey: string) {
