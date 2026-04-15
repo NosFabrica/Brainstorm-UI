@@ -202,6 +202,38 @@ function formatUptime(since: Date): string {
   return `${mins}m`;
 }
 
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
+    if (isNaN(d.getTime())) return "";
+    const diff = Date.now() - d.getTime();
+    if (diff < 0) return "just now";
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+    return `${Math.floor(days / 365)}y ago`;
+  } catch { return ""; }
+}
+
+function getUserHealth(status: string | null, taStatus: string | null, timesCalc: number): "green" | "amber" | "red" | "gray" {
+  if (timesCalc === 0) return "gray";
+  const s = status?.toLowerCase();
+  const t = taStatus?.toLowerCase();
+  const sFail = s === "failed" || s === "failure";
+  const tFail = t === "failed" || t === "failure";
+  if (sFail && tFail) return "red";
+  if (sFail || tFail) return "amber";
+  if (s === "success") return "green";
+  return "gray";
+}
+
 
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
@@ -1708,7 +1740,15 @@ export default function AdminPage() {
                               });
                             }} data-testid={`row-user-${i}`}>
                               <td className="px-2 py-2.5 border-r border-slate-100">
-                                <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                <div className="flex items-center gap-1.5">
+                                  {(() => {
+                                    const health = getUserHealth(u.latest_status, u.latest_ta_status, u.times_calculated);
+                                    const colors = { green: "bg-emerald-400", amber: "bg-amber-400", red: "bg-red-400", gray: "bg-slate-300" };
+                                    const titles = { green: "Healthy", amber: "Partial failure", red: "Failing", gray: "No calculations" };
+                                    return <span className={`h-2 w-2 rounded-full shrink-0 ${colors[health]}`} title={titles[health]} data-testid={`health-dot-${i}`} />;
+                                  })()}
+                                  <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                </div>
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-profile-${i}`}>
                                 <div className="flex items-center gap-1.5">
@@ -1780,10 +1820,16 @@ export default function AdminPage() {
                                 <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.times_calculated}</span>
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-triggered-${i}`}>
-                                <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_triggered)}</span>
+                                <div>
+                                  <span className="text-[9px] text-slate-600 block">{formatCrmDate(u.last_triggered)}</span>
+                                  {timeAgo(u.last_triggered) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_triggered)}</span>}
+                                </div>
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-updated-${i}`}>
-                                <span className="text-[9px] text-slate-600">{formatCrmDate(u.last_updated)}</span>
+                                <div>
+                                  <span className="text-[9px] text-slate-600 block">{formatCrmDate(u.last_updated)}</span>
+                                  {timeAgo(u.last_updated) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_updated)}</span>}
+                                </div>
                               </td>
                               <td className="px-2 py-2.5 text-center">
                                 <div className="flex items-center gap-1 justify-center">
