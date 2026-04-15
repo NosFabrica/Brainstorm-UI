@@ -72,7 +72,7 @@ type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 
 interface SortState {
-  key: string;
+  key: AdminSortKey;
   dir: SortDir;
 }
 
@@ -256,9 +256,9 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
 
 function SortHeader({ label, sortKey, currentSort, onSort }: {
   label: string;
-  sortKey: string;
+  sortKey: AdminSortKey;
   currentSort: SortState;
-  onSort: (key: string) => void;
+  onSort: (key: AdminSortKey) => void;
 }) {
   const active = currentSort.key === sortKey;
   return (
@@ -574,7 +574,7 @@ export default function AdminPage() {
 
   const totalPages = adminUsersTotalPages;
 
-  const handleSort = useCallback((key: string) => {
+  const handleSort = useCallback((key: AdminSortKey) => {
     setUserSort(prev => prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" });
     setUserPage(0);
   }, []);
