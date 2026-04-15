@@ -648,17 +648,19 @@ export default function AdminPage() {
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users/overview"],
-    queryFn: () => apiClient.getAdminUsers({ days: 9999, page: 1, size: 500 }),
-    enabled: !!user && activeTab === "overview",
+    queryKey: ["/api/admin/users/overview", daysFilter],
+    queryFn: () => apiClient.getAdminUsers({ days: daysFilter, page: 1, size: 100 }),
+    enabled: !!user,
     staleTime: 60_000,
+    retry: 1,
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity/overview"],
     queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
-    enabled: !!user && activeTab === "overview",
+    enabled: !!user,
     staleTime: 60_000,
+    retry: 1,
   });
 
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -1306,8 +1308,12 @@ export default function AdminPage() {
                       </div>
                     )}
                   </div>
+                ) : overviewUsersQuery.isError ? (
+                  <div className="p-8 text-center text-xs text-red-400">Failed to load pipeline data</div>
                 ) : (
-                  <div className="p-8 text-center text-xs text-slate-400">No user data available</div>
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  </div>
                 )}
               </div>
 
@@ -1373,7 +1379,9 @@ export default function AdminPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-xs text-slate-400">No data available</div>
+                  <div className="p-8 flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                  </div>
                 )}
               </div>
 
