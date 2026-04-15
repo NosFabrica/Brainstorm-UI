@@ -572,6 +572,7 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1292,23 +1293,53 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="sm:hidden" data-testid="admin-tab-bar-mobile">
-            <div className="relative">
-              {(() => {
-                const ActiveIcon = tabs.find(t => t.key === activeTab)?.icon ?? BarChart3;
-                return <ActiveIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#333286] pointer-events-none" />;
-              })()}
-              <select
-                value={activeTab}
-                onChange={e => { setActiveTab(e.target.value as AdminTab); setUserPage(0); if (e.target.value === "users") setKpiFilter(null); }}
-                className="w-full appearance-none pl-9 pr-9 py-2.5 rounded-2xl text-sm font-semibold bg-white/60 border border-[#7c86ff]/10 text-slate-800 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 shadow-sm"
-                data-testid="select-tab-mobile"
-              >
-                {tabs.map(tab => (
-                  <option key={tab.key} value={tab.key}>{tab.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            </div>
+            {(() => {
+              const [mobileTabOpen, setMobileTabOpen] = [mobileTabDropdownOpen, setMobileTabDropdownOpen];
+              const activeTabData = tabs.find(t => t.key === activeTab);
+              const ActiveIcon = activeTabData?.icon ?? BarChart3;
+              return (
+                <div className="relative">
+                  <button
+                    onClick={() => setMobileTabOpen(!mobileTabOpen)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm shadow-sm text-sm font-semibold text-slate-800"
+                    data-testid="button-tab-mobile-trigger"
+                  >
+                    <span className="flex items-center gap-2">
+                      <ActiveIcon className="h-4 w-4 text-[#333286]" />
+                      {activeTabData?.label}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${mobileTabOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {mobileTabOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setMobileTabOpen(false)} />
+                      <div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl bg-white border border-[#7c86ff]/15 shadow-lg overflow-hidden" data-testid="dropdown-tab-mobile">
+                        {tabs.map(tab => {
+                          const Icon = tab.icon;
+                          const isActive = activeTab === tab.key;
+                          return (
+                            <button
+                              key={tab.key}
+                              onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); setMobileTabOpen(false); }}
+                              className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
+                                isActive
+                                  ? "bg-gradient-to-r from-[#333286]/10 to-[#7c86ff]/10 text-[#333286]"
+                                  : "text-slate-600 hover:bg-slate-50"
+                              }`}
+                              data-testid={`tab-mobile-${tab.key}`}
+                            >
+                              <Icon className={`h-4 w-4 ${isActive ? "text-[#333286]" : "text-slate-400"}`} />
+                              {tab.label}
+                              {isActive && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-[#333286]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {activeTab === "overview" && (
