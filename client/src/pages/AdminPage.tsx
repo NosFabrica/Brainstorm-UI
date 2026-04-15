@@ -1114,15 +1114,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
-            <KpiCard
-              label={hasSystemData ? "Total Users" : "Users (Admin API)"}
-              value={formatNumber(hasSystemData ? adminStats!.totalUsers : adminUsersTotal)}
-              icon={Users}
-              subtitle={hasSystemData ? "All Brainstorm users" : `From /admin/users (${daysFilter}d)`}
-              tooltip={hasSystemData ? "Total registered users across the entire Brainstorm platform." : "Total users returned by the admin users endpoint for the selected time range."}
-              scope={hasSystemData ? "system" : "graph"}
-            />
+          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
               value={formatNumber(hasSystemData ? adminStats!.scoredUsers : 0)}
