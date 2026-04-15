@@ -1,4 +1,5 @@
 import { extractAdminFlag } from "@/lib/jwt";
+import { clearUserCache } from "./nostr";
 
 const BRAINSTORM_API =
   import.meta.env.VITE_API_URL || "https://brainstormserver-staging.nosfabrica.com";
@@ -84,6 +85,7 @@ async function silentReauth(): Promise<boolean> {
           const storedUserObj = JSON.parse(storedUserStr);
           storedUserObj.isAdmin = extractAdminFlag(token);
           localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
+          clearUserCache();
         }
       } catch {}
       return true;

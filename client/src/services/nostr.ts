@@ -78,6 +78,10 @@ export function updateCurrentUser(updates: Partial<NostrUser>) {
   setCurrentUser(updated);
 }
 
+export function clearUserCache() {
+  currentUser = null;
+}
+
 export const PROFILE_RELAYS = [
   "wss://relay.damus.io/",
   "wss://nos.lol/",
