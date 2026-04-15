@@ -1852,12 +1852,52 @@ export default function AdminPage() {
 
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
+
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-api-health">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Live endpoint status from active queries</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[
+                    { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
+                    { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, loading: grapeRankQuery.isLoading, error: grapeRankQuery.isError, description: "GrapeRank calculation result" },
+                    { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
+                    { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },
+                  ].map(ep => (
+                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
+                      <div className="flex items-center gap-3">
+                        {ep.loading ? (
+                          <Loader2 className="h-4 w-4 text-slate-400 animate-spin shrink-0" />
+                        ) : ep.ok ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-400 shrink-0" />
+                        )}
+                        <div>
+                          <span className="text-xs font-mono font-semibold text-slate-800">{ep.name}</span>
+                          <p className="text-[10px] text-slate-400">{ep.description}</p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        ep.loading ? "bg-slate-50 text-slate-500 border border-slate-200" :
+                        ep.ok ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
+                        "bg-red-50 text-red-600 border border-red-200"
+                      }`}>
+                        {ep.loading ? "Loading" : ep.ok ? "Healthy" : "Error"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
                 <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Configured Relays</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">WebSocket latency probes (DCoSL + profile relays)</p>
+                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Relay Connectivity</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Live WebSocket latency probes</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -1921,68 +1961,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-api-health">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Brainstorm Server endpoints — live status from queries</p>
-                </div>
-                <div className="p-5 space-y-3">
-                  {[
-                    { name: "/authChallenge/*", ok: true, note: "Auth flow functional", responseTime: "—" },
-                    { name: "/user/self", ok: selfQuery.isSuccess, note: selfQuery.isError ? "Query error" : selfQuery.isLoading ? "Loading..." : "OK", responseTime: selfQuery.isSuccess ? "< 2s" : "—" },
-                    { name: "/user/graperank", ok: true, note: "POST trigger endpoint", responseTime: "—" },
-                    { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, note: grapeRankQuery.isError ? "Query error" : grapeRankQuery.isLoading ? "Loading..." : "OK", responseTime: grapeRankQuery.isSuccess ? "< 2s" : "—" },
-                    { name: "/admin/users", ok: adminUsersQuery.isSuccess, note: adminUsersQuery.isError ? "Query error" : adminUsersQuery.isLoading ? "Loading..." : "OK", responseTime: adminUsersQuery.isSuccess ? "< 2s" : "—" },
-                  ].map(ep => (
-                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-2.5 rounded-lg bg-white/40 border border-slate-50" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
-                      <div className="flex items-center gap-2">
-                        {ep.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                        <span className="text-xs font-mono text-slate-700 truncate">{ep.name}</span>
-                      </div>
-                      <div className="flex items-center gap-3 ml-5 sm:ml-0">
-                        <span className="text-[10px] font-mono text-slate-400">{ep.responseTime}</span>
-                        <span className="text-[10px] text-slate-400">{ep.note}</span>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider ${ep.ok ? "text-emerald-600" : "text-red-500"}`}>{ep.ok ? "OK" : "ERR"}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-infra-overview">
-                <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Infrastructure</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">System components overview</p>
-                </div>
-                <div className="p-5 grid grid-cols-1 gap-4">
-                  {[
-                    { icon: Database, label: "Event Store", detail: "Applesauce EventStore (in-memory)", status: "Operational" as const },
-                    { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline", status: (calcDone ? "Idle" as const : grapeRank ? "Processing" as const : "Idle" as const) },
-                    { icon: Zap, label: "NIP-85 Publisher", detail: "Trust assertion broadcaster (kind 10040)", status: "Operational" as const },
-                    { icon: Globe, label: "Brainstorm Server", detail: "brainstormserver-staging.nosfabrica.com", status: (selfQuery.isSuccess ? "Operational" as const : "Degraded" as const) },
-                  ].map(comp => (
-                    <div key={comp.label} className="p-4 rounded-xl bg-white/50 border border-slate-100 space-y-2" data-testid={`infra-${comp.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <div className="flex items-center gap-2">
-                        <comp.icon className="h-4 w-4 text-[#333286]" />
-                        <span className="text-xs font-bold text-slate-800">{comp.label}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500">{comp.detail}</p>
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${
-                        comp.status === "Processing" ? "text-amber-600" : comp.status === "Degraded" ? "text-amber-600" : "text-emerald-600"
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${
-                          comp.status === "Processing" ? "bg-amber-500 animate-pulse" : comp.status === "Degraded" ? "bg-amber-500" : "bg-emerald-500"
-                        }`} />
-                        {comp.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-encryption-security">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-encryption-security">
                 <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-sky-500 to-cyan-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Encryption Security</h3>
@@ -2163,35 +2142,34 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>GrapeRank Pipeline Stats</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Calculation status from /user/graperankResult</p>
-                </div>
-                <div className="p-5">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
-                      <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
-                      <p className="text-lg font-bold text-slate-900">{timesCalculated ?? "—"}</p>
-                      <p className="text-[10px] text-slate-500">Total Calculations</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                      <p className="text-lg font-bold text-slate-900">{calcDone ? "Yes" : "No"}</p>
-                      <p className="text-[10px] text-slate-500">Last Success</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
-                      <XCircle className="h-4 w-4 text-red-400 mx-auto mb-1" />
-                      <p className="text-lg font-bold text-slate-900">{(calcStatus?.toLowerCase() === "failure" || taStatus?.toLowerCase() === "failure") ? "Yes" : "No"}</p>
-                      <p className="text-[10px] text-slate-500">Failures Detected</p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center">
-                      <Clock className="h-4 w-4 text-amber-500 mx-auto mb-1" />
-                      <p className="text-lg font-bold text-slate-900">{queuePosition ?? "—"}</p>
-                      <p className="text-[10px] text-slate-500">Stuck / Queued</p>
-                    </div>
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-infra-overview">
+                <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
+                <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Infrastructure</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Awaiting dedicated health check endpoints</p>
                   </div>
+                  <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
+                </div>
+                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { icon: Database, label: "Event Store", detail: "Applesauce EventStore" },
+                    { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline" },
+                    { icon: Zap, label: "NIP-85 Publisher", detail: "Trust assertion broadcaster" },
+                    { icon: Globe, label: "Brainstorm Server", detail: "Server health metrics" },
+                  ].map(comp => (
+                    <div key={comp.label} className="p-3 rounded-xl bg-white/30 border border-slate-100/60 space-y-1.5" data-testid={`infra-${comp.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                      <div className="flex items-center gap-2">
+                        <comp.icon className="h-3.5 w-3.5 text-slate-300" />
+                        <span className="text-xs font-semibold text-slate-400">{comp.label}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300">{comp.detail}</p>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                        No data
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
