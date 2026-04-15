@@ -793,7 +793,7 @@ export default function AdminPage() {
         setLookupResult({ success: true, message: "User found", data: safeFields });
         toast({ title: "User Found", description: brainstormPubkey ? `Brainstorm pubkey: ${brainstormPubkey.slice(0, 16)}...` : "Existing user" });
       }
-      queryClient.invalidateQueries({ queryKey: ["/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setLookupError(msg);
