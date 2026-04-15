@@ -68,6 +68,7 @@ import {
   ShieldCheck,
   KeyRound,
   UserPlus,
+  Calendar,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
@@ -78,6 +79,7 @@ import { useToast } from "@/hooks/use-toast";
 type AdminTab = "overview" | "users" | "health" | "activity";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
+type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all" | "custom";
 
 interface SortState {
   key: AdminSortKey;
@@ -569,6 +571,9 @@ export default function AdminPage() {
   const [pageSize, setPageSize] = useState<PageSizeOption>(25);
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
+  const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
+  const [customRangeFrom, setCustomRangeFrom] = useState("");
+  const [customRangeTo, setCustomRangeTo] = useState("");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
@@ -2193,15 +2198,67 @@ export default function AdminPage() {
                 const actSummaryUsers = overviewAllUsers;
                 const actSummaryLoading = overviewLoading;
                 const now = Date.now();
-                const last24hItems = actSummaryActivity.filter(a => {
+
+                const rangeLabels: Record<ActivityTimeRange, string> = {
+                  "24h": "Last 24 Hours",
+                  "week": "This Week",
+                  "month": "This Month",
+                  "quarter": "This Quarter",
+                  "all": "All Time",
+                  "custom": "Custom Range",
+                };
+                const rangeShort: Record<ActivityTimeRange, string> = {
+                  "24h": "24h",
+                  "week": "Week",
+                  "month": "Month",
+                  "quarter": "Quarter",
+                  "all": "All",
+                  "custom": "Custom",
+                };
+
+                const getStartMs = (range: ActivityTimeRange): number => {
+                  if (range === "all") return 0;
+                  if (range === "custom") {
+                    return customRangeFrom ? new Date(customRangeFrom).getTime() : 0;
+                  }
+                  const d = new Date();
+                  switch (range) {
+                    case "24h": return now - 86400000;
+                    case "week": { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d.getTime(); }
+                    case "month": { d.setDate(1); d.setHours(0,0,0,0); return d.getTime(); }
+                    case "quarter": {
+                      const qMonth = Math.floor(d.getMonth() / 3) * 3;
+                      d.setMonth(qMonth, 1); d.setHours(0,0,0,0);
+                      return d.getTime();
+                    }
+                    default: return 0;
+                  }
+                };
+                const getEndMs = (range: ActivityTimeRange): number => {
+                  if (range === "custom" && customRangeTo) {
+                    const end = new Date(customRangeTo);
+                    end.setHours(23, 59, 59, 999);
+                    return end.getTime();
+                  }
+                  return now;
+                };
+
+                const startMs = getStartMs(activityTimeRange);
+                const endMs = getEndMs(activityTimeRange);
+
+                const parseTs = (ts: string): number => {
                   try {
-                    const t = new Date(a.updated_at.endsWith("Z") ? a.updated_at : a.updated_at + "Z").getTime();
-                    return now - t < 86400000;
-                  } catch { return false; }
+                    return new Date(ts.endsWith("Z") ? ts : ts + "Z").getTime();
+                  } catch { return 0; }
+                };
+
+                const filteredItems = actSummaryActivity.filter(a => {
+                  const t = parseTs(a.updated_at);
+                  return t >= startMs && t <= endMs;
                 });
-                const last24hSuccess = last24hItems.filter(a => a.status?.toLowerCase() === "success").length;
-                const last24hFailed = last24hItems.filter(a => a.status?.toLowerCase() === "failed").length;
-                const last24hTotal = last24hItems.length;
+                const filteredSuccess = filteredItems.filter(a => a.status?.toLowerCase() === "success").length;
+                const filteredFailed = filteredItems.filter(a => a.status?.toLowerCase() === "failed").length;
+                const filteredTotal = filteredItems.length;
                 const totalCalcsAll = actSummaryUsers.reduce((s, u) => s + (u.times_calculated || 0), 0);
                 const failedUsers = actSummaryUsers.filter(u => u.latest_status?.toLowerCase() === "failed" || u.latest_ta_status?.toLowerCase() === "failed").length;
                 const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
@@ -2210,44 +2267,111 @@ export default function AdminPage() {
                   return tb - ta;
                 });
                 const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
-                const uniquePubkeys24h = new Set(last24hItems.map(a => a.pubkey).filter(Boolean)).size;
+                const uniquePubkeys = new Set(filteredItems.map(a => a.pubkey).filter(Boolean)).size;
+
+                const presets: ActivityTimeRange[] = ["24h", "week", "month", "quarter", "all", "custom"];
 
                 return (
                   <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
                     <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                    <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput from /admin/activity + /admin/users</p>
+                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput — <span className="font-semibold text-[#333286]">{rangeLabels[activityTimeRange]}</span></p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess ? "connected" : overviewActivityQuery.isError || overviewUsersQuery.isError ? "disconnected" : "degraded"} />
+                        </div>
                       </div>
-                      <StatusBadge status={overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess ? "connected" : overviewActivityQuery.isError || overviewUsersQuery.isError ? "disconnected" : "degraded"} />
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="time-range-selector">
+                        {presets.map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setActivityTimeRange(p)}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                              activityTimeRange === p
+                                ? "bg-[#333286] text-white shadow-md shadow-indigo-200"
+                                : "bg-white/70 text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-[#333286]"
+                            }`}
+                            data-testid={`time-range-${p}`}
+                          >
+                            {p === "custom" && <Calendar className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                            {rangeShort[p]}
+                          </button>
+                        ))}
+                      </div>
+                      {activityTimeRange === "custom" && (
+                        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-xl bg-white/60 border border-indigo-100" data-testid="custom-range-picker">
+                          <Calendar className="h-4 w-4 text-[#333286] shrink-0 hidden sm:block" />
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-1 w-full">
+                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">From</label>
+                              <input
+                                type="date"
+                                value={customRangeFrom}
+                                max={customRangeTo || undefined}
+                                onChange={e => setCustomRangeFrom(e.target.value)}
+                                className="flex-1 sm:w-36 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                                data-testid="input-custom-from"
+                              />
+                            </div>
+                            <span className="text-slate-300 hidden sm:inline">—</span>
+                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">To</label>
+                              <input
+                                type="date"
+                                value={customRangeTo}
+                                min={customRangeFrom || undefined}
+                                onChange={e => setCustomRangeTo(e.target.value)}
+                                className="flex-1 sm:w-36 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                                data-testid="input-custom-to"
+                              />
+                            </div>
+                            {(customRangeFrom || customRangeTo) && (
+                              <button
+                                onClick={() => { setCustomRangeFrom(""); setCustomRangeTo(""); }}
+                                className="text-[10px] text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                                data-testid="button-clear-custom-range"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {activityTimeRange !== "24h" && (
+                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on latest 100 activity records. Broader ranges may not reflect full history.</p>
+                      )}
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 sm:p-5">
                       {actSummaryLoading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-pulse">
                           {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-total">
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total">
                             <Activity className="h-4 w-4 text-[#333286] mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{last24hTotal.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">Last 24h Requests</p>
+                            <p className="text-lg font-bold text-slate-900">{filteredTotal.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Requests</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-success">
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-success">
                             <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-emerald-600">{last24hSuccess.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">24h Succeeded</p>
+                            <p className="text-lg font-bold text-emerald-600">{filteredSuccess.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Succeeded</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-failed">
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-failed">
                             <XCircle className="h-4 w-4 text-red-400 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-red-500">{last24hFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">24h Failed</p>
+                            <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Failed</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-unique-users-24h">
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-unique-users">
                             <Users className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{uniquePubkeys24h.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">24h Active Users</p>
+                            <p className="text-lg font-bold text-slate-900">{uniquePubkeys.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Active Users</p>
                           </div>
                           <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total-calcs">
                             <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
