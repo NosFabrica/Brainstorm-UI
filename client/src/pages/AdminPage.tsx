@@ -405,7 +405,7 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
 
-function ActivityRow({ item, idx }: { item: BrainstormRequestInstance; idx: number }) {
+function ActivityRow({ item, idx, onViewDetail }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void }) {
   const [expanded, setExpanded] = useState(false);
   const fmtDate = (d: string | null) => {
     if (!d) return "—";
@@ -467,6 +467,16 @@ function ActivityRow({ item, idx }: { item: BrainstormRequestInstance; idx: numb
                 </div>
               )}
             </div>
+            <div className="mt-3 pt-2 border-t border-indigo-100/60">
+              <button
+                onClick={(e) => { e.stopPropagation(); onViewDetail(item.private_id); }}
+                className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1"
+                data-testid={`button-view-detail-${item.private_id}`}
+              >
+                <Eye className="h-3 w-3" />
+                View Full Request
+              </button>
+            </div>
           </td>
         </tr>
       )}
@@ -502,6 +512,15 @@ export default function AdminPage() {
   const [lookupRunning, setLookupRunning] = useState(false);
   const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailRequestId, setDetailRequestId] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createPubkey, setCreatePubkey] = useState("");
+  const [createRunning, setCreateRunning] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -803,6 +822,66 @@ export default function AdminPage() {
       setLookupRunning(false);
     }
   }, [lookupInput, toast, queryClient]);
+
+  const handleViewRequestDetail = useCallback(async (requestId: number) => {
+    setDetailRequestId(requestId);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailData(null);
+    setDetailError(null);
+    try {
+      const result = await apiClient.getBrainstormRequest(String(requestId));
+      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : { result };
+      setDetailData(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setDetailError(msg);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const handleCreateRequest = useCallback(async () => {
+    const raw = createPubkey.trim();
+    if (!raw) {
+      setCreateError("Please enter a pubkey or npub");
+      return;
+    }
+    let hexPubkey = raw;
+    if (raw.startsWith("npub")) {
+      try {
+        const decoded = nip19.decode(raw);
+        if (decoded.type === "npub") {
+          hexPubkey = decoded.data;
+        } else {
+          setCreateError("Invalid npub format");
+          return;
+        }
+      } catch {
+        setCreateError("Invalid npub — could not decode");
+        return;
+      }
+    } else if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
+      setCreateError("Invalid pubkey — expected 64-char hex or npub");
+      return;
+    }
+    hexPubkey = hexPubkey.toLowerCase();
+    setCreateRunning(true);
+    setCreateError(null);
+    try {
+      await apiClient.createBrainstormRequest({ pubkey: hexPubkey });
+      toast({ title: "Request Created", description: `Brainstorm request queued for ${hexPubkey.slice(0, 12)}...` });
+      setCreateOpen(false);
+      setCreatePubkey("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setCreateError(msg);
+      toast({ title: "Create Failed", description: msg, variant: "destructive" });
+    } finally {
+      setCreateRunning(false);
+    }
+  }, [createPubkey, toast, queryClient]);
 
   const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
   const followersCount = getListLength(network?.followed_by);
@@ -1886,6 +1965,16 @@ export default function AdminPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
                       <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : "degraded"} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setCreateOpen(true); setCreatePubkey(""); setCreateError(null); }}
+                        className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-new-request"
+                      >
+                        <Play className="h-3 w-3" />
+                        New Request
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1925,7 +2014,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} />
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} />
                             ))}
                           </tbody>
                         </table>
@@ -1968,11 +2057,106 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand and see additional fields (result, count_values, parameters, password).</p>
+                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand and see additional fields, or use "View Full Request" for complete detail.</p>
                     </>
                   )}
                 </div>
               </div>
+
+              <Dialog open={detailOpen} onOpenChange={(open) => { setDetailOpen(open); if (!open) { setDetailData(null); setDetailError(null); } }}>
+                <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-[#333286]" />
+                      Brainstorm Request #{detailRequestId}
+                    </DialogTitle>
+                    <DialogDescription className="text-sm text-slate-600 pt-1">
+                      Full request details from /admin/brainstormRequest/{detailRequestId}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="pt-2">
+                    {detailLoading && (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-[#333286]" />
+                        <span className="ml-2 text-sm text-slate-500">Loading request detail...</span>
+                      </div>
+                    )}
+                    {detailError && (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="detail-error">
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700">{detailError}</p>
+                      </div>
+                    )}
+                    {detailData && (
+                      <div className="space-y-2" data-testid="detail-fields">
+                        {Object.entries(detailData).map(([key, value]) => (
+                          <div key={key} className="flex items-start justify-between p-2.5 rounded-lg bg-white/60 border border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 mr-4">{key}</span>
+                            <span className="text-[10px] font-mono text-slate-800 text-right break-all max-w-[350px]">
+                              {value === null ? "null" : typeof value === "object" ? JSON.stringify(value) : String(value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setCreateError(null); } }}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Play className="h-5 w-5 text-[#333286]" />
+                      New Brainstorm Request
+                    </DialogTitle>
+                    <DialogDescription className="text-sm text-slate-600 pt-1">
+                      Queue a new GrapeRank calculation for a specific pubkey. The request will be created and appear in the activity table.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 mb-1.5 block">Pubkey</label>
+                      <input
+                        type="text"
+                        placeholder="npub1... or 64-char hex pubkey"
+                        value={createPubkey}
+                        onChange={e => { setCreatePubkey(e.target.value); setCreateError(null); }}
+                        onKeyDown={e => { if (e.key === "Enter" && !createRunning) handleCreateRequest(); }}
+                        className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                        data-testid="input-create-pubkey"
+                      />
+                    </div>
+                    {createError && (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="create-error">
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700">{createError}</p>
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCreateOpen(false)}
+                        className="text-xs no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-cancel-create"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleCreateRequest}
+                        disabled={createRunning || !createPubkey.trim()}
+                        className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-submit-create"
+                      >
+                        {createRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                        {createRunning ? "Creating..." : "Create Request"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 

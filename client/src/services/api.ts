@@ -347,6 +347,39 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
+  async getBrainstormRequest(requestId: string) {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/brainstormRequest/${requestId}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Failed to fetch brainstorm request (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async createBrainstormRequest(data: { pubkey: string; [key: string]: unknown }) {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/brainstormRequest/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Failed to create brainstorm request (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
   async getBrainstormPubkey(nostrPubkey: string) {
     const response = await authenticatedFetch(
       `${BRAINSTORM_API}/admin/brainstormPubkey/${nostrPubkey}`,
