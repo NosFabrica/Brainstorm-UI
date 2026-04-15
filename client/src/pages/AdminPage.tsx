@@ -478,7 +478,7 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
 
-function ActivityRow({ item, idx, onViewDetail }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void; onNavigateToUser?: (pubkey: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const fmtDate = (d: string | null) => {
     if (!d) return "—";
@@ -496,7 +496,17 @@ function ActivityRow({ item, idx, onViewDetail }: { item: BrainstormRequestInsta
         data-testid={`row-activity-${item.private_id ?? idx}`}
       >
         <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.private_id}</td>
-        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.pubkey ? `${item.pubkey.slice(0, 8)}...${item.pubkey.slice(-4)}` : "—"}</td>
+        <td className="px-2 py-2 font-mono text-[10px]">
+          {item.pubkey ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onNavigateToUser?.(item.pubkey); }}
+              className="text-[#333286] hover:text-[#7c86ff] hover:underline transition-colors cursor-pointer"
+              data-testid={`link-user-${item.pubkey?.slice(0, 8)}`}
+            >
+              {item.pubkey.slice(0, 8)}...{item.pubkey.slice(-4)}
+            </button>
+          ) : "—"}
+        </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
@@ -2495,7 +2505,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} />
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); }} />
                             ))}
                           </tbody>
                         </table>
