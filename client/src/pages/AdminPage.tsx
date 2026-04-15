@@ -495,7 +495,8 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: Brai
         onClick={() => setExpanded(prev => !prev)}
         data-testid={`row-activity-${item.private_id ?? idx}`}
       >
-        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.private_id}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
         <td className="px-2 py-2 font-mono text-[10px]">
           {item.pubkey ? (
             <button
@@ -512,8 +513,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: Brai
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
         <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
         <td className="px-2 py-2 text-center text-slate-600 text-[10px]">{item.how_many_others_with_priority}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.created_at)}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 font-mono text-slate-400 text-[10px]">{item.private_id}</td>
       </tr>
       {expanded && (
         <tr className="bg-indigo-50/20">
@@ -2525,15 +2525,15 @@ export default function AdminPage() {
                         <table className="w-full text-left min-w-[700px]" data-testid="table-platform-activity">
                           <thead>
                             <tr className="border-b border-slate-200/60">
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ID</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pubkey</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">ID</th>
                             </tr>
                           </thead>
                           <tbody>
