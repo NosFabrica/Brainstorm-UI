@@ -647,6 +647,20 @@ export default function AdminPage() {
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
 
+  const overviewUsersQuery = useQuery<AdminUsersPage>({
+    queryKey: ["/api/admin/users/overview"],
+    queryFn: () => apiClient.getAdminUsers({ days: 9999, page: 1, size: 500 }),
+    enabled: !!user && activeTab === "overview",
+    staleTime: 60_000,
+  });
+
+  const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
+    queryKey: ["/api/admin/activity/overview"],
+    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
+    enabled: !!user && activeTab === "overview",
+    staleTime: 60_000,
+  });
+
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity", activityPage, activityPageSize],
     queryFn: () => apiClient.getAdminActivity({
@@ -746,6 +760,68 @@ export default function AdminPage() {
   const timesCalculated = historyData?.times_calculated_graperank ?? null;
   const lastCalcTime = historyData?.last_time_calculated_graperank ?? null;
   const lastTriggerTime = historyData?.last_time_triggered_graperank ?? null;
+
+  const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
+  const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
+  const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
+  const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
+
+  const pipelineMetrics = useMemo(() => {
+    const users = overviewAllUsers;
+    const activity = overviewAllActivity;
+    const total = users.length;
+    if (total === 0) return null;
+
+    const successCount = users.filter(u => u.latest_status?.toLowerCase() === "success").length;
+    const failedCount = users.filter(u => u.latest_status?.toLowerCase() === "failed").length;
+    const pendingCount = total - successCount - failedCount;
+    const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
+
+    const taSuccessCount = users.filter(u => u.latest_ta_status?.toLowerCase() === "success").length;
+    const taFailedCount = users.filter(u => u.latest_ta_status?.toLowerCase() === "failed").length;
+    const taAdoptionRate = total > 0 ? Math.round((taSuccessCount / total) * 100) : 0;
+
+    const withTaPubkey = users.filter(u => u.ta_pubkey).length;
+
+    const totalCalcs = users.reduce((sum, u) => sum + (u.times_calculated || 0), 0);
+    const avgCalcs = total > 0 ? (totalCalcs / total).toFixed(1) : "0";
+
+    const algoCounts: Record<string, number> = {};
+    users.forEach(u => {
+      const algo = u.latest_algorithm || "unknown";
+      algoCounts[algo] = (algoCounts[algo] || 0) + 1;
+    });
+
+    const now = Date.now();
+    const last24h = activity.filter(a => {
+      try {
+        const t = new Date(a.updated_at.endsWith("Z") ? a.updated_at : a.updated_at + "Z").getTime();
+        return now - t < 86400000;
+      } catch { return false; }
+    });
+    const recentSuccess = last24h.filter(a => a.status?.toLowerCase() === "success").length;
+    const recentFailed = last24h.filter(a => a.status?.toLowerCase() === "failed").length;
+
+    const sortedByUpdate = [...users].sort((a, b) => {
+      const ta = new Date(a.last_updated || "").getTime() || 0;
+      const tb = new Date(b.last_updated || "").getTime() || 0;
+      return tb - ta;
+    });
+    const lastPlatformActivity = sortedByUpdate[0]?.last_updated ?? null;
+
+    const neverCalc = users.filter(u => !u.times_calculated || u.times_calculated === 0).length;
+
+    return {
+      total: overviewTotalUsers,
+      successCount, failedCount, pendingCount, successRate,
+      taSuccessCount, taFailedCount, taAdoptionRate, withTaPubkey,
+      totalCalcs, avgCalcs,
+      algoCounts,
+      recentSuccess, recentFailed,
+      lastPlatformActivity,
+      neverCalc,
+    };
+  }, [overviewAllUsers, overviewAllActivity, overviewTotalUsers]);
 
   const handleTriggerGraperank = useCallback(async (pubkey: string) => {
     setTriggeringPubkeys(prev => new Set(prev).add(pubkey));
