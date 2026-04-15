@@ -347,6 +347,34 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
+  async verifyNsecEncryption() {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/nsec-encryption/verify`,
+      { method: "POST", signal: AbortSignal.timeout(30000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Verify encryption failed (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async rotateNsecEncryption() {
+    const response = await authenticatedFetch(
+      `${BRAINSTORM_API}/admin/nsec-encryption/rotate`,
+      { method: "POST", signal: AbortSignal.timeout(60000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const detail = errorData?.detail || errorData?.message || "";
+      throw new Error(detail || `Rotate encryption key failed (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
   async triggerUserGraperank(pubkey: string) {
     const response = await authenticatedFetch(
       `${BRAINSTORM_API}/admin/brainstormPubkey/${pubkey}/trigger_graperank`,

@@ -58,6 +58,8 @@ import {
   Eye,
   Play,
   Loader2,
+  ShieldCheck,
+  KeyRound,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
@@ -482,6 +484,11 @@ export default function AdminPage() {
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
+  const [verifyRunning, setVerifyRunning] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [rotateRunning, setRotateRunning] = useState(false);
+  const [rotateResult, setRotateResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -680,6 +687,46 @@ export default function AdminPage() {
     setPageSize(parseInt(val, 10) as PageSizeOption);
     setUserPage(0);
   }, []);
+
+  const handleVerifyEncryption = useCallback(async () => {
+    setVerifyRunning(true);
+    setVerifyResult(null);
+    try {
+      const result = await apiClient.verifyNsecEncryption();
+      const msg = typeof result === "object" && result !== null
+        ? (result.message || result.detail || JSON.stringify(result))
+        : String(result ?? "Verification complete");
+      setVerifyResult({ success: true, message: msg });
+      toast({ title: "Encryption Verified", description: msg });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setVerifyResult({ success: false, message: msg });
+      toast({ title: "Verification Failed", description: msg, variant: "destructive" });
+    } finally {
+      setVerifyRunning(false);
+    }
+  }, [toast]);
+
+  const handleRotateEncryption = useCallback(async () => {
+    setRotateConfirmOpen(false);
+    setRotateRunning(true);
+    setRotateResult(null);
+    try {
+      const result = await apiClient.rotateNsecEncryption();
+      const msg = typeof result === "object" && result !== null
+        ? (result.message || result.detail || JSON.stringify(result))
+        : String(result ?? "Key rotation complete");
+      setRotateResult({ success: true, message: msg });
+      setVerifyResult(null);
+      toast({ title: "Key Rotated", description: msg });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setRotateResult({ success: false, message: msg });
+      toast({ title: "Rotation Failed", description: msg, variant: "destructive" });
+    } finally {
+      setRotateRunning(false);
+    }
+  }, [toast]);
 
   const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
   const followersCount = getListLength(network?.followed_by);
@@ -1437,6 +1484,100 @@ export default function AdminPage() {
                       </span>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-encryption-security">
+                <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-sky-500 to-cyan-400" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Encryption Security</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Nsec-at-rest encryption key management</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-verify-row">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-800">Verify Encryption</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Check all encrypted nsec rows decrypt with the current key</p>
+                        {verifyResult && (
+                          <p className={`text-[10px] font-medium mt-1.5 ${verifyResult.success ? "text-emerald-600" : "text-red-600"}`} data-testid="verify-result">
+                            {verifyResult.message}
+                          </p>
+                        )}
+                        {!verifyResult && !verifyRunning && (
+                          <p className="text-[10px] text-slate-400 mt-1.5 italic">Not checked yet</p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleVerifyEncryption}
+                      disabled={verifyRunning || rotateRunning}
+                      className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
+                      data-testid="button-verify-encryption"
+                    >
+                      {verifyRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      {verifyRunning ? "Verifying..." : "Run Verify"}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-rotate-row">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                        <KeyRound className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-800">Rotate Encryption Key</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">Re-encrypt all nsec values with a new key</p>
+                        {rotateResult && (
+                          <p className={`text-[10px] font-medium mt-1.5 ${rotateResult.success ? "text-emerald-600" : "text-red-600"}`} data-testid="rotate-result">
+                            {rotateResult.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {rotateConfirmOpen ? (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-amber-700 font-medium">Are you sure?</span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleRotateEncryption}
+                          disabled={rotateRunning}
+                          className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-confirm-rotate"
+                        >
+                          {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                          Confirm
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setRotateConfirmOpen(false)}
+                          className="text-xs no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-cancel-rotate"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRotateConfirmOpen(true)}
+                        disabled={rotateRunning || verifyRunning}
+                        className="text-xs gap-1.5 shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
+                        data-testid="button-rotate-encryption"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Rotate Key
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
 
