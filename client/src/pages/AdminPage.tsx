@@ -2177,106 +2177,94 @@ export default function AdminPage() {
 
           {activeTab === "activity" && (
             <div className="space-y-6" data-testid="panel-activity">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-session-activity">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Session Activity</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Current session events and API query results</p>
-                </div>
-                <div className="p-5">
-                  <div className="space-y-3">
-                    {[
-                      { event: "Admin dashboard accessed", type: "info" as const, detail: `Authenticated as ${user.npub.slice(0, 16)}...`, timestamp: SESSION_START.toLocaleTimeString() },
-                      { event: "/user/self query", type: (selfQuery.isSuccess ? "success" as const : selfQuery.isError ? "error" as const : "info" as const), detail: selfQuery.isSuccess ? "Graph loaded" : selfQuery.isError ? "Failed to load user data" : "Loading...", timestamp: selfQuery.isSuccess ? "Completed" : "—" },
-                      { event: "/user/graperankResult query", type: (grapeRankQuery.isSuccess ? "success" as const : grapeRankQuery.isError ? "error" as const : "info" as const), detail: grapeRankQuery.isSuccess ? `Status: ${grapeRank?.internal_publication_status ?? "unknown"}` : grapeRankQuery.isError ? "Failed to load GrapeRank data" : "Loading...", timestamp: grapeRankQuery.isSuccess ? "Completed" : "—" },
-                      { event: "GrapeRank calculation history", type: "info" as const, detail: timesCalculated !== null ? `Calculated ${timesCalculated} time(s)` : "History not available", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
-                      { event: "Last trigger", type: "info" as const, detail: lastTriggerTime ? new Date(lastTriggerTime).toLocaleString() : "—", timestamp: lastTriggerTime ? new Date(lastTriggerTime).toLocaleTimeString() : "—" },
-                      { event: "Last calculation", type: "info" as const, detail: lastCalcTime ? new Date(lastCalcTime).toLocaleString() : "—", timestamp: lastCalcTime ? new Date(lastCalcTime).toLocaleTimeString() : "—" },
-                    ].map((entry, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/40 border border-slate-50" data-testid={`activity-entry-${i}`}>
-                        <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${
-                          entry.type === "success" ? "bg-emerald-50 border border-emerald-200" :
-                          entry.type === "error" ? "bg-red-50 border border-red-200" :
-                          "bg-slate-50 border border-slate-200"
-                        }`}>
-                          {entry.type === "success" ? <CheckCircle2 className="h-3 w-3 text-emerald-600" /> :
-                           entry.type === "error" ? <XCircle className="h-3 w-3 text-red-500" /> :
-                           <Activity className="h-3 w-3 text-slate-500" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-medium text-slate-800">{entry.event}</p>
-                            <span className="text-[10px] font-mono text-slate-400">{entry.timestamp}</span>
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{entry.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-error-log">
-                <div className="h-1 w-full bg-gradient-to-r from-red-400 via-red-500 to-red-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Error Log</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Recent errors from API queries and pipeline status</p>
-                </div>
-                <div className="p-5">
-                  {(() => {
-                    const errors: Array<{ user: string; timestamp: string; message: string; source: string }> = [];
-                    if (selfQuery.isError) {
-                      errors.push({ user: user.npub.slice(0, 12) + "...", timestamp: new Date().toLocaleString(), message: "Failed to fetch /user/self graph data", source: "API Query" });
-                    }
-                    if (grapeRankQuery.isError) {
-                      errors.push({ user: user.npub.slice(0, 12) + "...", timestamp: new Date().toLocaleString(), message: "Failed to fetch /user/graperankResult", source: "API Query" });
-                    }
-                    if (grapeRank && (calcStatus?.toLowerCase() === "failure" || taStatus?.toLowerCase() === "failure")) {
-                      errors.push({
-                        user: historyData?.ta_pubkey?.slice(0, 12) ?? user.npub.slice(0, 12) + "...",
-                        timestamp: lastUpdated ? new Date(lastUpdated).toLocaleString() : new Date().toLocaleString(),
-                        message: `Pipeline failure — Status: ${calcStatus ?? "—"} | TA: ${taStatus ?? "—"} | Internal: ${grapeRank.internal_publication_status ?? "—"}`,
-                        source: "GrapeRank Pipeline",
-                      });
-                    }
-                    if (errors.length === 0) {
-                      return (
-                        <div className="flex flex-col items-center justify-center py-6 text-center">
-                          <CheckCircle2 className="h-8 w-8 text-emerald-300 mb-2" />
-                          <p className="text-sm font-semibold text-slate-400">No Errors</p>
-                          <p className="text-xs text-slate-400 mt-1">No errors detected in current session.</p>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left min-w-[500px]" data-testid="table-error-log">
-                          <thead>
-                            <tr className="border-b border-slate-100">
-                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
-                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Timestamp</th>
-                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
-                              <th className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Message</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {errors.map((err, i) => (
-                              <tr key={i} className="border-b border-slate-50" data-testid={`error-row-${i}`}>
-                                <td className="px-3 py-2 text-[10px] font-mono text-slate-600">{err.user}</td>
-                                <td className="px-3 py-2 text-[10px] text-slate-500">{err.timestamp}</td>
-                                <td className="px-3 py-2">
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-semibold">{err.source}</span>
-                                </td>
-                                <td className="px-3 py-2 text-[10px] text-red-700">{err.message}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+              {(() => {
+                const actSummaryActivity = overviewAllActivity;
+                const actSummaryUsers = overviewAllUsers;
+                const actSummaryLoading = overviewLoading;
+                const now = Date.now();
+                const last24hItems = actSummaryActivity.filter(a => {
+                  try {
+                    const t = new Date(a.updated_at.endsWith("Z") ? a.updated_at : a.updated_at + "Z").getTime();
+                    return now - t < 86400000;
+                  } catch { return false; }
+                });
+                const last24hSuccess = last24hItems.filter(a => a.status?.toLowerCase() === "success").length;
+                const last24hFailed = last24hItems.filter(a => a.status?.toLowerCase() === "failed").length;
+                const last24hTotal = last24hItems.length;
+                const totalCalcsAll = actSummaryUsers.reduce((s, u) => s + (u.times_calculated || 0), 0);
+                const failedUsers = actSummaryUsers.filter(u => u.latest_status?.toLowerCase() === "failed" || u.latest_ta_status?.toLowerCase() === "failed").length;
+                const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
+                  const ta = new Date(a.last_updated || "").getTime() || 0;
+                  const tb = new Date(b.last_updated || "").getTime() || 0;
+                  return tb - ta;
+                });
+                const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
+                const uniquePubkeys24h = new Set(last24hItems.map(a => a.pubkey).filter(Boolean)).size;
+
+                return (
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
+                    <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                    <div className="px-5 py-4 border-b border-[#7c86ff]/10 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput from /admin/activity + /admin/users</p>
                       </div>
-                    );
-                  })()}
-                </div>
-              </div>
+                      <StatusBadge status={overviewActivityQuery.isSuccess && overviewUsersQuery.isSuccess ? "connected" : overviewActivityQuery.isError || overviewUsersQuery.isError ? "disconnected" : "degraded"} />
+                    </div>
+                    <div className="p-5">
+                      {actSummaryLoading ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-pulse">
+                          {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-total">
+                            <Activity className="h-4 w-4 text-[#333286] mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900">{last24hTotal.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">Last 24h Requests</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-success">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
+                            <p className="text-lg font-bold text-emerald-600">{last24hSuccess.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">24h Succeeded</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-24h-failed">
+                            <XCircle className="h-4 w-4 text-red-400 mx-auto mb-1" />
+                            <p className="text-lg font-bold text-red-500">{last24hFailed.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">24h Failed</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-unique-users-24h">
+                            <Users className="h-4 w-4 text-blue-500 mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900">{uniquePubkeys24h.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">24h Active Users</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total-calcs">
+                            <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900">{totalCalcsAll.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">Total Calculations</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-failed-users">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900">{failedUsers.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500">Users w/ Failures</p>
+                          </div>
+                        </div>
+                      )}
+                      {lastActivityTs && !actSummaryLoading && (
+                        <p className="text-[10px] text-slate-400 mt-3">
+                          Last platform activity: {(() => {
+                            try {
+                              const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
+                              return d.toLocaleString();
+                            } catch { return lastActivityTs; }
+                          })()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
@@ -2384,6 +2372,52 @@ export default function AdminPage() {
                       <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand and see additional fields, or use "View Full Request" for complete detail.</p>
                     </>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-session-activity">
+                  <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
+                  <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Session Activity Log</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Awaiting /admin/analytics endpoint</p>
+                    </div>
+                    <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
+                  </div>
+                  <div className="p-5">
+                    <div className="space-y-2">
+                      {["Login events", "Admin session timeline", "User-triggered events"].map(label => (
+                        <div key={label} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/30 border border-slate-100/60">
+                          <Activity className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                          <span className="text-xs text-slate-400">{label}</span>
+                          <span className="ml-auto text-[10px] text-slate-300">No data</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-error-log">
+                  <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
+                  <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Platform Error Log</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Awaiting platform-wide error feed</p>
+                    </div>
+                    <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
+                  </div>
+                  <div className="p-5">
+                    <div className="space-y-2">
+                      {["Pipeline failures across users", "API error aggregation", "Error rate trends"].map(label => (
+                        <div key={label} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/30 border border-slate-100/60">
+                          <XCircle className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                          <span className="text-xs text-slate-400">{label}</span>
+                          <span className="ml-auto text-[10px] text-slate-300">No data</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
