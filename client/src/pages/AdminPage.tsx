@@ -3241,11 +3241,11 @@ export default function AdminPage() {
                     )}
                     {detailData && (
                       <div className="space-y-2" data-testid="detail-fields">
-                        {Object.entries(detailData).map(([key, value]) => (
+                        {Object.entries(detailData).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([key, value]) => (
                           <div key={key} className="flex items-start justify-between p-2.5 rounded-lg bg-white/60 border border-slate-100">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 mr-4">{key}</span>
                             <span className="text-[10px] font-mono text-slate-800 text-right break-all max-w-[60%] sm:max-w-[350px]">
-                              {value === null ? "null" : typeof value === "object" ? JSON.stringify(value) : String(value)}
+                              {typeof value === "object" ? JSON.stringify(value) : String(value)}
                             </span>
                           </div>
                         ))}
