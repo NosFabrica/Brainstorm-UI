@@ -773,10 +773,21 @@ export default function AdminPage() {
   const [envSwitchTarget, setEnvSwitchTarget] = useState<ApiEnvironment | null>(null);
   const queryClient = useQueryClient();
 
+  const isNameSearch = useCallback((q: string) => {
+    const t = q.trim();
+    if (!t) return false;
+    if (t.startsWith("npub")) return false;
+    if (/^[0-9a-fA-F]{8,64}$/.test(t)) return false;
+    return true;
+  }, []);
+
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(userSearch.trim()), 300);
+    const trimmed = userSearch.trim();
+    const timer = setTimeout(() => {
+      setDebouncedSearch(isNameSearch(trimmed) ? "" : trimmed);
+    }, 300);
     return () => clearTimeout(timer);
-  }, [userSearch]);
+  }, [userSearch, isNameSearch]);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -815,15 +826,17 @@ export default function AdminPage() {
   const adminStats = adminStatsQuery.data ?? null;
   const hasSystemData = adminStats !== null;
 
+  const activeNameSearch = isNameSearch(userSearch.trim());
+
   const adminUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize],
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize, activeNameSearch],
     queryFn: () => apiClient.getAdminUsers({
       search: debouncedSearch || undefined,
       sort: userSort.key,
       order: userSort.dir,
       days: daysFilter,
-      page: userPage + 1,
-      size: pageSize,
+      page: activeNameSearch ? 1 : userPage + 1,
+      size: activeNameSearch ? 200 : pageSize,
     }),
     enabled: !!user,
     staleTime: 30_000,
@@ -834,16 +847,6 @@ export default function AdminPage() {
   const adminUsersList = adminUsersData?.items ?? [];
   const adminUsersTotal = adminUsersData?.total ?? 0;
   const adminUsersTotalPages = adminUsersData?.pages ?? 1;
-
-  const filteredUsersList = useMemo(() => {
-    if (!kpiFilter) return adminUsersList;
-    return adminUsersList.filter(u => {
-      if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
-      if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
-      if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
-      return true;
-    });
-  }, [adminUsersList, kpiFilter]);
 
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", daysFilter],
@@ -901,6 +904,28 @@ export default function AdminPage() {
     })();
     return () => { cancelled = true; };
   }, [adminUsersList]);
+
+  const filteredUsersList = useMemo(() => {
+    let list = adminUsersList;
+    const trimmed = userSearch.trim();
+    if (trimmed && isNameSearch(trimmed)) {
+      const query = trimmed.toLowerCase();
+      list = list.filter(u => {
+        const prof = userProfiles.get(u.pubkey);
+        const name = prof?.name?.toLowerCase() ?? "";
+        return name.includes(query) || u.pubkey.toLowerCase().includes(query);
+      });
+    }
+    if (kpiFilter) {
+      list = list.filter(u => {
+        if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
+        if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
+        if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
+        return true;
+      });
+    }
+    return list;
+  }, [adminUsersList, kpiFilter, userSearch, isNameSearch, userProfiles]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -1066,7 +1091,7 @@ export default function AdminPage() {
     } catch { return dateStr; }
   };
 
-  const totalPages = adminUsersTotalPages;
+  const totalPages = activeNameSearch ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize)) : adminUsersTotalPages;
 
   const handleSort = useCallback((key: AdminSortKey) => {
     setUserSort(prev => prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" });
@@ -1859,7 +1884,7 @@ export default function AdminPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-slate-500">{adminUsersTotal.toLocaleString()} users</span>
+                    <span className="text-xs text-slate-500">{(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users{activeNameSearch && userSearch.trim() ? " (filtered)" : ""}</span>
                     <span className="text-[10px] text-slate-400">|</span>
                     <span className="text-[10px] text-slate-400">Page {(userPage + 1)} of {totalPages}</span>
                     <span className="text-[10px] text-slate-400">|</span>
@@ -2276,7 +2301,7 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredUsersList.map((u, i) => {
+                      (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).map((u, i) => {
                         const isExpanded = expandedRows.has(u.pubkey);
                         const prof = userProfiles.get(u.pubkey);
                         let npub: string;
@@ -2435,7 +2460,7 @@ export default function AdminPage() {
               {totalPages > 1 && (
                 <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2" data-testid="pagination-users">
                   <span className="text-xs text-slate-500">
-                    Page {userPage + 1} of {totalPages} ({adminUsersTotal.toLocaleString()} total)
+                    Page {userPage + 1} of {totalPages} ({(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} total)
                   </span>
                   <div className="flex items-center gap-1">
                     <Button
