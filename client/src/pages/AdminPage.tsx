@@ -710,6 +710,7 @@ export default function AdminPage() {
   const [lookupRunning, setLookupRunning] = useState(false);
   const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupNameResults, setLookupNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
   const [onboardSearch, setOnboardSearch] = useState("");
   const [onboardSearching, setOnboardSearching] = useState(false);
   const [onboardResults, setOnboardResults] = useState<NostrSearchResult[]>([]);
@@ -1088,31 +1089,43 @@ export default function AdminPage() {
   const handleLookupPubkey = useCallback(async () => {
     const raw = lookupInput.trim();
     if (!raw) {
-      setLookupError("Please enter a pubkey or npub");
+      setLookupError("Please enter a name, pubkey, or npub");
       return;
     }
-    let hexPubkey = raw;
+    setLookupNameResults([]);
+    setLookupResult(null);
+    setLookupError(null);
+
+    let hexPubkey: string | null = null;
     if (raw.startsWith("npub")) {
       try {
         const decoded = nip19.decode(raw);
-        if (decoded.type === "npub") {
-          hexPubkey = decoded.data;
-        } else {
-          setLookupError("Invalid npub format");
-          return;
+        if (decoded.type === "npub") hexPubkey = decoded.data;
+      } catch {}
+    } else if (/^[0-9a-fA-F]{64}$/.test(raw)) {
+      hexPubkey = raw.toLowerCase();
+    }
+
+    if (!hexPubkey) {
+      const query = raw.toLowerCase();
+      const matches: { pubkey: string; name?: string; picture?: string }[] = [];
+      for (const u of adminUsersList) {
+        const prof = userProfiles.get(u.pubkey);
+        const name = prof?.name?.toLowerCase() ?? "";
+        const pk = u.pubkey.toLowerCase();
+        if (name.includes(query) || pk.includes(query)) {
+          matches.push({ pubkey: u.pubkey, name: prof?.name, picture: prof?.picture });
         }
-      } catch {
-        setLookupError("Invalid npub — could not decode");
-        return;
       }
-    } else if (!/^[0-9a-fA-F]{64}$/.test(raw)) {
-      setLookupError("Invalid pubkey — expected 64-char hex or npub");
+      if (matches.length > 0) {
+        setLookupNameResults(matches);
+      } else {
+        setLookupError(`No users found matching "${raw}" in your database`);
+      }
       return;
     }
-    hexPubkey = hexPubkey.toLowerCase();
+
     setLookupRunning(true);
-    setLookupError(null);
-    setLookupResult(null);
     try {
       const result = await apiClient.getBrainstormPubkey(hexPubkey);
       const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
@@ -1139,7 +1152,7 @@ export default function AdminPage() {
     } finally {
       setLookupRunning(false);
     }
-  }, [lookupInput, toast, queryClient]);
+  }, [lookupInput, toast, queryClient, adminUsersList, userProfiles]);
 
   const handleOnboardSearch = useCallback(async () => {
     const q = onboardSearch.trim();
@@ -1819,7 +1832,7 @@ export default function AdminPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setLookupOpen(true); setLookupMode("lookup"); setLookupInput(""); setLookupResult(null); setLookupError(null); setOnboardSearch(""); setOnboardResults([]); setOnboardError(null); setOnboardQueue([]); setBulkPasteOpen(false); setBulkPasteInput(""); setOnboardProgress(null); }}
+                    onClick={() => { setLookupOpen(true); setLookupMode("lookup"); setLookupInput(""); setLookupResult(null); setLookupError(null); setLookupNameResults([]); setOnboardSearch(""); setOnboardResults([]); setOnboardError(null); setOnboardQueue([]); setBulkPasteOpen(false); setBulkPasteInput(""); setOnboardProgress(null); }}
                     className="text-xs gap-1.5 h-8 no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-lookup-pubkey"
                   >
@@ -1837,14 +1850,14 @@ export default function AdminPage() {
                       </DialogTitle>
                       <DialogDescription className="text-sm text-slate-600 pt-1">
                         {lookupMode === "lookup"
-                          ? "Search your Brainstorm database by pubkey or npub."
+                          ? "Search your Brainstorm database by name, pubkey, or npub."
                           : "Search Nostr by name to find and onboard a user into Brainstorm."}
                       </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" data-testid="toggle-lookup-mode">
                       <button
-                        onClick={() => { setLookupMode("lookup"); setLookupResult(null); setLookupError(null); }}
+                        onClick={() => { setLookupMode("lookup"); setLookupResult(null); setLookupError(null); setLookupNameResults([]); }}
                         className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                         data-testid="button-mode-lookup"
                       >
@@ -1866,11 +1879,11 @@ export default function AdminPage() {
                         <div className="flex gap-2 min-w-0">
                           <input
                             type="text"
-                            placeholder="npub1... or 64-char hex pubkey"
+                            placeholder="Name, npub, or hex pubkey"
                             value={lookupInput}
-                            onChange={e => { setLookupInput(e.target.value); setLookupError(null); }}
+                            onChange={e => { setLookupInput(e.target.value); setLookupError(null); setLookupNameResults([]); }}
                             onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
-                            className="flex-1 min-w-0 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                             data-testid="input-lookup-pubkey"
                           />
                           <Button
@@ -1884,6 +1897,69 @@ export default function AdminPage() {
                             {lookupRunning ? "..." : "Lookup"}
                           </Button>
                         </div>
+
+                        {lookupNameResults.length > 0 && (
+                          <div className="space-y-1" data-testid="lookup-name-results">
+                            <p className="text-[10px] text-slate-500 font-medium">{lookupNameResults.length} user{lookupNameResults.length !== 1 ? "s" : ""} found</p>
+                            <div className="max-h-[200px] overflow-y-auto space-y-1 -mx-1 px-1">
+                              {lookupNameResults.map(u => {
+                                const npub = nip19.npubEncode(u.pubkey);
+                                return (
+                                  <div
+                                    key={u.pubkey}
+                                    className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 transition-all cursor-pointer"
+                                    onClick={async () => {
+                                      setLookupInput(u.pubkey);
+                                      setLookupNameResults([]);
+                                      setLookupRunning(true);
+                                      setLookupError(null);
+                                      setLookupResult(null);
+                                      try {
+                                        const result = await apiClient.getBrainstormPubkey(u.pubkey);
+                                        const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+                                        const bp = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
+                                          : typeof data.ta_pubkey === "string" ? data.ta_pubkey
+                                          : typeof data.pubkey === "string" ? data.pubkey : null;
+                                        const isNew = data.created === true || data.is_new === true;
+                                        const safeFields: Record<string, unknown> = {};
+                                        for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
+                                          if (key in data) safeFields[key] = data[key];
+                                        }
+                                        if (isNew) {
+                                          setLookupResult({ success: true, message: "User onboarded — first GrapeRank calculation triggered", data: safeFields });
+                                          toast({ title: "User Onboarded", description: bp ? `Brainstorm pubkey: ${bp.slice(0, 16)}...` : "New user created" });
+                                        } else {
+                                          setLookupResult({ success: true, message: "User found", data: safeFields });
+                                          toast({ title: "User Found", description: bp ? `Brainstorm pubkey: ${bp.slice(0, 16)}...` : "Existing user" });
+                                        }
+                                        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                                      } catch (err: unknown) {
+                                        const msg = err instanceof Error ? err.message : "Unknown error";
+                                        setLookupError(msg);
+                                      } finally {
+                                        setLookupRunning(false);
+                                      }
+                                    }}
+                                    data-testid={`lookup-name-result-${u.pubkey.slice(0, 8)}`}
+                                  >
+                                    {u.picture ? (
+                                      <img src={u.picture} alt="" className="h-7 w-7 rounded-full object-cover shrink-0 border border-slate-200" />
+                                    ) : (
+                                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
+                                        <User className="h-3.5 w-3.5 text-[#333286]/60" />
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-slate-800 truncate">{u.name || "Unknown"}</p>
+                                      <p className="text-[10px] text-slate-400 font-mono truncate">{npub.slice(0, 20)}...{npub.slice(-6)}</p>
+                                    </div>
+                                    <Search className="h-3 w-3 text-slate-400 shrink-0" />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-3 pt-1 overflow-hidden">
