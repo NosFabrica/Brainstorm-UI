@@ -3304,8 +3304,8 @@ export default function AdminPage() {
                             return (
                               <div
                                 key={u.pubkey}
-                                className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 transition-all cursor-pointer active:scale-[0.98]"
-                                onClick={() => submitCreateRequest(u.pubkey, u.name)}
+                                className={`flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 transition-all active:scale-[0.98] ${createRunning ? "opacity-50 cursor-not-allowed" : "hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 cursor-pointer"}`}
+                                onClick={() => { if (!createRunning) submitCreateRequest(u.pubkey, u.name); }}
                                 data-testid={`create-name-result-${u.pubkey.slice(0, 8)}`}
                               >
                                 {u.picture ? (
