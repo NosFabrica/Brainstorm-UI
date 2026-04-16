@@ -1147,11 +1147,14 @@ export default function AdminPage() {
       const result = await apiClient.getBrainstormPubkey(hexPubkey);
       const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
       const isNew = data.created === true || data.is_new === true;
+      const canonicalPubkey = typeof data.pubkey === "string" ? data.pubkey
+        : typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
+        : hexPubkey;
       if (isNew) {
         await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
         toast({ title: "User Onboarded", description: "New user created — jumping to their row" });
       }
-      jumpToUser(hexPubkey);
+      jumpToUser(canonicalPubkey);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setLookupError(msg);
