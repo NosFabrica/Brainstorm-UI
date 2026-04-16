@@ -70,6 +70,7 @@ import {
   UserPlus,
   Calendar,
   ArrowRight,
+  User,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
@@ -3124,7 +3125,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }} onRetrigger={async (pubkey) => { await apiClient.createBrainstormRequest({ pubkey }); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); }} />
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }} onRetrigger={async (pubkey) => { try { await apiClient.createBrainstormRequest({ pubkey }); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); } catch (err: unknown) { const msg = err instanceof Error ? err.message : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }} />
                             ))}
                           </tbody>
                         </table>
