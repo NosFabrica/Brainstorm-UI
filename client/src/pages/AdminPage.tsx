@@ -510,6 +510,57 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
 
+function getActivityPipelineState(item: BrainstormRequestInstance) {
+  const s = item.status?.toLowerCase() ?? "";
+  if (s === "ongoing" || s === "in_progress" || s === "processing") return "active" as const;
+  if (s === "waiting" || s === "queued" || s === "pending") return "waiting" as const;
+  if (s === "failure" || s === "failed" || s === "error") return "failed" as const;
+  return "complete" as const;
+}
+
+const pipelineRowStyles = {
+  active: {
+    row: "bg-blue-50/50 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60",
+    hover: "hover:bg-blue-100/40",
+    expanded: "bg-blue-50/30",
+    expandedBorder: "border-blue-200/40",
+    label: "PROCESSING",
+    labelClass: "bg-blue-500/10 text-blue-700 border-blue-300/50",
+    dot: "bg-blue-500",
+    dotPulse: "bg-blue-400",
+  },
+  waiting: {
+    row: "bg-amber-50/40 border-l-[3px] border-l-amber-400 border-b border-b-amber-100/50",
+    hover: "hover:bg-amber-100/30",
+    expanded: "bg-amber-50/20",
+    expandedBorder: "border-amber-200/40",
+    label: "IN QUEUE",
+    labelClass: "bg-amber-500/10 text-amber-700 border-amber-300/50",
+    dot: "bg-amber-500",
+    dotPulse: "bg-amber-400",
+  },
+  failed: {
+    row: "bg-red-50/30 border-l-[3px] border-l-red-300 border-b border-b-red-100/40",
+    hover: "hover:bg-red-50/50",
+    expanded: "bg-red-50/20",
+    expandedBorder: "border-red-200/40",
+    label: "",
+    labelClass: "",
+    dot: "",
+    dotPulse: "",
+  },
+  complete: {
+    row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60",
+    hover: "hover:bg-indigo-50/30",
+    expanded: "bg-indigo-50/20",
+    expandedBorder: "border-indigo-100/60",
+    label: "",
+    labelClass: "",
+    dot: "",
+    dotPulse: "",
+  },
+};
+
 function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void; onNavigateToUser?: (pubkey: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const fmtDate = (d: string | null) => {
@@ -520,14 +571,28 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: Brai
       return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     } catch { return d; }
   };
+  const pipeline = getActivityPipelineState(item);
+  const style = pipelineRowStyles[pipeline];
+  const isInPipeline = pipeline === "active" || pipeline === "waiting";
+  const baseRowBg = pipeline === "complete" ? (idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30") : "";
   return (
     <>
       <tr
-        className={`border-b border-slate-100/60 cursor-pointer hover:bg-indigo-50/30 transition-colors ${idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30"}`}
+        className={`cursor-pointer transition-colors ${style.row} ${style.hover} ${baseRowBg}`}
         onClick={() => setExpanded(prev => !prev)}
         data-testid={`row-activity-${item.private_id ?? idx}`}
       >
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">
+          <div className="flex items-center gap-1.5">
+            {isInPipeline && (
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-50 ${style.dotPulse}`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${style.dot}`} />
+              </span>
+            )}
+            {fmtDate(item.created_at)}
+          </div>
+        </td>
         <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
         <td className="px-2 py-2 font-mono text-[10px]">
           {item.pubkey ? (
@@ -545,10 +610,19 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: Brai
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
         <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
         <td className="px-2 py-2 text-center text-slate-600 text-[10px]">{item.how_many_others_with_priority}</td>
-        <td className="px-2 py-2 font-mono text-slate-400 text-[10px]">{item.private_id}</td>
+        <td className="px-2 py-2 text-[10px]">
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-slate-400">{item.private_id}</span>
+            {isInPipeline && style.label && (
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${style.labelClass}`}>
+                {style.label}
+              </span>
+            )}
+          </div>
+        </td>
       </tr>
       {expanded && (
-        <tr className="bg-indigo-50/20">
+        <tr className={style.expanded}>
           <td colSpan={9} className="px-4 py-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
               {item.pubkey && (
@@ -582,7 +656,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser }: { item: Brai
                 </div>
               )}
             </div>
-            <div className="mt-3 pt-2 border-t border-indigo-100/60">
+            <div className={`mt-3 pt-2 border-t ${style.expandedBorder}`}>
               <button
                 onClick={(e) => { e.stopPropagation(); onViewDetail(item.private_id); }}
                 className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1"
