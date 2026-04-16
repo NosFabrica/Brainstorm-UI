@@ -1563,10 +1563,10 @@ export default function AdminPage() {
                         { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
                       ].map(ep => (
-                        <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                          <div>
+                        <div key={ep.endpoint} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/50 border border-slate-100 min-w-0" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                          <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold text-slate-800">{ep.label}</p>
-                            <p className="text-[10px] font-mono text-slate-400 truncate max-w-[180px]" title={`${baseUrl}${ep.endpoint}`}>{baseUrl}{ep.endpoint}</p>
+                            <p className="text-[10px] font-mono text-slate-400 truncate" title={`${baseUrl}${ep.endpoint}`}>{baseUrl}{ep.endpoint}</p>
                           </div>
                           <StatusBadge status={ep.status} />
                         </div>
@@ -2750,7 +2750,7 @@ export default function AdminPage() {
                         {Object.entries(detailData).map(([key, value]) => (
                           <div key={key} className="flex items-start justify-between p-2.5 rounded-lg bg-white/60 border border-slate-100">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 mr-4">{key}</span>
-                            <span className="text-[10px] font-mono text-slate-800 text-right break-all max-w-[350px]">
+                            <span className="text-[10px] font-mono text-slate-800 text-right break-all max-w-[60%] sm:max-w-[350px]">
                               {value === null ? "null" : typeof value === "object" ? JSON.stringify(value) : String(value)}
                             </span>
                           </div>
@@ -2824,16 +2824,16 @@ export default function AdminPage() {
       <Footer />
 
       <Dialog open={!!envSwitchTarget} onOpenChange={(open) => { if (!open) setEnvSwitchTarget(null); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Server className="h-4 w-4" />
               Switch to {envSwitchTarget === "production" ? "Production" : "Staging"}?
             </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500 pt-1">
+            <DialogDescription className="text-sm text-slate-500 pt-1 break-words">
               {envSwitchTarget === "production"
-                ? "You are about to connect to the live production server. All dashboard data will reload from brainstormserver.nosfabrica.com. Actions taken here affect real users and data."
-                : "You are about to connect to the staging server. All dashboard data will reload from brainstormserver-staging.nosfabrica.com."
+                ? "You are about to connect to the live production server. All dashboard data will reload from the production API. Actions taken here affect real users and data."
+                : "You are about to connect to the staging server. All dashboard data will reload from the staging API."
               }
             </DialogDescription>
           </DialogHeader>
@@ -2858,12 +2858,12 @@ export default function AdminPage() {
               </p>
             </div>
           )}
-          <div className="flex justify-end gap-2 mt-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-2">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setEnvSwitchTarget(null)}
-              className="text-xs"
+              className="text-xs w-full sm:w-auto"
               data-testid="button-env-cancel"
             >
               Cancel
@@ -2871,7 +2871,7 @@ export default function AdminPage() {
             <Button
               size="sm"
               onClick={confirmEnvSwitch}
-              className={`text-xs gap-1.5 ${
+              className={`text-xs gap-1.5 w-full sm:w-auto ${
                 envSwitchTarget === "production"
                   ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                   : "bg-amber-600 hover:bg-amber-700 text-white"
