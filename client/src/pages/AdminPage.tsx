@@ -1878,7 +1878,7 @@ export default function AdminPage() {
                     />
                     {userSearch && (
                       <button
-                        onClick={() => { setUserSearch(""); setDebouncedSearch(""); setUserPage(0); setHighlightedPubkey(null); }}
+                        onClick={() => { setUserSearch(""); setDebouncedSearch(""); setUserPage(0); setHighlightedPubkey(null); setExpandedRows(new Set()); }}
                         className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                         data-testid="button-clear-search"
                       >
