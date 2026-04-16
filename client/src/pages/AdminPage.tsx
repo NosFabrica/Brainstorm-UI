@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -565,7 +565,8 @@ const pipelineRowStyles = {
 
 function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void> }) {
   const [expanded, setExpanded] = useState(false);
-  const [retriggerState, setRetriggerState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
+  const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fmtDate = (d: string | null) => {
     if (!d) return "—";
     try {
@@ -582,14 +583,23 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
   const handleRetrigger = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (retriggerState === "running" || isInPipeline || !item.pubkey || !onRetrigger) return;
-    setRetriggerState("running");
-    try {
-      await onRetrigger(item.pubkey);
-      setRetriggerState("done");
-      setTimeout(() => setRetriggerState("idle"), 2000);
-    } catch {
-      setRetriggerState("error");
-      setTimeout(() => setRetriggerState("idle"), 2000);
+    if (retriggerState === "idle" || retriggerState === "done" || retriggerState === "error") {
+      setRetriggerState("confirming");
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      confirmTimeoutRef.current = setTimeout(() => setRetriggerState("idle"), 3000);
+      return;
+    }
+    if (retriggerState === "confirming") {
+      if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+      setRetriggerState("running");
+      try {
+        await onRetrigger(item.pubkey);
+        setRetriggerState("done");
+        setTimeout(() => setRetriggerState("idle"), 2000);
+      } catch {
+        setRetriggerState("error");
+        setTimeout(() => setRetriggerState("idle"), 2000);
+      }
     }
   };
 
@@ -645,15 +655,17 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
               disabled={retriggerState === "running" || isInPipeline}
               className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                 isInPipeline ? "text-slate-300 cursor-not-allowed" :
+                retriggerState === "confirming" ? "text-amber-700 bg-amber-50 border border-amber-300 animate-pulse" :
                 retriggerState === "done" ? "text-emerald-600 bg-emerald-50 border border-emerald-200" :
                 retriggerState === "error" ? "text-red-500 bg-red-50 border border-red-200" :
                 retriggerState === "running" ? "text-slate-400" :
                 "text-[#333286] hover:bg-[#333286]/5 hover:text-[#7c86ff] border border-transparent hover:border-[#7c86ff]/20"
               }`}
-              title={isInPipeline ? "Currently processing" : "Re-trigger GrapeRank"}
+              title={isInPipeline ? "Currently processing" : retriggerState === "confirming" ? "Click again to confirm" : "Re-trigger GrapeRank"}
               data-testid={`button-retrigger-${item.private_id}`}
             >
               {retriggerState === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> :
+               retriggerState === "confirming" ? <><RefreshCw className="h-3 w-3" /><span>Confirm?</span></> :
                retriggerState === "done" ? <><CheckCircle2 className="h-3 w-3" /><span className="hidden sm:inline">Done</span></> :
                retriggerState === "error" ? <><XCircle className="h-3 w-3" /><span className="hidden sm:inline">Failed</span></> :
                isInPipeline ? <><Loader2 className="h-3 w-3 animate-spin opacity-40" /><span className="hidden sm:inline">Active</span></> :
