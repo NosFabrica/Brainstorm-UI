@@ -910,6 +910,14 @@ export default function AdminPage() {
     };
   }, [overviewAllUsers, overviewAllActivity, overviewTotalUsers]);
 
+  const computedQueueDepth = useMemo(() => {
+    if (overviewAllUsers.length === 0) return null;
+    return overviewAllUsers.filter(u => {
+      const s = u.latest_status?.toLowerCase();
+      return s === "waiting" || s === "ongoing" || s === "queued" || s === "pending";
+    }).length;
+  }, [overviewAllUsers]);
+
   const handleTriggerGraperank = useCallback(async (pubkey: string) => {
     setTriggeringPubkeys(prev => new Set(prev).add(pubkey));
     try {
@@ -1303,20 +1311,20 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
-              value={formatNumber(hasSystemData ? adminStats!.scoredUsers : 0)}
+              value={formatNumber(pipelineMetrics ? pipelineMetrics.successCount : (hasSystemData ? adminStats!.scoredUsers : 0))}
               icon={UserCheck}
-              subtitle={hasSystemData ? "Completed GrapeRank" : "From /admin/stats"}
+              subtitle="Completed GrapeRank"
               tooltip="Click to view scored users"
-              scope={hasSystemData ? "system" : "graph"}
+              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
               label="SP Adopters"
-              value={formatNumber(hasSystemData ? adminStats!.spAdopters : 0)}
+              value={formatNumber(pipelineMetrics ? pipelineMetrics.taSuccessCount : (hasSystemData ? adminStats!.spAdopters : 0))}
               icon={Shield}
-              subtitle={hasSystemData ? "Published NIP-85 TA" : "From /admin/stats"}
+              subtitle="Published NIP-85 TA"
               tooltip="Click to view SP adopters"
-              scope={hasSystemData ? "system" : "graph"}
+              scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
@@ -1328,12 +1336,12 @@ export default function AdminPage() {
               unsupported
             />
             <KpiCard
-              label={hasSystemData ? "Queue Depth" : "Queue Position"}
-              value={hasSystemData ? formatNumber(adminStats!.queueDepth) : (queuePosition !== null ? queuePosition.toString() : "—")}
+              label="Queue Depth"
+              value={computedQueueDepth !== null ? formatNumber(computedQueueDepth) : (hasSystemData ? formatNumber(adminStats!.queueDepth) : (queuePosition !== null ? queuePosition.toString() : "—"))}
               icon={Clock}
-              subtitle={hasSystemData ? "Users awaiting calculation" : (queuePosition !== null ? "Position in queue" : "Via graperankResult")}
+              subtitle={computedQueueDepth !== null ? "Users awaiting calculation" : (hasSystemData ? "Users awaiting calculation" : (queuePosition !== null ? "Position in queue" : "Via graperankResult"))}
               tooltip="Click to view queued users"
-              scope={hasSystemData ? "system" : "graph"}
+              scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
             />
           </div>
