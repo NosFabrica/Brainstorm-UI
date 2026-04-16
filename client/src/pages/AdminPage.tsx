@@ -714,7 +714,11 @@ export default function AdminPage() {
   const [onboardSearching, setOnboardSearching] = useState(false);
   const [onboardResults, setOnboardResults] = useState<NostrSearchResult[]>([]);
   const [onboardError, setOnboardError] = useState<string | null>(null);
-  const [onboardingPubkey, setOnboardingPubkey] = useState<string | null>(null);
+  const [onboardQueue, setOnboardQueue] = useState<NostrSearchResult[]>([]);
+  const [bulkPasteOpen, setBulkPasteOpen] = useState(false);
+  const [bulkPasteInput, setBulkPasteInput] = useState("");
+  const [onboardingAll, setOnboardingAll] = useState(false);
+  const [onboardProgress, setOnboardProgress] = useState<{ done: number; total: number; results: { pubkey: string; name: string; success: boolean; message: string }[] } | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
@@ -1161,39 +1165,80 @@ export default function AdminPage() {
     }
   }, [onboardSearch]);
 
-  const handleOnboardUser = useCallback(async (profile: NostrSearchResult) => {
-    setOnboardingPubkey(profile.pubkey);
+  const addToOnboardQueue = useCallback((profile: NostrSearchResult) => {
+    setOnboardQueue(prev => {
+      if (prev.some(p => p.pubkey === profile.pubkey)) return prev;
+      return [...prev, profile];
+    });
+  }, []);
+
+  const removeFromOnboardQueue = useCallback((pubkey: string) => {
+    setOnboardQueue(prev => prev.filter(p => p.pubkey !== pubkey));
+  }, []);
+
+  const handleBulkPasteAdd = useCallback(() => {
+    const lines = bulkPasteInput.split(/[\n,]+/).map(l => l.trim()).filter(Boolean);
+    const added: NostrSearchResult[] = [];
+    const errors: string[] = [];
+    for (const line of lines) {
+      let hex = line;
+      if (line.startsWith("npub")) {
+        try {
+          const decoded = nip19.decode(line);
+          if (decoded.type === "npub") hex = decoded.data;
+          else { errors.push(line.slice(0, 20) + "..."); continue; }
+        } catch { errors.push(line.slice(0, 20) + "..."); continue; }
+      } else if (!/^[0-9a-fA-F]{64}$/.test(line)) {
+        errors.push(line.slice(0, 20) + "..."); continue;
+      }
+      hex = hex.toLowerCase();
+      if (!added.some(p => p.pubkey === hex) && !onboardQueue.some(p => p.pubkey === hex)) {
+        added.push({ pubkey: hex, npub: nip19.npubEncode(hex) });
+      }
+    }
+    if (added.length > 0) {
+      setOnboardQueue(prev => [...prev, ...added]);
+      setBulkPasteInput("");
+      toast({ title: `${added.length} added to queue`, description: errors.length > 0 ? `${errors.length} invalid entries skipped` : undefined });
+    } else if (errors.length > 0) {
+      setOnboardError(`Could not parse: ${errors.slice(0, 3).join(", ")}${errors.length > 3 ? ` (+${errors.length - 3} more)` : ""}`);
+    }
+  }, [bulkPasteInput, onboardQueue, toast]);
+
+  const handleOnboardAll = useCallback(async () => {
+    if (onboardQueue.length === 0) return;
+    setOnboardingAll(true);
     setLookupResult(null);
     setLookupError(null);
-    try {
-      const result = await apiClient.getBrainstormPubkey(profile.pubkey);
-      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
-      const brainstormPubkey = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
-        : typeof data.ta_pubkey === "string" ? data.ta_pubkey
-        : typeof data.pubkey === "string" ? data.pubkey : null;
-      const isNew = data.created === true || data.is_new === true;
-      const safeFields: Record<string, unknown> = {};
-      for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
-        if (key in data) safeFields[key] = data[key];
-      }
+    const total = onboardQueue.length;
+    const results: { pubkey: string; name: string; success: boolean; message: string }[] = [];
+    setOnboardProgress({ done: 0, total, results });
+
+    for (let i = 0; i < onboardQueue.length; i++) {
+      const profile = onboardQueue[i];
       const displayName = profile.displayName || profile.name || profile.pubkey.slice(0, 12) + "...";
-      if (isNew) {
-        setLookupResult({ success: true, message: `${displayName} onboarded — GrapeRank calculation triggered`, data: safeFields });
-        toast({ title: "User Onboarded", description: `${displayName} added to Brainstorm` });
-      } else {
-        setLookupResult({ success: true, message: `${displayName} already exists in Brainstorm`, data: safeFields });
-        toast({ title: "User Already Exists", description: `${displayName} is already in the system` });
+      try {
+        const result = await apiClient.getBrainstormPubkey(profile.pubkey);
+        const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+        const isNew = data.created === true || data.is_new === true;
+        results.push({ pubkey: profile.pubkey, name: displayName, success: true, message: isNew ? "Onboarded" : "Already exists" });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed";
+        results.push({ pubkey: profile.pubkey, name: displayName, success: false, message: msg });
       }
-      setOnboardResults([]);
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setLookupError(msg);
-      toast({ title: "Onboard Failed", description: msg, variant: "destructive" });
-    } finally {
-      setOnboardingPubkey(null);
+      setOnboardProgress({ done: i + 1, total, results: [...results] });
     }
-  }, [toast, queryClient]);
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+    toast({
+      title: `Onboarding complete`,
+      description: `${successCount} succeeded${failCount > 0 ? `, ${failCount} failed` : ""}`,
+    });
+    setOnboardQueue([]);
+    setOnboardingAll(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+  }, [onboardQueue, toast, queryClient]);
 
   const handleViewRequestDetail = useCallback(async (requestId: number) => {
     setDetailRequestId(requestId);
@@ -1774,7 +1819,7 @@ export default function AdminPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setLookupOpen(true); setLookupMode("lookup"); setLookupInput(""); setLookupResult(null); setLookupError(null); setOnboardSearch(""); setOnboardResults([]); setOnboardError(null); }}
+                    onClick={() => { setLookupOpen(true); setLookupMode("lookup"); setLookupInput(""); setLookupResult(null); setLookupError(null); setOnboardSearch(""); setOnboardResults([]); setOnboardError(null); setOnboardQueue([]); setBulkPasteOpen(false); setBulkPasteInput(""); setOnboardProgress(null); }}
                     className="text-xs gap-1.5 h-8 no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-lookup-pubkey"
                   >
@@ -1783,7 +1828,7 @@ export default function AdminPage() {
                   </Button>
                 </div>
 
-                <Dialog open={lookupOpen} onOpenChange={(open) => { setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); setOnboardResults([]); setOnboardError(null); } }}>
+                <Dialog open={lookupOpen} onOpenChange={(open) => { if (onboardingAll) return; setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); setOnboardResults([]); setOnboardError(null); setOnboardProgress(null); } }}>
                   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
@@ -1851,11 +1896,12 @@ export default function AdminPage() {
                             onKeyDown={e => { if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(); }}
                             className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                             data-testid="input-onboard-search"
+                            disabled={onboardingAll}
                           />
                           <Button
                             size="sm"
                             onClick={handleOnboardSearch}
-                            disabled={onboardSearching || !onboardSearch.trim()}
+                            disabled={onboardSearching || !onboardSearch.trim() || onboardingAll}
                             className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
                             data-testid="button-submit-onboard-search"
                           >
@@ -1868,55 +1914,161 @@ export default function AdminPage() {
                           Powered by NIP-50 WoT search relay
                         </p>
 
-                        {onboardResults.length > 0 && (
-                          <div className="space-y-1.5 max-h-[280px] overflow-y-auto overflow-x-hidden -mx-1 px-1" data-testid="onboard-results">
+                        {onboardResults.length > 0 && !onboardingAll && (
+                          <div className="space-y-1 max-h-[180px] overflow-y-auto overflow-x-hidden -mx-1 px-1" data-testid="onboard-results">
                             {onboardResults.map(profile => {
                               const displayName = profile.displayName || profile.name || profile.npub.slice(0, 16) + "...";
-                              const isOnboarding = onboardingPubkey === profile.pubkey;
+                              const isQueued = onboardQueue.some(p => p.pubkey === profile.pubkey);
                               return (
                                 <div
                                   key={profile.pubkey}
-                                  className="flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-xl border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/20 transition-all overflow-hidden"
+                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-[#7c86ff]/40 bg-indigo-50/40" : "border-slate-200 bg-white/80 hover:border-[#7c86ff]/20 hover:bg-indigo-50/10"}`}
+                                  onClick={() => isQueued ? removeFromOnboardQueue(profile.pubkey) : addToOnboardQueue(profile)}
                                   data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
                                 >
+                                  <div className={`h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isQueued ? "bg-[#333286] border-[#333286]" : "border-slate-300"}`}>
+                                    {isQueued && <CheckCircle2 className="h-3 w-3 text-white" />}
+                                  </div>
                                   {profile.picture ? (
-                                    <img
-                                      src={profile.picture}
-                                      alt=""
-                                      className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover border border-slate-200 shrink-0"
-                                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                    />
+                                    <img src={profile.picture} alt="" className="h-7 w-7 rounded-full object-cover border border-slate-200 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                                   ) : (
-                                    <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0 border border-slate-200">
-                                      <Users className="h-3.5 w-3.5 text-[#333286]/50" />
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
+                                      <Users className="h-3 w-3 text-[#333286]/50" />
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0 overflow-hidden">
-                                    <p className="text-xs font-semibold text-slate-900 truncate">{displayName}</p>
-                                    {profile.nip05 && <p className="text-[10px] text-slate-500 truncate">{profile.nip05}</p>}
+                                    <p className="text-[11px] font-semibold text-slate-900 truncate">{displayName}</p>
                                     <p className="text-[9px] font-mono text-slate-400 truncate">{profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}</p>
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={(e) => { e.stopPropagation(); handleOnboardUser(profile); }}
-                                    disabled={!!onboardingPubkey}
-                                    className="text-[10px] gap-1 h-7 px-2 sm:px-3 shrink-0 no-default-hover-elevate no-default-active-elevate"
-                                    data-testid={`button-onboard-${profile.pubkey.slice(0, 8)}`}
-                                  >
-                                    {isOnboarding ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
-                                    <span className="hidden sm:inline">{isOnboarding ? "Adding..." : "Onboard"}</span>
-                                  </Button>
                                 </div>
                               );
                             })}
                           </div>
                         )}
 
+                        {!onboardingAll && (
+                          <div className="border-t border-slate-200 pt-2">
+                            <button
+                              onClick={() => setBulkPasteOpen(prev => !prev)}
+                              className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-[#333286] transition-colors w-full"
+                              data-testid="button-toggle-bulk-paste"
+                            >
+                              <FileText className="h-3 w-3" />
+                              Import by npub list
+                              <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${bulkPasteOpen ? "rotate-180" : ""}`} />
+                            </button>
+                            {bulkPasteOpen && (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  placeholder={"Paste npubs or hex pubkeys\nOne per line or comma-separated"}
+                                  value={bulkPasteInput}
+                                  onChange={e => setBulkPasteInput(e.target.value)}
+                                  className="w-full px-3 py-2 text-[10px] font-mono rounded-lg border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 resize-none h-16"
+                                  data-testid="textarea-bulk-paste"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleBulkPasteAdd}
+                                  disabled={!bulkPasteInput.trim()}
+                                  className="text-[10px] gap-1 h-7 w-full no-default-hover-elevate no-default-active-elevate"
+                                  data-testid="button-bulk-paste-add"
+                                >
+                                  <UserPlus className="h-3 w-3" />
+                                  Add to queue
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {onboardError && (
-                          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="onboard-error">
-                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                            <p className="text-xs text-red-700">{onboardError}</p>
+                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-200" data-testid="onboard-error">
+                            <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-red-700">{onboardError}</p>
+                          </div>
+                        )}
+
+                        {onboardQueue.length > 0 && (
+                          <div className="border-t border-slate-200 pt-3 space-y-2" data-testid="onboard-queue">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Onboard Queue ({onboardQueue.length})
+                              </span>
+                              {!onboardingAll && (
+                                <button
+                                  onClick={() => setOnboardQueue([])}
+                                  className="text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+                                  data-testid="button-clear-queue"
+                                >
+                                  Clear all
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto overflow-x-hidden">
+                              {onboardQueue.map(profile => {
+                                const displayName = profile.displayName || profile.name || profile.npub.slice(0, 10) + "...";
+                                const progressItem = onboardProgress?.results.find(r => r.pubkey === profile.pubkey);
+                                return (
+                                  <div
+                                    key={profile.pubkey}
+                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] border transition-all ${
+                                      progressItem
+                                        ? progressItem.success
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                          : "bg-red-50 border-red-200 text-red-700"
+                                        : "bg-indigo-50 border-[#7c86ff]/20 text-slate-700"
+                                    }`}
+                                    data-testid={`queue-item-${profile.pubkey.slice(0, 8)}`}
+                                  >
+                                    {profile.picture ? (
+                                      <img src={profile.picture} alt="" className="h-4 w-4 rounded-full object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                    ) : null}
+                                    <span className="font-medium truncate max-w-[80px]">{displayName}</span>
+                                    {progressItem ? (
+                                      progressItem.success ? <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" /> : <XCircle className="h-3 w-3 text-red-500 shrink-0" />
+                                    ) : !onboardingAll ? (
+                                      <button onClick={(e) => { e.stopPropagation(); removeFromOnboardQueue(profile.pubkey); }} className="hover:text-red-500 transition-colors shrink-0" data-testid={`button-remove-${profile.pubkey.slice(0, 8)}`}>
+                                        <XCircle className="h-3 w-3" />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {onboardingAll && onboardProgress && (
+                              <div className="space-y-1.5">
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-gradient-to-r from-[#7c86ff] to-[#333286] rounded-full transition-all duration-300" style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }} />
+                                </div>
+                                <p className="text-[10px] text-slate-500 text-center">{onboardProgress.done} of {onboardProgress.total} processed</p>
+                              </div>
+                            )}
+
+                            {!onboardingAll && !onboardProgress && (
+                              <Button
+                                size="sm"
+                                onClick={handleOnboardAll}
+                                className="w-full text-xs gap-1.5 h-8 no-default-hover-elevate no-default-active-elevate"
+                                data-testid="button-onboard-all"
+                              >
+                                <UserPlus className="h-3.5 w-3.5" />
+                                Onboard All ({onboardQueue.length})
+                              </Button>
+                            )}
+
+                            {onboardProgress && !onboardingAll && (
+                              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                  <p className="text-[11px] font-semibold text-emerald-800">
+                                    {onboardProgress.results.filter(r => r.success).length} onboarded
+                                    {onboardProgress.results.filter(r => !r.success).length > 0 && `, ${onboardProgress.results.filter(r => !r.success).length} failed`}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1928,13 +2080,7 @@ export default function AdminPage() {
                         <p className="text-xs text-red-700">{lookupError}</p>
                       </div>
                     )}
-                    {lookupError && lookupMode === "onboard" && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="onboard-api-error">
-                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{lookupError}</p>
-                      </div>
-                    )}
-                    {lookupResult && (
+                    {lookupResult && lookupMode === "lookup" && (
                       <div className={`p-4 rounded-xl border ${lookupResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`} data-testid="lookup-result">
                         <div className="flex items-center gap-2 mb-2">
                           {lookupResult.success ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
