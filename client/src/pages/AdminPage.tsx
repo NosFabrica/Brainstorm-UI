@@ -1784,7 +1784,7 @@ export default function AdminPage() {
                 </div>
 
                 <Dialog open={lookupOpen} onOpenChange={(open) => { setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); setOnboardResults([]); setOnboardError(null); } }}>
-                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
                         {lookupMode === "lookup" ? <Search className="h-5 w-5 text-[#333286]" /> : <UserPlus className="h-5 w-5 text-[#333286]" />}
@@ -1817,95 +1817,95 @@ export default function AdminPage() {
                     </div>
 
                     {lookupMode === "lookup" ? (
-                      <div className="space-y-4 pt-1">
-                        <div className="flex gap-2">
+                      <div className="space-y-3 pt-1 overflow-hidden">
+                        <div className="flex gap-2 min-w-0">
                           <input
                             type="text"
                             placeholder="npub1... or 64-char hex pubkey"
                             value={lookupInput}
                             onChange={e => { setLookupInput(e.target.value); setLookupError(null); }}
                             onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
-                            className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                             data-testid="input-lookup-pubkey"
                           />
                           <Button
                             size="sm"
                             onClick={handleLookupPubkey}
                             disabled={lookupRunning || !lookupInput.trim()}
-                            className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                            className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
                             data-testid="button-submit-lookup"
                           >
                             {lookupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                            {lookupRunning ? "Looking up..." : "Lookup"}
+                            {lookupRunning ? "..." : "Lookup"}
                           </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-4 pt-1">
-                        <div className="flex gap-2">
+                      <div className="space-y-3 pt-1 overflow-hidden">
+                        <div className="flex gap-2 min-w-0">
                           <input
                             type="text"
-                            placeholder="Search by name (e.g. jack, fiatjaf...)"
+                            placeholder="Search by name..."
                             value={onboardSearch}
                             onChange={e => { setOnboardSearch(e.target.value); setOnboardError(null); }}
                             onKeyDown={e => { if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(); }}
-                            className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
                             data-testid="input-onboard-search"
                           />
                           <Button
                             size="sm"
                             onClick={handleOnboardSearch}
                             disabled={onboardSearching || !onboardSearch.trim()}
-                            className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                            className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
                             data-testid="button-submit-onboard-search"
                           >
                             {onboardSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                            {onboardSearching ? "Searching..." : "Search"}
+                            {onboardSearching ? "..." : "Search"}
                           </Button>
                         </div>
-                        <p className="text-[10px] text-slate-400 -mt-2 flex items-center gap-1">
-                          <Globe className="h-2.5 w-2.5" />
+                        <p className="text-[10px] text-slate-400 -mt-1 flex items-center gap-1">
+                          <Globe className="h-2.5 w-2.5 shrink-0" />
                           Powered by NIP-50 WoT search relay
                         </p>
 
                         {onboardResults.length > 0 && (
-                          <div className="space-y-1.5 max-h-[300px] overflow-y-auto" data-testid="onboard-results">
+                          <div className="space-y-1.5 max-h-[280px] overflow-y-auto overflow-x-hidden -mx-1 px-1" data-testid="onboard-results">
                             {onboardResults.map(profile => {
                               const displayName = profile.displayName || profile.name || profile.npub.slice(0, 16) + "...";
                               const isOnboarding = onboardingPubkey === profile.pubkey;
                               return (
                                 <div
                                   key={profile.pubkey}
-                                  className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/20 transition-all group"
+                                  className="flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-xl border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/20 transition-all overflow-hidden"
                                   data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
                                 >
                                   {profile.picture ? (
                                     <img
                                       src={profile.picture}
                                       alt=""
-                                      className="h-9 w-9 rounded-full object-cover border border-slate-200 shrink-0"
+                                      className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover border border-slate-200 shrink-0"
                                       onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                                     />
                                   ) : (
-                                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0 border border-slate-200">
-                                      <Users className="h-4 w-4 text-[#333286]/50" />
+                                    <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0 border border-slate-200">
+                                      <Users className="h-3.5 w-3.5 text-[#333286]/50" />
                                     </div>
                                   )}
-                                  <div className="flex-1 min-w-0">
+                                  <div className="flex-1 min-w-0 overflow-hidden">
                                     <p className="text-xs font-semibold text-slate-900 truncate">{displayName}</p>
                                     {profile.nip05 && <p className="text-[10px] text-slate-500 truncate">{profile.nip05}</p>}
-                                    <p className="text-[9px] font-mono text-slate-400 truncate">{profile.npub.slice(0, 20)}...{profile.npub.slice(-6)}</p>
+                                    <p className="text-[9px] font-mono text-slate-400 truncate">{profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}</p>
                                   </div>
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleOnboardUser(profile)}
+                                    onClick={(e) => { e.stopPropagation(); handleOnboardUser(profile); }}
                                     disabled={!!onboardingPubkey}
-                                    className="text-[10px] gap-1 h-7 shrink-0 no-default-hover-elevate no-default-active-elevate"
+                                    className="text-[10px] gap-1 h-7 px-2 sm:px-3 shrink-0 no-default-hover-elevate no-default-active-elevate"
                                     data-testid={`button-onboard-${profile.pubkey.slice(0, 8)}`}
                                   >
                                     {isOnboarding ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
-                                    {isOnboarding ? "Adding..." : "Onboard"}
+                                    <span className="hidden sm:inline">{isOnboarding ? "Adding..." : "Onboard"}</span>
                                   </Button>
                                 </div>
                               );
