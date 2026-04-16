@@ -1142,8 +1142,24 @@ export default function AdminPage() {
       return;
     }
 
-    jumpToUser(hexPubkey);
-  }, [lookupInput, adminUsersList, userProfiles, jumpToUser]);
+    setLookupRunning(true);
+    try {
+      const result = await apiClient.getBrainstormPubkey(hexPubkey);
+      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+      const isNew = data.created === true || data.is_new === true;
+      if (isNew) {
+        await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        toast({ title: "User Onboarded", description: "New user created — jumping to their row" });
+      }
+      jumpToUser(hexPubkey);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setLookupError(msg);
+      toast({ title: "Lookup Failed", description: msg, variant: "destructive" });
+    } finally {
+      setLookupRunning(false);
+    }
+  }, [lookupInput, adminUsersList, userProfiles, jumpToUser, toast, queryClient]);
 
   const handleOnboardSearch = useCallback(async () => {
     const q = onboardSearch.trim();
