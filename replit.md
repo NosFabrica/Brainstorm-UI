@@ -30,7 +30,7 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
 
 ## External Dependencies
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
-- **Brainstorm Backend API:** `https://brainstormserver-staging.nosfabrica.com` (staging) for authentication, user data, GrapeRank results, and NIP-05 proxying. Configurable via `VITE_API_URL` env var.
+- **Brainstorm Backend API:** Switchable between Staging (`brainstormserver-staging.nosfabrica.com`) and Production (`brainstormserver.nosfabrica.com`) via admin environment selector. Selection persisted in `localStorage` key `brainstorm_api_env`. Dynamic URL resolution in `client/src/services/api.ts` via `getApiEnvironment()`/`setApiEnvironment()`/`getApiBaseUrl()`. Admin dashboard shows environment badge and requires confirmation dialog before switching (with extra warning for Production).
 - **Nostr HTTP APIs:** `api.nostr.band` and `purplepag.es` serve as HTTP fallback for profile fetching.
 - **NIP-07 Browser Extension:** Required for Nostr key management and event signing.
 
