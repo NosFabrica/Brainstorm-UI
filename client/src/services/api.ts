@@ -235,7 +235,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       const status = response.status;
       const lowerDetail = detail.toLowerCase();
       let friendlyMessage: string;
@@ -285,7 +286,8 @@ export const apiClient = {
     }
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Publish failed (${response.status})`);
     }
     return await response.json();
@@ -381,7 +383,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Failed to fetch brainstorm request (${response.status})`);
     }
     const json = await response.json();
@@ -400,7 +403,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Failed to create brainstorm request (${response.status})`);
     }
     const json = await response.json();
@@ -414,7 +418,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Failed to lookup pubkey (${response.status})`);
     }
     const json = await response.json();
@@ -428,7 +433,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Verify encryption failed (${response.status})`);
     }
     const json = await response.json();
@@ -442,7 +448,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Rotate encryption key failed (${response.status})`);
     }
     const json = await response.json();
@@ -456,7 +463,8 @@ export const apiClient = {
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       throw new Error(detail || `Failed to trigger GrapeRank (${response.status})`);
     }
     return await response.json();
