@@ -829,14 +829,14 @@ export default function AdminPage() {
   const activeNameSearch = isNameSearch(userSearch.trim());
 
   const adminUsersQuery = useQuery<AdminUsersPage>({
-    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize, activeNameSearch],
+    queryKey: ["/api/admin/users", debouncedSearch, userSort.key, userSort.dir, daysFilter, userPage, pageSize],
     queryFn: () => apiClient.getAdminUsers({
       search: debouncedSearch || undefined,
       sort: userSort.key,
       order: userSort.dir,
       days: daysFilter,
-      page: activeNameSearch ? 1 : userPage + 1,
-      size: activeNameSearch ? 200 : pageSize,
+      page: userPage + 1,
+      size: pageSize,
     }),
     enabled: !!user,
     staleTime: 30_000,
@@ -884,7 +884,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (adminUsersList.length === 0) return;
     let cancelled = false;
-    const toFetch = adminUsersList.filter(u => !userProfiles.has(u.pubkey));
+    const allUsers = [...adminUsersList, ...(overviewUsersQuery.data?.items ?? [])];
+    const seen = new Set<string>();
+    const toFetch = allUsers.filter(u => {
+      if (seen.has(u.pubkey) || userProfiles.has(u.pubkey)) return false;
+      seen.add(u.pubkey);
+      return true;
+    });
     if (toFetch.length === 0) return;
     (async () => {
       const results = await Promise.allSettled(toFetch.map(u => fetchProfile(u.pubkey, 8000)));
@@ -903,29 +909,7 @@ export default function AdminPage() {
       });
     })();
     return () => { cancelled = true; };
-  }, [adminUsersList]);
-
-  const filteredUsersList = useMemo(() => {
-    let list = adminUsersList;
-    const trimmed = userSearch.trim();
-    if (trimmed && isNameSearch(trimmed)) {
-      const query = trimmed.toLowerCase();
-      list = list.filter(u => {
-        const prof = userProfiles.get(u.pubkey);
-        const name = prof?.name?.toLowerCase() ?? "";
-        return name.includes(query) || u.pubkey.toLowerCase().includes(query);
-      });
-    }
-    if (kpiFilter) {
-      list = list.filter(u => {
-        if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
-        if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
-        if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
-        return true;
-      });
-    }
-    return list;
-  }, [adminUsersList, kpiFilter, userSearch, isNameSearch, userProfiles]);
+  }, [adminUsersList, overviewUsersQuery.data]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -1002,6 +986,29 @@ export default function AdminPage() {
   const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
+
+  const filteredUsersList = useMemo(() => {
+    const trimmed = userSearch.trim();
+    const nameSearch = trimmed && isNameSearch(trimmed);
+    let list = nameSearch ? overviewAllUsers : adminUsersList;
+    if (nameSearch) {
+      const query = trimmed.toLowerCase();
+      list = list.filter(u => {
+        const prof = userProfiles.get(u.pubkey);
+        const name = prof?.name?.toLowerCase() ?? "";
+        return name.includes(query);
+      });
+    }
+    if (kpiFilter) {
+      list = list.filter(u => {
+        if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
+        if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
+        if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
+        return true;
+      });
+    }
+    return list;
+  }, [adminUsersList, overviewAllUsers, kpiFilter, userSearch, isNameSearch, userProfiles]);
 
   const pipelineMetrics = useMemo(() => {
     const users = overviewAllUsers;
