@@ -717,7 +717,12 @@ export default function AdminPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab === "users" || tab === "activity" || tab === "system") return tab;
+    return "overview";
+  });
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [daysFilter, setDaysFilter] = useState(30);
@@ -732,7 +737,11 @@ export default function AdminPage() {
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hl = params.get("highlight");
+    return hl ? new Set([hl]) : new Set();
+  });
   const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
   const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
   const [verifyRunning, setVerifyRunning] = useState(false);
@@ -749,7 +758,10 @@ export default function AdminPage() {
   const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupNameResults, setLookupNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
-  const [highlightedPubkey, setHighlightedPubkey] = useState<string | null>(null);
+  const [highlightedPubkey, setHighlightedPubkey] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("highlight") || null;
+  });
   const [onboardSearch, setOnboardSearch] = useState("");
   const [onboardSearching, setOnboardSearching] = useState(false);
   const [onboardResults, setOnboardResults] = useState<NostrSearchResult[]>([]);
@@ -800,6 +812,13 @@ export default function AdminPage() {
       return;
     }
     setUser(u);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("tab") || params.has("highlight")) {
+      window.history.replaceState({}, "", window.location.pathname);
+      if (params.get("highlight")) {
+        setTimeout(() => setHighlightedPubkey(null), 2500);
+      }
+    }
   }, [navigate]);
 
   const selfQuery = useQuery<SelfApiResponse>({
@@ -2432,7 +2451,11 @@ export default function AdminPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${npub}`); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
+                                      navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                                    }}
                                     data-testid={`button-view-user-${i}`}
                                   >
                                     <Eye className="h-3 w-3 mr-1" /> View

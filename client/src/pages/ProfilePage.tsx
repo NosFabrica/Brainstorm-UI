@@ -273,6 +273,7 @@ export default function ProfilePage() {
   const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
+  const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -328,6 +329,9 @@ export default function ProfilePage() {
     const urlParams = new URLSearchParams(window.location.search);
     const group = urlParams.get("fromGroup");
     if (group) setFromGroup(group);
+    const adminFrom = urlParams.get("from");
+    const adminPubkey = urlParams.get("pubkey");
+    if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
   }, [navigate]);
 
   useEffect(() => {
@@ -1371,7 +1375,18 @@ export default function ProfilePage() {
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
-          {fromGroup ? (
+          {fromAdmin ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+              onClick={() => navigate(`/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`)}
+              data-testid="button-back-to-admin"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin
+            </Button>
+          ) : fromGroup ? (
             <Button
               variant="ghost"
               size="sm"
