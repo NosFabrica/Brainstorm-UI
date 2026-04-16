@@ -11,6 +11,9 @@ const API_URLS: Record<ApiEnvironment, string> = {
 const ENV_STORAGE_KEY = "brainstorm_api_env";
 
 export function getApiEnvironment(): ApiEnvironment {
+  const token = localStorage.getItem("brainstorm_session_token");
+  const isAdmin = token ? extractAdminFlag(token) : false;
+  if (!isAdmin) return "staging";
   const stored = localStorage.getItem(ENV_STORAGE_KEY);
   if (stored === "production") return "production";
   return "staging";

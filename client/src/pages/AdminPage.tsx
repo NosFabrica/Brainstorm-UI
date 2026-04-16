@@ -72,7 +72,7 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
-import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, type ApiEnvironment } from "@/services/api";
+import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, getApiBaseUrl, type ApiEnvironment } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1555,20 +1555,23 @@ export default function AdminPage() {
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
-                      { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
-                      { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
-                      { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
-                      { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
-                    ].map(ep => (
-                      <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800">{ep.label}</p>
-                          <p className="text-[10px] font-mono text-slate-400">{ep.endpoint}</p>
+                    {(() => {
+                      const baseUrl = getApiBaseUrl().replace(/^https?:\/\//, "");
+                      return [
+                        { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
+                        { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
+                        { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
+                        { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
+                      ].map(ep => (
+                        <div key={ep.endpoint} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-800">{ep.label}</p>
+                            <p className="text-[10px] font-mono text-slate-400 truncate max-w-[180px]" title={`${baseUrl}${ep.endpoint}`}>{baseUrl}{ep.endpoint}</p>
+                          </div>
+                          <StatusBadge status={ep.status} />
                         </div>
-                        <StatusBadge status={ep.status} />
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
