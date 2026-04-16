@@ -1565,18 +1565,18 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
-              value={formatNumber(pipelineMetrics ? pipelineMetrics.successCount : (hasSystemData ? adminStats!.scoredUsers : 0))}
+              value={pipelineMetrics ? `${formatNumber(pipelineMetrics.successCount)} / ${formatNumber(pipelineMetrics.total)}` : (hasSystemData ? formatNumber(adminStats!.scoredUsers) : "0")}
               icon={UserCheck}
-              subtitle="Completed GrapeRank"
+              subtitle={pipelineMetrics ? `${pipelineMetrics.successRate}% of all users scored` : "Completed GrapeRank"}
               tooltip="Click to view scored users"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
               label="SP Adopters"
-              value={formatNumber(pipelineMetrics ? pipelineMetrics.taSuccessCount : (hasSystemData ? adminStats!.spAdopters : 0))}
+              value={pipelineMetrics ? `${formatNumber(pipelineMetrics.taSuccessCount)} / ${formatNumber(pipelineMetrics.total)}` : (hasSystemData ? formatNumber(adminStats!.spAdopters) : "0")}
               icon={Shield}
-              subtitle="Published NIP-85 TA"
+              subtitle={pipelineMetrics ? `${pipelineMetrics.taAdoptionRate}% TA adoption` : "Published NIP-85 TA"}
               tooltip="Click to view SP adopters"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
