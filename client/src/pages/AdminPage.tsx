@@ -71,7 +71,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
-import { getCurrentUser, logout, fetchProfile, PROFILE_RELAYS, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
 import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, getApiBaseUrl, type ApiEnvironment } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -705,10 +705,16 @@ export default function AdminPage() {
   const [rotateAcknowledged, setRotateAcknowledged] = useState(false);
   const [verifyConfirmOpen, setVerifyConfirmOpen] = useState(false);
   const [lookupOpen, setLookupOpen] = useState(false);
+  const [lookupMode, setLookupMode] = useState<"lookup" | "onboard">("lookup");
   const [lookupInput, setLookupInput] = useState("");
   const [lookupRunning, setLookupRunning] = useState(false);
   const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [onboardSearch, setOnboardSearch] = useState("");
+  const [onboardSearching, setOnboardSearching] = useState(false);
+  const [onboardResults, setOnboardResults] = useState<NostrSearchResult[]>([]);
+  const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [onboardingPubkey, setOnboardingPubkey] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
@@ -1130,6 +1136,64 @@ export default function AdminPage() {
       setLookupRunning(false);
     }
   }, [lookupInput, toast, queryClient]);
+
+  const handleOnboardSearch = useCallback(async () => {
+    const q = onboardSearch.trim();
+    if (!q || q.length < 2) {
+      setOnboardError("Enter at least 2 characters to search");
+      return;
+    }
+    setOnboardSearching(true);
+    setOnboardError(null);
+    setOnboardResults([]);
+    setOnboardingPubkey(null);
+    try {
+      const results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
+      if (results.length === 0) {
+        setOnboardError("No profiles found — try a different name");
+      } else {
+        setOnboardResults(results);
+      }
+    } catch {
+      setOnboardError("Search failed — relay may be unavailable");
+    } finally {
+      setOnboardSearching(false);
+    }
+  }, [onboardSearch]);
+
+  const handleOnboardUser = useCallback(async (profile: NostrSearchResult) => {
+    setOnboardingPubkey(profile.pubkey);
+    setLookupResult(null);
+    setLookupError(null);
+    try {
+      const result = await apiClient.getBrainstormPubkey(profile.pubkey);
+      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
+      const brainstormPubkey = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
+        : typeof data.ta_pubkey === "string" ? data.ta_pubkey
+        : typeof data.pubkey === "string" ? data.pubkey : null;
+      const isNew = data.created === true || data.is_new === true;
+      const safeFields: Record<string, unknown> = {};
+      for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
+        if (key in data) safeFields[key] = data[key];
+      }
+      const displayName = profile.displayName || profile.name || profile.pubkey.slice(0, 12) + "...";
+      if (isNew) {
+        setLookupResult({ success: true, message: `${displayName} onboarded — GrapeRank calculation triggered`, data: safeFields });
+        toast({ title: "User Onboarded", description: `${displayName} added to Brainstorm` });
+      } else {
+        setLookupResult({ success: true, message: `${displayName} already exists in Brainstorm`, data: safeFields });
+        toast({ title: "User Already Exists", description: `${displayName} is already in the system` });
+      }
+      setOnboardResults([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setLookupError(msg);
+      toast({ title: "Onboard Failed", description: msg, variant: "destructive" });
+    } finally {
+      setOnboardingPubkey(null);
+    }
+  }, [toast, queryClient]);
 
   const handleViewRequestDetail = useCallback(async (requestId: number) => {
     setDetailRequestId(requestId);
@@ -1710,73 +1774,184 @@ export default function AdminPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setLookupOpen(true); setLookupInput(""); setLookupResult(null); setLookupError(null); }}
+                    onClick={() => { setLookupOpen(true); setLookupMode("lookup"); setLookupInput(""); setLookupResult(null); setLookupError(null); setOnboardSearch(""); setOnboardResults([]); setOnboardError(null); }}
                     className="text-xs gap-1.5 h-8 no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-lookup-pubkey"
                   >
-                    <UserPlus className="h-3.5 w-3.5" />
-                    Lookup Pubkey
+                    <Search className="h-3.5 w-3.5" />
+                    Lookup / Onboard
                   </Button>
                 </div>
 
-                <Dialog open={lookupOpen} onOpenChange={(open) => { setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); } }}>
-                  <DialogContent className="sm:max-w-lg">
+                <Dialog open={lookupOpen} onOpenChange={(open) => { setLookupOpen(open); if (!open) { setLookupResult(null); setLookupError(null); setOnboardResults([]); setOnboardError(null); } }}>
+                  <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
-                        <UserPlus className="h-5 w-5 text-[#333286]" />
-                        Lookup / Onboard Pubkey
+                        {lookupMode === "lookup" ? <Search className="h-5 w-5 text-[#333286]" /> : <UserPlus className="h-5 w-5 text-[#333286]" />}
+                        {lookupMode === "lookup" ? "Lookup User" : "Onboard User"}
                       </DialogTitle>
                       <DialogDescription className="text-sm text-slate-600 pt-1">
-                        Enter a Nostr pubkey (hex) or npub to look up or onboard a user. If the user doesn't exist, their record will be created and a GrapeRank calculation will be triggered.
+                        {lookupMode === "lookup"
+                          ? "Search your Brainstorm database by pubkey or npub."
+                          : "Search Nostr by name to find and onboard a user into Brainstorm."}
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 pt-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="npub1... or 64-char hex pubkey"
-                          value={lookupInput}
-                          onChange={e => { setLookupInput(e.target.value); setLookupError(null); }}
-                          onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
-                          className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
-                          data-testid="input-lookup-pubkey"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={handleLookupPubkey}
-                          disabled={lookupRunning || !lookupInput.trim()}
-                          className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
-                          data-testid="button-submit-lookup"
-                        >
-                          {lookupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                          {lookupRunning ? "Looking up..." : "Lookup"}
-                        </Button>
-                      </div>
-                      {lookupError && (
-                        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="lookup-error">
-                          <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                          <p className="text-xs text-red-700">{lookupError}</p>
-                        </div>
-                      )}
-                      {lookupResult && (
-                        <div className={`p-4 rounded-xl border ${lookupResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`} data-testid="lookup-result">
-                          <div className="flex items-center gap-2 mb-2">
-                            {lookupResult.success ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
-                            <p className={`text-xs font-semibold ${lookupResult.success ? "text-emerald-800" : "text-red-800"}`}>{lookupResult.message}</p>
-                          </div>
-                          {lookupResult.data && Object.keys(lookupResult.data).length > 0 && (
-                            <div className="space-y-1.5 mt-3 pt-3 border-t border-emerald-200/60">
-                              {Object.entries(lookupResult.data).map(([key, value]) => (
-                                <div key={key} className="flex items-center justify-between">
-                                  <span className="text-[10px] font-medium text-slate-600">{key}</span>
-                                  <span className="text-[10px] font-mono text-slate-800 max-w-[280px] truncate">{String(value)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
+
+                    <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" data-testid="toggle-lookup-mode">
+                      <button
+                        onClick={() => { setLookupMode("lookup"); setLookupResult(null); setLookupError(null); }}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        data-testid="button-mode-lookup"
+                      >
+                        <Search className="h-3 w-3" />
+                        Lookup
+                      </button>
+                      <button
+                        onClick={() => { setLookupMode("onboard"); setLookupResult(null); setLookupError(null); }}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "onboard" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        data-testid="button-mode-onboard"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        Onboard
+                      </button>
                     </div>
+
+                    {lookupMode === "lookup" ? (
+                      <div className="space-y-4 pt-1">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="npub1... or 64-char hex pubkey"
+                            value={lookupInput}
+                            onChange={e => { setLookupInput(e.target.value); setLookupError(null); }}
+                            onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
+                            className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            data-testid="input-lookup-pubkey"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={handleLookupPubkey}
+                            disabled={lookupRunning || !lookupInput.trim()}
+                            className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                            data-testid="button-submit-lookup"
+                          >
+                            {lookupRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                            {lookupRunning ? "Looking up..." : "Lookup"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 pt-1">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Search by name (e.g. jack, fiatjaf...)"
+                            value={onboardSearch}
+                            onChange={e => { setOnboardSearch(e.target.value); setOnboardError(null); }}
+                            onKeyDown={e => { if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(); }}
+                            className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            data-testid="input-onboard-search"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={handleOnboardSearch}
+                            disabled={onboardSearching || !onboardSearch.trim()}
+                            className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
+                            data-testid="button-submit-onboard-search"
+                          >
+                            {onboardSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                            {onboardSearching ? "Searching..." : "Search"}
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 -mt-2 flex items-center gap-1">
+                          <Globe className="h-2.5 w-2.5" />
+                          Powered by NIP-50 WoT search relay
+                        </p>
+
+                        {onboardResults.length > 0 && (
+                          <div className="space-y-1.5 max-h-[300px] overflow-y-auto" data-testid="onboard-results">
+                            {onboardResults.map(profile => {
+                              const displayName = profile.displayName || profile.name || profile.npub.slice(0, 16) + "...";
+                              const isOnboarding = onboardingPubkey === profile.pubkey;
+                              return (
+                                <div
+                                  key={profile.pubkey}
+                                  className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/20 transition-all group"
+                                  data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
+                                >
+                                  {profile.picture ? (
+                                    <img
+                                      src={profile.picture}
+                                      alt=""
+                                      className="h-9 w-9 rounded-full object-cover border border-slate-200 shrink-0"
+                                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                    />
+                                  ) : (
+                                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0 border border-slate-200">
+                                      <Users className="h-4 w-4 text-[#333286]/50" />
+                                    </div>
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-slate-900 truncate">{displayName}</p>
+                                    {profile.nip05 && <p className="text-[10px] text-slate-500 truncate">{profile.nip05}</p>}
+                                    <p className="text-[9px] font-mono text-slate-400 truncate">{profile.npub.slice(0, 20)}...{profile.npub.slice(-6)}</p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOnboardUser(profile)}
+                                    disabled={!!onboardingPubkey}
+                                    className="text-[10px] gap-1 h-7 shrink-0 no-default-hover-elevate no-default-active-elevate"
+                                    data-testid={`button-onboard-${profile.pubkey.slice(0, 8)}`}
+                                  >
+                                    {isOnboarding ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                                    {isOnboarding ? "Adding..." : "Onboard"}
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {onboardError && (
+                          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="onboard-error">
+                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-red-700">{onboardError}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {lookupError && lookupMode === "lookup" && (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="lookup-error">
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700">{lookupError}</p>
+                      </div>
+                    )}
+                    {lookupError && lookupMode === "onboard" && (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="onboard-api-error">
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700">{lookupError}</p>
+                      </div>
+                    )}
+                    {lookupResult && (
+                      <div className={`p-4 rounded-xl border ${lookupResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`} data-testid="lookup-result">
+                        <div className="flex items-center gap-2 mb-2">
+                          {lookupResult.success ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                          <p className={`text-xs font-semibold ${lookupResult.success ? "text-emerald-800" : "text-red-800"}`}>{lookupResult.message}</p>
+                        </div>
+                        {lookupResult.data && Object.keys(lookupResult.data).length > 0 && (
+                          <div className="space-y-1.5 mt-3 pt-3 border-t border-emerald-200/60">
+                            {Object.entries(lookupResult.data).map(([key, value]) => (
+                              <div key={key} className="flex items-center justify-between">
+                                <span className="text-[10px] font-medium text-slate-600">{key}</span>
+                                <span className="text-[10px] font-mono text-slate-800 max-w-[60%] sm:max-w-[280px] truncate">{String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </DialogContent>
                 </Dialog>
               </div>
