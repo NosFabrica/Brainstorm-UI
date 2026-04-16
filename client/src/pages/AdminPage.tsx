@@ -578,6 +578,21 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
   const style = pipelineRowStyles[pipeline];
   const isInPipeline = pipeline === "active" || pipeline === "waiting";
   const baseRowBg = pipeline === "complete" ? (idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30") : "";
+
+  const handleRetrigger = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (retriggerState === "running" || isInPipeline || !item.pubkey || !onRetrigger) return;
+    setRetriggerState("running");
+    try {
+      await onRetrigger(item.pubkey);
+      setRetriggerState("done");
+      setTimeout(() => setRetriggerState("idle"), 2000);
+    } catch {
+      setRetriggerState("error");
+      setTimeout(() => setRetriggerState("idle"), 2000);
+    }
+  };
+
   return (
     <>
       <tr
@@ -623,10 +638,33 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
             )}
           </div>
         </td>
+        <td className="px-2 py-2 text-center">
+          {item.pubkey && onRetrigger && (
+            <button
+              onClick={handleRetrigger}
+              disabled={retriggerState === "running" || isInPipeline}
+              className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+                isInPipeline ? "text-slate-300 cursor-not-allowed" :
+                retriggerState === "done" ? "text-emerald-600 bg-emerald-50 border border-emerald-200" :
+                retriggerState === "error" ? "text-red-500 bg-red-50 border border-red-200" :
+                retriggerState === "running" ? "text-slate-400" :
+                "text-[#333286] hover:bg-[#333286]/5 hover:text-[#7c86ff] border border-transparent hover:border-[#7c86ff]/20"
+              }`}
+              title={isInPipeline ? "Currently processing" : "Re-trigger GrapeRank"}
+              data-testid={`button-retrigger-${item.private_id}`}
+            >
+              {retriggerState === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> :
+               retriggerState === "done" ? <><CheckCircle2 className="h-3 w-3" /><span className="hidden sm:inline">Done</span></> :
+               retriggerState === "error" ? <><XCircle className="h-3 w-3" /><span className="hidden sm:inline">Failed</span></> :
+               isInPipeline ? <><Loader2 className="h-3 w-3 animate-spin opacity-40" /><span className="hidden sm:inline">Active</span></> :
+               <><RefreshCw className="h-3 w-3" /><span className="hidden sm:inline">Re-trigger</span></>}
+            </button>
+          )}
+        </td>
       </tr>
       {expanded && (
         <tr className={style.expanded}>
-          <td colSpan={9} className="px-4 py-3">
+          <td colSpan={10} className="px-4 py-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
               {item.pubkey && (
                 <div>
@@ -668,41 +706,6 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
                 <Eye className="h-3 w-3" />
                 View Full Request
               </button>
-              {item.pubkey && onRetrigger && (
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (retriggerState === "running" || isInPipeline) return;
-                    setRetriggerState("running");
-                    try {
-                      await onRetrigger(item.pubkey);
-                      setRetriggerState("done");
-                      setTimeout(() => setRetriggerState("idle"), 2000);
-                    } catch {
-                      setRetriggerState("error");
-                      setTimeout(() => setRetriggerState("idle"), 2000);
-                    }
-                  }}
-                  disabled={retriggerState === "running" || isInPipeline}
-                  className={`text-[10px] font-semibold transition-colors flex items-center gap-1 min-h-[28px] px-2 py-1 rounded-lg border ${
-                    isInPipeline ? "text-slate-400 border-slate-200 cursor-not-allowed" :
-                    retriggerState === "done" ? "text-emerald-600 border-emerald-200 bg-emerald-50" :
-                    retriggerState === "error" ? "text-red-600 border-red-200 bg-red-50" :
-                    retriggerState === "running" ? "text-slate-400 border-slate-200" :
-                    "text-[#333286] border-[#333286]/20 hover:bg-[#333286]/5 hover:border-[#333286]/30"
-                  }`}
-                  data-testid={`button-retrigger-${item.private_id}`}
-                >
-                  {retriggerState === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> :
-                   retriggerState === "done" ? <CheckCircle2 className="h-3 w-3" /> :
-                   retriggerState === "error" ? <XCircle className="h-3 w-3" /> :
-                   <RefreshCw className="h-3 w-3" />}
-                  {retriggerState === "running" ? "Triggering..." :
-                   retriggerState === "done" ? "Queued" :
-                   retriggerState === "error" ? "Failed" :
-                   isInPipeline ? "In Progress" : "Re-trigger"}
-                </button>
-              )}
             </div>
           </td>
         </tr>
@@ -776,11 +779,6 @@ export default function AdminPage() {
   const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailRequestId, setDetailRequestId] = useState<number | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createPubkey, setCreatePubkey] = useState("");
-  const [createRunning, setCreateRunning] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createNameResults, setCreateNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
   const [apiEnv, setApiEnv] = useState<ApiEnvironment>(getApiEnvironment);
   const [envSwitchTarget, setEnvSwitchTarget] = useState<ApiEnvironment | null>(null);
   const queryClient = useQueryClient();
@@ -1369,69 +1367,6 @@ export default function AdminPage() {
       setDetailLoading(false);
     }
   }, []);
-
-  const submitCreateRequest = useCallback(async (hexPubkey: string, displayName?: string) => {
-    setCreateRunning(true);
-    setCreateError(null);
-    setCreateNameResults([]);
-    try {
-      await apiClient.createBrainstormRequest({ pubkey: hexPubkey });
-      const label = displayName || hexPubkey.slice(0, 12) + "...";
-      toast({ title: "Request Queued", description: `GrapeRank calculation queued for ${label}` });
-      setCreateOpen(false);
-      setCreatePubkey("");
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setCreateError(msg);
-      toast({ title: "Create Failed", description: msg, variant: "destructive" });
-    } finally {
-      setCreateRunning(false);
-    }
-  }, [toast, queryClient]);
-
-  const handleCreateRequest = useCallback(async () => {
-    const raw = createPubkey.trim();
-    if (!raw) {
-      setCreateError("Please enter a name, pubkey, or npub");
-      return;
-    }
-    setCreateNameResults([]);
-    setCreateError(null);
-
-    let hexPubkey: string | null = null;
-    if (raw.startsWith("npub")) {
-      try {
-        const decoded = nip19.decode(raw);
-        if (decoded.type === "npub") hexPubkey = decoded.data;
-      } catch {}
-    } else if (/^[0-9a-fA-F]{64}$/.test(raw)) {
-      hexPubkey = raw.toLowerCase();
-    }
-
-    if (!hexPubkey) {
-      const query = raw.toLowerCase();
-      const matches: { pubkey: string; name?: string; picture?: string }[] = [];
-      for (const u of adminUsersList) {
-        const prof = userProfiles.get(u.pubkey);
-        const name = prof?.name?.toLowerCase() ?? "";
-        const pk = u.pubkey.toLowerCase();
-        if (name.includes(query) || pk.includes(query)) {
-          matches.push({ pubkey: u.pubkey, name: prof?.name, picture: prof?.picture });
-        }
-      }
-      if (matches.length === 1) {
-        await submitCreateRequest(matches[0].pubkey, matches[0].name);
-      } else if (matches.length > 1) {
-        setCreateNameResults(matches);
-      } else {
-        setCreateError(`No users found matching "${raw}"`);
-      }
-      return;
-    }
-
-    await submitCreateRequest(hexPubkey);
-  }, [createPubkey, adminUsersList, userProfiles, submitCreateRequest]);
 
   const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
   const followersCount = getListLength(network?.followed_by);
@@ -3142,16 +3077,6 @@ export default function AdminPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
                       <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" : "degraded"} />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => { setCreateOpen(true); setCreatePubkey(""); setCreateError(null); setCreateNameResults([]); }}
-                        className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate"
-                        data-testid="button-new-request"
-                      >
-                        <Play className="h-3 w-3" />
-                        New Request
-                      </Button>
                     </div>
                   </div>
                 </div>
@@ -3175,7 +3100,7 @@ export default function AdminPage() {
                   ) : (
                     <>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left min-w-[700px]" data-testid="table-platform-activity">
+                        <table className="w-full text-left min-w-[780px]" data-testid="table-platform-activity">
                           <thead>
                             <tr className="border-b border-slate-200/60">
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
@@ -3187,6 +3112,7 @@ export default function AdminPage() {
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Req #</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3234,7 +3160,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand and see additional fields, or use "View Full Request" for complete detail.</p>
+                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.</p>
                     </>
                   )}
                 </div>
@@ -3326,82 +3252,6 @@ export default function AdminPage() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setCreateError(null); setCreateNameResults([]); } }}>
-                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden">
-                  <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                      <Play className="h-5 w-5 text-[#333286]" />
-                      New Brainstorm Request
-                    </DialogTitle>
-                    <DialogDescription className="text-sm text-slate-600 pt-1">
-                      Search by name, pubkey, or npub to queue a GrapeRank calculation.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3 pt-2 overflow-hidden">
-                    <div className="flex gap-2 min-w-0">
-                      <input
-                        type="text"
-                        placeholder="Name, npub, or hex pubkey"
-                        value={createPubkey}
-                        onChange={e => { setCreatePubkey(e.target.value); setCreateError(null); setCreateNameResults([]); }}
-                        onKeyDown={e => { if (e.key === "Enter" && !createRunning) handleCreateRequest(); }}
-                        className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
-                        data-testid="input-create-pubkey"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleCreateRequest}
-                        disabled={createRunning || !createPubkey.trim()}
-                        className="text-xs gap-1.5 shrink-0 no-default-hover-elevate no-default-active-elevate"
-                        data-testid="button-submit-create"
-                      >
-                        {createRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                        {createRunning ? "..." : "Search"}
-                      </Button>
-                    </div>
-
-                    {createNameResults.length > 0 && (
-                      <div className="space-y-1" data-testid="create-name-results">
-                        <p className="text-[10px] text-slate-500 font-medium">{createNameResults.length} user{createNameResults.length !== 1 ? "s" : ""} found — tap to trigger</p>
-                        <div className="max-h-[200px] overflow-y-auto space-y-1 -mx-1 px-1">
-                          {createNameResults.map(u => {
-                            let npub: string;
-                            try { npub = nip19.npubEncode(u.pubkey); } catch { npub = u.pubkey; }
-                            return (
-                              <div
-                                key={u.pubkey}
-                                className={`flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 transition-all active:scale-[0.98] ${createRunning ? "opacity-50 cursor-not-allowed" : "hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 cursor-pointer"}`}
-                                onClick={() => { if (!createRunning) submitCreateRequest(u.pubkey, u.name); }}
-                                data-testid={`create-name-result-${u.pubkey.slice(0, 8)}`}
-                              >
-                                {u.picture ? (
-                                  <img src={u.picture} alt="" className="h-7 w-7 rounded-full object-cover shrink-0 border border-slate-200" />
-                                ) : (
-                                  <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-                                    <User className="h-3.5 w-3.5 text-[#333286]/60" />
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-slate-800 truncate">{u.name || "Unknown"}</p>
-                                  <p className="text-[10px] text-slate-400 font-mono truncate">{npub.slice(0, 20)}...{npub.slice(-6)}</p>
-                                </div>
-                                <Play className="h-3 w-3 text-slate-400 shrink-0" />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {createError && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="create-error">
-                        <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{createError}</p>
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
             </div>
           )}
 
