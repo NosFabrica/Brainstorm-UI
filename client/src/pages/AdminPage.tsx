@@ -1266,7 +1266,6 @@ export default function AdminPage() {
     setOnboardSearching(true);
     setOnboardError(null);
     setOnboardResults([]);
-    setOnboardingPubkey(null);
     try {
       const results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
       if (results.length === 0) {
