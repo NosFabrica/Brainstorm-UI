@@ -563,7 +563,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (id: number) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void> }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void> }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -702,16 +702,10 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
                   <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
                 </div>
               )}
-              {item.password && (
-                <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Password</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.password}</p>
-                </div>
-              )}
             </div>
             <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
               <button
-                onClick={(e) => { e.stopPropagation(); onViewDetail(item.private_id); }}
+                onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
                 className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
                 data-testid={`button-view-detail-${item.private_id}`}
               >
@@ -1362,22 +1356,19 @@ export default function AdminPage() {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
   }, [onboardQueue, toast, queryClient]);
 
-  const handleViewRequestDetail = useCallback(async (requestId: number) => {
-    setDetailRequestId(requestId);
+  const handleViewRequestDetail = useCallback((item: BrainstormRequestInstance) => {
+    setDetailRequestId(item.private_id);
     setDetailOpen(true);
-    setDetailLoading(true);
-    setDetailData(null);
+    setDetailLoading(false);
     setDetailError(null);
-    try {
-      const result = await apiClient.getBrainstormRequest(String(requestId));
-      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : { result };
-      setDetailData(data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setDetailError(msg);
-    } finally {
-      setDetailLoading(false);
+    const sensitiveKeys = new Set(["password"]);
+    const data: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(item)) {
+      if (!sensitiveKeys.has(key)) {
+        data[key] = value;
+      }
     }
+    setDetailData(data);
   }, []);
 
   const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
@@ -3232,7 +3223,7 @@ export default function AdminPage() {
                       Brainstorm Request #{detailRequestId}
                     </DialogTitle>
                     <DialogDescription className="text-sm text-slate-600 pt-1">
-                      Full request details from /admin/brainstormRequest/{detailRequestId}
+                      Full request details for request #{detailRequestId}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="pt-2">
