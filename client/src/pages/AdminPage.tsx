@@ -69,6 +69,7 @@ import {
   KeyRound,
   UserPlus,
   Calendar,
+  ArrowRight,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
@@ -711,6 +712,7 @@ export default function AdminPage() {
   const [lookupResult, setLookupResult] = useState<{ success: boolean; message: string; data?: Record<string, unknown> } | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupNameResults, setLookupNameResults] = useState<{ pubkey: string; name?: string; picture?: string }[]>([]);
+  const [highlightedPubkey, setHighlightedPubkey] = useState<string | null>(null);
   const [onboardSearch, setOnboardSearch] = useState("");
   const [onboardSearching, setOnboardSearching] = useState(false);
   const [onboardResults, setOnboardResults] = useState<NostrSearchResult[]>([]);
@@ -1086,6 +1088,19 @@ export default function AdminPage() {
     }
   }, [toast]);
 
+  const jumpToUser = useCallback((pubkey: string, displayName?: string) => {
+    setUserSearch(pubkey);
+    setDebouncedSearch(pubkey);
+    setUserPage(0);
+    setKpiFilter(null);
+    setLookupOpen(false);
+    setHighlightedPubkey(pubkey);
+    setExpandedRows(new Set([pubkey]));
+    setTimeout(() => setHighlightedPubkey(null), 2500);
+    const name = displayName || userProfiles.get(pubkey)?.name;
+    toast({ title: "Jumped to user", description: name ? `Showing ${name}` : `Showing ${pubkey.slice(0, 16)}...` });
+  }, [toast, userProfiles]);
+
   const handleLookupPubkey = useCallback(async () => {
     const raw = lookupInput.trim();
     if (!raw) {
@@ -1117,7 +1132,9 @@ export default function AdminPage() {
           matches.push({ pubkey: u.pubkey, name: prof?.name, picture: prof?.picture });
         }
       }
-      if (matches.length > 0) {
+      if (matches.length === 1) {
+        jumpToUser(matches[0].pubkey, matches[0].name);
+      } else if (matches.length > 1) {
         setLookupNameResults(matches);
       } else {
         setLookupError(`No users found matching "${raw}" in your database`);
@@ -1125,34 +1142,8 @@ export default function AdminPage() {
       return;
     }
 
-    setLookupRunning(true);
-    try {
-      const result = await apiClient.getBrainstormPubkey(hexPubkey);
-      const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
-      const brainstormPubkey = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
-        : typeof data.ta_pubkey === "string" ? data.ta_pubkey
-        : typeof data.pubkey === "string" ? data.pubkey : null;
-      const isNew = data.created === true || data.is_new === true;
-      const safeFields: Record<string, unknown> = {};
-      for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
-        if (key in data) safeFields[key] = data[key];
-      }
-      if (isNew) {
-        setLookupResult({ success: true, message: "User onboarded — first GrapeRank calculation triggered", data: safeFields });
-        toast({ title: "User Onboarded", description: brainstormPubkey ? `Brainstorm pubkey: ${brainstormPubkey.slice(0, 16)}...` : "New user created" });
-      } else {
-        setLookupResult({ success: true, message: "User found", data: safeFields });
-        toast({ title: "User Found", description: brainstormPubkey ? `Brainstorm pubkey: ${brainstormPubkey.slice(0, 16)}...` : "Existing user" });
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setLookupError(msg);
-      toast({ title: "Lookup Failed", description: msg, variant: "destructive" });
-    } finally {
-      setLookupRunning(false);
-    }
-  }, [lookupInput, toast, queryClient, adminUsersList, userProfiles]);
+    jumpToUser(hexPubkey);
+  }, [lookupInput, adminUsersList, userProfiles, jumpToUser]);
 
   const handleOnboardSearch = useCallback(async () => {
     const q = onboardSearch.trim();
@@ -1850,7 +1841,7 @@ export default function AdminPage() {
                       </DialogTitle>
                       <DialogDescription className="text-sm text-slate-600 pt-1">
                         {lookupMode === "lookup"
-                          ? "Search your Brainstorm database by name, pubkey, or npub."
+                          ? "Find a user by name, pubkey, or npub and jump to their row in the table."
                           : "Search Nostr by name to find and onboard a user into Brainstorm."}
                       </DialogDescription>
                     </DialogHeader>
@@ -1908,38 +1899,7 @@ export default function AdminPage() {
                                   <div
                                     key={u.pubkey}
                                     className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 transition-all cursor-pointer"
-                                    onClick={async () => {
-                                      setLookupInput(u.pubkey);
-                                      setLookupNameResults([]);
-                                      setLookupRunning(true);
-                                      setLookupError(null);
-                                      setLookupResult(null);
-                                      try {
-                                        const result = await apiClient.getBrainstormPubkey(u.pubkey);
-                                        const data = typeof result === "object" && result !== null ? result as Record<string, unknown> : {};
-                                        const bp = typeof data.brainstorm_pubkey === "string" ? data.brainstorm_pubkey
-                                          : typeof data.ta_pubkey === "string" ? data.ta_pubkey
-                                          : typeof data.pubkey === "string" ? data.pubkey : null;
-                                        const isNew = data.created === true || data.is_new === true;
-                                        const safeFields: Record<string, unknown> = {};
-                                        for (const key of ["brainstorm_pubkey", "ta_pubkey", "pubkey", "status", "ta_status", "created", "is_new", "times_calculated"]) {
-                                          if (key in data) safeFields[key] = data[key];
-                                        }
-                                        if (isNew) {
-                                          setLookupResult({ success: true, message: "User onboarded — first GrapeRank calculation triggered", data: safeFields });
-                                          toast({ title: "User Onboarded", description: bp ? `Brainstorm pubkey: ${bp.slice(0, 16)}...` : "New user created" });
-                                        } else {
-                                          setLookupResult({ success: true, message: "User found", data: safeFields });
-                                          toast({ title: "User Found", description: bp ? `Brainstorm pubkey: ${bp.slice(0, 16)}...` : "Existing user" });
-                                        }
-                                        queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-                                      } catch (err: unknown) {
-                                        const msg = err instanceof Error ? err.message : "Unknown error";
-                                        setLookupError(msg);
-                                      } finally {
-                                        setLookupRunning(false);
-                                      }
-                                    }}
+                                    onClick={() => jumpToUser(u.pubkey, u.name)}
                                     data-testid={`lookup-name-result-${u.pubkey.slice(0, 8)}`}
                                   >
                                     {u.picture ? (
@@ -1953,7 +1913,7 @@ export default function AdminPage() {
                                       <p className="text-xs font-semibold text-slate-800 truncate">{u.name || "Unknown"}</p>
                                       <p className="text-[10px] text-slate-400 font-mono truncate">{npub.slice(0, 20)}...{npub.slice(-6)}</p>
                                     </div>
-                                    <Search className="h-3 w-3 text-slate-400 shrink-0" />
+                                    <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
                                   </div>
                                 );
                               })}
@@ -2156,24 +2116,6 @@ export default function AdminPage() {
                         <p className="text-xs text-red-700">{lookupError}</p>
                       </div>
                     )}
-                    {lookupResult && lookupMode === "lookup" && (
-                      <div className={`p-4 rounded-xl border ${lookupResult.success ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`} data-testid="lookup-result">
-                        <div className="flex items-center gap-2 mb-2">
-                          {lookupResult.success ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
-                          <p className={`text-xs font-semibold ${lookupResult.success ? "text-emerald-800" : "text-red-800"}`}>{lookupResult.message}</p>
-                        </div>
-                        {lookupResult.data && Object.keys(lookupResult.data).length > 0 && (
-                          <div className="space-y-1.5 mt-3 pt-3 border-t border-emerald-200/60">
-                            {Object.entries(lookupResult.data).map(([key, value]) => (
-                              <div key={key} className="flex items-center justify-between">
-                                <span className="text-[10px] font-medium text-slate-600">{key}</span>
-                                <span className="text-[10px] font-mono text-slate-800 max-w-[60%] sm:max-w-[280px] truncate">{String(value)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </DialogContent>
                 </Dialog>
               </div>
@@ -2253,7 +2195,7 @@ export default function AdminPage() {
                         const isTriggering = triggeringPubkeys.has(u.pubkey);
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className="border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer" onClick={() => {
+                            <tr className={`border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : ""}`} onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);

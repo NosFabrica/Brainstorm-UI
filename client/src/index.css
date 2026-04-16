@@ -418,6 +418,15 @@
   }
 }
 
+@keyframes highlight-row {
+  0% { background-color: rgba(124, 134, 255, 0.25); }
+  30% { background-color: rgba(124, 134, 255, 0.15); }
+  100% { background-color: transparent; }
+}
+.animate-highlight-row {
+  animation: highlight-row 2.5s ease-out forwards;
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
