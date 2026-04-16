@@ -1867,14 +1867,25 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search pubkey, npub..."
-                    value={userSearch}
-                    onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                    className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 w-full sm:w-56"
-                    data-testid="input-user-search"
-                  />
+                  <div className="relative w-full sm:w-56">
+                    <input
+                      type="text"
+                      placeholder="Search name, pubkey, npub..."
+                      value={userSearch}
+                      onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
+                      className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                      data-testid="input-user-search"
+                    />
+                    {userSearch && (
+                      <button
+                        onClick={() => { setUserSearch(""); setDebouncedSearch(""); setUserPage(0); setHighlightedPubkey(null); }}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        data-testid="button-clear-search"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <Select value={daysFilter.toString()} onValueChange={(val) => { setDaysFilter(parseInt(val, 10)); setUserPage(0); }}>
                     <SelectTrigger className="w-28 h-8 text-xs rounded-xl border-slate-200" data-testid="select-days-filter">
                       <SelectValue />
