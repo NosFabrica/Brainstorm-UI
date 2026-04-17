@@ -1581,14 +1581,6 @@ export default function AdminPage() {
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
             />
             <KpiCard
-              label="Reports Filed"
-              value="—"
-              icon={AlertTriangle}
-              subtitle="Awaiting endpoint"
-              tooltip="Total mute and report actions filed across the entire Brainstorm platform. This metric requires a dedicated reporting endpoint that is not yet available."
-              unsupported
-            />
-            <KpiCard
               label="Queue Depth"
               value={computedQueueDepth !== null ? formatNumber(computedQueueDepth) : (hasSystemData ? formatNumber(adminStats!.queueDepth) : (queuePosition !== null ? queuePosition.toString() : "—"))}
               icon={Clock}
