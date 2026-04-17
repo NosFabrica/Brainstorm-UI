@@ -326,7 +326,7 @@ export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> 
   };
 }
 
-async function waitForNostrExtension(maxWaitMs = 3000, intervalMs = 200): Promise<boolean> {
+async function waitForNostrExtension(maxWaitMs = 800, intervalMs = 200): Promise<boolean> {
   if (window.nostr) return true;
   const start = Date.now();
   return new Promise((resolve) => {
