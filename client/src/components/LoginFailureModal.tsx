@@ -181,10 +181,10 @@ export function LoginFailureModal({
                 <button
                   type="button"
                   onClick={() => setShowNsecForm(true)}
-                  className="w-full h-10 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/40 hover:border-indigo-400/60 text-indigo-100 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
+                  className="group w-full h-10 rounded-xl bg-indigo-500/10 hover:bg-white border border-indigo-400/40 hover:border-white text-indigo-100 hover:text-indigo-900 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
                   data-testid="button-show-nsec-form"
                 >
-                  <KeyRound className="h-4 w-4 text-indigo-200" />
+                  <KeyRound className="h-4 w-4 text-indigo-200 group-hover:text-indigo-700" />
                   Use a private key (nsec) instead
                 </button>
               </div>
