@@ -3258,73 +3258,6 @@ export default function AdminPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={bulkConfirm !== null} onOpenChange={(open) => { if (!open && !bulkRunning) setBulkConfirm(null); }}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <RefreshCw className="h-5 w-5 text-[#333286]" />
-                    Confirm Bulk Re-trigger
-                  </DialogTitle>
-                  <DialogDescription className="text-sm text-slate-600 pt-1">
-                    Re-trigger GrapeRank calculation for multiple users at once.
-                  </DialogDescription>
-                </DialogHeader>
-                {bulkConfirm && (() => {
-                  const inFlight = bulkConfirm.pubkeys.filter(pk => triggeringPubkeys.has(pk));
-                  return (
-                    <div className="pt-2 space-y-4">
-                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                        <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
-                          <li>One GrapeRank calculation request is sent <span className="font-semibold">per unique pubkey</span></li>
-                          <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
-                          <li>Already in-flight users will be skipped automatically</li>
-                          <li>Progress will appear inline; failures can be retried individually</li>
-                        </ul>
-                      </div>
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Targets</p>
-                        <p className="text-xs text-slate-800" data-testid="text-bulk-confirm-count">
-                          <span className="font-bold">{bulkConfirm.pubkeys.length}</span> unique pubkey{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                      {inFlight.length > 0 && (
-                        <div className="p-3 rounded-xl bg-orange-50 border border-orange-200" data-testid="text-bulk-confirm-inflight">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Heads up</p>
-                          <p className="text-xs text-orange-900">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
-                        </div>
-                      )}
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setBulkConfirm(null)}
-                          disabled={bulkRunning}
-                          className="text-xs no-default-hover-elevate no-default-active-elevate"
-                          data-testid="button-cancel-bulk"
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            const target = bulkConfirm;
-                            setBulkConfirm(null);
-                            if (target) runBulkRetrigger(target.pubkeys, target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source);
-                          }}
-                          disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
-                          className="text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
-                          data-testid="button-confirm-bulk"
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                          Re-trigger {bulkConfirm.pubkeys.length} user{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </DialogContent>
-            </Dialog>
             </>
           )}
 
@@ -4062,6 +3995,74 @@ export default function AdminPage() {
       </main>
 
       <Footer />
+
+      <Dialog open={bulkConfirm !== null} onOpenChange={(open) => { if (!open && !bulkRunning) setBulkConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5 text-[#333286]" />
+              Confirm Bulk Re-trigger
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600 pt-1">
+              Re-trigger GrapeRank calculation for multiple users at once.
+            </DialogDescription>
+          </DialogHeader>
+          {bulkConfirm && (() => {
+            const inFlight = bulkConfirm.pubkeys.filter(pk => triggeringPubkeys.has(pk));
+            return (
+              <div className="pt-2 space-y-4">
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
+                  <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                    <li>One GrapeRank calculation request is sent <span className="font-semibold">per unique pubkey</span></li>
+                    <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
+                    <li>Already in-flight users will be skipped automatically</li>
+                    <li>Progress will appear inline; failures can be retried individually</li>
+                  </ul>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Targets</p>
+                  <p className="text-xs text-slate-800" data-testid="text-bulk-confirm-count">
+                    <span className="font-bold">{bulkConfirm.pubkeys.length}</span> unique pubkey{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                {inFlight.length > 0 && (
+                  <div className="p-3 rounded-xl bg-orange-50 border border-orange-200" data-testid="text-bulk-confirm-inflight">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Heads up</p>
+                    <p className="text-xs text-orange-900">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBulkConfirm(null)}
+                    disabled={bulkRunning}
+                    className="text-xs no-default-hover-elevate no-default-active-elevate"
+                    data-testid="button-cancel-bulk"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const target = bulkConfirm;
+                      setBulkConfirm(null);
+                      if (target) runBulkRetrigger(target.pubkeys, target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source);
+                    }}
+                    disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
+                    className="text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+                    data-testid="button-confirm-bulk"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Re-trigger {bulkConfirm.pubkeys.length} user{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!envSwitchTarget} onOpenChange={(open) => { if (!open) setEnvSwitchTarget(null); }}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
