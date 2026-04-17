@@ -145,7 +145,7 @@ export function LoginFailureModal({
               </DialogHeader>
             </div>
 
-            {errorMessage && !showNsecForm && (
+            {errorMessage && !showNsecForm && !isNoExtension && (
               <div className="px-4 sm:px-6 pb-2">
                 <div
                   className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200"
@@ -178,6 +178,13 @@ export function LoginFailureModal({
                 <div className="px-4 sm:px-6 pb-4">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
                     Or sign in with a browser extension
+                  </p>
+                  <p
+                    className="flex items-center gap-1.5 text-xs text-slate-400 mb-2 px-1"
+                    data-testid="text-no-extension-hint"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    No extension detected in your browser.
                   </p>
                   <TooltipProvider delayDuration={150}>
                     <div className="grid grid-cols-2 gap-2">
