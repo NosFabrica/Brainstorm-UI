@@ -207,7 +207,7 @@ export function LoginFailureModal({
                     <button
                       type="button"
                       onClick={onRetryExtension}
-                      className="mt-2 w-full h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                      className="mt-2 w-full h-9 rounded-xl bg-slate-800 hover:bg-slate-200 border border-slate-600/60 hover:border-slate-300 text-slate-300 hover:text-indigo-900 font-semibold text-xs transition-colors flex items-center justify-center gap-2"
                       data-testid="button-retry-extension"
                     >
                       Try again
