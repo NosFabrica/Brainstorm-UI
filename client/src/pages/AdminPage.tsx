@@ -736,6 +736,30 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+type FailureStage = "calculation" | "ta" | "publication";
+
+const FAILURE_STAGE_HINTS: Record<FailureStage, { label: string; hint: string }> = {
+  calculation: {
+    label: "Calculation",
+    hint: "Common causes: user has too few trusted follows for graperank to converge, invalid algorithm parameters, or a calculation timeout. Re-trigger first; if it fails again, check server logs for the algorithm worker.",
+  },
+  ta: {
+    label: "Trust Attestation",
+    hint: "Common causes: TA pubkey unreachable or not configured. Check relay status and TA service health.",
+  },
+  publication: {
+    label: "Publication",
+    hint: "Common causes: relay outage, signing failure, or rate limiting. Check that the publisher is reaching at least one configured relay.",
+  },
+};
+
+function pickFailureStage(opts: { statusFailed: boolean; taFailed: boolean; pubFailed: boolean }): FailureStage | null {
+  if (opts.statusFailed) return "calculation";
+  if (opts.taFailed) return "ta";
+  if (opts.pubFailed) return "publication";
+  return null;
+}
+
 function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: string; taPubkey: string | null }) {
   const historyQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/users", pubkey, "history"],
@@ -905,20 +929,34 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                               <span className="text-[11px] font-medium text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
                             </td>
                           </tr>
-                          {hasFail && (
-                            <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
-                              <td colSpan={6} className="px-4 py-2">
-                                <div className="flex items-start gap-2">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                                  {errorText ? (
-                                    <span className="text-[11px] text-red-700 font-mono break-all">{errorText}</span>
-                                  ) : (
-                                    <span className="text-[11px] text-red-600/80 italic">No error details captured — check server logs.</span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
+                          {hasFail && (() => {
+                            const stage = pickFailureStage({ statusFailed, taFailed, pubFailed });
+                            const stageInfo = stage ? FAILURE_STAGE_HINTS[stage] : null;
+                            return (
+                              <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
+                                <td colSpan={6} className="px-4 py-2">
+                                  <div className="flex items-start gap-2">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                    <div className="flex-1 space-y-1">
+                                      {errorText ? (
+                                        <span className="block text-[11px] text-red-700 font-mono break-all">{errorText}</span>
+                                      ) : (
+                                        <span className="block text-[11px] text-red-600/80 italic">No error details captured — check server logs.</span>
+                                      )}
+                                      {stageInfo && (
+                                        <p
+                                          className="text-slate-600 text-[11px] leading-snug"
+                                          data-testid={`text-failure-hint-${rowKey}`}
+                                        >
+                                          <span className="font-semibold">Where to look · {stageInfo.label}:</span> {stageInfo.hint}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
                         </Fragment>
                       );
                     })}

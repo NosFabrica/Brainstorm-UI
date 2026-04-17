@@ -174,6 +174,23 @@ function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: 
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
 }
 
+type AdminHistoryFailureStage = "calculation" | "ta" | "publication";
+
+const ADMIN_HISTORY_FAILURE_HINTS: Record<AdminHistoryFailureStage, { label: string; hint: string }> = {
+  calculation: {
+    label: "Calculation",
+    hint: "Common causes: user has too few trusted follows for graperank to converge, invalid algorithm parameters, or a calculation timeout. Re-trigger first; if it fails again, check server logs for the algorithm worker.",
+  },
+  ta: {
+    label: "Trust Attestation",
+    hint: "Common causes: TA pubkey unreachable or not configured. Check relay status and TA service health.",
+  },
+  publication: {
+    label: "Publication",
+    hint: "Common causes: relay outage, signing failure, or rate limiting. Check that the publisher is reaching at least one configured relay.",
+  },
+};
+
 function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number }) {
   const [expanded, setExpanded] = useState(false);
   const fmtDate = (d: string | null) => {
@@ -181,6 +198,19 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
     try { return new Date(d).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
     catch { return d; }
   };
+  const statusFailed = (item.status || "").toLowerCase() === "failure";
+  const taFailed = (item.ta_status || "").toLowerCase() === "failure";
+  const pubLower = (item.internal_publication_status || "").toLowerCase();
+  const pubFailed = pubLower === "failure" || pubLower === "failed";
+  const failureStage: AdminHistoryFailureStage | null = statusFailed
+    ? "calculation"
+    : taFailed
+    ? "ta"
+    : pubFailed
+    ? "publication"
+    : null;
+  const failureInfo = failureStage ? ADMIN_HISTORY_FAILURE_HINTS[failureStage] : null;
+  const errorText = (item.result && item.result.trim()) || "";
   return (
     <>
       <tr
@@ -200,6 +230,21 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
       {expanded && (
         <tr className="bg-amber-50/30">
           <td colSpan={8} className="px-4 py-3">
+            {failureInfo && (
+              <div
+                className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2"
+                data-testid={`panel-failure-hint-${item.private_id || idx}`}
+              >
+                {errorText ? (
+                  <p className="text-[11px] text-red-700 font-mono break-all">{errorText}</p>
+                ) : (
+                  <p className="text-[11px] text-red-600/80 italic">No error details captured — check server logs.</p>
+                )}
+                <p className="text-slate-600 text-[11px] leading-snug mt-1">
+                  <span className="font-semibold">Where to look · {failureInfo.label}:</span> {failureInfo.hint}
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
               {item.result && (
                 <div>
