@@ -1074,11 +1074,12 @@ export default function AdminPage() {
   const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
 
   const [selectedUserPubkeys, setSelectedUserPubkeys] = useState<Set<string>>(new Set());
-  const [selectedActivityIds, setSelectedActivityIds] = useState<Set<number>>(new Set());
+  const [selectedActivityRows, setSelectedActivityRows] = useState<Map<number, string>>(new Map());
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkStatuses, setBulkStatuses] = useState<Map<string, "queued" | "running" | "success" | "failed">>(new Map());
   const [bulkErrors, setBulkErrors] = useState<Map<string, string>>(new Map());
   const [bulkConfirm, setBulkConfirm] = useState<{ pubkeys: string[]; source: "users" | "activity" | "retry" } | null>(null);
+  const [fetchingMatching, setFetchingMatching] = useState(false);
   const [bulkLastResult, setBulkLastResult] = useState<{ source: "users" | "activity"; successes: string[]; failures: { pubkey: string; error: string }[] } | null>(null);
   const SELECT_ALL_MATCHING_CAP = 200;
   const [verifyRunning, setVerifyRunning] = useState(false);
@@ -1301,16 +1302,16 @@ export default function AdminPage() {
       variant: failures.length === 0 ? "default" : "destructive",
     });
     if (resultSource === "users") setSelectedUserPubkeys(new Set());
-    else setSelectedActivityIds(new Set());
+    else setSelectedActivityRows(new Map());
   }, [triggeringPubkeys, toast, triggerRefreshBoost, queryClient, bulkLastResult]);
 
   useEffect(() => {
     setSelectedUserPubkeys(new Set());
     setBulkLastResult(prev => prev?.source === "users" ? null : prev);
-  }, [debouncedSearch, daysFilter, kpiFilter]);
+  }, [userSearch, debouncedSearch, daysFilter, kpiFilter]);
 
   useEffect(() => {
-    setSelectedActivityIds(new Set());
+    setSelectedActivityRows(new Map());
     setBulkLastResult(prev => prev?.source === "activity" ? null : prev);
   }, [activityTimeRange]);
 
@@ -2756,22 +2757,44 @@ export default function AdminPage() {
                     const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
                     const matchingTotal = activeNameSearch ? filteredUsersList.length : adminUsersTotal;
                     const visibleCount = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).length;
-                    const canSelectAllMatching = activeNameSearch && matchingTotal > visibleCount;
+                    const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || !!daysFilter;
+                    const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
+                    const handleSelectAllMatching = async () => {
+                      const cap = Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP);
+                      if (activeNameSearch) {
+                        setSelectedUserPubkeys(new Set(filteredUsersList.slice(0, cap).map(u => u.pubkey)));
+                        return;
+                      }
+                      try {
+                        setFetchingMatching(true);
+                        const resp = await apiClient.getAdminUsers({
+                          search: debouncedSearch || undefined,
+                          sort: userSort.key,
+                          order: userSort.dir,
+                          days: daysFilter,
+                          page: 1,
+                          size: cap,
+                        });
+                        setSelectedUserPubkeys(new Set((resp.items ?? []).slice(0, cap).map((u: { pubkey: string }) => u.pubkey)));
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : "Unknown error";
+                        toast({ title: "Failed to fetch matching users", description: msg, variant: "destructive" });
+                      } finally {
+                        setFetchingMatching(false);
+                      }
+                    };
                     return (
                       <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
                         <CheckSquare className="h-4 w-4 text-[#333286]" />
                         <span className="text-xs font-semibold text-slate-800">{dedupePubkeys.length} selected</span>
                         {canSelectAllMatching && (
                           <button
-                            onClick={() => {
-                              const cap = Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP);
-                              const all = filteredUsersList.slice(0, cap).map(u => u.pubkey);
-                              setSelectedUserPubkeys(new Set(all));
-                            }}
-                            disabled={bulkRunning}
-                            className="text-[10px] font-semibold text-[#333286] hover:underline disabled:opacity-40"
+                            onClick={handleSelectAllMatching}
+                            disabled={bulkRunning || fetchingMatching}
+                            className="text-[10px] font-semibold text-[#333286] hover:underline disabled:opacity-40 inline-flex items-center gap-1"
                             data-testid="button-bulk-select-all-matching-users"
                           >
+                            {fetchingMatching && <Loader2 className="h-3 w-3 animate-spin" />}
                             Select all {Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP)} matching{matchingTotal > SELECT_ALL_MATCHING_CAP ? ` (capped at ${SELECT_ALL_MATCHING_CAP})` : ""}
                           </button>
                         )}
@@ -3807,9 +3830,9 @@ export default function AdminPage() {
                   ) : (
                     <>
                       {(() => {
-                        const selectedItems = activityItems.filter(a => a.private_id !== undefined && a.private_id !== null && selectedActivityIds.has(a.private_id as number));
-                        const dedupePubkeys = Array.from(new Set(selectedItems.map(a => a.pubkey).filter((p): p is string => !!p)));
-                        if (selectedItems.length === 0) return null;
+                        const selectedCount = selectedActivityRows.size;
+                        const dedupePubkeys = Array.from(new Set(Array.from(selectedActivityRows.values()).filter((p): p is string => !!p)));
+                        if (selectedCount === 0) return null;
                         const liveCount = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "success" || s === "failed").length : 0;
                         const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                         const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
@@ -3817,8 +3840,8 @@ export default function AdminPage() {
                           <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
                             <CheckSquare className="h-4 w-4 text-[#333286]" />
                             <span className="text-xs font-semibold text-slate-800">
-                              {selectedItems.length} selected
-                              {dedupePubkeys.length !== selectedItems.length && <span className="text-slate-500 font-normal"> ({dedupePubkeys.length} unique)</span>}
+                              {selectedCount} selected
+                              {dedupePubkeys.length !== selectedCount && <span className="text-slate-500 font-normal"> ({dedupePubkeys.length} unique)</span>}
                             </span>
                             {bulkRunning && (
                               <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-activity">
@@ -3837,7 +3860,7 @@ export default function AdminPage() {
                                 Re-trigger {dedupePubkeys.length} user{dedupePubkeys.length !== 1 ? "s" : ""}
                               </Button>
                               <button
-                                onClick={() => setSelectedActivityIds(new Set())}
+                                onClick={() => setSelectedActivityRows(new Map())}
                                 disabled={bulkRunning}
                                 className="text-[10px] text-slate-500 hover:text-slate-800 disabled:opacity-40"
                                 data-testid="button-bulk-clear-activity"
@@ -3884,7 +3907,7 @@ export default function AdminPage() {
                               <th className="px-2 py-2 w-8">
                                 {(() => {
                                   const eligible = activityItems.filter(a => !!a.pubkey && a.private_id !== undefined && a.private_id !== null);
-                                  const selectedOnPage = eligible.filter(a => selectedActivityIds.has(a.private_id as number)).length;
+                                  const selectedOnPage = eligible.filter(a => selectedActivityRows.has(a.private_id as number)).length;
                                   const allSelected = eligible.length > 0 && selectedOnPage === eligible.length;
                                   const someSelected = selectedOnPage > 0 && !allSelected;
                                   return (
@@ -3892,9 +3915,9 @@ export default function AdminPage() {
                                       type="button"
                                       onClick={() => {
                                         if (allSelected) {
-                                          setSelectedActivityIds(prev => { const next = new Set(prev); for (const a of eligible) next.delete(a.private_id as number); return next; });
+                                          setSelectedActivityRows(prev => { const next = new Map(prev); for (const a of eligible) next.delete(a.private_id as number); return next; });
                                         } else {
-                                          setSelectedActivityIds(prev => { const next = new Set(prev); for (const a of eligible) next.add(a.private_id as number); return next; });
+                                          setSelectedActivityRows(prev => { const next = new Map(prev); for (const a of eligible) next.set(a.private_id as number, a.pubkey as string); return next; });
                                         }
                                       }}
                                       className="inline-flex items-center justify-center"
@@ -3924,7 +3947,7 @@ export default function AdminPage() {
                           <tbody>
                             {activityItems.map((item, idx) => {
                               const pid = item.private_id as number | null;
-                              const isSelected = pid !== null && pid !== undefined && selectedActivityIds.has(pid);
+                              const isSelected = pid !== null && pid !== undefined && selectedActivityRows.has(pid);
                               const bs = item.pubkey ? bulkStatuses.get(item.pubkey) : undefined;
                               return (
                                 <ActivityRow
@@ -3936,7 +3959,7 @@ export default function AdminPage() {
                                   bulkStatus={bs}
                                   onToggleSelect={() => {
                                     if (!item.pubkey || pid === null || pid === undefined) return;
-                                    setSelectedActivityIds(prev => { const next = new Set(prev); if (next.has(pid)) next.delete(pid); else next.add(pid); return next; });
+                                    setSelectedActivityRows(prev => { const next = new Map(prev); if (next.has(pid)) next.delete(pid); else next.set(pid, item.pubkey as string); return next; });
                                   }}
                                   onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }}
                                   onRetrigger={async (pubkey) => { try { await apiClient.triggerUserGraperank(pubkey); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }); triggerRefreshBoost(); } catch (err: unknown) { const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }}
