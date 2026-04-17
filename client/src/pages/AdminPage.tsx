@@ -75,6 +75,7 @@ import {
   CheckSquare,
   MinusSquare,
   Minus,
+  Maximize2,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -500,6 +501,71 @@ function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width
   );
 }
 
+function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, color = "#7c86ff", valueLabel = "value", valueSuffix = "" }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  label: string;
+  data: number[];
+  timestamps?: number[];
+  color?: string;
+  valueLabel?: string;
+  valueSuffix?: string;
+}) {
+  const chartData = (data ?? []).map((v, i) => ({ i, v, ts: timestamps?.[i] }));
+  const formatTs = (ts: number | undefined) =>
+    ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+  const rows = [...chartData].reverse();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" data-testid="dialog-sparkline-details">
+        <DialogHeader>
+          <DialogTitle data-testid="text-sparkline-title">{label} trend</DialogTitle>
+          <DialogDescription>
+            Per-bucket values and timestamps from the recent trend.
+          </DialogDescription>
+        </DialogHeader>
+        {chartData.length >= 2 ? (
+          <>
+            <div className="h-40 w-full" data-testid="chart-sparkline-details">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 4 }}>
+                  <RcTooltip
+                    cursor={{ stroke: color, strokeOpacity: 0.3, strokeWidth: 1 }}
+                    contentStyle={{ fontSize: 11, borderRadius: 6, border: "1px solid #e2e8f0", padding: "4px 6px", lineHeight: 1.3 }}
+                    labelFormatter={(_, items) => formatTs(items?.[0]?.payload?.ts as number | undefined)}
+                    formatter={(val: number | string) => [`${val}${valueSuffix}`, valueLabel]}
+                  />
+                  <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={{ r: 2, fill: color }} activeDot={{ r: 3.5, fill: color }} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="max-h-56 overflow-auto rounded-md border border-slate-200">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                  <tr>
+                    <th className="text-left font-medium px-2 py-1.5">Time</th>
+                    <th className="text-right font-medium px-2 py-1.5 capitalize">{valueLabel}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, idx) => (
+                    <tr key={idx} className="border-t border-slate-100" data-testid={`row-sparkline-bucket-${idx}`}>
+                      <td className="px-2 py-1 text-slate-600">{formatTs(r.ts)}</td>
+                      <td className="px-2 py-1 text-right font-medium text-slate-900 tabular-nums">{r.v}{valueSuffix}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500" data-testid="text-sparkline-empty">No trend data available yet.</p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h ago", insufficient, insufficientLabel }: { delta: number | null; suffix?: string; inverted?: boolean; label?: string; insufficient?: boolean; insufficientLabel?: string }) {
   if (insufficient || delta === null || delta === undefined || Number.isNaN(delta)) {
     return (
@@ -539,10 +605,14 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   sparklineValueSuffix?: string;
   deltaSlot?: React.ReactNode;
 }) {
+  const [trendOpen, setTrendOpen] = useState(false);
+  const hasSparkline = !unsupported && Array.isArray(sparklineData) && sparklineData.length >= 2;
+  const testIdSlug = label.toLowerCase().replace(/\s+/g, "-");
   return (
+    <>
     <div
       className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
-      data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
+      data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
     >
@@ -568,15 +638,32 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
       <div className="flex items-end justify-between gap-2 relative">
         <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
         {!unsupported && (
-          <MiniSparkline
-            data={sparklineData ?? []}
-            timestamps={sparklineTimestamps}
-            color={sparklineColor ?? "#7c86ff"}
-            height={22}
-            width={64}
-            valueLabel={sparklineValueLabel ?? "value"}
-            valueSuffix={sparklineValueSuffix ?? ""}
-          />
+          <div className="flex items-center gap-1">
+            <MiniSparkline
+              data={sparklineData ?? []}
+              timestamps={sparklineTimestamps}
+              color={sparklineColor ?? "#7c86ff"}
+              height={22}
+              width={64}
+              valueLabel={sparklineValueLabel ?? "value"}
+              valueSuffix={sparklineValueSuffix ?? ""}
+            />
+            {hasSparkline && (
+              <button
+                type="button"
+                aria-label={`View ${label} trend details`}
+                title="View trend details"
+                className="p-1 rounded-md text-slate-400 hover:text-[#333286] hover:bg-[#7c86ff]/10 active:bg-[#7c86ff]/20 transition-colors touch-manipulation"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTrendOpen(true);
+                }}
+                data-testid={`button-sparkline-expand-${testIdSlug}`}
+              >
+                <Maximize2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         )}
       </div>
       <p className="text-[11px] text-slate-500 mt-0.5 relative leading-tight">{label}</p>
@@ -586,6 +673,19 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
         {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
       </div>
     </div>
+    {hasSparkline && (
+      <SparklineDetailsDialog
+        open={trendOpen}
+        onOpenChange={setTrendOpen}
+        label={label}
+        data={sparklineData ?? []}
+        timestamps={sparklineTimestamps}
+        color={sparklineColor}
+        valueLabel={sparklineValueLabel}
+        valueSuffix={sparklineValueSuffix}
+      />
+    )}
+    </>
   );
 }
 
