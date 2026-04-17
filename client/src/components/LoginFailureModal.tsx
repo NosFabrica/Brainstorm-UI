@@ -155,7 +155,7 @@ export function LoginFailureModal({
               </div>
             )}
 
-            {isNoExtension && (
+            {isNoExtension && !showNsecForm && (
               <div className="px-4 sm:px-6 pb-3">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
                   Install an extension
@@ -219,17 +219,7 @@ export function LoginFailureModal({
 
             {showNsecForm && (
               <>
-                <div className="px-4 sm:px-6 pb-2">
-                  <div className="flex items-center gap-3 my-1">
-                    <div className="flex-1 h-px bg-slate-700/60" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                      Sign in with nsec
-                    </span>
-                    <div className="flex-1 h-px bg-slate-700/60" />
-                  </div>
-                </div>
-
-                <div className="px-4 sm:px-6 pb-3 space-y-3">
+                <div className="px-4 sm:px-6 pt-1 pb-3 space-y-3">
                   <div
                     className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200"
                     data-testid="warning-nsec-security"
