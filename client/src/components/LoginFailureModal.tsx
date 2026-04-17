@@ -153,7 +153,7 @@ export function LoginFailureModal({
                       href={ext.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-white hover:border-white hover:text-indigo-900 transition-colors"
+                      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-200 hover:border-slate-300 hover:text-indigo-900 transition-colors"
                       data-testid={`link-install-${ext.name.toLowerCase()}`}
                     >
                       <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
@@ -181,7 +181,7 @@ export function LoginFailureModal({
                 <button
                   type="button"
                   onClick={() => setShowNsecForm(true)}
-                  className="group w-full h-10 rounded-xl bg-indigo-500/10 hover:bg-white border border-indigo-400/40 hover:border-white text-indigo-100 hover:text-indigo-900 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
+                  className="group w-full h-10 rounded-xl bg-indigo-500/10 hover:bg-slate-200 border border-indigo-400/40 hover:border-slate-300 text-indigo-100 hover:text-indigo-900 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
                   data-testid="button-show-nsec-form"
                 >
                   <KeyRound className="h-4 w-4 text-indigo-200 group-hover:text-indigo-700" />
