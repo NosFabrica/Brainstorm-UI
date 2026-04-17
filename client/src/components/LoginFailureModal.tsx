@@ -163,7 +163,7 @@ export function LoginFailureModal({
                   Install an extension
                 </p>
                 <TooltipProvider delayDuration={150}>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {EXTENSIONS.map((ext) => (
                       <Tooltip key={ext.name}>
                         <TooltipTrigger asChild>
