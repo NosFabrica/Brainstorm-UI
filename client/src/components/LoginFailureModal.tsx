@@ -101,7 +101,7 @@ export function LoginFailureModal({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[480px] max-h-[90vh] rounded-3xl border border-slate-700/50 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-indigo-500/20 ring-1 ring-indigo-500/10 overflow-hidden p-0"
+        className="sm:max-w-[480px] max-h-[90vh] rounded-3xl border border-slate-700/50 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-indigo-500/20 ring-1 ring-indigo-500/10 overflow-hidden p-0 [&>button]:text-slate-300 [&>button]:hover:text-white [&>button]:opacity-100 [&>button]:hover:bg-slate-700/50 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
         data-testid="dialog-login-failure"
       >
         <div className="absolute inset-0 pointer-events-none">
