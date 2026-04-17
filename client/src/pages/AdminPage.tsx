@@ -897,7 +897,7 @@ export default function AdminPage() {
     staleTime: 120_000,
     retry: false,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_STATS_MS,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always",
   });
   const adminStats = adminStatsQuery.data ?? null;
   const hasSystemData = adminStats !== null;
@@ -918,7 +918,7 @@ export default function AdminPage() {
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "users" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_USERS_MS) : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always",
   });
 
   const adminUsersData = adminUsersQuery.data;
@@ -933,7 +933,7 @@ export default function AdminPage() {
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always",
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -943,7 +943,7 @@ export default function AdminPage() {
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always",
   });
 
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -956,7 +956,7 @@ export default function AdminPage() {
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "activity" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: "always",
   });
   const activityData = adminActivityQuery.data;
   const activityItems = activityData?.items ?? [];
