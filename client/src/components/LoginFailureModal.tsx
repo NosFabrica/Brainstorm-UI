@@ -153,14 +153,14 @@ export function LoginFailureModal({
                       href={ext.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-200 hover:bg-slate-800 hover:border-indigo-500/40 transition-colors"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-700 hover:border-indigo-400/60 transition-colors"
                       data-testid={`link-install-${ext.name.toLowerCase()}`}
                     >
-                      <span className="h-8 w-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-300 shrink-0">
+                      <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0">
                         <KeyRound className="h-4 w-4" />
                       </span>
                       <span className="flex-1 text-sm font-semibold">{ext.name}</span>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300" />
                     </a>
                   ))}
                 </div>
@@ -181,10 +181,10 @@ export function LoginFailureModal({
                 <button
                   type="button"
                   onClick={() => setShowNsecForm(true)}
-                  className="w-full h-10 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/40 text-slate-200 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full h-10 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-400/40 hover:border-indigo-400/60 text-indigo-100 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
                   data-testid="button-show-nsec-form"
                 >
-                  <KeyRound className="h-4 w-4 text-indigo-300" />
+                  <KeyRound className="h-4 w-4 text-indigo-200" />
                   Use a private key (nsec) instead
                 </button>
               </div>
