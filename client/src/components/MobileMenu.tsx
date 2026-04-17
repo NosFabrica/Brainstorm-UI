@@ -13,6 +13,7 @@ import {
   Shield,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 
 interface MobileMenuProps {
   open: boolean;
@@ -34,7 +35,9 @@ const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
-  { path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true },
+  ...(FEATURES.agentSuite
+    ? [{ path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true }]
+    : []),
 ];
 
 const helpNav = [

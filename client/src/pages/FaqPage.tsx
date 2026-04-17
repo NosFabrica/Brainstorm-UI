@@ -16,6 +16,7 @@ import {
   Copy,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -164,10 +165,12 @@ export default function FaqPage() {
                     <Users className="h-4 w-4" />
                     Network
                   </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                    <AgentIcon className="h-4 w-4" />
-                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                  </Button>
+                  {FEATURES.agentSuite && (
+                    <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
+                      <AgentIcon className="h-4 w-4" />
+                      <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

@@ -16,6 +16,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import FaqPage from "@/pages/FaqPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
+import { FEATURES } from "@/config/featureFlags";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -40,7 +41,7 @@ function Router() {
         <Route path="/network" component={NetworkPage} />
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/faq" component={FaqPage} />
-        <Route path="/agentsuite" component={UserPanelPage} />
+        {FEATURES.agentSuite && <Route path="/agentsuite" component={UserPanelPage} />}
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
