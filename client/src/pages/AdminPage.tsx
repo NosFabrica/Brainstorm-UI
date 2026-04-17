@@ -2398,7 +2398,7 @@ export default function AdminPage() {
                           }}
                           formatter={(v: number, name: string) => name === "Failure rate" ? [`${v}%`, name] : [v, name]}
                         />
-                        <Area yAxisId="left" type="monotone" dataKey="total" name="Calcs" stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
+                        <Area yAxisId="left" type="monotone" dataKey="total" name="Calcs/hr" stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
                         <Area yAxisId="right" type="monotone" dataKey="failureRate" name="Failure rate" stroke="#f87171" strokeWidth={1} fill="url(#failRateGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
