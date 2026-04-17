@@ -81,7 +81,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
   if (alreadyFollowing) return { success: true };
 
   const newTags = [...current.tags, ["p", targetPubkey]];
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 3,
     tags: newTags,
     content: current.content || "",
@@ -90,7 +90,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
   };
 
   try {
-    const signed = await signEventLocally(event as any) as any;
+    const signed = await signEventLocally(event);
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -108,7 +108,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   if (!wasFollowing) return { success: true };
 
   const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 3,
     tags: newTags,
     content: current.content || "",
@@ -117,7 +117,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   };
 
   try {
-    const signed = await signEventLocally(event as any) as any;
+    const signed = await signEventLocally(event);
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -136,7 +136,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   if (alreadyMuted) return { success: true };
 
   const newTags = [...current.tags, ["p", targetPubkey]];
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 10000,
     tags: newTags,
     content: current.content || "",
@@ -145,7 +145,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   };
 
   try {
-    const signed = await signEventLocally(event as any) as any;
+    const signed = await signEventLocally(event);
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -163,7 +163,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   if (!wasMuted) return { success: true };
 
   const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 10000,
     tags: newTags,
     content: current.content || "",
@@ -172,7 +172,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   };
 
   try {
-    const signed = await signEventLocally(event as any) as any;
+    const signed = await signEventLocally(event);
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -184,7 +184,7 @@ export async function reportUser(targetPubkey: string, reason: string): Promise<
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
 
-  const event = {
+  const event: Record<string, unknown> = {
     kind: 1984,
     tags: [
       ["p", targetPubkey, reason],
@@ -195,7 +195,7 @@ export async function reportUser(targetPubkey: string, reason: string): Promise<
   };
 
   try {
-    const signed = await signEventLocally(event as any) as any;
+    const signed = await signEventLocally(event);
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
