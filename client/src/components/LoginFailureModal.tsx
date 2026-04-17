@@ -87,7 +87,7 @@ export function LoginFailureModal({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[480px] max-h-[90vh] rounded-2xl border border-slate-700/50 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-indigo-500/20 ring-1 ring-indigo-500/10 overflow-hidden p-0"
+        className="sm:max-w-[480px] max-h-[90vh] rounded-3xl border border-slate-700/50 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-indigo-500/20 ring-1 ring-indigo-500/10 overflow-hidden p-0"
         data-testid="dialog-login-failure"
       >
         <div className="absolute inset-0 pointer-events-none">
@@ -172,7 +172,7 @@ export function LoginFailureModal({
                 <button
                   type="button"
                   onClick={onRetryExtension}
-                  className="w-full h-11 rounded-lg bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 text-white font-medium text-sm tracking-wide shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center justify-center gap-2"
                   data-testid="button-retry-extension"
                 >
                   Try again
@@ -181,7 +181,7 @@ export function LoginFailureModal({
                 <button
                   type="button"
                   onClick={() => setShowNsecForm(true)}
-                  className="w-full h-10 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/40 text-slate-200 font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
+                  className="w-full h-10 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-indigo-500/40 text-slate-200 font-semibold text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-2"
                   data-testid="button-show-nsec-form"
                 >
                   <KeyRound className="h-4 w-4 text-indigo-300" />
@@ -232,7 +232,7 @@ export function LoginFailureModal({
                       spellCheck={false}
                       disabled={submitting}
                       autoFocus
-                      className="w-full h-11 pl-9 pr-10 rounded-lg bg-slate-800/60 border border-slate-700/60 focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono text-white placeholder:text-slate-500 transition-all disabled:opacity-60"
+                      className="w-full h-11 pl-9 pr-10 rounded-xl bg-slate-800/60 border border-slate-700/60 focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono text-white placeholder:text-slate-500 transition-all disabled:opacity-60"
                       data-testid="input-nsec"
                     />
                     <button
@@ -268,7 +268,7 @@ export function LoginFailureModal({
                     type="button"
                     onClick={handleNsecLogin}
                     disabled={submitting || !nsec.trim()}
-                    className="w-full h-11 sm:h-12 rounded-lg bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-sm tracking-wide shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center justify-center gap-2"
                     data-testid="button-nsec-signin"
                   >
                     {submitting ? (
@@ -291,7 +291,7 @@ export function LoginFailureModal({
                       setNsecError("");
                     }}
                     disabled={submitting}
-                    className="w-full h-9 rounded-lg text-slate-400 hover:text-indigo-300 text-xs font-medium transition-colors disabled:opacity-50"
+                    className="w-full h-9 rounded-xl text-slate-400 hover:text-indigo-300 text-xs font-semibold transition-colors disabled:opacity-50"
                     data-testid="button-back-to-options"
                   >
                     Back to sign-in options
