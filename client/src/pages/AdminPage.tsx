@@ -483,8 +483,10 @@ function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width
         <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
           <RcTooltip
             cursor={{ stroke: color, strokeOpacity: 0.3, strokeWidth: 1 }}
-            contentStyle={{ fontSize: 10, borderRadius: 6, border: "1px solid #e2e8f0", padding: "4px 6px", lineHeight: 1.3 }}
-            wrapperStyle={{ outline: "none", zIndex: 50 }}
+            contentStyle={{ fontSize: 10, borderRadius: 6, border: "1px solid #e2e8f0", padding: "4px 6px", lineHeight: 1.3, boxShadow: "0 4px 12px rgba(15, 23, 42, 0.12)", whiteSpace: "nowrap" }}
+            wrapperStyle={{ outline: "none", zIndex: 9999, pointerEvents: "none" }}
+            allowEscapeViewBox={{ x: true, y: true }}
+            offset={12}
             labelFormatter={(_, items) => {
               const ts = items?.[0]?.payload?.ts as number | undefined;
               return ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
@@ -539,12 +541,14 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
 }) {
   return (
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${label.toLowerCase().replace(/\s+/g, "-")}`}
       title={tooltip}
       onClick={onClick}
     >
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl" />
+      <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </div>
       <div className="flex items-start justify-between mb-2 relative">
         <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
           <Icon className="h-4 w-4 text-[#333286]" />
