@@ -17,6 +17,12 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { loginWithNsec, type LoginErrorCode } from "@/services/nostr";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface LoginFailureModalProps {
   open: boolean;
@@ -28,8 +34,16 @@ interface LoginFailureModalProps {
 }
 
 const EXTENSIONS = [
-  { name: "nos2x", url: "https://github.com/fiatjaf/nos2x" },
-  { name: "Alby", url: "https://getalby.com/" },
+  {
+    name: "nos2x",
+    url: "https://github.com/fiatjaf/nos2x",
+    description: "A lightweight Chrome extension that signs Nostr events for you so you never have to paste your private key.",
+  },
+  {
+    name: "Alby",
+    url: "https://getalby.com/",
+    description: "A popular Bitcoin & Nostr browser extension. It manages your Nostr identity and signs sign-in requests on your behalf.",
+  },
 ];
 
 export function LoginFailureModal({
@@ -146,24 +160,37 @@ export function LoginFailureModal({
                 <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
                   Install an extension
                 </p>
-                <div className="space-y-2">
-                  {EXTENSIONS.map((ext) => (
-                    <a
-                      key={ext.name}
-                      href={ext.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-200 hover:border-slate-300 hover:text-indigo-900 transition-colors"
-                      data-testid={`link-install-${ext.name.toLowerCase()}`}
-                    >
-                      <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
-                        <KeyRound className="h-4 w-4" />
-                      </span>
-                      <span className="flex-1 text-sm font-semibold">{ext.name}</span>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-indigo-700 transition-colors" />
-                    </a>
-                  ))}
-                </div>
+                <TooltipProvider delayDuration={150}>
+                  <div className="space-y-2">
+                    {EXTENSIONS.map((ext) => (
+                      <Tooltip key={ext.name}>
+                        <TooltipTrigger asChild>
+                          <a
+                            href={ext.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-200 hover:border-slate-300 hover:text-indigo-900 transition-colors"
+                            data-testid={`link-install-${ext.name.toLowerCase()}`}
+                          >
+                            <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
+                              <KeyRound className="h-4 w-4" />
+                            </span>
+                            <span className="flex-1 text-sm font-semibold">{ext.name}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-indigo-700 transition-colors" />
+                          </a>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          className="max-w-[280px] bg-slate-950 border border-slate-700 text-slate-200 text-xs leading-relaxed"
+                          data-testid={`tooltip-install-${ext.name.toLowerCase()}`}
+                        >
+                          {ext.description}
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </TooltipProvider>
               </div>
             )}
 
