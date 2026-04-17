@@ -565,6 +565,182 @@ function getActivityPipelineState(item: BrainstormRequestInstance) {
   return "complete" as const;
 }
 
+function isFailedStatus(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const v = value.toLowerCase();
+  return v === "failure" || v === "failed" || v === "error";
+}
+
+function isItemFailed(item: BrainstormRequestInstance): boolean {
+  return isFailedStatus(item.status) || isFailedStatus(item.ta_status) || isFailedStatus(item.internal_publication_status);
+}
+
+function getFailureStage(item: BrainstormRequestInstance): "Calculation" | "Trust Attestation" | "Publication" | null {
+  if (isFailedStatus(item.status)) return "Calculation";
+  if (isFailedStatus(item.ta_status)) return "Trust Attestation";
+  if (isFailedStatus(item.internal_publication_status)) return "Publication";
+  return null;
+}
+
+function extractErrorMessage(item: BrainstormRequestInstance): string {
+  const raw = item.result?.trim();
+  if (raw) return raw;
+  const stage = getFailureStage(item);
+  if (stage) return `${stage} failed (no error message reported by server).`;
+  return "Failed (no details available).";
+}
+
+function truncateError(text: string, maxLen = 140): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= maxLen) return cleaned;
+  return cleaned.slice(0, maxLen) + "…";
+}
+
+function normalizeErrorKey(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/0x[0-9a-f]{6,}/g, "<hex>")
+    .replace(/\b[0-9a-f]{16,}\b/g, "<hex>")
+    .replace(/\b\d{4,}\b/g, "<n>")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+}
+
+function ConfirmRetriggerButton({
+  pubkey,
+  onConfirm,
+  className = "",
+  testId,
+}: {
+  pubkey: string;
+  onConfirm: (pubkey: string) => Promise<void>;
+  className?: string;
+  testId?: string;
+}) {
+  const [state, setState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (state === "running") return;
+    if (state === "idle" || state === "done" || state === "error") {
+      setState("confirming");
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setState("idle"), 3000);
+      return;
+    }
+    if (state === "confirming") {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setState("running");
+      try {
+        await onConfirm(pubkey);
+        setState("done");
+        setTimeout(() => setState("idle"), 2000);
+      } catch {
+        setState("error");
+        setTimeout(() => setState("idle"), 2500);
+      }
+    }
+  };
+  return (
+    <button
+      onClick={handleClick}
+      disabled={state === "running"}
+      className={`text-[10px] font-semibold inline-flex items-center gap-1 transition-colors ${
+        state === "confirming" ? "text-amber-700 animate-pulse" :
+        state === "done" ? "text-emerald-700" :
+        state === "error" ? "text-red-700" :
+        state === "running" ? "text-slate-400" :
+        "text-red-700 hover:text-red-900"
+      } ${className}`}
+      data-testid={testId}
+    >
+      {state === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> :
+       state === "confirming" ? <><RefreshCw className="h-3 w-3" /><span>Confirm re-trigger?</span></> :
+       state === "done" ? <><CheckCircle2 className="h-3 w-3" /><span>Re-triggered</span></> :
+       state === "error" ? <><XCircle className="h-3 w-3" /><span>Failed</span></> :
+       <><RefreshCw className="h-3 w-3" /><span>Re-trigger</span></>}
+    </button>
+  );
+}
+
+function FailureDetailCard({
+  item,
+  onRetrigger,
+  retriggerState,
+  isInPipeline,
+  onViewDetail,
+}: {
+  item: BrainstormRequestInstance;
+  onRetrigger?: (e: React.MouseEvent) => void;
+  retriggerState?: "idle" | "confirming" | "running" | "done" | "error";
+  isInPipeline?: boolean;
+  onViewDetail?: (e: React.MouseEvent) => void;
+}) {
+  const stage = getFailureStage(item) ?? "Pipeline";
+  const errorText = extractErrorMessage(item);
+  const fmtFull = (d: string | null) => {
+    if (!d) return "—";
+    try { return new Date(d.endsWith("Z") ? d : d + "Z").toLocaleString(); } catch { return d; }
+  };
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50/70 p-3" data-testid={`failure-detail-${item.private_id ?? "x"}`}>
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-red-800 uppercase tracking-wider">Failed at {stage}</span>
+            <span className="text-[10px] text-red-600/80">Request #{item.private_id}</span>
+          </div>
+          <p className="mt-1.5 text-[11px] text-red-900 font-mono break-words whitespace-pre-wrap leading-relaxed" data-testid={`failure-message-${item.private_id ?? "x"}`}>
+            {errorText}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-red-700/80">
+            <span>Algorithm: <span className="font-mono">{item.algorithm || "—"}</span></span>
+            <span>Created: {fmtFull(item.created_at)}</span>
+            <span>Updated: {fmtFull(item.updated_at)}</span>
+            {item.how_many_others_with_priority > 0 && <span>Queue depth: {item.how_many_others_with_priority}</span>}
+          </div>
+          {(onRetrigger || onViewDetail) && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {onRetrigger && item.pubkey && (
+                <button
+                  onClick={onRetrigger}
+                  disabled={retriggerState === "running" || isInPipeline}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border ${
+                    isInPipeline ? "text-slate-400 bg-white border-slate-200 cursor-not-allowed" :
+                    retriggerState === "confirming" ? "text-amber-800 bg-amber-50 border-amber-300 animate-pulse" :
+                    retriggerState === "done" ? "text-emerald-700 bg-emerald-50 border-emerald-300" :
+                    retriggerState === "error" ? "text-red-700 bg-red-100 border-red-300" :
+                    retriggerState === "running" ? "text-slate-500 bg-white border-slate-200" :
+                    "text-red-700 bg-white border-red-300 hover:bg-red-100"
+                  }`}
+                  data-testid={`failure-retrigger-${item.private_id}`}
+                >
+                  {retriggerState === "running" ? <Loader2 className="h-3 w-3 animate-spin" /> :
+                   retriggerState === "confirming" ? <><RefreshCw className="h-3 w-3" /><span>Confirm re-trigger?</span></> :
+                   retriggerState === "done" ? <><CheckCircle2 className="h-3 w-3" /><span>Re-triggered</span></> :
+                   retriggerState === "error" ? <><XCircle className="h-3 w-3" /><span>Re-trigger failed</span></> :
+                   <><RefreshCw className="h-3 w-3" /><span>Re-trigger GrapeRank</span></>}
+                </button>
+              )}
+              {onViewDetail && (
+                <button
+                  onClick={onViewDetail}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-red-700 bg-white border border-red-200 hover:bg-red-50 transition-colors"
+                  data-testid={`failure-view-detail-${item.private_id}`}
+                >
+                  <Eye className="h-3 w-3" /> View Full Request
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const pipelineRowStyles = {
   active: {
     row: "bg-blue-50/50 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60",
@@ -623,6 +799,8 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
   const pipeline = getActivityPipelineState(item);
   const style = pipelineRowStyles[pipeline];
   const isInPipeline = pipeline === "active" || pipeline === "waiting";
+  const isFailed = isItemFailed(item);
+  const failureStage = getFailureStage(item);
   const baseRowBg = pipeline === "complete" ? (idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30") : "";
 
   const handleRetrigger = async (e: React.MouseEvent) => {
@@ -719,9 +897,38 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
           )}
         </td>
       </tr>
+      {isFailed && !expanded && (
+        <tr
+          className={`cursor-pointer ${style.row} ${style.hover}`}
+          onClick={() => setExpanded(true)}
+          data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
+        >
+          <td colSpan={10} className="px-4 py-1.5 border-t border-red-100/50">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider mr-1.5">Failed at {failureStage ?? "Pipeline"}:</span>
+                <span className="text-[10px] text-red-800 font-mono break-words">{truncateError(extractErrorMessage(item), 160)}</span>
+                <span className="ml-2 text-[9px] text-red-500/70 italic">Click for details</span>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
       {expanded && (
         <tr className={style.expanded}>
           <td colSpan={10} className="px-4 py-3">
+            {isFailed && (
+              <div className="mb-3">
+                <FailureDetailCard
+                  item={item}
+                  onRetrigger={item.pubkey && onRetrigger ? handleRetrigger : undefined}
+                  retriggerState={retriggerState}
+                  isInPipeline={isInPipeline}
+                  onViewDetail={(e) => { e.stopPropagation(); onViewDetail(item); }}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
               {item.pubkey && (
                 <div>
@@ -729,7 +936,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
                   <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
                 </div>
               )}
-              {item.result && (
+              {item.result && !isFailed && (
                 <div>
                   <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
                   <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
@@ -748,16 +955,18 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
                 </div>
               )}
             </div>
-            <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
-              <button
-                onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
-                className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
-                data-testid={`button-view-detail-${item.private_id}`}
-              >
-                <Eye className="h-3 w-3" />
-                View Full Request
-              </button>
-            </div>
+            {!isFailed && (
+              <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
+                  className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
+                  data-testid={`button-view-detail-${item.private_id}`}
+                >
+                  <Eye className="h-3 w-3" />
+                  View Full Request
+                </button>
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -1857,6 +2066,154 @@ export default function AdminPage() {
                 )}
               </div>
 
+              {(() => {
+                const failedItems = overviewAllActivity.filter(isItemFailed);
+                const groups = new Map<string, { count: number; latest: BrainstormRequestInstance; pubkeys: Set<string> }>();
+                for (const item of failedItems) {
+                  const key = normalizeErrorKey(extractErrorMessage(item)) + "|" + (getFailureStage(item) ?? "");
+                  const existing = groups.get(key);
+                  if (existing) {
+                    existing.count += 1;
+                    if (item.pubkey) existing.pubkeys.add(item.pubkey);
+                    const latestT = new Date(existing.latest.updated_at.endsWith("Z") ? existing.latest.updated_at : existing.latest.updated_at + "Z").getTime();
+                    const itemT = new Date(item.updated_at.endsWith("Z") ? item.updated_at : item.updated_at + "Z").getTime();
+                    if (itemT > latestT) existing.latest = item;
+                  } else {
+                    groups.set(key, { count: 1, latest: item, pubkeys: new Set(item.pubkey ? [item.pubkey] : []) });
+                  }
+                }
+                const sortedGroups = Array.from(groups.values()).sort((a, b) => {
+                  if (b.count !== a.count) return b.count - a.count;
+                  const at = new Date(a.latest.updated_at.endsWith("Z") ? a.latest.updated_at : a.latest.updated_at + "Z").getTime();
+                  const bt = new Date(b.latest.updated_at.endsWith("Z") ? b.latest.updated_at : b.latest.updated_at + "Z").getTime();
+                  return bt - at;
+                }).slice(0, 8);
+                const totalFailures = failedItems.length;
+                const dataUnavailable = overviewActivityQuery.isError || (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
+                return (
+                  <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-recent-failures">
+                    <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
+                    <div className="px-5 py-4 border-b border-red-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                            Recent Failures
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {totalFailures === 0
+                              ? "No failures detected in recent activity."
+                              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
+                          </p>
+                        </div>
+                        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`} data-testid="badge-failure-count">
+                          {totalFailures}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      {overviewActivityQuery.isError ? (
+                        <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-error-state">
+                          <XCircle className="h-8 w-8 text-red-400 mb-2" />
+                          <p className="text-sm font-semibold text-slate-700">Couldn't load failure data</p>
+                          <p className="text-[10px] text-slate-500 mt-1 max-w-md">
+                            {overviewActivityQuery.error instanceof Error ? overviewActivityQuery.error.message : "The /admin/activity endpoint did not respond. Failure status is unknown."}
+                          </p>
+                        </div>
+                      ) : overviewLoading && totalFailures === 0 ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                        </div>
+                      ) : dataUnavailable ? (
+                        <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-unknown-state">
+                          <AlertTriangle className="h-8 w-8 text-amber-400 mb-2" />
+                          <p className="text-sm font-semibold text-slate-700">Failure status unavailable</p>
+                          <p className="text-[10px] text-slate-400 mt-1">Activity data has not loaded yet.</p>
+                        </div>
+                      ) : totalFailures === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-empty-state">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
+                          <p className="text-sm font-semibold text-slate-700">All recent requests succeeded</p>
+                          <p className="text-[10px] text-slate-400 mt-1">No errors found in the latest activity feed.</p>
+                        </div>
+                      ) : (
+                        <ul className="space-y-2.5" data-testid="list-recent-failures">
+                          {sortedGroups.map((g, idx) => {
+                            const stage = getFailureStage(g.latest) ?? "Pipeline";
+                            const errMsg = extractErrorMessage(g.latest);
+                            const userCount = g.pubkeys.size;
+                            return (
+                              <li key={idx} className="rounded-lg border border-red-200 bg-white/70 p-3" data-testid={`failure-group-${idx}`}>
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{stage}</span>
+                                      {g.count > 1 && (
+                                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">
+                                          {g.count}× occurrences
+                                        </span>
+                                      )}
+                                      {userCount > 0 && (
+                                        <span className="text-[9px] text-slate-500">
+                                          {userCount} user{userCount === 1 ? "" : "s"} affected
+                                        </span>
+                                      )}
+                                      <span className="text-[9px] text-slate-400 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-800 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      {g.latest.pubkey && (
+                                        <button
+                                          onClick={() => {
+                                            const pk = g.latest.pubkey!;
+                                            setUserSearch(pk);
+                                            setDebouncedSearch(pk);
+                                            setActiveTab("users");
+                                            setKpiFilter(null);
+                                            setUserPage(0);
+                                            setExpandedRows(new Set([pk]));
+                                            setHighlightedPubkey(pk);
+                                            setTimeout(() => setHighlightedPubkey(null), 2500);
+                                          }}
+                                          className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] inline-flex items-center gap-1"
+                                          data-testid={`failure-group-view-user-${idx}`}
+                                        >
+                                          <Eye className="h-3 w-3" /> View latest affected user
+                                        </button>
+                                      )}
+                                      {g.latest.pubkey && (
+                                        <ConfirmRetriggerButton
+                                          pubkey={g.latest.pubkey}
+                                          testId={`failure-group-retrigger-${idx}`}
+                                          onConfirm={async (pk) => {
+                                            try {
+                                              await apiClient.triggerUserGraperank(pk);
+                                              toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pk.slice(0, 12)}...` });
+                                              queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+                                              queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+                                              triggerRefreshBoost();
+                                            } catch (err: unknown) {
+                                              const msg = err instanceof Error ? err.message : "Unknown error";
+                                              toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" });
+                                              throw err;
+                                            }
+                                          }}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-quick-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
@@ -2380,22 +2737,36 @@ export default function AdminPage() {
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-status-${i}`}>
                                 {u.latest_status ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                    u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                    u.latest_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                                    "bg-slate-50 text-slate-600 border border-slate-200"
-                                  }`}>{u.latest_status}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
+                                      u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                      isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" :
+                                      "bg-slate-50 text-slate-600 border border-slate-200"
+                                    }`}>{u.latest_status}</span>
+                                    {isFailedStatus(u.latest_status) && (
+                                      <span title="Calculation failed — click row to view error" data-testid={`icon-status-failed-${i}`}>
+                                        <AlertTriangle className="h-3 w-3 text-red-500" />
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-[8px] text-slate-400 italic">Pending</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-status-${i}`}>
                                 {u.latest_ta_status ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                    u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                    u.latest_ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                                    "bg-slate-50 text-slate-600 border border-slate-200"
-                                  }`}>{u.latest_ta_status}</span>
+                                  <div className="flex items-center gap-1">
+                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
+                                      u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                      isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" :
+                                      "bg-slate-50 text-slate-600 border border-slate-200"
+                                    }`}>{u.latest_ta_status}</span>
+                                    {isFailedStatus(u.latest_ta_status) && (
+                                      <span title="Trust Attestation failed — click row to view error" data-testid={`icon-ta-status-failed-${i}`}>
+                                        <AlertTriangle className="h-3 w-3 text-red-500" />
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-[8px] text-slate-400 italic">Pending</span>
                                 )}
