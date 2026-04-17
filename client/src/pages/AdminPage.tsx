@@ -586,8 +586,8 @@ function extractErrorMessage(item: BrainstormRequestInstance): string {
   const raw = item.result?.trim();
   if (raw) return raw;
   const stage = getFailureStage(item);
-  if (stage) return `${stage} failed (no error message reported by server).`;
-  return "Failed (no details available).";
+  if (stage) return `No error details recorded for the ${stage} stage. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.`;
+  return "No error details recorded. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.";
 }
 
 function truncateError(text: string, maxLen = 140): string {
@@ -2118,10 +2118,10 @@ export default function AdminPage() {
                   }
                 }
                 const sortedGroups = Array.from(groups.values()).sort((a, b) => {
-                  if (b.count !== a.count) return b.count - a.count;
                   const at = new Date(a.latest.updated_at.endsWith("Z") ? a.latest.updated_at : a.latest.updated_at + "Z").getTime();
                   const bt = new Date(b.latest.updated_at.endsWith("Z") ? b.latest.updated_at : b.latest.updated_at + "Z").getTime();
-                  return bt - at;
+                  if (bt !== at) return bt - at;
+                  return b.count - a.count;
                 }).slice(0, 8);
                 const totalFailures = failedItems.length;
                 const dataUnavailable = overviewActivityQuery.isError || (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
