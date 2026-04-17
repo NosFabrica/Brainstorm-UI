@@ -130,13 +130,15 @@ export function LoginFailureModal({
                       style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                       data-testid="text-login-failure-title"
                     >
-                      Sign-in couldn't complete
+                      {showNsecForm ? "Sign in with your private key" : "Sign-in couldn't complete"}
                     </DialogTitle>
                     <DialogDescription
                       className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed"
                       data-testid="text-login-failure-subtitle"
                     >
-                      {subheadline}
+                      {showNsecForm
+                        ? "Paste your nsec below. It stays in this tab and is cleared when you close it."
+                        : subheadline}
                     </DialogDescription>
                   </div>
                 </div>
