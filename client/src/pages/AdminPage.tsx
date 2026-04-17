@@ -2755,13 +2755,15 @@ export default function AdminPage() {
                     const liveCount = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "success" || s === "failed").length : 0;
                     const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                     const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
-                    const matchingTotal = activeNameSearch ? filteredUsersList.length : adminUsersTotal;
+                    const clientFiltered = activeNameSearch || !!kpiFilter;
+                    const matchingTotal = clientFiltered ? filteredUsersList.length : adminUsersTotal;
                     const visibleCount = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).length;
                     const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || !!daysFilter;
                     const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
+                    const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";
                     const handleSelectAllMatching = async () => {
                       const cap = Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP);
-                      if (activeNameSearch) {
+                      if (clientFiltered) {
                         setSelectedUserPubkeys(new Set(filteredUsersList.slice(0, cap).map(u => u.pubkey)));
                         return;
                       }
@@ -2795,7 +2797,7 @@ export default function AdminPage() {
                             data-testid="button-bulk-select-all-matching-users"
                           >
                             {fetchingMatching && <Loader2 className="h-3 w-3 animate-spin" />}
-                            Select all {Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP)} matching{matchingTotal > SELECT_ALL_MATCHING_CAP ? ` (capped at ${SELECT_ALL_MATCHING_CAP})` : ""}
+                            Select all {Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP)} matching{matchingLabelSuffix}{matchingTotal > SELECT_ALL_MATCHING_CAP ? ` (capped at ${SELECT_ALL_MATCHING_CAP})` : ""}
                           </button>
                         )}
                         {bulkRunning && (
