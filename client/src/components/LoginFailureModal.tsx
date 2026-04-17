@@ -30,7 +30,6 @@ interface LoginFailureModalProps {
 const EXTENSIONS = [
   { name: "nos2x", url: "https://github.com/fiatjaf/nos2x" },
   { name: "Alby", url: "https://getalby.com/" },
-  { name: "Keys.Band", url: "https://keys.band/" },
 ];
 
 export function LoginFailureModal({
