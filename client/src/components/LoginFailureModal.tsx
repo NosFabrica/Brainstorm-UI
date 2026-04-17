@@ -137,7 +137,7 @@ export function LoginFailureModal({
                       data-testid="text-login-failure-subtitle"
                     >
                       {showNsecForm
-                        ? "Paste your nsec below. It stays in this tab and is cleared when you close it."
+                        ? "Paste your nsec below to continue."
                         : subheadline}
                     </DialogDescription>
                   </div>
