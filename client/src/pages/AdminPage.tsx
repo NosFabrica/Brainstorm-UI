@@ -92,6 +92,50 @@ function formatTimestamp(dateStr?: string): string {
   } catch { return dateStr; }
 }
 
+const POLL_OVERVIEW_MS = 15_000;
+const POLL_USERS_MS = 10_000;
+const POLL_ACTIVITY_MS = 10_000;
+const POLL_STATS_MS = 30_000;
+const BOOST_INTERVAL_MS = 4_000;
+const BOOST_DURATION_MS = 60_000;
+
+function formatRelativeAge(timestamp: number, now: number): string {
+  if (!timestamp) return "—";
+  const diff = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (diff < 5) return "just now";
+  if (diff < 60) return `${diff}s ago`;
+  const m = Math.floor(diff / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
+function LiveBadge({ updatedAt, boosting, isFetching }: { updatedAt: number; boosting: boolean; isFetching?: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const label = formatRelativeAge(updatedAt, now);
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider border ${
+        boosting
+          ? "bg-amber-50 text-amber-700 border-amber-200"
+          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+      }`}
+      title={boosting ? "Refreshing more frequently after a recent trigger" : "Auto-refresh enabled"}
+      data-testid="badge-live-updated"
+    >
+      <span className="relative flex h-1.5 w-1.5">
+        <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${(isFetching || boosting) ? "animate-ping" : ""} ${boosting ? "bg-amber-400" : "bg-emerald-400"}`} />
+        <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${boosting ? "bg-amber-500" : "bg-emerald-500"}`} />
+      </span>
+      <span className="normal-case font-medium tracking-normal text-[10px]">{boosting ? "Boosted • " : "Live • "}{label}</span>
+    </span>
+  );
+}
+
 interface SortState {
   key: AdminSortKey;
   dir: SortDir;
@@ -751,6 +795,14 @@ export default function AdminPage() {
     return hl ? new Set([hl]) : new Set();
   });
   const [triggeringPubkeys, setTriggeringPubkeys] = useState<Set<string>>(new Set());
+  const [isBoostActive, setIsBoostActive] = useState(false);
+  const boostTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRefreshBoost = useCallback(() => {
+    setIsBoostActive(true);
+    if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current);
+    boostTimeoutRef.current = setTimeout(() => setIsBoostActive(false), BOOST_DURATION_MS);
+  }, []);
+  useEffect(() => () => { if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current); }, []);
   const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
   const [verifyRunning, setVerifyRunning] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -844,6 +896,8 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 120_000,
     retry: false,
+    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_STATS_MS,
+    refetchOnWindowFocus: true,
   });
   const adminStats = adminStatsQuery.data ?? null;
   const hasSystemData = adminStats !== null;
@@ -863,6 +917,8 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
+    refetchInterval: activeTab === "users" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_USERS_MS) : false,
+    refetchOnWindowFocus: true,
   });
 
   const adminUsersData = adminUsersQuery.data;
@@ -876,6 +932,8 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
+    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
+    refetchOnWindowFocus: true,
   });
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -884,6 +942,8 @@ export default function AdminPage() {
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
+    refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
+    refetchOnWindowFocus: true,
   });
 
   const adminActivityQuery = useQuery<AdminUserHistoryPage>({
@@ -895,6 +955,8 @@ export default function AdminPage() {
     enabled: !!user && activeTab === "activity",
     staleTime: 30_000,
     placeholderData: (prev) => prev,
+    refetchInterval: activeTab === "activity" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
+    refetchOnWindowFocus: true,
   });
   const activityData = adminActivityQuery.data;
   const activityItems = activityData?.items ?? [];
@@ -1103,13 +1165,15 @@ export default function AdminPage() {
       await apiClient.triggerUserGraperank(pubkey);
       toast({ title: "GrapeRank triggered", description: `Triggered for ${pubkey.slice(0, 12)}...` });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+      triggerRefreshBoost();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       toast({ title: "Trigger failed", description: message, variant: "destructive" });
     } finally {
       setTriggeringPubkeys(prev => { const next = new Set(prev); next.delete(pubkey); return next; });
     }
-  }, [toast, queryClient]);
+  }, [toast, queryClient, triggerRefreshBoost]);
 
   const totalPages = activeNameSearch ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize)) : adminUsersTotalPages;
 
@@ -1659,8 +1723,13 @@ export default function AdminPage() {
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Platform-wide GrapeRank calculation health from /admin/users</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Platform-wide GrapeRank calculation health from /admin/users</p>
+                    </div>
+                    <LiveBadge updatedAt={overviewUsersQuery.dataUpdatedAt} boosting={isBoostActive} isFetching={overviewUsersQuery.isFetching || overviewActivityQuery.isFetching} />
+                  </div>
                 </div>
                 {overviewLoading && !pipelineMetrics ? (
                   <div className="p-8 flex items-center justify-center">
@@ -2978,6 +3047,7 @@ export default function AdminPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
+                      <LiveBadge updatedAt={adminActivityQuery.dataUpdatedAt} boosting={isBoostActive} isFetching={adminActivityQuery.isFetching} />
                       <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" : "degraded"} />
                     </div>
                   </div>
@@ -3019,7 +3089,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }} onRetrigger={async (pubkey) => { try { await apiClient.triggerUserGraperank(pubkey); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }); } catch (err: unknown) { const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }} />
+                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }} onRetrigger={async (pubkey) => { try { await apiClient.triggerUserGraperank(pubkey); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }); triggerRefreshBoost(); } catch (err: unknown) { const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }} />
                             ))}
                           </tbody>
                         </table>
