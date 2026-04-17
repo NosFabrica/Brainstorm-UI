@@ -6,7 +6,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { BrainLogo } from "@/components/BrainLogo";
 import {
   AlertCircle,
   ExternalLink,
@@ -116,32 +115,21 @@ export function LoginFailureModal({
           <div className="overflow-y-auto flex-1 min-h-0">
             <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
               <DialogHeader>
-                <div className="flex items-start gap-3">
-                  <div
-                    className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-slate-800/70 border border-slate-700/60 shadow-sm flex items-center justify-center text-indigo-300 shrink-0"
-                    data-testid="icon-login-failure"
-                  >
-                    <BrainLogo size={18} className="sm:hidden" />
-                    <BrainLogo size={22} className="hidden sm:block" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <DialogTitle
-                      className="text-base sm:text-lg font-bold text-white leading-tight tracking-tight"
-                      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                      data-testid="text-login-failure-title"
-                    >
-                      {showNsecForm ? "Sign in with your private key" : "Sign-in couldn't complete"}
-                    </DialogTitle>
-                    <DialogDescription
-                      className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed"
-                      data-testid="text-login-failure-subtitle"
-                    >
-                      {showNsecForm
-                        ? "Paste your nsec below to continue."
-                        : subheadline}
-                    </DialogDescription>
-                  </div>
-                </div>
+                <DialogTitle
+                  className="text-base sm:text-lg font-bold text-white leading-tight tracking-tight"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  data-testid="text-login-failure-title"
+                >
+                  {showNsecForm ? "Sign in with your private key" : "Sign-in couldn't complete"}
+                </DialogTitle>
+                <DialogDescription
+                  className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed"
+                  data-testid="text-login-failure-subtitle"
+                >
+                  {showNsecForm
+                    ? "Paste your nsec below to continue."
+                    : subheadline}
+                </DialogDescription>
               </DialogHeader>
             </div>
 
