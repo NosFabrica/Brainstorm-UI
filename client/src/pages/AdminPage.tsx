@@ -315,6 +315,80 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
 
 type HourlyBucket = { t: number; success: number; failed: number; total: number };
 
+type TrendWindow = "1h" | "24h" | "7d" | "30d";
+
+type WindowConfig = {
+  windowMs: number;
+  bucketCount: number;
+  bucketSizeMs: number;
+  shortLabel: string;
+  longLabel: string;
+  priorLabel: string;
+  bucketLabelFn: (ts: number) => string;
+  bucketTooltipFn: (ts: number) => string;
+  xAxisInterval: number;
+  bucketUnitLabel: string;
+};
+
+function getWindowConfig(w: TrendWindow): WindowConfig {
+  const HOUR = 3600000;
+  const DAY = 24 * HOUR;
+  switch (w) {
+    case "1h":
+      return {
+        windowMs: HOUR,
+        bucketCount: 12,
+        bucketSizeMs: 5 * 60000,
+        shortLabel: "1h",
+        longLabel: "Last hour",
+        priorLabel: "vs prior 1h",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
+        xAxisInterval: 1,
+        bucketUnitLabel: "calcs / 5min",
+      };
+    case "24h":
+      return {
+        windowMs: 24 * HOUR,
+        bucketCount: 24,
+        bucketSizeMs: HOUR,
+        shortLabel: "24h",
+        longLabel: "Last 24 hours",
+        priorLabel: "vs prior 24h",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit" }),
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }),
+        xAxisInterval: 3,
+        bucketUnitLabel: "calcs / hr",
+      };
+    case "7d":
+      return {
+        windowMs: 7 * DAY,
+        bucketCount: 7,
+        bucketSizeMs: DAY,
+        shortLabel: "7d",
+        longLabel: "Last 7 days",
+        priorLabel: "vs prior 7d",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short" }),
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: 0,
+        bucketUnitLabel: "calcs / day",
+      };
+    case "30d":
+      return {
+        windowMs: 30 * DAY,
+        bucketCount: 30,
+        bucketSizeMs: DAY,
+        shortLabel: "30d",
+        longLabel: "Last 30 days",
+        priorLabel: "vs prior 30d",
+        bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+        xAxisInterval: 4,
+        bucketUnitLabel: "calcs / day",
+      };
+  }
+}
+
 function parseActivityTs(s: string | undefined | null): number {
   if (!s) return 0;
   try {
@@ -324,17 +398,22 @@ function parseActivityTs(s: string | undefined | null): number {
   } catch { return 0; }
 }
 
-function bucketActivityByHour(activity: { updated_at: string; status?: string | null }[], hours: number, now: number): HourlyBucket[] {
-  const buckets: HourlyBucket[] = Array.from({ length: hours }, (_, i) => ({
-    t: now - (hours - 1 - i) * 3600000,
+function bucketActivity(
+  activity: { updated_at: string; status?: string | null }[],
+  bucketCount: number,
+  bucketSizeMs: number,
+  now: number,
+): HourlyBucket[] {
+  const buckets: HourlyBucket[] = Array.from({ length: bucketCount }, (_, i) => ({
+    t: now - (bucketCount - 1 - i) * bucketSizeMs,
     success: 0, failed: 0, total: 0,
   }));
   for (const a of activity) {
     const t = parseActivityTs(a.updated_at);
     if (!t) continue;
-    const ageHours = Math.floor((now - t) / 3600000);
-    if (ageHours < 0 || ageHours >= hours) continue;
-    const idx = hours - 1 - ageHours;
+    const ageBuckets = Math.floor((now - t) / bucketSizeMs);
+    if (ageBuckets < 0 || ageBuckets >= bucketCount) continue;
+    const idx = bucketCount - 1 - ageBuckets;
     buckets[idx].total++;
     const s = (a.status || "").toLowerCase();
     if (s === "success") buckets[idx].success++;
@@ -343,7 +422,11 @@ function bucketActivityByHour(activity: { updated_at: string; status?: string | 
   return buckets;
 }
 
-function compareWindows(activity: { updated_at: string; status?: string | null }[], hours: number, now: number) {
+function bucketActivityByHour(activity: { updated_at: string; status?: string | null }[], hours: number, now: number): HourlyBucket[] {
+  return bucketActivity(activity, hours, 3600000, now);
+}
+
+function compareActivityWindows(activity: { updated_at: string; status?: string | null }[], windowMs: number, now: number) {
   const cur: typeof activity = [];
   const prev: typeof activity = [];
   for (const a of activity) {
@@ -351,8 +434,8 @@ function compareWindows(activity: { updated_at: string; status?: string | null }
     if (!t) continue;
     const age = now - t;
     if (age < 0) continue;
-    if (age < hours * 3600000) cur.push(a);
-    else if (age < hours * 2 * 3600000) prev.push(a);
+    if (age < windowMs) cur.push(a);
+    else if (age < windowMs * 2) prev.push(a);
   }
   const countStatus = (arr: typeof activity, want: string[]) =>
     arr.filter(a => want.includes((a.status || "").toLowerCase())).length;
@@ -1201,6 +1284,16 @@ export default function AdminPage() {
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
   const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
+  const [trendWindow, setTrendWindow] = useState<TrendWindow>(() => {
+    try {
+      const stored = localStorage.getItem("admin_trend_window");
+      if (stored === "1h" || stored === "24h" || stored === "7d" || stored === "30d") return stored;
+    } catch { /* ignore */ }
+    return "24h";
+  });
+  useEffect(() => {
+    try { localStorage.setItem("admin_trend_window", trendWindow); } catch { /* ignore */ }
+  }, [trendWindow]);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
@@ -1659,20 +1752,30 @@ export default function AdminPage() {
 
   const trends = useMemo(() => {
     const now = Date.now();
-    const buckets24h = bucketActivityByHour(overviewAllActivity, 24, now);
-    const cmp = compareWindows(overviewAllActivity, 24, now);
-    const cmp1h = compareWindows(overviewAllActivity, 1, now);
-    const totalSeries = buckets24h.map(b => b.total);
-    const successSeries = buckets24h.map(b => b.success);
-    const failedSeries = buckets24h.map(b => b.failed);
-    const bucketTimestamps = buckets24h.map(b => b.t);
-    const rateSeries = buckets24h.map(b => {
+    const cfg = getWindowConfig(trendWindow);
+    const HOUR = 3600000;
+    const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
+      const t = parseActivityTs(a.updated_at);
+      if (!t) return min;
+      return min === 0 ? t : Math.min(min, t);
+    }, 0);
+    const dataAgeMs = oldestActivityTs > 0 ? (now - oldestActivityTs) : 0;
+    const dataCoversWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
+    const dataCoversPriorWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
+    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
+    const cmp = compareActivityWindows(overviewAllActivity, cfg.windowMs, now);
+    const cmp1h = compareActivityWindows(overviewAllActivity, HOUR, now);
+    const totalSeries = buckets.map(b => b.total);
+    const successSeries = buckets.map(b => b.success);
+    const failedSeries = buckets.map(b => b.failed);
+    const bucketTimestamps = buckets.map(b => b.t);
+    const rateSeries = buckets.map(b => {
       const d = b.success + b.failed;
       return d === 0 ? 0 : Math.round((b.success / d) * 100);
     });
-    const hasPriorWindow = cmp.hasPrev;
     return {
-      buckets24h,
+      cfg,
+      buckets,
       bucketTimestamps,
       totalSeries,
       successSeries,
@@ -1680,11 +1783,13 @@ export default function AdminPage() {
       rateSeries,
       cmp,
       cmp1h,
-      hasPriorWindow,
+      hasPriorWindow: cmp.hasPrev,
       hasPriorHourWindow: cmp1h.hasPrev,
       hasAnyActivity: cmp.curTotal > 0,
+      dataCoversWindow,
+      dataCoversPriorWindow,
     };
-  }, [overviewAllActivity]);
+  }, [overviewAllActivity, trendWindow]);
 
   const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
 
@@ -2162,13 +2267,15 @@ export default function AdminPage() {
                   <DeltaIndicator
                     delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
                     insufficient={!trends.hasPriorWindow}
-                    label="vs prior 24h"
+                    label={trends.cfg.priorLabel}
                   />
-                  <DeltaIndicator
-                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curSuccess - trends.cmp1h.prevSuccess) : null}
-                    insufficient={!trends.hasPriorHourWindow}
-                    label="vs prior 1h"
-                  />
+                  {trendWindow !== "1h" && (
+                    <DeltaIndicator
+                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curSuccess - trends.cmp1h.prevSuccess) : null}
+                      insufficient={!trends.hasPriorHourWindow}
+                      label="vs prior 1h"
+                    />
+                  )}
                 </div>
               }
             />
@@ -2196,25 +2303,27 @@ export default function AdminPage() {
               label="Total Calcs"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
               icon={Activity}
-              subtitle={`${formatNumber(trends.cmp.curTotal)} in last 24h`}
-              tooltip="Cumulative calculation attempts across all users; 24h trend shown"
+              subtitle={`${formatNumber(trends.cmp.curTotal)} in last ${trends.cfg.shortLabel}`}
+              tooltip={`Cumulative calculation attempts across all users; ${trends.cfg.shortLabel} trend shown`}
               scope="system"
               sparklineData={trends.totalSeries}
               sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#7c86ff"
-              sparklineValueLabel="calcs/hr"
+              sparklineValueLabel={trends.cfg.bucketUnitLabel}
               deltaSlot={
                 <div className="flex flex-col gap-0.5">
                   <DeltaIndicator
                     delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
                     insufficient={!trends.hasPriorWindow}
-                    label="24h vs prior 24h"
+                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
                   />
-                  <DeltaIndicator
-                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
-                    insufficient={!trends.hasPriorHourWindow}
-                    label="1h vs prior 1h"
-                  />
+                  {trendWindow !== "1h" && (
+                    <DeltaIndicator
+                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
+                      insufficient={!trends.hasPriorHourWindow}
+                      label="1h vs prior 1h"
+                    />
+                  )}
                 </div>
               }
             />
@@ -2222,8 +2331,8 @@ export default function AdminPage() {
               label="Success Rate"
               value={pipelineMetrics ? `${pipelineMetrics.successRate}%` : (trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—")}
               icon={CheckCircle2}
-              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in last 24h` : "Cumulative success rate"}
-              tooltip="Successful calculations as % of attempted; 24h trend shown"
+              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in last ${trends.cfg.shortLabel}` : "Cumulative success rate"}
+              tooltip={`Successful calculations as % of attempted; ${trends.cfg.shortLabel} trend shown`}
               scope="system"
               sparklineData={trends.rateSeries}
               sparklineTimestamps={trends.bucketTimestamps}
@@ -2236,14 +2345,16 @@ export default function AdminPage() {
                     delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
                     insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
                     suffix=" pts"
-                    label="24h vs prior 24h"
+                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
                   />
-                  <DeltaIndicator
-                    delta={trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null ? (trends.cmp1h.curSR - trends.cmp1h.prevSR) : null}
-                    insufficient={!(trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null)}
-                    suffix=" pts"
-                    label="1h vs prior 1h"
-                  />
+                  {trendWindow !== "1h" && (
+                    <DeltaIndicator
+                      delta={trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null ? (trends.cmp1h.curSR - trends.cmp1h.prevSR) : null}
+                      insufficient={!(trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null)}
+                      suffix=" pts"
+                      label="1h vs prior 1h"
+                    />
+                  )}
                 </div>
               }
             />
@@ -2251,27 +2362,29 @@ export default function AdminPage() {
               label="Failed Count"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
-              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last 24h`}
-              tooltip="Cumulative failed calculations; 24h trend shown (lower is better)"
+              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last ${trends.cfg.shortLabel}`}
+              tooltip={`Cumulative failed calculations; ${trends.cfg.shortLabel} trend shown (lower is better)`}
               scope="system"
               sparklineData={trends.failedSeries}
               sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#f87171"
-              sparklineValueLabel="failures/hr"
+              sparklineValueLabel="failures"
               deltaSlot={
                 <div className="flex flex-col gap-0.5">
                   <DeltaIndicator
                     delta={trends.hasPriorWindow ? (trends.cmp.curFailed - trends.cmp.prevFailed) : null}
                     insufficient={!trends.hasPriorWindow}
                     inverted
-                    label="24h vs prior 24h"
+                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
                   />
-                  <DeltaIndicator
-                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curFailed - trends.cmp1h.prevFailed) : null}
-                    insufficient={!trends.hasPriorHourWindow}
-                    inverted
-                    label="1h vs prior 1h"
-                  />
+                  {trendWindow !== "1h" && (
+                    <DeltaIndicator
+                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curFailed - trends.cmp1h.prevFailed) : null}
+                      insufficient={!trends.hasPriorHourWindow}
+                      inverted
+                      label="1h vs prior 1h"
+                    />
+                  )}
                 </div>
               }
             />
@@ -2352,15 +2465,37 @@ export default function AdminPage() {
 
           {activeTab === "overview" && (
             <div className="space-y-6" data-testid="panel-overview">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-last-24h-strip">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" data-testid="trend-window-selector-row">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Trend window</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">All Overview sparklines, deltas, and charts use this window{!trends.dataCoversWindow && trends.hasAnyActivity ? " · limited data available" : ""}</p>
+                </div>
+                <div className="inline-flex rounded-lg border border-[#7c86ff]/30 bg-white/70 p-0.5 self-start" role="tablist" aria-label="Trend window">
+                  {(["1h", "24h", "7d", "30d"] as TrendWindow[]).map(w => (
+                    <button
+                      key={w}
+                      type="button"
+                      role="tab"
+                      aria-selected={trendWindow === w}
+                      onClick={() => setTrendWindow(w)}
+                      className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"}`}
+                      data-testid={`button-trend-window-${w}`}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-trend-strip">
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                 <div className="px-5 py-3 border-b border-[#7c86ff]/10 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Last 24 Hours</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Hourly calculation volume with failure-rate band</p>
+                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-trend-strip-title">{trends.cfg.longLabel}</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Calculation volume with failure-rate band {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}</p>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" /> Calcs/hr</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" /> {trends.cfg.bucketUnitLabel}</span>
                     <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Failure rate</span>
                   </div>
                 </div>
@@ -2368,11 +2503,11 @@ export default function AdminPage() {
                   {overviewActivityQuery.isLoading && !trends.hasAnyActivity ? (
                     <div className="h-full flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-slate-300" /></div>
                   ) : !trends.hasAnyActivity ? (
-                    <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in the last 24 hours</div>
+                    <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in the {trends.cfg.longLabel.toLowerCase()}</div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={trends.buckets24h.map(b => ({
-                        hour: new Date(b.t).toLocaleTimeString([], { hour: "2-digit" }),
+                      <AreaChart data={trends.buckets.map(b => ({
+                        bucket: trends.cfg.bucketLabelFn(b.t),
                         ts: b.t,
                         total: b.total,
                         failureRate: (b.success + b.failed) === 0 ? 0 : Math.round((b.failed / (b.success + b.failed)) * 100),
@@ -2387,18 +2522,18 @@ export default function AdminPage() {
                             <stop offset="100%" stopColor="#f87171" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={3} axisLine={false} tickLine={false} />
+                        <XAxis dataKey="bucket" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={trends.cfg.xAxisInterval} axisLine={false} tickLine={false} />
                         <YAxis yAxisId="left" tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={28} />
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: "#fca5a5" }} axisLine={false} tickLine={false} width={28} domain={[0, 100]} unit="%" />
                         <RcTooltip
                           contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", padding: "6px 8px" }}
                           labelFormatter={(_, items) => {
                             const ts = items?.[0]?.payload?.ts as number | undefined;
-                            return ts ? new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }) : "";
+                            return ts ? trends.cfg.bucketTooltipFn(ts) : "";
                           }}
                           formatter={(v: number, name: string) => name === "Failure rate" ? [`${v}%`, name] : [v, name]}
                         />
-                        <Area yAxisId="left" type="monotone" dataKey="total" name="Calcs/hr" stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
+                        <Area yAxisId="left" type="monotone" dataKey="total" name={trends.cfg.bucketUnitLabel} stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
                         <Area yAxisId="right" type="monotone" dataKey="failureRate" name="Failure rate" stroke="#f87171" strokeWidth={1} fill="url(#failRateGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -2439,7 +2574,7 @@ export default function AdminPage() {
                           delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
                           insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
                           suffix=" pts"
-                          label="vs prior 24h"
+                          label={trends.cfg.priorLabel}
                         />
                       </div>
                       <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
@@ -2475,31 +2610,31 @@ export default function AdminPage() {
 
                     <div className="border-t border-slate-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput (last 24h)</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput (last {trends.cfg.shortLabel})</p>
                         <DeltaIndicator
                           delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
                           insufficient={!trends.hasPriorWindow}
-                          label="vs prior 24h"
+                          label={trends.cfg.priorLabel}
                         />
                       </div>
                       <div className="rounded-xl border border-slate-100 bg-white/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
                         {!trends.hasAnyActivity ? (
-                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in last 24h</div>
+                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in last {trends.cfg.shortLabel}</div>
                         ) : (
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={trends.buckets24h.map(b => ({
-                              hour: new Date(b.t).toLocaleTimeString([], { hour: "2-digit" }),
+                            <BarChart data={trends.buckets.map(b => ({
+                              bucket: trends.cfg.bucketLabelFn(b.t),
                               ts: b.t,
                               success: b.success,
                               failed: b.failed,
                             }))} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={3} axisLine={false} tickLine={false} />
+                              <XAxis dataKey="bucket" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={trends.cfg.xAxisInterval} axisLine={false} tickLine={false} />
                               <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
                               <RcTooltip
                                 contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", padding: "6px 8px" }}
                                 labelFormatter={(_, items) => {
                                   const ts = items?.[0]?.payload?.ts as number | undefined;
-                                  return ts ? new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }) : "";
+                                  return ts ? trends.cfg.bucketTooltipFn(ts) : "";
                                 }}
                               />
                               <Bar dataKey="success" stackId="t" name="Success" fill="#10b981" radius={[2, 2, 0, 0]} />
