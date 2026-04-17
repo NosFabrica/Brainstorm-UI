@@ -58,9 +58,12 @@ export function LoginFailureModal({
   }, [open]);
 
   const isNoExtension = errorCode === "NO_EXTENSION";
+  const isServerError = errorCode === "SERVER_ERROR";
 
   const subheadline = isNoExtension
     ? "We couldn't find a Nostr signing extension in your browser. Install one and try again, or use a private key to continue."
+    : isServerError
+    ? "We couldn't reach the sign-in server. Check your connection and try again, or use a private key to continue."
     : "We couldn't get a signature from your Nostr extension. Unlock it and try again, or use a private key to continue.";
 
   const handleNsecLogin = async () => {
