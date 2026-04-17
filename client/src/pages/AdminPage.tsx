@@ -71,6 +71,9 @@ import {
   Calendar,
   ArrowRight,
   User,
+  Square,
+  CheckSquare,
+  MinusSquare,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
@@ -819,7 +822,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void> }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed" }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -861,13 +864,34 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
     }
   };
 
+  const bulkOverlay = bulkStatus === "running" ? "ring-1 ring-amber-300 ring-inset" :
+    bulkStatus === "queued" ? "ring-1 ring-slate-200 ring-inset opacity-90" :
+    bulkStatus === "success" ? "ring-1 ring-emerald-300 ring-inset" :
+    bulkStatus === "failed" ? "ring-1 ring-red-300 ring-inset" : "";
   return (
     <>
       <tr
-        className={`cursor-pointer transition-colors ${style.row} ${style.hover} ${baseRowBg}`}
+        className={`cursor-pointer transition-colors ${style.row} ${style.hover} ${baseRowBg} ${bulkOverlay}`}
         onClick={() => setExpanded(prev => !prev)}
         data-testid={`row-activity-${item.private_id ?? idx}`}
       >
+        {onToggleSelect && (
+          <td className="px-2 py-2 w-8" onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center"
+              disabled={!item.pubkey}
+              title={!item.pubkey ? "No pubkey to re-trigger" : selected ? "Deselect" : "Select"}
+              data-testid={`checkbox-activity-${item.private_id ?? idx}`}
+            >
+              {bulkStatus === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
+               bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
+               bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
+               selected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+               <Square className={`h-3.5 w-3.5 ${item.pubkey ? "text-slate-400" : "text-slate-200"}`} />}
+            </button>
+          </td>
+        )}
         <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">
           <div className="flex items-center gap-1.5">
             {isInPipeline && (
@@ -938,7 +962,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={10} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={11} className="px-4 py-1.5 border-t border-red-100/50">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -952,7 +976,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
       )}
       {expanded && (
         <tr className={style.expanded}>
-          <td colSpan={10} className="px-4 py-3">
+          <td colSpan={11} className="px-4 py-3">
             {isFailed ? (
               <FailureDetailCard
                 item={item}
@@ -1048,6 +1072,15 @@ export default function AdminPage() {
   }, []);
   useEffect(() => () => { if (boostTimeoutRef.current) clearTimeout(boostTimeoutRef.current); }, []);
   const [triggerConfirmPubkey, setTriggerConfirmPubkey] = useState<string | null>(null);
+
+  const [selectedUserPubkeys, setSelectedUserPubkeys] = useState<Set<string>>(new Set());
+  const [selectedActivityIds, setSelectedActivityIds] = useState<Set<number>>(new Set());
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkStatuses, setBulkStatuses] = useState<Map<string, "queued" | "running" | "success" | "failed">>(new Map());
+  const [bulkErrors, setBulkErrors] = useState<Map<string, string>>(new Map());
+  const [bulkConfirm, setBulkConfirm] = useState<{ pubkeys: string[]; source: "users" | "activity" | "retry" } | null>(null);
+  const [bulkLastResult, setBulkLastResult] = useState<{ source: "users" | "activity"; successes: string[]; failures: { pubkey: string; error: string }[] } | null>(null);
+  const SELECT_ALL_MATCHING_CAP = 200;
   const [verifyRunning, setVerifyRunning] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
   const [rotateRunning, setRotateRunning] = useState(false);
@@ -1206,6 +1239,80 @@ export default function AdminPage() {
   const activityItems = activityData?.items ?? [];
   const activityTotal = activityData?.total ?? 0;
   const activityTotalPages = activityData?.pages ?? 1;
+
+  const runBulkRetrigger = useCallback(async (rawPubkeys: string[], source: "users" | "activity" | "retry") => {
+    const skipSet = triggeringPubkeys;
+    const seen = new Set<string>();
+    const toRun: string[] = [];
+    const skipped: string[] = [];
+    for (const pk of rawPubkeys) {
+      if (!pk || seen.has(pk)) continue;
+      seen.add(pk);
+      if (skipSet.has(pk)) { skipped.push(pk); continue; }
+      toRun.push(pk);
+    }
+    if (toRun.length === 0) {
+      toast({ title: "Nothing to re-trigger", description: skipped.length ? `${skipped.length} pubkey(s) already in flight.` : "No valid pubkeys in selection.", variant: "destructive" });
+      return;
+    }
+    setBulkRunning(true);
+    setBulkLastResult(null);
+    setBulkErrors(new Map());
+    const initial = new Map<string, "queued" | "running" | "success" | "failed">();
+    toRun.forEach(pk => initial.set(pk, "queued"));
+    setBulkStatuses(initial);
+
+    const concurrency = 5;
+    let cursor = 0;
+    const successes: string[] = [];
+    const failures: { pubkey: string; error: string }[] = [];
+    let firstSuccessFired = false;
+
+    const worker = async () => {
+      while (true) {
+        const i = cursor++;
+        if (i >= toRun.length) return;
+        const pk = toRun[i];
+        setBulkStatuses(prev => { const next = new Map(prev); next.set(pk, "running"); return next; });
+        try {
+          await apiClient.triggerUserGraperank(pk);
+          successes.push(pk);
+          setBulkStatuses(prev => { const next = new Map(prev); next.set(pk, "success"); return next; });
+          if (!firstSuccessFired) { firstSuccessFired = true; triggerRefreshBoost(); }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error";
+          failures.push({ pubkey: pk, error: msg });
+          setBulkStatuses(prev => { const next = new Map(prev); next.set(pk, "failed"); return next; });
+          setBulkErrors(prev => { const next = new Map(prev); next.set(pk, msg); return next; });
+        }
+      }
+    };
+    const workers = Array.from({ length: Math.min(concurrency, toRun.length) }, () => worker());
+    await Promise.all(workers);
+
+    setBulkRunning(false);
+    const resultSource: "users" | "activity" = source === "retry" ? (bulkLastResult?.source ?? "users") : source;
+    setBulkLastResult({ source: resultSource, successes, failures });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    toast({
+      title: failures.length === 0 ? `Re-triggered ${successes.length} user${successes.length !== 1 ? "s" : ""}` : `${successes.length} succeeded, ${failures.length} failed`,
+      description: skipped.length ? `${skipped.length} skipped (already in flight).` : undefined,
+      variant: failures.length === 0 ? "default" : "destructive",
+    });
+    if (resultSource === "users") setSelectedUserPubkeys(new Set());
+    else setSelectedActivityIds(new Set());
+  }, [triggeringPubkeys, toast, triggerRefreshBoost, queryClient, bulkLastResult]);
+
+  useEffect(() => {
+    setSelectedUserPubkeys(new Set());
+    setBulkLastResult(prev => prev?.source === "users" ? null : prev);
+  }, [debouncedSearch, daysFilter, kpiFilter]);
+
+  useEffect(() => {
+    setSelectedActivityIds(new Set());
+    setBulkLastResult(prev => prev?.source === "activity" ? null : prev);
+  }, [activityTimeRange]);
 
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
 
@@ -2640,6 +2747,92 @@ export default function AdminPage() {
                 </Dialog>
               </div>
 
+              {(selectedUserPubkeys.size > 0 || (bulkLastResult && bulkLastResult.source !== "activity")) && (
+                <div className="px-3 sm:px-5 py-2 border-b border-slate-100 space-y-2">
+                  {selectedUserPubkeys.size > 0 && (() => {
+                    const dedupePubkeys = Array.from(selectedUserPubkeys);
+                    const liveCount = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "success" || s === "failed").length : 0;
+                    const liveTotal = bulkRunning ? bulkStatuses.size : 0;
+                    const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
+                    const matchingTotal = activeNameSearch ? filteredUsersList.length : adminUsersTotal;
+                    const visibleCount = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).length;
+                    const canSelectAllMatching = activeNameSearch && matchingTotal > visibleCount;
+                    return (
+                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
+                        <CheckSquare className="h-4 w-4 text-[#333286]" />
+                        <span className="text-xs font-semibold text-slate-800">{dedupePubkeys.length} selected</span>
+                        {canSelectAllMatching && (
+                          <button
+                            onClick={() => {
+                              const cap = Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP);
+                              const all = filteredUsersList.slice(0, cap).map(u => u.pubkey);
+                              setSelectedUserPubkeys(new Set(all));
+                            }}
+                            disabled={bulkRunning}
+                            className="text-[10px] font-semibold text-[#333286] hover:underline disabled:opacity-40"
+                            data-testid="button-bulk-select-all-matching-users"
+                          >
+                            Select all {Math.min(matchingTotal, SELECT_ALL_MATCHING_CAP)} matching{matchingTotal > SELECT_ALL_MATCHING_CAP ? ` (capped at ${SELECT_ALL_MATCHING_CAP})` : ""}
+                          </button>
+                        )}
+                        {bulkRunning && (
+                          <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-users">
+                            {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
+                          </span>
+                        )}
+                        <div className="ml-auto flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "users" })}
+                            disabled={bulkRunning || dedupePubkeys.length === 0}
+                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                            data-testid="button-bulk-retrigger-users"
+                          >
+                            {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                            Re-trigger {dedupePubkeys.length} user{dedupePubkeys.length !== 1 ? "s" : ""}
+                          </Button>
+                          <button
+                            onClick={() => setSelectedUserPubkeys(new Set())}
+                            disabled={bulkRunning}
+                            className="text-[10px] text-slate-500 hover:text-slate-800 disabled:opacity-40"
+                            data-testid="button-bulk-clear-users"
+                          >
+                            Clear selection
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {bulkLastResult && bulkLastResult.source === "users" && (
+                    <div className={`px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-users">
+                      {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
+                      <span className="text-xs font-semibold text-slate-800">{bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed</span>
+                      <div className="ml-auto flex items-center gap-2">
+                        {bulkLastResult.failures.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setBulkConfirm({ pubkeys: bulkLastResult.failures.map(f => f.pubkey), source: "retry" })}
+                            disabled={bulkRunning}
+                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate"
+                            data-testid="button-bulk-retry-failed-users"
+                          >
+                            <RefreshCw className="h-3 w-3" /> Retry failed only
+                          </Button>
+                        )}
+                        <button
+                          onClick={() => setBulkLastResult(null)}
+                          className="text-[10px] text-slate-500 hover:text-slate-800"
+                          data-testid="button-bulk-dismiss-users"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {kpiFilter && (
                 <div className="px-3 sm:px-5 py-2 border-b border-[#7c86ff]/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Filtered:</span>
@@ -2667,6 +2860,35 @@ export default function AdminPage() {
                 <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80">
+                      <th className="px-2 py-2.5 align-middle w-8 border-r border-slate-200">
+                        {(() => {
+                          const visible = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList);
+                          const visiblePks = visible.map(u => u.pubkey);
+                          const selectedCount = visiblePks.filter(pk => selectedUserPubkeys.has(pk)).length;
+                          const allSelected = visiblePks.length > 0 && selectedCount === visiblePks.length;
+                          const someSelected = selectedCount > 0 && !allSelected;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (allSelected) {
+                                  setSelectedUserPubkeys(prev => { const next = new Set(prev); for (const pk of visiblePks) next.delete(pk); return next; });
+                                } else {
+                                  setSelectedUserPubkeys(prev => { const next = new Set(prev); for (const pk of visiblePks) next.add(pk); return next; });
+                                }
+                              }}
+                              className="inline-flex items-center justify-center"
+                              title={allSelected ? "Deselect all on page" : "Select all on page"}
+                              data-testid="checkbox-users-select-all"
+                              disabled={visiblePks.length === 0}
+                            >
+                              {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                               someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                               <Square className={`h-3.5 w-3.5 ${visiblePks.length ? "text-slate-400" : "text-slate-200"}`} />}
+                            </button>
+                          );
+                        })()}
+                      </th>
                       <th className="px-2 py-2.5 align-middle w-6 border-r border-slate-200"></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
@@ -2683,26 +2905,26 @@ export default function AdminPage() {
                   <tbody>
                     {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
                           <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
                           Loading users...
                         </td>
                       </tr>
                     ) : adminUsersQuery.isError ? (
                       <tr>
-                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-red-400">
+                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-red-400">
                           Failed to load users. Check your admin access.
                         </td>
                       </tr>
                     ) : adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
                           {userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : filteredUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
                           No users match the current filter
                         </td>
                       </tr>
@@ -2722,6 +2944,21 @@ export default function AdminPage() {
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 w-8" onClick={(e) => { e.stopPropagation(); setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; }); }}>
+                                {(() => {
+                                  const isSelected = selectedUserPubkeys.has(u.pubkey);
+                                  const bs = bulkStatuses.get(u.pubkey);
+                                  return (
+                                    <button type="button" className="inline-flex items-center justify-center" data-testid={`checkbox-user-${i}`} title={isSelected ? "Deselect" : "Select"}>
+                                      {bs === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
+                                       bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
+                                       bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
+                                       isSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                                       <Square className="h-3.5 w-3.5 text-slate-400" />}
+                                    </button>
+                                  );
+                                })()}
+                              </td>
                               <td className="px-2 py-2.5 border-r border-slate-100">
                                 <div className="flex items-center gap-1.5">
                                   {(() => {
@@ -2859,7 +3096,7 @@ export default function AdminPage() {
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
                               <tr className="bg-red-50/40 border-b border-red-100" data-testid={`row-failure-summary-${i}`}>
-                                <td colSpan={11} className="px-3 py-1.5">
+                                <td colSpan={12} className="px-3 py-1.5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
                                     <span className="text-[10px] text-red-800 font-medium">
@@ -2993,6 +3230,74 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={bulkConfirm !== null} onOpenChange={(open) => { if (!open && !bulkRunning) setBulkConfirm(null); }}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <RefreshCw className="h-5 w-5 text-[#333286]" />
+                    Confirm Bulk Re-trigger
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-slate-600 pt-1">
+                    Re-trigger GrapeRank calculation for multiple users at once.
+                  </DialogDescription>
+                </DialogHeader>
+                {bulkConfirm && (() => {
+                  const inFlight = bulkConfirm.pubkeys.filter(pk => triggeringPubkeys.has(pk));
+                  return (
+                    <div className="pt-2 space-y-4">
+                      <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
+                        <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                          <li>One GrapeRank calculation request is sent <span className="font-semibold">per unique pubkey</span></li>
+                          <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
+                          <li>Already in-flight users will be skipped automatically</li>
+                          <li>Progress will appear inline; failures can be retried individually</li>
+                        </ul>
+                      </div>
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Targets</p>
+                        <p className="text-xs text-slate-800" data-testid="text-bulk-confirm-count">
+                          <span className="font-bold">{bulkConfirm.pubkeys.length}</span> unique pubkey{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      {inFlight.length > 0 && (
+                        <div className="p-3 rounded-xl bg-orange-50 border border-orange-200" data-testid="text-bulk-confirm-inflight">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Heads up</p>
+                          <p className="text-xs text-orange-900">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setBulkConfirm(null)}
+                          disabled={bulkRunning}
+                          className="text-xs no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-cancel-bulk"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const target = bulkConfirm;
+                            setBulkConfirm(null);
+                            if (target) runBulkRetrigger(target.pubkeys, target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source);
+                          }}
+                          disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
+                          className="text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+                          data-testid="button-confirm-bulk"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Re-trigger {bulkConfirm.pubkeys.length} user{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </DialogContent>
             </Dialog>
             </>
@@ -3501,10 +3806,109 @@ export default function AdminPage() {
                     </div>
                   ) : (
                     <>
+                      {(() => {
+                        const selectedItems = activityItems.filter(a => a.private_id !== undefined && a.private_id !== null && selectedActivityIds.has(a.private_id as number));
+                        const dedupePubkeys = Array.from(new Set(selectedItems.map(a => a.pubkey).filter((p): p is string => !!p)));
+                        if (selectedItems.length === 0) return null;
+                        const liveCount = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "success" || s === "failed").length : 0;
+                        const liveTotal = bulkRunning ? bulkStatuses.size : 0;
+                        const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
+                        return (
+                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
+                            <CheckSquare className="h-4 w-4 text-[#333286]" />
+                            <span className="text-xs font-semibold text-slate-800">
+                              {selectedItems.length} selected
+                              {dedupePubkeys.length !== selectedItems.length && <span className="text-slate-500 font-normal"> ({dedupePubkeys.length} unique)</span>}
+                            </span>
+                            {bulkRunning && (
+                              <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-activity">
+                                {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
+                              </span>
+                            )}
+                            <div className="ml-auto flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "activity" })}
+                                disabled={bulkRunning || dedupePubkeys.length === 0}
+                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                                data-testid="button-bulk-retrigger-activity"
+                              >
+                                {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                                Re-trigger {dedupePubkeys.length} user{dedupePubkeys.length !== 1 ? "s" : ""}
+                              </Button>
+                              <button
+                                onClick={() => setSelectedActivityIds(new Set())}
+                                disabled={bulkRunning}
+                                className="text-[10px] text-slate-500 hover:text-slate-800 disabled:opacity-40"
+                                data-testid="button-bulk-clear-activity"
+                              >
+                                Clear selection
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {bulkLastResult && bulkLastResult.source === "activity" && (
+                        <div className={`mb-3 px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-activity">
+                          {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
+                          <span className="text-xs font-semibold text-slate-800">
+                            {bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed
+                          </span>
+                          <div className="ml-auto flex items-center gap-2">
+                            {bulkLastResult.failures.length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setBulkConfirm({ pubkeys: bulkLastResult.failures.map(f => f.pubkey), source: "retry" })}
+                                disabled={bulkRunning}
+                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate"
+                                data-testid="button-bulk-retry-failed-activity"
+                              >
+                                <RefreshCw className="h-3 w-3" /> Retry failed only
+                              </Button>
+                            )}
+                            <button
+                              onClick={() => setBulkLastResult(null)}
+                              className="text-[10px] text-slate-500 hover:text-slate-800"
+                              data-testid="button-bulk-dismiss-activity"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="overflow-x-auto">
                         <table className="w-full text-left min-w-[780px]" data-testid="table-platform-activity">
                           <thead>
                             <tr className="border-b border-slate-200/60">
+                              <th className="px-2 py-2 w-8">
+                                {(() => {
+                                  const eligible = activityItems.filter(a => !!a.pubkey && a.private_id !== undefined && a.private_id !== null);
+                                  const selectedOnPage = eligible.filter(a => selectedActivityIds.has(a.private_id as number)).length;
+                                  const allSelected = eligible.length > 0 && selectedOnPage === eligible.length;
+                                  const someSelected = selectedOnPage > 0 && !allSelected;
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (allSelected) {
+                                          setSelectedActivityIds(prev => { const next = new Set(prev); for (const a of eligible) next.delete(a.private_id as number); return next; });
+                                        } else {
+                                          setSelectedActivityIds(prev => { const next = new Set(prev); for (const a of eligible) next.add(a.private_id as number); return next; });
+                                        }
+                                      }}
+                                      className="inline-flex items-center justify-center"
+                                      title={allSelected ? "Deselect all on page" : "Select all on page"}
+                                      data-testid="checkbox-activity-select-all"
+                                      disabled={eligible.length === 0}
+                                    >
+                                      {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                                       someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                                       <Square className={`h-3.5 w-3.5 ${eligible.length ? "text-slate-400" : "text-slate-200"}`} />}
+                                    </button>
+                                  );
+                                })()}
+                              </th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pubkey</th>
@@ -3518,9 +3922,27 @@ export default function AdminPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {activityItems.map((item, idx) => (
-                              <ActivityRow key={item.private_id ?? idx} item={item} idx={idx} onViewDetail={handleViewRequestDetail} onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }} onRetrigger={async (pubkey) => { try { await apiClient.triggerUserGraperank(pubkey); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }); triggerRefreshBoost(); } catch (err: unknown) { const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }} />
-                            ))}
+                            {activityItems.map((item, idx) => {
+                              const pid = item.private_id as number | null;
+                              const isSelected = pid !== null && pid !== undefined && selectedActivityIds.has(pid);
+                              const bs = item.pubkey ? bulkStatuses.get(item.pubkey) : undefined;
+                              return (
+                                <ActivityRow
+                                  key={item.private_id ?? idx}
+                                  item={item}
+                                  idx={idx}
+                                  onViewDetail={handleViewRequestDetail}
+                                  selected={isSelected}
+                                  bulkStatus={bs}
+                                  onToggleSelect={() => {
+                                    if (!item.pubkey || pid === null || pid === undefined) return;
+                                    setSelectedActivityIds(prev => { const next = new Set(prev); if (next.has(pid)) next.delete(pid); else next.add(pid); return next; });
+                                  }}
+                                  onNavigateToUser={(pubkey) => { setUserSearch(pubkey); setDebouncedSearch(pubkey); setActiveTab("users"); setKpiFilter(null); setUserPage(0); setExpandedRows(new Set([pubkey])); setHighlightedPubkey(pubkey); setTimeout(() => setHighlightedPubkey(null), 2500); }}
+                                  onRetrigger={async (pubkey) => { try { await apiClient.triggerUserGraperank(pubkey); toast({ title: "Request Queued", description: `Re-triggered GrapeRank for ${pubkey.slice(0, 12)}...` }); queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }); queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }); triggerRefreshBoost(); } catch (err: unknown) { const msg = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error"; toast({ title: "Re-trigger Failed", description: msg, variant: "destructive" }); throw err; } }}
+                                />
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
