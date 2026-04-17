@@ -1,4 +1,4 @@
-import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb } from "./nostr";
+import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb, signEventLocally } from "./nostr";
 
 export interface NostrEvent {
   id?: string;
@@ -70,7 +70,6 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
 }
 
 export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
@@ -91,7 +90,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
   };
 
   try {
-    const signed = await window.nostr.signEvent(event);
+    const signed = await signEventLocally(event as any) as any;
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -99,7 +98,6 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
 
@@ -119,7 +117,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   };
 
   try {
-    const signed = await window.nostr.signEvent(event);
+    const signed = await signEventLocally(event as any) as any;
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -127,7 +125,6 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
 }
 
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
@@ -148,7 +145,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   };
 
   try {
-    const signed = await window.nostr.signEvent(event);
+    const signed = await signEventLocally(event as any) as any;
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -156,7 +153,6 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
 }
 
 export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
 
@@ -176,7 +172,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   };
 
   try {
-    const signed = await window.nostr.signEvent(event);
+    const signed = await signEventLocally(event as any) as any;
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -184,7 +180,6 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
 }
 
 export async function reportUser(targetPubkey: string, reason: string): Promise<{ success: boolean; error?: string }> {
-  if (!window.nostr) return { success: false, error: "No Nostr extension found" };
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
@@ -200,7 +195,7 @@ export async function reportUser(targetPubkey: string, reason: string): Promise<
   };
 
   try {
-    const signed = await window.nostr.signEvent(event);
+    const signed = await signEventLocally(event as any) as any;
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
