@@ -36,7 +36,7 @@ interface LoginFailureModalProps {
 const EXTENSIONS = [
   {
     name: "nos2x",
-    url: "https://github.com/fiatjaf/nos2x",
+    url: "https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp",
     description: "A lightweight Chrome extension that signs Nostr events for you so you never have to paste your private key.",
   },
   {
