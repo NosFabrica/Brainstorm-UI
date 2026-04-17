@@ -74,7 +74,9 @@ import {
   Square,
   CheckSquare,
   MinusSquare,
+  Minus,
 } from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
 import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, getApiBaseUrl, type ApiEnvironment } from "@/services/api";
@@ -311,7 +313,109 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope, onClick }: {
+type HourlyBucket = { t: number; success: number; failed: number; total: number };
+
+function parseActivityTs(s: string | undefined | null): number {
+  if (!s) return 0;
+  try {
+    const d = new Date(s.endsWith("Z") ? s : s + "Z");
+    const t = d.getTime();
+    return isNaN(t) ? 0 : t;
+  } catch { return 0; }
+}
+
+function bucketActivityByHour(activity: { updated_at: string; status?: string | null }[], hours: number, now: number): HourlyBucket[] {
+  const buckets: HourlyBucket[] = Array.from({ length: hours }, (_, i) => ({
+    t: now - (hours - 1 - i) * 3600000,
+    success: 0, failed: 0, total: 0,
+  }));
+  for (const a of activity) {
+    const t = parseActivityTs(a.updated_at);
+    if (!t) continue;
+    const ageHours = Math.floor((now - t) / 3600000);
+    if (ageHours < 0 || ageHours >= hours) continue;
+    const idx = hours - 1 - ageHours;
+    buckets[idx].total++;
+    const s = (a.status || "").toLowerCase();
+    if (s === "success") buckets[idx].success++;
+    else if (s === "failed" || s === "failure") buckets[idx].failed++;
+  }
+  return buckets;
+}
+
+function compareWindows(activity: { updated_at: string; status?: string | null }[], hours: number, now: number) {
+  const cur: typeof activity = [];
+  const prev: typeof activity = [];
+  for (const a of activity) {
+    const t = parseActivityTs(a.updated_at);
+    if (!t) continue;
+    const age = now - t;
+    if (age < 0) continue;
+    if (age < hours * 3600000) cur.push(a);
+    else if (age < hours * 2 * 3600000) prev.push(a);
+  }
+  const countStatus = (arr: typeof activity, want: string[]) =>
+    arr.filter(a => want.includes((a.status || "").toLowerCase())).length;
+  const sr = (arr: typeof activity): number | null => {
+    const s = countStatus(arr, ["success"]);
+    const f = countStatus(arr, ["failed", "failure"]);
+    return (s + f) === 0 ? null : Math.round((s / (s + f)) * 100);
+  };
+  return {
+    curTotal: cur.length,
+    prevTotal: prev.length,
+    curFailed: countStatus(cur, ["failed", "failure"]),
+    prevFailed: countStatus(prev, ["failed", "failure"]),
+    curSuccess: countStatus(cur, ["success"]),
+    prevSuccess: countStatus(prev, ["success"]),
+    curSR: sr(cur),
+    prevSR: sr(prev),
+    hasPrev: prev.length > 0,
+  };
+}
+
+function MiniSparkline({ data, color = "#7c86ff", height = 22, width = 64, className }: { data: number[]; color?: string; height?: number; width?: number; className?: string }) {
+  if (!data || data.length < 2) {
+    return <div className={`inline-block h-[${height}px] w-[${width}px] ${className ?? ""}`} style={{ height, width }} />;
+  }
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const stepX = width / Math.max(data.length - 1, 1);
+  const points = data.map((v, i) => `${(i * stepX).toFixed(2)},${(height - ((v - min) / range) * height).toFixed(2)}`).join(" ");
+  const lastX = ((data.length - 1) * stepX).toFixed(2);
+  const lastY = (height - ((data[data.length - 1] - min) / range) * height).toFixed(2);
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={`overflow-visible ${className ?? ""}`} aria-hidden="true">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
+      <circle cx={lastX} cy={lastY} r="1.6" fill={color} />
+    </svg>
+  );
+}
+
+function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h ago", insufficient }: { delta: number | null; suffix?: string; inverted?: boolean; label?: string; insufficient?: boolean }) {
+  if (insufficient || delta === null || delta === undefined || Number.isNaN(delta)) {
+    return (
+      <span className="text-[10px] font-medium text-slate-400 inline-flex items-center gap-0.5" title="Not enough historical data yet to compute a trend">
+        <Minus className="h-3 w-3" /> —
+      </span>
+    );
+  }
+  const flat = delta === 0;
+  const goodWhenUp = !inverted;
+  const isGood = flat ? false : (delta > 0 ? goodWhenUp : !goodWhenUp);
+  const colorCls = flat ? "text-slate-400" : isGood ? "text-emerald-600" : "text-red-500";
+  const Icon = flat ? Minus : delta > 0 ? ChevronUp : ChevronDown;
+  const sign = delta > 0 ? "+" : "";
+  return (
+    <span className={`text-[10px] font-semibold inline-flex items-center gap-0.5 whitespace-nowrap ${colorCls}`}>
+      <Icon className="h-3 w-3" />
+      {sign}{delta}{suffix} <span className="font-normal text-slate-400 ml-0.5">{label}</span>
+    </span>
+  );
+}
+
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope, onClick, sparklineData, sparklineColor, deltaSlot }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -321,6 +425,9 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   tooltip?: string;
   scope?: "system" | "graph";
   onClick?: () => void;
+  sparklineData?: number[];
+  sparklineColor?: string;
+  deltaSlot?: React.ReactNode;
 }) {
   return (
     <div
@@ -346,9 +453,15 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           </span>
         )}
       </div>
-      <p className={`text-xl font-bold tracking-tight relative ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+      <div className="flex items-end justify-between gap-2 relative">
+        <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+        {sparklineData && sparklineData.length >= 2 && !unsupported && (
+          <MiniSparkline data={sparklineData} color={sparklineColor ?? "#7c86ff"} height={20} width={56} />
+        )}
+      </div>
       <p className="text-[11px] text-slate-500 mt-0.5 relative leading-tight">{label}</p>
       {subtitle && <p className="text-[9px] text-slate-400 mt-0.5 relative">{subtitle}</p>}
+      {deltaSlot && <div className="mt-1 relative" data-testid={`kpi-delta-${label.toLowerCase().replace(/\s+/g, "-")}`}>{deltaSlot}</div>}
       <div className="mt-auto pt-1.5 relative">
         {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
       </div>
@@ -1511,6 +1624,39 @@ export default function AdminPage() {
     }).length;
   }, [overviewAllUsers]);
 
+  const trends = useMemo(() => {
+    const now = Date.now();
+    const buckets24h = bucketActivityByHour(overviewAllActivity, 24, now);
+    const cmp = compareWindows(overviewAllActivity, 24, now);
+    const totalSeries = buckets24h.map(b => b.total);
+    const successSeries = buckets24h.map(b => b.success);
+    const failedSeries = buckets24h.map(b => b.failed);
+    const rateSeries = buckets24h.map(b => {
+      const d = b.success + b.failed;
+      return d === 0 ? 0 : Math.round((b.success / d) * 100);
+    });
+    const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
+      const t = parseActivityTs(a.updated_at);
+      if (!t) return min;
+      return min === 0 ? t : Math.min(min, t);
+    }, 0);
+    const hasFullWindow = oldestActivityTs > 0 && (now - oldestActivityTs) >= 23 * 3600000;
+    const hasPriorWindow = cmp.hasPrev;
+    return {
+      buckets24h,
+      totalSeries,
+      successSeries,
+      failedSeries,
+      rateSeries,
+      cmp,
+      hasFullWindow,
+      hasPriorWindow,
+      hasAnyActivity: cmp.curTotal > 0,
+    };
+  }, [overviewAllActivity]);
+
+  const algoDistinct = pipelineMetrics ? Object.keys(pipelineMetrics.algoCounts).length : 0;
+
   const handleTriggerGraperank = useCallback(async (pubkey: string) => {
     setTriggeringPubkeys(prev => new Set(prev).add(pubkey));
     try {
@@ -1976,6 +2122,15 @@ export default function AdminPage() {
               tooltip="Click to view scored users"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
+              sparklineData={trends.successSeries}
+              sparklineColor="#10b981"
+              deltaSlot={
+                <DeltaIndicator
+                  delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
+                  insufficient={!trends.hasPriorWindow}
+                  label="successes vs prior 24h"
+                />
+              }
             />
             <KpiCard
               label="SP Adopters"
@@ -1985,6 +2140,7 @@ export default function AdminPage() {
               tooltip="Click to view SP adopters"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
+              deltaSlot={<DeltaIndicator delta={null} insufficient={true} />}
             />
             <KpiCard
               label="Queue Depth"
@@ -1994,6 +2150,24 @@ export default function AdminPage() {
               tooltip="Click to view queued users"
               scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
+              deltaSlot={<DeltaIndicator delta={null} insufficient={true} />}
+            />
+            <KpiCard
+              label="Calcs (24h)"
+              value={formatNumber(trends.cmp.curTotal)}
+              icon={Activity}
+              subtitle="Calculations in last 24 hours"
+              tooltip="Total calculations attempted in the last 24 hours"
+              scope="system"
+              sparklineData={trends.totalSeries}
+              sparklineColor="#7c86ff"
+              deltaSlot={
+                <DeltaIndicator
+                  delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
+                  insufficient={!trends.hasPriorWindow}
+                  label="vs prior 24h"
+                />
+              }
             />
           </div>
 
@@ -2071,7 +2245,62 @@ export default function AdminPage() {
           </div>
 
           {activeTab === "overview" && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-overview">
+            <div className="space-y-6" data-testid="panel-overview">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-last-24h-strip">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-3 border-b border-[#7c86ff]/10 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Last 24 Hours</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Hourly calculation volume with failure-rate band</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" /> Calcs/hr</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Failure rate</span>
+                  </div>
+                </div>
+                <div className="px-3 py-3" style={{ height: 140 }}>
+                  {overviewActivityQuery.isLoading && !trends.hasAnyActivity ? (
+                    <div className="h-full flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-slate-300" /></div>
+                  ) : !trends.hasAnyActivity ? (
+                    <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in the last 24 hours</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={trends.buckets24h.map(b => ({
+                        hour: new Date(b.t).toLocaleTimeString([], { hour: "2-digit" }),
+                        ts: b.t,
+                        total: b.total,
+                        failureRate: (b.success + b.failed) === 0 ? 0 : Math.round((b.failed / (b.success + b.failed)) * 100),
+                      }))} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#7c86ff" stopOpacity={0.5} />
+                            <stop offset="100%" stopColor="#7c86ff" stopOpacity={0.05} />
+                          </linearGradient>
+                          <linearGradient id="failRateGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="#f87171" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={3} axisLine={false} tickLine={false} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={28} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: "#fca5a5" }} axisLine={false} tickLine={false} width={28} domain={[0, 100]} unit="%" />
+                        <RcTooltip
+                          contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", padding: "6px 8px" }}
+                          labelFormatter={(_, items) => {
+                            const ts = items?.[0]?.payload?.ts as number | undefined;
+                            return ts ? new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }) : "";
+                          }}
+                          formatter={(v: number, name: string) => name === "Failure rate" ? [`${v}%`, name] : [v, name]}
+                        />
+                        <Area yAxisId="left" type="monotone" dataKey="total" name="Calcs" stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
+                        <Area yAxisId="right" type="monotone" dataKey="failureRate" name="Failure rate" stroke="#f87171" strokeWidth={1} fill="url(#failRateGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
@@ -2092,7 +2321,20 @@ export default function AdminPage() {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Success Rate</span>
-                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
+                        <div className="flex items-center gap-2">
+                          {trends.hasAnyActivity && (
+                            <MiniSparkline data={trends.rateSeries} color="#10b981" height={18} width={56} />
+                          )}
+                          <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-end mb-1">
+                        <DeltaIndicator
+                          delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
+                          insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
+                          suffix=" pts"
+                          label="vs prior 24h"
+                        />
                       </div>
                       <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
                         <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.successCount / pipelineMetrics.total) * 100 : 0}%` }} />
@@ -2122,6 +2364,43 @@ export default function AdminPage() {
                       <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
                         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Never Calculated</p>
                         <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.neverCalc)}</p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput (last 24h)</p>
+                        <DeltaIndicator
+                          delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
+                          insufficient={!trends.hasPriorWindow}
+                          label="vs prior 24h"
+                        />
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-white/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
+                        {!trends.hasAnyActivity ? (
+                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in last 24h</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={trends.buckets24h.map(b => ({
+                              hour: new Date(b.t).toLocaleTimeString([], { hour: "2-digit" }),
+                              ts: b.t,
+                              success: b.success,
+                              failed: b.failed,
+                            }))} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={3} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={24} allowDecimals={false} />
+                              <RcTooltip
+                                contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e2e8f0", padding: "6px 8px" }}
+                                labelFormatter={(_, items) => {
+                                  const ts = items?.[0]?.payload?.ts as number | undefined;
+                                  return ts ? new Date(ts).toLocaleString([], { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" }) : "";
+                                }}
+                              />
+                              <Bar dataKey="success" stackId="t" name="Success" fill="#10b981" radius={[2, 2, 0, 0]} />
+                              <Bar dataKey="failed" stackId="t" name="Failed" fill="#f87171" radius={[2, 2, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     </div>
 
@@ -2183,8 +2462,18 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {Object.keys(pipelineMetrics.algoCounts).length > 0 && (
-                      <div className="border-t border-slate-100 pt-4">
+                    {algoDistinct === 1 ? (
+                      (() => {
+                        const [algo, count] = Object.entries(pipelineMetrics.algoCounts)[0];
+                        return (
+                          <div className="border-t border-slate-100 pt-3 flex items-center justify-between" data-testid="row-algo-single">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span>
+                            <span className="text-xs text-slate-700"><span className="font-mono">{algo}</span> <span className="text-slate-400">· {count} user{count !== 1 ? "s" : ""}</span></span>
+                          </div>
+                        );
+                      })()
+                    ) : algoDistinct > 1 ? (
+                      <div className="border-t border-slate-100 pt-4" data-testid="section-algo-distribution">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Algorithm Distribution</p>
                         <div className="space-y-1.5">
                           {Object.entries(pipelineMetrics.algoCounts).sort((a, b) => b[1] - a[1]).map(([algo, count]) => (
@@ -2200,7 +2489,7 @@ export default function AdminPage() {
                           ))}
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ) : (
                   <div className="p-8 flex items-center justify-center">
@@ -2386,6 +2675,7 @@ export default function AdminPage() {
                     })()}
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           )}
