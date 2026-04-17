@@ -1,5 +1,35 @@
-const BRAINSTORM_API =
-  import.meta.env.VITE_API_URL || "https://brainstormserver-staging.nosfabrica.com";
+import { extractAdminFlag } from "@/lib/jwt";
+import { clearUserCache } from "./nostr";
+
+export type ApiEnvironment = "staging" | "production";
+
+const API_URLS: Record<ApiEnvironment, string> = {
+  staging: "https://brainstormserver-staging.nosfabrica.com",
+  production: "https://brainstormserver.nosfabrica.com",
+};
+
+const ENV_STORAGE_KEY = "brainstorm_api_env";
+
+export function getApiEnvironment(): ApiEnvironment {
+  const token = localStorage.getItem("brainstorm_session_token");
+  const isAdmin = token ? extractAdminFlag(token) : false;
+  if (!isAdmin) return "staging";
+  const stored = localStorage.getItem(ENV_STORAGE_KEY);
+  if (stored === "production") return "production";
+  return "staging";
+}
+
+export function setApiEnvironment(env: ApiEnvironment): void {
+  localStorage.setItem(ENV_STORAGE_KEY, env);
+}
+
+export function getApiBaseUrl(): string {
+  return API_URLS[getApiEnvironment()];
+}
+
+function getBrainstormApi(): string {
+  return getApiBaseUrl();
+}
 
 let isReauthenticating = false;
 let reauthPromise: Promise<boolean> | null = null;
@@ -42,7 +72,7 @@ async function silentReauth(): Promise<boolean> {
       if (!extensionReady) return false;
 
       const challengeResponse = await fetch(
-        `${BRAINSTORM_API}/authChallenge/${user.pubkey}`,
+        `${getBrainstormApi()}/authChallenge/${user.pubkey}`,
       );
       if (!challengeResponse.ok) return false;
       const challengeData = await challengeResponse.json();
@@ -63,7 +93,7 @@ async function silentReauth(): Promise<boolean> {
       const signedEvent = await window.nostr!.signEvent(event);
 
       const verifyResponse = await fetch(
-        `${BRAINSTORM_API}/authChallenge/${user.pubkey}/verify`,
+        `${getBrainstormApi()}/authChallenge/${user.pubkey}/verify`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -76,6 +106,15 @@ async function silentReauth(): Promise<boolean> {
       if (!token) return false;
 
       localStorage.setItem("brainstorm_session_token", token);
+      try {
+        const storedUserStr = localStorage.getItem("nostr_user");
+        if (storedUserStr) {
+          const storedUserObj = JSON.parse(storedUserStr);
+          storedUserObj.isAdmin = extractAdminFlag(token);
+          localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
+          clearUserCache();
+        }
+      } catch {}
       return true;
     } catch {
       return false;
@@ -134,7 +173,7 @@ async function authenticatedFetch(
 
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
-    const response = await fetch(`${BRAINSTORM_API}/authChallenge/${pubkey}`);
+    const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
     if (!response.ok) {
       throw new Error(`Failed to get auth challenge (${response.status})`);
     }
@@ -147,7 +186,7 @@ export const apiClient = {
 
   async verifyAuthChallenge(pubkey: string, signedEvent: any) {
     const response = await fetch(
-      `${BRAINSTORM_API}/authChallenge/${pubkey}/verify`,
+      `${getBrainstormApi()}/authChallenge/${pubkey}/verify`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,7 +204,7 @@ export const apiClient = {
   },
 
   async getSelf() {
-    const response = await authenticatedFetch(`${BRAINSTORM_API}/user/self`, {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/user/self`, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) {
@@ -176,7 +215,7 @@ export const apiClient = {
 
   async getUserByPubkey(pubkey: string) {
     const response = await authenticatedFetch(
-      `${BRAINSTORM_API}/user/${pubkey}`,
+      `${getBrainstormApi()}/user/${pubkey}`,
       {
         signal: AbortSignal.timeout(60000),
       },
@@ -189,14 +228,15 @@ export const apiClient = {
 
   async triggerGrapeRank() {
     const response = await authenticatedFetch(
-      `${BRAINSTORM_API}/user/graperank`,
+      `${getBrainstormApi()}/user/graperank`,
       {
         method: "POST",
       },
     );
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      const detail = errorData?.detail || errorData?.message || "";
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
       const status = response.status;
       const lowerDetail = detail.toLowerCase();
       let friendlyMessage: string;
@@ -223,10 +263,209 @@ export const apiClient = {
 
   async getGrapeRankResult() {
     const response = await authenticatedFetch(
-      `${BRAINSTORM_API}/user/graperankResult`,
+      `${getBrainstormApi()}/user/graperankResult`,
     );
     if (!response.ok) {
       throw new Error(`Failed to fetch GrapeRank data (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/publishAssistantProfile`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (response.status === 404) {
+      throw new Error("404 - Endpoint not found");
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Publish failed (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async getAdminStats(): Promise<{
+    totalUsers: number;
+    scoredUsers: number;
+    spAdopters: number;
+    totalReports: number;
+    queueDepth: number;
+  } | null> {
+    try {
+      const response = await authenticatedFetch(
+        `${getBrainstormApi()}/admin/stats`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      if (!response.ok) return null;
+      const json = await response.json();
+      const stats = json?.data ?? json;
+      return {
+        totalUsers: stats?.total_users ?? stats?.totalUsers ?? 0,
+        scoredUsers: stats?.scored_users ?? stats?.scoredUsers ?? 0,
+        spAdopters: stats?.sp_adopters ?? stats?.spAdopters ?? 0,
+        totalReports: stats?.total_reports ?? stats?.totalReports ?? 0,
+        queueDepth: stats?.queue_depth ?? stats?.queueDepth ?? 0,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async getAdminUsers(params: {
+    search?: string;
+    sort?: string;
+    order?: string;
+    days?: number;
+    page?: number;
+    size?: number;
+  } = {}) {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set("search", params.search);
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.order) qs.set("order", params.order);
+    if (params.days) qs.set("days", params.days.toString());
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${getBrainstormApi()}/admin/users${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch admin users (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getAdminUserHistory(pubkey: string, params: { page?: number; size?: number } = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${getBrainstormApi()}/admin/users/${pubkey}/history${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user history (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getAdminActivity(params: { page?: number; size?: number } = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", params.page.toString());
+    if (params.size) qs.set("size", params.size.toString());
+    const url = `${getBrainstormApi()}/admin/activity${qs.toString() ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch admin activity (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getBrainstormRequest(requestId: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/brainstormRequest/${requestId}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Failed to fetch brainstorm request (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async createBrainstormRequest(data: { pubkey: string; [key: string]: unknown }) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/brainstormRequest/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Failed to create brainstorm request (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getBrainstormPubkey(nostrPubkey: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/brainstormPubkey/${nostrPubkey}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Failed to lookup pubkey (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async verifyNsecEncryption() {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/nsec-encryption/verify`,
+      { method: "POST", signal: AbortSignal.timeout(30000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Verify encryption failed (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async rotateNsecEncryption() {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/nsec-encryption/rotate`,
+      { method: "POST", signal: AbortSignal.timeout(60000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Rotate encryption key failed (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async triggerUserGraperank(pubkey: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/brainstormPubkey/${pubkey}/trigger_graperank`,
+      { method: "POST", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Failed to trigger GrapeRank (${response.status})`);
     }
     return await response.json();
   },

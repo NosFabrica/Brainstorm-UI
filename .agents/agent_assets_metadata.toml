@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "47vyxo8ZwdaLtzpCILuY8"
+uri = "file://docs/brainstorm-assistant-profile-spec.md"
+type = "text"
+title = "Brainstorm Assistant Profile — Kind 0 Publish Spec"

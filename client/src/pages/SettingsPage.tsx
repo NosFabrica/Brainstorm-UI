@@ -43,9 +43,14 @@ import {
   HelpCircle,
   ExternalLink,
   Globe,
+  Shield,
+  Copy,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -344,6 +349,18 @@ export default function SettingsPage() {
                   <Users className="h-4 w-4" />
                   Network
                 </Button>
+                {FEATURES.agentSuite && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
+                    onClick={() => navigate("/agentsuite")}
+                    data-testid="button-nav-agentsuite"
+                  >
+                    <AgentIcon className="h-4 w-4" />
+                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -365,7 +382,10 @@ export default function SettingsPage() {
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900" data-testid="text-settings-menu-name">{user.displayName || "Anon"}</p>
-                      <p className="text-xs leading-none text-slate-500" data-testid="text-settings-menu-npub">{user.npub.slice(0, 16)}...</p>
+                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                        <span data-testid="text-settings-menu-npub">{user.npub.slice(0, 16)}...</span>
+                        <Copy className="h-3 w-3" />
+                      </button>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
@@ -377,6 +397,12 @@ export default function SettingsPage() {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isAdminPubkey(user?.pubkey) && (
+                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
@@ -401,6 +427,7 @@ export default function SettingsPage() {
         calcDone={calcDone}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdminPubkey(user?.pubkey)}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">

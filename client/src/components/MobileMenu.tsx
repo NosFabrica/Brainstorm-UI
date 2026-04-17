@@ -10,7 +10,10 @@ import {
   BookOpen,
   Settings as SettingsIcon,
   LogOut,
+  Shield,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 
 interface MobileMenuProps {
   open: boolean;
@@ -22,14 +25,19 @@ interface MobileMenuProps {
     displayName?: string;
     npub: string;
     picture?: string;
+    pubkey?: string;
   } | null;
   onLogout: () => void;
+  isAdmin?: boolean;
 }
 
 const primaryNav = [
   { path: "/dashboard", label: "Dashboard", icon: Home },
   { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
+  ...(FEATURES.agentSuite
+    ? [{ path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true }]
+    : []),
 ];
 
 const helpNav = [
@@ -45,7 +53,7 @@ function NavButton({
   onClose,
   navigate,
 }: {
-  item: { path: string; label: string; icon: React.ComponentType<{ className?: string }> };
+  item: { path: string; label: string; icon: React.ComponentType<{ className?: string }>; special?: boolean };
   active: boolean;
   disabled?: boolean;
   disabledTitle?: string;
@@ -80,7 +88,9 @@ function NavButton({
           (disabled ? "text-slate-500" : active ? "text-indigo-200" : "text-slate-200/80")
         }
       />
-      {item.label}
+      {item.special ? (
+        <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">{item.label}</span>
+      ) : item.label}
     </Button>
   );
 }
@@ -93,6 +103,7 @@ export function MobileMenu({
   calcDone = true,
   user,
   onLogout,
+  isAdmin = false,
 }: MobileMenuProps) {
   if (!open) return null;
 
@@ -182,6 +193,14 @@ export function MobileMenu({
                   onClose={onClose}
                   navigate={navigate}
                 />
+                {isAdmin && (
+                  <NavButton
+                    item={{ path: "/admin", label: "Admin", icon: Shield }}
+                    active={currentPath === "/admin"}
+                    onClose={onClose}
+                    navigate={navigate}
+                  />
+                )}
               </div>
             </>
           )}

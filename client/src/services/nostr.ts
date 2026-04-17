@@ -10,6 +10,7 @@ import {
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
 import { queryClient } from "@/lib/queryClient";
+import { extractAdminFlag } from "@/lib/jwt";
 import { NostrEvent } from "applesauce-core/helpers";
 
 declare global {
@@ -30,7 +31,9 @@ export interface NostrUser {
   nip05?: string;
   profile?: ProfileContent;
   userData?: any;
+  isAdmin?: boolean;
 }
+
 
 const eventStore = new EventStore();
 
@@ -42,7 +45,15 @@ export function getCurrentUser(): NostrUser | null {
   const stored = localStorage.getItem("nostr_user");
   if (stored) {
     try {
-      currentUser = JSON.parse(stored);
+      const parsed = JSON.parse(stored) as NostrUser;
+      if (parsed.isAdmin === undefined) {
+        const token = localStorage.getItem("brainstorm_session_token");
+        if (token) {
+          parsed.isAdmin = extractAdminFlag(token);
+          localStorage.setItem("nostr_user", JSON.stringify(parsed));
+        }
+      }
+      currentUser = parsed;
       return currentUser;
     } catch {
       return null;
@@ -65,6 +76,10 @@ export function updateCurrentUser(updates: Partial<NostrUser>) {
   if (!existing) return;
   const updated = { ...existing, ...updates };
   setCurrentUser(updated);
+}
+
+export function clearUserCache() {
+  currentUser = null;
 }
 
 export const PROFILE_RELAYS = [
@@ -288,11 +303,13 @@ export async function handleLogin(): Promise<NostrUser> {
   }
   localStorage.setItem("brainstorm_session_token", token);
 
+  const isAdmin = extractAdminFlag(token);
   const npub = nip19.npubEncode(pubkey);
 
   const user: NostrUser = {
     pubkey,
     npub,
+    isAdmin,
   };
 
   setCurrentUser(user);
@@ -476,6 +493,96 @@ export async function fetchMuteListTimestamp(
     };
   } catch {}
   return undefined;
+}
+
+const WOT_SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
+
+export interface NostrSearchResult {
+  pubkey: string;
+  npub: string;
+  name?: string;
+  displayName?: string;
+  picture?: string;
+  about?: string;
+  nip05?: string;
+}
+
+export function searchNostrProfiles(
+  query: string,
+  options: { limit?: number; timeoutMs?: number } = {}
+): Promise<NostrSearchResult[]> {
+  const { limit = 10, timeoutMs = 5000 } = options;
+  return new Promise((resolve) => {
+    const results: NostrSearchResult[] = [];
+    const seen = new Set<string>();
+    let ws: WebSocket | null = null;
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      try { ws?.close(); } catch {}
+      resolve(results);
+    };
+
+    const timeout = setTimeout(finish, timeoutMs);
+
+    try {
+      ws = new WebSocket(WOT_SEARCH_RELAY);
+
+      ws.onopen = () => {
+        const req = JSON.stringify(["REQ", "search-1", {
+          kinds: [0],
+          search: query,
+          limit,
+        }]);
+        ws!.send(req);
+      };
+
+      ws.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          if (data[0] === "EVENT" && data[2]) {
+            const event = data[2];
+            const pubkey = event.pubkey;
+            if (pubkey && !seen.has(pubkey)) {
+              seen.add(pubkey);
+              try {
+                const content = JSON.parse(event.content || "{}");
+                results.push({
+                  pubkey,
+                  npub: nip19.npubEncode(pubkey),
+                  name: content.name || undefined,
+                  displayName: content.display_name || content.displayName || undefined,
+                  picture: content.picture || undefined,
+                  about: content.about || undefined,
+                  nip05: content.nip05 || undefined,
+                });
+              } catch {
+                results.push({ pubkey, npub: nip19.npubEncode(pubkey) });
+              }
+            }
+          } else if (data[0] === "EOSE") {
+            clearTimeout(timeout);
+            finish();
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {
+        clearTimeout(timeout);
+        finish();
+      };
+
+      ws.onclose = () => {
+        clearTimeout(timeout);
+        finish();
+      };
+    } catch {
+      clearTimeout(timeout);
+      finish();
+    }
+  });
 }
 
 export { eventStore, pool };

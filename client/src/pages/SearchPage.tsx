@@ -13,7 +13,11 @@ import {
   Settings as SettingsIcon,
   BookOpen,
   HelpCircle,
+  Shield,
+  Copy,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { useToast } from "@/hooks/use-toast";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -116,6 +122,7 @@ export default function SearchPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { toast } = useToast();
 
   const [npub, setNpub] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -427,6 +434,12 @@ export default function SearchPage() {
                   <User className="h-4 w-4" />
                   Network
                 </Button>
+                {FEATURES.agentSuite && (
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
+                    <AgentIcon className="h-4 w-4" />
+                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -459,7 +472,10 @@ export default function SearchPage() {
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                      <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
+                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                        <span>{user.npub.slice(0, 16)}...</span>
+                        <Copy className="h-3 w-3" />
+                      </button>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
@@ -471,6 +487,12 @@ export default function SearchPage() {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isAdminPubkey(user?.pubkey) && (
+                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
@@ -495,6 +517,7 @@ export default function SearchPage() {
         calcDone={calcDone}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdminPubkey(user?.pubkey)}
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">

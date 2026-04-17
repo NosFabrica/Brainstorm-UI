@@ -31,6 +31,8 @@ import {
   MoreVertical,
   HelpCircle,
 } from "lucide-react";
+import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -45,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -61,6 +64,22 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
+
+interface AdminHistoryItem {
+  created_at: string;
+  updated_at: string;
+  private_id: number;
+  status: string;
+  ta_status: string | null;
+  internal_publication_status: string | null;
+  result: string | null;
+  count_values: string | null;
+  password: string | null;
+  algorithm: string | null;
+  parameters: string | null;
+  how_many_others_with_priority: number;
+  pubkey: string;
+}
 
 const FollowersIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className}>
@@ -142,6 +161,82 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
 
 
 
+function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: "status" | "ta" | "pub" }) {
+  if (!value) return <span className="text-slate-300">—</span>;
+  const lower = value.toLowerCase();
+  const colors = lower === "success" || lower === "done" || lower === "published"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : lower === "failure" || lower === "failed" || lower === "error"
+    ? "bg-red-50 text-red-700 border-red-200"
+    : lower === "pending" || lower === "queued" || lower === "in_progress"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-slate-50 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
+}
+
+function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const fmtDate = (d: string | null) => {
+    if (!d) return "—";
+    try { return new Date(d).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+    catch { return d; }
+  };
+  return (
+    <>
+      <tr
+        className={`border-b border-amber-100/40 cursor-pointer hover:bg-amber-50/40 transition-colors ${idx % 2 === 0 ? "bg-white/40" : "bg-amber-50/20"}`}
+        onClick={() => setExpanded(prev => !prev)}
+        data-testid={`row-admin-history-${item.private_id || idx}`}
+      >
+        <td className="px-2 py-2 font-mono text-slate-600">{item.private_id}</td>
+        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.status} type="status" /></td>
+        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.ta_status} type="ta" /></td>
+        <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
+        <td className="px-2 py-2 font-mono text-slate-600">{item.algorithm || "—"}</td>
+        <td className="px-2 py-2 text-center text-slate-600">{item.how_many_others_with_priority}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{fmtDate(item.updated_at)}</td>
+      </tr>
+      {expanded && (
+        <tr className="bg-amber-50/30">
+          <td colSpan={8} className="px-4 py-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+              {item.result && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                </div>
+              )}
+              {item.count_values && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
+                </div>
+              )}
+              {item.parameters && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
+                </div>
+              )}
+              {item.password && (
+                <div>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Password</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.password}</p>
+                </div>
+              )}
+              <div>
+                <span className="font-bold text-slate-500 uppercase text-[10px]">Pubkey</span>
+                <p className="text-slate-700 font-mono mt-0.5 break-all">{item.pubkey}</p>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
@@ -179,6 +274,7 @@ export default function ProfilePage() {
   const [reportTypeDropdownOpen, setReportTypeDropdownOpen] = useState<Record<string, boolean>>({});
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
+  const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -204,6 +300,16 @@ export default function ProfilePage() {
     enabled: !!user,
     staleTime: 30_000,
   });
+
+  const isAdmin = isAdminPubkey(user?.pubkey);
+
+  const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
+    queryKey: ["/api/admin/users", hexPubkey, "history"],
+    queryFn: () => apiClient.getAdminUserHistory(hexPubkey),
+    enabled: isAdmin && !!hexPubkey,
+    staleTime: 60_000,
+    retry: false,
+  });
   const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
   const calcDone = useMemo(() => {
     if (calcDoneNow) {
@@ -224,6 +330,9 @@ export default function ProfilePage() {
     const urlParams = new URLSearchParams(window.location.search);
     const group = urlParams.get("fromGroup");
     if (group) setFromGroup(group);
+    const adminFrom = urlParams.get("from");
+    const adminPubkey = urlParams.get("pubkey");
+    if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
   }, [navigate]);
 
   useEffect(() => {
@@ -1181,6 +1290,12 @@ export default function ProfilePage() {
                   <User className="h-4 w-4" />
                   Network
                 </Button>
+                {FEATURES.agentSuite && (
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
+                    <AgentIcon className="h-4 w-4" />
+                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1213,7 +1328,10 @@ export default function ProfilePage() {
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                      <p className="text-xs leading-none text-slate-500">{user.npub.slice(0, 16)}...</p>
+                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                        <span>{user.npub.slice(0, 16)}...</span>
+                        <Copy className="h-3 w-3" />
+                      </button>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
@@ -1225,6 +1343,12 @@ export default function ProfilePage() {
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator className="bg-indigo-100" />
                   <DropdownMenuItem
                     className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
@@ -1249,11 +1373,23 @@ export default function ProfilePage() {
         calcDone={calcDone}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdmin}
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
-          {fromGroup ? (
+          {fromAdmin ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+              onClick={() => navigate(`/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`)}
+              data-testid="button-back-to-admin"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin
+            </Button>
+          ) : fromGroup ? (
             <Button
               variant="ghost"
               size="sm"
@@ -2136,6 +2272,61 @@ export default function ProfilePage() {
                   </div>
                   );
                 })()}
+
+                {isAdmin && hexPubkey && (
+                  <div className="mt-6 rounded-xl border border-amber-300/60 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 overflow-hidden" data-testid="card-admin-history">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200/60 bg-amber-50/50">
+                      <Shield className="h-4 w-4 text-amber-600" />
+                      <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Admin — Brainstorm History</span>
+                      <Badge className="ml-auto bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                        /admin/users/{"{pubkey}"}/history
+                      </Badge>
+                    </div>
+                    <div className="p-4">
+                      {adminHistoryQuery.isLoading ? (
+                        <div className="flex items-center gap-2 justify-center py-6">
+                          <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                          <span className="text-xs text-slate-500">Loading history...</span>
+                        </div>
+                      ) : adminHistoryQuery.isError ? (
+                        <div className="text-center py-6">
+                          <p className="text-xs text-red-500">Failed to load admin history</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{adminHistoryQuery.error instanceof Error ? adminHistoryQuery.error.message : "Unknown error"}</p>
+                        </div>
+                      ) : !adminHistoryQuery.data?.items?.length ? (
+                        <div className="text-center py-6" data-testid="empty-admin-history">
+                          <Shield className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs text-slate-500">No Brainstorm calculation history for this user</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-[10px] text-slate-500">{adminHistoryQuery.data.total} calculation record{adminHistoryQuery.data.total !== 1 ? "s" : ""}</p>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-amber-200/40">
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">ID</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">TA Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Pub Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Algorithm</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Queue</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Created</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Updated</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {adminHistoryQuery.data.items.map((item: AdminHistoryItem, idx: number) => (
+                                  <AdminHistoryRow key={item.private_id || idx} item={item} idx={idx} />
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <Button
