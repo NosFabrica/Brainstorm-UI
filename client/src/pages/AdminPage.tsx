@@ -374,30 +374,41 @@ function compareWindows(activity: { updated_at: string; status?: string | null }
   };
 }
 
-function MiniSparkline({ data, color = "#7c86ff", height = 22, width = 64, className }: { data: number[]; color?: string; height?: number; width?: number; className?: string }) {
+function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
   if (!data || data.length < 2) {
-    return <div className={`inline-block h-[${height}px] w-[${width}px] ${className ?? ""}`} style={{ height, width }} />;
+    return <div className={`inline-block ${className ?? ""}`} style={{ height, width }} />;
   }
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
-  const range = max - min || 1;
-  const stepX = width / Math.max(data.length - 1, 1);
-  const points = data.map((v, i) => `${(i * stepX).toFixed(2)},${(height - ((v - min) / range) * height).toFixed(2)}`).join(" ");
-  const lastX = ((data.length - 1) * stepX).toFixed(2);
-  const lastY = (height - ((data[data.length - 1] - min) / range) * height).toFixed(2);
+  const chartData = data.map((v, i) => ({
+    i,
+    v,
+    ts: timestamps?.[i],
+  }));
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={`overflow-visible ${className ?? ""}`} aria-hidden="true">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.85" />
-      <circle cx={lastX} cy={lastY} r="1.6" fill={color} />
-    </svg>
+    <div style={{ width, height }} className={`inline-block ${className ?? ""}`} data-testid="mini-sparkline">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={chartData} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+          <RcTooltip
+            cursor={{ stroke: color, strokeOpacity: 0.3, strokeWidth: 1 }}
+            contentStyle={{ fontSize: 10, borderRadius: 6, border: "1px solid #e2e8f0", padding: "4px 6px", lineHeight: 1.3 }}
+            wrapperStyle={{ outline: "none", zIndex: 50 }}
+            labelFormatter={(_, items) => {
+              const ts = items?.[0]?.payload?.ts as number | undefined;
+              return ts ? new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+            }}
+            formatter={(val: number | string) => [`${val}${valueSuffix}`, valueLabel]}
+          />
+          <Line type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} dot={false} activeDot={{ r: 2.5, fill: color }} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
-function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h ago", insufficient }: { delta: number | null; suffix?: string; inverted?: boolean; label?: string; insufficient?: boolean }) {
+function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h ago", insufficient, insufficientLabel }: { delta: number | null; suffix?: string; inverted?: boolean; label?: string; insufficient?: boolean; insufficientLabel?: string }) {
   if (insufficient || delta === null || delta === undefined || Number.isNaN(delta)) {
     return (
-      <span className="text-[10px] font-medium text-slate-400 inline-flex items-center gap-0.5" title="Not enough historical data yet to compute a trend">
-        <Minus className="h-3 w-3" /> —
+      <span className="text-[10px] font-medium text-slate-400 inline-flex items-center gap-0.5" title={insufficientLabel ?? "Not enough historical data yet to compute a trend"}>
+        <Minus className="h-3 w-3" /> {insufficientLabel ?? "—"}
       </span>
     );
   }
@@ -415,7 +426,7 @@ function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h 
   );
 }
 
-function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope, onClick, sparklineData, sparklineColor, deltaSlot }: {
+function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, tooltip, scope, onClick, sparklineData, sparklineTimestamps, sparklineColor, sparklineValueLabel, sparklineValueSuffix, deltaSlot }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -426,7 +437,10 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   scope?: "system" | "graph";
   onClick?: () => void;
   sparklineData?: number[];
+  sparklineTimestamps?: number[];
   sparklineColor?: string;
+  sparklineValueLabel?: string;
+  sparklineValueSuffix?: string;
   deltaSlot?: React.ReactNode;
 }) {
   return (
@@ -456,7 +470,15 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
       <div className="flex items-end justify-between gap-2 relative">
         <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
         {sparklineData && sparklineData.length >= 2 && !unsupported && (
-          <MiniSparkline data={sparklineData} color={sparklineColor ?? "#7c86ff"} height={20} width={56} />
+          <MiniSparkline
+            data={sparklineData}
+            timestamps={sparklineTimestamps}
+            color={sparklineColor ?? "#7c86ff"}
+            height={22}
+            width={64}
+            valueLabel={sparklineValueLabel ?? "value"}
+            valueSuffix={sparklineValueSuffix ?? ""}
+          />
         )}
       </div>
       <p className="text-[11px] text-slate-500 mt-0.5 relative leading-tight">{label}</p>
@@ -1628,9 +1650,11 @@ export default function AdminPage() {
     const now = Date.now();
     const buckets24h = bucketActivityByHour(overviewAllActivity, 24, now);
     const cmp = compareWindows(overviewAllActivity, 24, now);
+    const cmp1h = compareWindows(overviewAllActivity, 1, now);
     const totalSeries = buckets24h.map(b => b.total);
     const successSeries = buckets24h.map(b => b.success);
     const failedSeries = buckets24h.map(b => b.failed);
+    const bucketTimestamps = buckets24h.map(b => b.t);
     const rateSeries = buckets24h.map(b => {
       const d = b.success + b.failed;
       return d === 0 ? 0 : Math.round((b.success / d) * 100);
@@ -1644,13 +1668,16 @@ export default function AdminPage() {
     const hasPriorWindow = cmp.hasPrev;
     return {
       buckets24h,
+      bucketTimestamps,
       totalSeries,
       successSeries,
       failedSeries,
       rateSeries,
       cmp,
+      cmp1h,
       hasFullWindow,
       hasPriorWindow,
+      hasPriorHourWindow: cmp1h.hasPrev,
       hasAnyActivity: cmp.curTotal > 0,
     };
   }, [overviewAllActivity]);
@@ -2113,7 +2140,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-2.5" data-testid="section-kpi-strip">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
               value={pipelineMetrics ? `${formatNumber(pipelineMetrics.successCount)} / ${formatNumber(pipelineMetrics.total)}` : (hasSystemData ? formatNumber(adminStats!.scoredUsers) : "0")}
@@ -2123,13 +2150,22 @@ export default function AdminPage() {
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
               sparklineData={trends.successSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#10b981"
+              sparklineValueLabel="successes"
               deltaSlot={
-                <DeltaIndicator
-                  delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
-                  insufficient={!trends.hasPriorWindow}
-                  label="successes vs prior 24h"
-                />
+                <div className="flex flex-col gap-0.5">
+                  <DeltaIndicator
+                    delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
+                    insufficient={!trends.hasPriorWindow}
+                    label="vs prior 24h"
+                  />
+                  <DeltaIndicator
+                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curSuccess - trends.cmp1h.prevSuccess) : null}
+                    insufficient={!trends.hasPriorHourWindow}
+                    label="vs prior 1h"
+                  />
+                </div>
               }
             />
             <KpiCard
@@ -2140,7 +2176,7 @@ export default function AdminPage() {
               tooltip="Click to view SP adopters"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} />}
+              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
               label="Queue Depth"
@@ -2150,23 +2186,60 @@ export default function AdminPage() {
               tooltip="Click to view queued users"
               scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} />}
+              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
-              label="Calcs (24h)"
-              value={formatNumber(trends.cmp.curTotal)}
+              label="Total Calcs"
+              value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
               icon={Activity}
-              subtitle="Calculations in last 24 hours"
-              tooltip="Total calculations attempted in the last 24 hours"
+              subtitle={`${formatNumber(trends.cmp.curTotal)} in last 24h`}
+              tooltip="Cumulative calculation attempts across all users; 24h trend shown"
               scope="system"
               sparklineData={trends.totalSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#7c86ff"
+              sparklineValueLabel="calcs/hr"
               deltaSlot={
-                <DeltaIndicator
-                  delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
-                  insufficient={!trends.hasPriorWindow}
-                  label="vs prior 24h"
-                />
+                <div className="flex flex-col gap-0.5">
+                  <DeltaIndicator
+                    delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
+                    insufficient={!trends.hasPriorWindow}
+                    label="24h vs prior 24h"
+                  />
+                  <DeltaIndicator
+                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
+                    insufficient={!trends.hasPriorHourWindow}
+                    label="1h vs prior 1h"
+                  />
+                </div>
+              }
+            />
+            <KpiCard
+              label="Failed Count"
+              value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
+              icon={AlertTriangle}
+              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last 24h`}
+              tooltip="Cumulative failed calculations; 24h trend shown (lower is better)"
+              scope="system"
+              sparklineData={trends.failedSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineColor="#f87171"
+              sparklineValueLabel="failures/hr"
+              deltaSlot={
+                <div className="flex flex-col gap-0.5">
+                  <DeltaIndicator
+                    delta={trends.hasPriorWindow ? (trends.cmp.curFailed - trends.cmp.prevFailed) : null}
+                    insufficient={!trends.hasPriorWindow}
+                    inverted
+                    label="24h vs prior 24h"
+                  />
+                  <DeltaIndicator
+                    delta={trends.hasPriorHourWindow ? (trends.cmp1h.curFailed - trends.cmp1h.prevFailed) : null}
+                    insufficient={!trends.hasPriorHourWindow}
+                    inverted
+                    label="1h vs prior 1h"
+                  />
+                </div>
               }
             />
           </div>
@@ -2323,7 +2396,7 @@ export default function AdminPage() {
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Success Rate</span>
                         <div className="flex items-center gap-2">
                           {trends.hasAnyActivity && (
-                            <MiniSparkline data={trends.rateSeries} color="#10b981" height={18} width={56} />
+                            <MiniSparkline data={trends.rateSeries} timestamps={trends.bucketTimestamps} color="#10b981" height={20} width={64} valueLabel="success rate" valueSuffix="%" />
                           )}
                           <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
                         </div>
