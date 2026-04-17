@@ -1284,16 +1284,10 @@ export default function AdminPage() {
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
   const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
-  const [trendWindow, setTrendWindow] = useState<TrendWindow>(() => {
-    try {
-      const stored = localStorage.getItem("admin_trend_window");
-      if (stored === "1h" || stored === "24h" || stored === "7d" || stored === "30d") return stored;
-    } catch { /* ignore */ }
-    return "24h";
-  });
+  const [trendWindow, setTrendWindow] = useState<TrendWindow>("24h");
   useEffect(() => {
-    try { localStorage.setItem("admin_trend_window", trendWindow); } catch { /* ignore */ }
-  }, [trendWindow]);
+    try { localStorage.removeItem("admin_trend_window"); } catch { /* ignore */ }
+  }, []);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
