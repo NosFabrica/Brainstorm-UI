@@ -31,6 +31,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Home,
   Search,
   Menu,
@@ -805,44 +811,92 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                     </tr>
                   </thead>
                   <tbody>
+                    <TooltipProvider delayDuration={150}>
                     {historyQuery.data.items.map((item, idx) => {
-                      const hasFail = item.status.toLowerCase() === "failure" || item.ta_status?.toLowerCase() === "failure" || item.internal_publication_status?.toLowerCase() === "failure" || item.internal_publication_status?.toLowerCase() === "failed";
-                      const errorDetail = hasFail ? (item.result || null) : null;
+                      const statusLower = item.status.toLowerCase();
+                      const taLower = item.ta_status?.toLowerCase() ?? "";
+                      const pubLower = item.internal_publication_status?.toLowerCase() ?? "";
+                      const statusFailed = statusLower === "failure";
+                      const taFailed = taLower === "failure";
+                      const pubFailed = pubLower === "failure" || pubLower === "failed";
+                      const hasFail = statusFailed || taFailed || pubFailed;
+                      const errorText = (item.result && item.result.trim()) || "";
+                      const tooltipText = errorText || "No error details captured.";
+                      const rowKey = item.private_id ?? idx;
                       return (
-                        <Fragment key={item.private_id ?? idx}>
-                          <tr className={`border-b ${errorDetail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
+                        <Fragment key={rowKey}>
+                          <tr className={`border-b ${hasFail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className="text-[11px] font-medium text-slate-700">{formatTimestamp(item.created_at)}</span>
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                item.status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                item.status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                                "bg-slate-50 text-slate-600 border border-slate-200"
-                              }`}>{item.status}</span>
+                              {statusFailed ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                      data-testid={`tooltip-history-error-status-${rowKey}`}
+                                    >{item.status}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" align="center" className="bg-slate-950 text-slate-100 text-xs max-w-[320px] break-words font-mono">
+                                    {tooltipText}
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                  statusLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                  "bg-slate-50 text-slate-600 border border-slate-200"
+                                }`}>{item.status}</span>
+                              )}
                             </td>
                             <td className="px-3 py-2.5">
                               <span className="text-[11px] font-mono font-semibold text-[#333286]">{item.algorithm}</span>
                             </td>
                             <td className="px-3 py-2.5">
                               {item.ta_status ? (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                  item.ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                  item.ta_status.toLowerCase() === "failure" ? "bg-red-50 text-red-700 border border-red-200" :
-                                  "bg-slate-50 text-slate-600 border border-slate-200"
-                                }`}>{item.ta_status}</span>
+                                taFailed ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        data-testid={`tooltip-history-error-ta-${rowKey}`}
+                                      >{item.ta_status}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" align="center" className="bg-slate-950 text-slate-100 text-xs max-w-[320px] break-words font-mono">
+                                      {tooltipText}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                    taLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                  }`}>{item.ta_status}</span>
+                                )
                               ) : (
                                 <span className="text-[11px] text-slate-300">—</span>
                               )}
                             </td>
                             <td className="px-3 py-2.5">
                               {item.internal_publication_status ? (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                  item.internal_publication_status.toLowerCase() === "success" || item.internal_publication_status.toLowerCase() === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                  item.internal_publication_status.toLowerCase() === "failure" || item.internal_publication_status.toLowerCase() === "failed" ? "bg-red-50 text-red-700 border border-red-200" :
-                                  item.internal_publication_status.toLowerCase() === "pending" || item.internal_publication_status.toLowerCase() === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                                  "bg-slate-50 text-slate-600 border border-slate-200"
-                                }`}>{item.internal_publication_status}</span>
+                                pubFailed ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        data-testid={`tooltip-history-error-pub-${rowKey}`}
+                                      >{item.internal_publication_status}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" align="center" className="bg-slate-950 text-slate-100 text-xs max-w-[320px] break-words font-mono">
+                                      {tooltipText}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                    pubLower === "success" || pubLower === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                    pubLower === "pending" || pubLower === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                  }`}>{item.internal_publication_status}</span>
+                                )
                               ) : (
                                 <span className="text-[11px] text-slate-300">—</span>
                               )}
@@ -851,12 +905,16 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                               <span className="text-[11px] font-medium text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
                             </td>
                           </tr>
-                          {errorDetail && (
-                            <tr className="border-b border-red-200 bg-red-50/60">
+                          {hasFail && (
+                            <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
                               <td colSpan={6} className="px-4 py-2">
                                 <div className="flex items-start gap-2">
                                   <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                                  <span className="text-[11px] text-red-700 font-mono break-all">{errorDetail}</span>
+                                  {errorText ? (
+                                    <span className="text-[11px] text-red-700 font-mono break-all">{errorText}</span>
+                                  ) : (
+                                    <span className="text-[11px] text-red-600/80 italic">No error details captured — check server logs.</span>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -864,6 +922,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                         </Fragment>
                       );
                     })}
+                    </TooltipProvider>
                   </tbody>
                 </table>
               </div>
