@@ -769,7 +769,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
 
   return (
     <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
-      <td colSpan={11} className="px-5 py-4">
+      <td colSpan={12} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
             <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px] mb-2">Identity</p>
