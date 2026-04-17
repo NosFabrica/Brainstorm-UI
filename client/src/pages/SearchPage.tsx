@@ -22,6 +22,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { FEATURES } from "@/config/featureFlags";
 import { AdminIcon } from "@/components/AdminIcon";
 import { TrustRankIcon } from "@/components/TrustRankIcon";
 import { ProfileCardIcon } from "@/components/ProfileCardIcon";
@@ -380,10 +381,12 @@ export default function SearchPage() {
                 <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
                   <User className="h-4 w-4" /> Network
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                  <AgentIcon className="h-4 w-4" />
-                  <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                </Button>
+                {FEATURES.agentSuite && (
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
+                    <AgentIcon className="h-4 w-4" />
+                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
+                  </Button>
+                )}
               </div>
             </div>
 
