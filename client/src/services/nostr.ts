@@ -1,5 +1,22 @@
-import { nip19 } from "nostr-tools";
+import { nip19, finalizeEvent, getPublicKey } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
+
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) throw new Error("Invalid hex");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, "0");
+  }
+  return hex;
+}
 import { EventStore, firstValueFrom } from "applesauce-core";
 import {
   getProfileContent,
@@ -20,6 +37,84 @@ declare global {
       signEvent(event: Record<string, unknown>): Promise<Record<string, unknown>>;
     };
   }
+}
+
+const SK_STORAGE_KEY = "brainstorm_sk_hex";
+
+export type LoginErrorCode =
+  | "NO_EXTENSION"
+  | "EXTENSION_FAILED"
+  | "PERMISSION_DENIED"
+  | "SIGN_CANCELLED"
+  | "INVALID_NSEC"
+  | "SERVER_ERROR";
+
+export class LoginError extends Error {
+  code: LoginErrorCode;
+  constructor(code: LoginErrorCode, message: string) {
+    super(message);
+    this.name = "LoginError";
+    this.code = code;
+  }
+}
+
+function getStoredSecretKey(): Uint8Array | null {
+  try {
+    const hex = sessionStorage.getItem(SK_STORAGE_KEY);
+    if (!hex) return null;
+    return hexToBytes(hex);
+  } catch {
+    return null;
+  }
+}
+
+function storeSecretKey(sk: Uint8Array): void {
+  try {
+    sessionStorage.setItem(SK_STORAGE_KEY, bytesToHex(sk));
+  } catch {}
+}
+
+function clearSecretKey(): void {
+  try {
+    sessionStorage.removeItem(SK_STORAGE_KEY);
+  } catch {}
+}
+
+export function hasLocalSecretKey(): boolean {
+  return getStoredSecretKey() !== null;
+}
+
+function signWithStoredKey(event: Record<string, unknown>): Record<string, unknown> {
+  const sk = getStoredSecretKey();
+  if (!sk) throw new Error("No local secret key available.");
+  const eventToSign = {
+    kind: event.kind as number,
+    tags: (event.tags as string[][]) ?? [],
+    content: (event.content as string) ?? "",
+    created_at: (event.created_at as number) ?? Math.floor(Date.now() / 1000),
+  };
+  return finalizeEvent(eventToSign, sk) as unknown as Record<string, unknown>;
+}
+
+export async function signEventLocally(
+  event: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  if (window.nostr) {
+    try {
+      const signed = await window.nostr.signEvent(event);
+      if (signed && signed.sig) return signed;
+      throw new Error("Extension returned an unsigned event");
+    } catch (err) {
+      if (hasLocalSecretKey()) {
+        return signWithStoredKey(event);
+      }
+      throw err;
+    }
+  }
+  if (hasLocalSecretKey()) {
+    return signWithStoredKey(event);
+  }
+  throw new Error("No signer available. Please sign in again.");
 }
 
 export interface NostrUser {
@@ -247,10 +342,35 @@ async function waitForNostrExtension(maxWaitMs = 3000, intervalMs = 200): Promis
   });
 }
 
+async function completeLogin(pubkey: string, signedEvent: Record<string, unknown>): Promise<NostrUser> {
+  let result;
+  try {
+    result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Server error during login.";
+    throw new LoginError("SERVER_ERROR", msg);
+  }
+  const token = result.data?.token || (result as any).token;
+  if (!token) {
+    throw new LoginError("SERVER_ERROR", "No token received from server. Please try again.");
+  }
+  localStorage.setItem("brainstorm_session_token", token);
+
+  const isAdmin = extractAdminFlag(token);
+  const npub = nip19.npubEncode(pubkey);
+
+  const user: NostrUser = { pubkey, npub, isAdmin };
+  setCurrentUser(user);
+  return user;
+}
+
 export async function handleLogin(): Promise<NostrUser> {
   const extensionFound = await waitForNostrExtension();
   if (!extensionFound) {
-    throw new Error("No Nostr extension detected. Please install a NIP-07 compatible extension (nos2x, Alby, Keys.Band, etc.) and refresh the page.");
+    throw new LoginError(
+      "NO_EXTENSION",
+      "No Nostr extension detected. You can sign in with your nsec instead, or install a NIP-07 extension."
+    );
   }
 
   let pubkey: string;
@@ -258,27 +378,42 @@ export async function handleLogin(): Promise<NostrUser> {
     pubkey = await window.nostr!.getPublicKey();
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (msg.toLowerCase().includes("denied") || msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("cancel")) {
-      throw new Error("Permission denied. Please allow the Nostr extension to share your public key.");
+    const lower = msg.toLowerCase();
+    if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
+      throw new LoginError(
+        "PERMISSION_DENIED",
+        "Your extension denied the request. Unlock it and approve access, or sign in with your nsec."
+      );
     }
-    throw new Error(`Failed to get public key from extension: ${msg || "unknown error"}. Try refreshing the page.`);
+    throw new LoginError(
+      "EXTENSION_FAILED",
+      `Your Nostr extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or sign in with your nsec.`
+    );
   }
 
   if (!pubkey || typeof pubkey !== "string") {
-    throw new Error("Invalid public key received from extension. Please check your Nostr extension is configured correctly.");
+    throw new LoginError(
+      "EXTENSION_FAILED",
+      "Your extension returned an invalid public key. Unlock it and try again, or sign in with your nsec."
+    );
   }
 
-  const challenge = await apiClient.getAuthChallenge(pubkey);
+  let challenge: string;
+  try {
+    challenge = await apiClient.getAuthChallenge(pubkey);
+  } catch (err) {
+    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
+  }
 
   const event: Record<string, unknown> = {
     kind: 22242,
     tags: [
       ["t", "brainstorm_login"],
-      ["challenge", challenge]
+      ["challenge", challenge],
     ],
     content: "",
     created_at: Math.floor(Date.now() / 1000),
-    pubkey
+    pubkey,
   };
 
   let signedEvent: Record<string, unknown>;
@@ -286,39 +421,89 @@ export async function handleLogin(): Promise<NostrUser> {
     signedEvent = await window.nostr!.signEvent(event);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    if (msg.toLowerCase().includes("denied") || msg.toLowerCase().includes("rejected") || msg.toLowerCase().includes("cancel")) {
-      throw new Error("Signing was cancelled. Please approve the sign request in your Nostr extension to log in.");
+    const lower = msg.toLowerCase();
+    if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
+      throw new LoginError(
+        "SIGN_CANCELLED",
+        "Signing was cancelled. Approve the request in your extension, or sign in with your nsec."
+      );
     }
-    throw new Error(`Failed to sign event: ${msg || "unknown error"}. Your extension may not support this event type.`);
+    throw new LoginError(
+      "EXTENSION_FAILED",
+      `Your extension couldn't sign the login event${msg ? `: ${msg}` : ""}. Try again, or sign in with your nsec.`
+    );
   }
 
   if (!signedEvent || !signedEvent.sig) {
-    throw new Error("Extension returned an unsigned event. Please try again or use a different Nostr extension.");
+    throw new LoginError(
+      "EXTENSION_FAILED",
+      "Your extension returned an unsigned event. Try again, or sign in with your nsec."
+    );
   }
 
-  const result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
-  const token = result.data?.token || (result as any).token;
-  if (!token) {
-    throw new Error("No token received from server. Please try again.");
+  clearSecretKey();
+  return completeLogin(pubkey, signedEvent);
+}
+
+export async function loginWithNsec(nsec: string): Promise<NostrUser> {
+  const trimmed = nsec.trim();
+  if (!trimmed) {
+    throw new LoginError("INVALID_NSEC", "Please paste your nsec (starts with “nsec1…”).");
   }
-  localStorage.setItem("brainstorm_session_token", token);
 
-  const isAdmin = extractAdminFlag(token);
-  const npub = nip19.npubEncode(pubkey);
+  let sk: Uint8Array;
+  try {
+    const decoded = nip19.decode(trimmed);
+    if (decoded.type !== "nsec") {
+      throw new Error("Not an nsec key");
+    }
+    sk = decoded.data as Uint8Array;
+  } catch {
+    throw new LoginError(
+      "INVALID_NSEC",
+      "That doesn't look like a valid nsec. It should start with “nsec1” and be 63 characters long."
+    );
+  }
 
-  const user: NostrUser = {
-    pubkey,
-    npub,
-    isAdmin,
+  let pubkey: string;
+  try {
+    pubkey = getPublicKey(sk);
+  } catch {
+    throw new LoginError("INVALID_NSEC", "Couldn't derive a public key from that nsec.");
+  }
+
+  let challenge: string;
+  try {
+    challenge = await apiClient.getAuthChallenge(pubkey);
+  } catch (err) {
+    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
+  }
+
+  const eventTemplate = {
+    kind: 22242,
+    tags: [
+      ["t", "brainstorm_login"],
+      ["challenge", challenge],
+    ],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
   };
 
-  setCurrentUser(user);
-  return user;
+  const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
+
+  storeSecretKey(sk);
+  try {
+    return await completeLogin(pubkey, signedEvent);
+  } catch (err) {
+    clearSecretKey();
+    throw err;
+  }
 }
 
 export function logout() {
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
+  clearSecretKey();
   queryClient.clear();
 }
 
@@ -342,37 +527,35 @@ export async function signNip85(
   serviceKey: string,
   relayHint: string
 ): Promise<Record<string, unknown>> {
-  if (!window.nostr) {
-    return { success: false, error: "No Nostr extension found" };
-  }
-
   const user = getCurrentUser();
   if (!user?.pubkey) {
-    return { success: false, error: "Not logged in" };
+    throw new Error("Not logged in");
+  }
+  if (!window.nostr && !hasLocalSecretKey()) {
+    throw new Error("No signer available. Please sign in again.");
   }
 
   const event = {
     kind: 10040,
     tags: [
       ["30382:rank", serviceKey, relayHint],
-      ["30382:followers", serviceKey, relayHint]
+      ["30382:followers", serviceKey, relayHint],
     ],
     content: "",
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
   };
 
-  return await window.nostr.signEvent(event);
+  return await signEventLocally(event);
 }
 
 export async function signNip85Deactivation(): Promise<Record<string, unknown>> {
-  if (!window.nostr) {
-    return { success: false, error: "No Nostr extension found" };
-  }
-
   const user = getCurrentUser();
   if (!user?.pubkey) {
-    return { success: false, error: "Not logged in" };
+    throw new Error("Not logged in");
+  }
+  if (!window.nostr && !hasLocalSecretKey()) {
+    throw new Error("No signer available. Please sign in again.");
   }
 
   const event = {
@@ -383,7 +566,7 @@ export async function signNip85Deactivation(): Promise<Record<string, unknown>> 
     pubkey: user.pubkey,
   };
 
-  return await window.nostr.signEvent(event);
+  return await signEventLocally(event);
 }
 
 export interface ReportMetadata {

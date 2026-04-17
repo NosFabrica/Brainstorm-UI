@@ -1,5 +1,5 @@
 import { extractAdminFlag } from "@/lib/jwt";
-import { clearUserCache } from "./nostr";
+import { clearUserCache, signEventLocally, hasLocalSecretKey } from "./nostr";
 
 export type ApiEnvironment = "staging" | "production";
 
@@ -43,6 +43,7 @@ function handleUnauthorized() {
   isRedirectingToLogin = true;
   localStorage.removeItem("brainstorm_session_token");
   localStorage.removeItem("nostr_user");
+  try { sessionStorage.removeItem("brainstorm_sk_hex"); } catch {}
   window.location.href = "/";
 }
 
@@ -68,8 +69,11 @@ async function silentReauth(): Promise<boolean> {
       const user = JSON.parse(storedUser);
       if (!user?.pubkey) return false;
 
-      const extensionReady = await waitForNostrExtension();
-      if (!extensionReady) return false;
+      const hasSk = hasLocalSecretKey();
+      if (!hasSk) {
+        const extensionReady = await waitForNostrExtension();
+        if (!extensionReady) return false;
+      }
 
       const challengeResponse = await fetch(
         `${getBrainstormApi()}/authChallenge/${user.pubkey}`,
@@ -90,7 +94,7 @@ async function silentReauth(): Promise<boolean> {
         pubkey: user.pubkey,
       };
 
-      const signedEvent = await window.nostr!.signEvent(event);
+      const signedEvent = await signEventLocally(event);
 
       const verifyResponse = await fetch(
         `${getBrainstormApi()}/authChallenge/${user.pubkey}/verify`,

@@ -3,7 +3,8 @@ import { ArrowRight, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Footer } from '@/components/Footer';
 import { ComputingBackground } from '@/components/ComputingBackground';
-import { handleLogin } from '@/services/nostr';
+import { handleLogin, LoginError, type LoginErrorCode } from '@/services/nostr';
+import { LoginFailureModal } from '@/components/LoginFailureModal';
 
 const mathChars = "∑∏∫∂∇×÷±√∞≈≠≤≥αβγδεζηθλμπσφψω0123456789";
 const algorithmWord = "algorithm";
@@ -81,6 +82,9 @@ function FadingText() {
 export default function Landing() {
   const [, setLocation] = useLocation();
   const [signingIn, setSigningIn] = useState(false);
+  const [failureOpen, setFailureOpen] = useState(false);
+  const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
+  const [failureMessage, setFailureMessage] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("brainstorm_token");
@@ -95,9 +99,27 @@ export default function Landing() {
     try {
       await handleLogin();
       setLocation('/dashboard', { replace: true });
-    } catch {
+    } catch (err) {
+      if (err instanceof LoginError) {
+        setFailureCode(err.code);
+        setFailureMessage(err.message);
+      } else {
+        setFailureCode("SERVER_ERROR");
+        setFailureMessage(err instanceof Error ? err.message : "Failed to connect to Nostr.");
+      }
+      setFailureOpen(true);
       setSigningIn(false);
     }
+  };
+
+  const handleNsecLoginSuccess = () => {
+    setFailureOpen(false);
+    setLocation('/dashboard', { replace: true });
+  };
+
+  const handleRetryExtension = () => {
+    setFailureOpen(false);
+    setTimeout(() => onSignIn(), 100);
   };
 
   return (
@@ -323,6 +345,15 @@ export default function Landing() {
         </div>
       </div>
       <Footer />
+
+      <LoginFailureModal
+        open={failureOpen}
+        onOpenChange={setFailureOpen}
+        errorCode={failureCode}
+        errorMessage={failureMessage}
+        onLoginSuccess={handleNsecLoginSuccess}
+        onRetryExtension={handleRetryExtension}
+      />
     </div>
   );
 }

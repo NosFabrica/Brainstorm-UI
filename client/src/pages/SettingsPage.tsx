@@ -167,12 +167,6 @@ export default function SettingsPage() {
     setRepublishState("signing");
     setRepublishError("");
 
-    if (!window.nostr) {
-      setRepublishState("error");
-      setRepublishError("No Nostr extension found. Please install a NIP-07 compatible extension.");
-      return;
-    }
-
     const currentUser = getCurrentUser();
     if (!currentUser?.pubkey) {
       setRepublishState("error");
@@ -212,12 +206,6 @@ export default function SettingsPage() {
   const handleDeactivateNip85 = async () => {
     setDeactivateState("signing");
     setDeactivateError("");
-
-    if (!window.nostr) {
-      setDeactivateState("error");
-      setDeactivateError("No Nostr extension found. Please install a NIP-07 compatible extension.");
-      return;
-    }
 
     const currentUser = getCurrentUser();
     if (!currentUser?.pubkey) {

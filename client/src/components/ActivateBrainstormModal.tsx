@@ -34,12 +34,6 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     setActivateState("signing");
     setErrorMessage("");
 
-    if (!window.nostr) {
-      setActivateState("error");
-      setErrorMessage("No Nostr extension found. Please install a NIP-07 compatible extension.");
-      return;
-    }
-
     const user = getCurrentUser();
     if (!user?.pubkey) {
       setActivateState("error");

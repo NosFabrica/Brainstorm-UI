@@ -7,7 +7,8 @@ import {
   ExternalLink,
   Zap,
 } from "lucide-react";
-import { handleLogin } from "@/services/nostr";
+import { handleLogin, LoginError, type LoginErrorCode } from "@/services/nostr";
+import { LoginFailureModal } from "@/components/LoginFailureModal";
 
 const floatingNodes = Array.from({ length: 12 }, (_, i) => ({
   id: i,
@@ -100,6 +101,9 @@ export default function LoginPage() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failureOpen, setFailureOpen] = useState(false);
+  const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
+  const [failureMessage, setFailureMessage] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("brainstorm_token");
@@ -115,10 +119,26 @@ export default function LoginPage() {
       await handleLogin();
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect to Nostr.");
+      if (err instanceof LoginError) {
+        setFailureCode(err.code);
+        setFailureMessage(err.message);
+        setFailureOpen(true);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to connect to Nostr.");
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNsecLoginSuccess = () => {
+    setFailureOpen(false);
+    navigate("/dashboard", { replace: true });
+  };
+
+  const handleRetryExtension = () => {
+    setFailureOpen(false);
+    setTimeout(() => onLogin(), 100);
   };
 
   return (
@@ -307,6 +327,15 @@ export default function LoginPage() {
           40%, 60% { opacity: 0.4; transform: translateY(-15px); }
         }
       `}</style>
+
+      <LoginFailureModal
+        open={failureOpen}
+        onOpenChange={setFailureOpen}
+        errorCode={failureCode}
+        errorMessage={failureMessage}
+        onLoginSuccess={handleNsecLoginSuccess}
+        onRetryExtension={handleRetryExtension}
+      />
     </div>
   );
 }
