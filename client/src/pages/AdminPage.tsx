@@ -376,7 +376,18 @@ function compareWindows(activity: { updated_at: string; status?: string | null }
 
 function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
   if (!data || data.length < 2) {
-    return <div className={`inline-block ${className ?? ""}`} style={{ height, width }} />;
+    return (
+      <div
+        className={`inline-flex items-center justify-center text-[8px] text-slate-300 ${className ?? ""}`}
+        style={{ height, width }}
+        title="No trend data available yet"
+        data-testid="mini-sparkline-empty"
+      >
+        <svg width={width - 4} height={4} viewBox={`0 0 ${width - 4} 4`} aria-hidden="true">
+          <line x1="0" y1="2" x2={width - 4} y2="2" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2 2" />
+        </svg>
+      </div>
+    );
   }
   const chartData = data.map((v, i) => ({
     i,
@@ -469,9 +480,9 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
       </div>
       <div className="flex items-end justify-between gap-2 relative">
         <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-        {sparklineData && sparklineData.length >= 2 && !unsupported && (
+        {!unsupported && (
           <MiniSparkline
-            data={sparklineData}
+            data={sparklineData ?? []}
             timestamps={sparklineTimestamps}
             color={sparklineColor ?? "#7c86ff"}
             height={22}
@@ -1659,12 +1670,6 @@ export default function AdminPage() {
       const d = b.success + b.failed;
       return d === 0 ? 0 : Math.round((b.success / d) * 100);
     });
-    const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
-      const t = parseActivityTs(a.updated_at);
-      if (!t) return min;
-      return min === 0 ? t : Math.min(min, t);
-    }, 0);
-    const hasFullWindow = oldestActivityTs > 0 && (now - oldestActivityTs) >= 23 * 3600000;
     const hasPriorWindow = cmp.hasPrev;
     return {
       buckets24h,
@@ -1675,7 +1680,6 @@ export default function AdminPage() {
       rateSeries,
       cmp,
       cmp1h,
-      hasFullWindow,
       hasPriorWindow,
       hasPriorHourWindow: cmp1h.hasPrev,
       hasAnyActivity: cmp.curTotal > 0,
@@ -2140,7 +2144,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5" data-testid="section-kpi-strip">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
               value={pipelineMetrics ? `${formatNumber(pipelineMetrics.successCount)} / ${formatNumber(pipelineMetrics.total)}` : (hasSystemData ? formatNumber(adminStats!.scoredUsers) : "0")}
@@ -2209,6 +2213,35 @@ export default function AdminPage() {
                   <DeltaIndicator
                     delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
                     insufficient={!trends.hasPriorHourWindow}
+                    label="1h vs prior 1h"
+                  />
+                </div>
+              }
+            />
+            <KpiCard
+              label="Success Rate"
+              value={pipelineMetrics ? `${pipelineMetrics.successRate}%` : (trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—")}
+              icon={CheckCircle2}
+              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in last 24h` : "Cumulative success rate"}
+              tooltip="Successful calculations as % of attempted; 24h trend shown"
+              scope="system"
+              sparklineData={trends.rateSeries}
+              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineColor="#10b981"
+              sparklineValueLabel="success rate"
+              sparklineValueSuffix="%"
+              deltaSlot={
+                <div className="flex flex-col gap-0.5">
+                  <DeltaIndicator
+                    delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
+                    insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
+                    suffix=" pts"
+                    label="24h vs prior 24h"
+                  />
+                  <DeltaIndicator
+                    delta={trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null ? (trends.cmp1h.curSR - trends.cmp1h.prevSR) : null}
+                    insufficient={!(trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null)}
+                    suffix=" pts"
                     label="1h vs prior 1h"
                   />
                 </div>
