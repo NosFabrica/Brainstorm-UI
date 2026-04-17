@@ -1512,7 +1512,7 @@ export default function AdminPage() {
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
   const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
-  const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
+  const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | "failed" | null>(null);
   const [trendWindow, setTrendWindow] = useState<TrendWindow>("24h");
   useEffect(() => {
     try { localStorage.removeItem("admin_trend_window"); } catch { /* ignore */ }
@@ -1908,6 +1908,7 @@ export default function AdminPage() {
         if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
         if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
         if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && !isFailedStatus(u.latest_status);
+        if (kpiFilter === "failed") return isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status);
         return true;
       });
     }
@@ -2594,8 +2595,9 @@ export default function AdminPage() {
               value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
               subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last ${trends.cfg.shortLabel}`}
-              tooltip={`Cumulative failed calculations; ${trends.cfg.shortLabel} trend shown (lower is better)`}
+              tooltip="Click to view users with failures"
               scope="system"
+              onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
               sparklineData={trends.failedSeries}
               sparklineTimestamps={trends.bucketTimestamps}
               sparklineColor="#f87171"
@@ -3638,11 +3640,13 @@ export default function AdminPage() {
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     kpiFilter === "scored" ? "bg-emerald-50 border border-emerald-200 text-emerald-700" :
                     kpiFilter === "sp_adopters" ? "bg-indigo-50 border border-indigo-200 text-indigo-700" :
+                    kpiFilter === "failed" ? "bg-red-50 border border-red-200 text-red-700" :
                     "bg-amber-50 border border-amber-200 text-amber-700"
                   }`}>
                     {kpiFilter === "scored" && <><UserCheck className="h-3 w-3" /> Scored Users</>}
                     {kpiFilter === "sp_adopters" && <><Shield className="h-3 w-3" /> SP Adopters</>}
                     {kpiFilter === "queue" && <><Clock className="h-3 w-3" /> In Queue</>}
+                    {kpiFilter === "failed" && <><AlertTriangle className="h-3 w-3" /> Failed</>}
                   </span>
                   <button
                     onClick={() => setKpiFilter(null)}
@@ -4483,11 +4487,17 @@ export default function AdminPage() {
                             <p className="text-lg font-bold text-slate-900">{totalCalcsAll.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-500">Total Calculations</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-failed-users">
+                          <button
+                            type="button"
+                            onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
+                            className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
+                            data-testid="summary-failed-users"
+                            title="Click to view users with failures"
+                          >
                             <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto mb-1" />
                             <p className="text-lg font-bold text-slate-900">{failedUsers.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-500">Users w/ Failures</p>
-                          </div>
+                          </button>
                         </div>
                       )}
                       {lastActivityTs && !actSummaryLoading && (
