@@ -181,7 +181,7 @@ export function LoginFailureModal({
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
-                          align="start"
+                          align="center"
                           className="max-w-[280px] bg-slate-950 border border-slate-700 text-slate-200 text-xs leading-relaxed"
                           data-testid={`tooltip-install-${ext.name.toLowerCase()}`}
                         >
