@@ -2758,7 +2758,7 @@ export default function AdminPage() {
                     const clientFiltered = activeNameSearch || !!kpiFilter;
                     const matchingTotal = clientFiltered ? filteredUsersList.length : adminUsersTotal;
                     const visibleCount = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).length;
-                    const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || !!daysFilter;
+                    const filtersActive = activeNameSearch || !!debouncedSearch || !!kpiFilter || daysFilter !== 30;
                     const canSelectAllMatching = filtersActive && matchingTotal > visibleCount;
                     const matchingLabelSuffix = kpiFilter && !activeNameSearch ? " in cache" : "";
                     const handleSelectAllMatching = async () => {
@@ -2853,6 +2853,18 @@ export default function AdminPage() {
                           Dismiss
                         </button>
                       </div>
+                      {bulkLastResult.failures.length > 0 && (
+                        <details className="basis-full mt-1.5">
+                          <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                          <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-users">
+                            {bulkLastResult.failures.map((f, i) => (
+                              <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3096,7 +3108,8 @@ export default function AdminPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    disabled={isTriggering}
+                                    disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                                    title={bulkRunning || bulkStatuses.get(u.pubkey) === "running" ? "Bulk re-trigger in progress" : undefined}
                                     onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
                                     data-testid={`button-trigger-graperank-${i}`}
                                   >
@@ -3833,6 +3846,18 @@ export default function AdminPage() {
                               Dismiss
                             </button>
                           </div>
+                          {bulkLastResult.failures.length > 0 && (
+                            <details className="basis-full mt-1.5">
+                              <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                              <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-activity">
+                                {bulkLastResult.failures.map((f, i) => (
+                                  <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                    <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
                         </div>
                       )}
                       <div className="overflow-x-auto">
