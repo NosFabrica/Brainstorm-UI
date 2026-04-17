@@ -1155,7 +1155,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed" }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string } }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1237,16 +1237,43 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           </div>
         </td>
         <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
-        <td className="px-2 py-2 font-mono text-[10px]">
-          {item.pubkey ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onNavigateToUser?.(item.pubkey); }}
-              className="text-[#333286] hover:text-[#7c86ff] hover:underline transition-colors cursor-pointer"
-              data-testid={`link-user-${item.pubkey?.slice(0, 8)}`}
-            >
-              {item.pubkey.slice(0, 8)}...{item.pubkey.slice(-4)}
-            </button>
-          ) : "—"}
+        <td className="px-2 py-2 text-[10px]">
+          {item.pubkey ? (() => {
+            let npub: string;
+            try { npub = nip19.npubEncode(item.pubkey); } catch { npub = item.pubkey; }
+            const npubShort = `${npub.slice(0, 12)}...${npub.slice(-4)}`;
+            const displayName = profile?.name;
+            return (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onNavigateToUser?.(item.pubkey!); }}
+                  className="flex items-center gap-1.5 min-w-0 text-left hover:opacity-80 transition-opacity cursor-pointer"
+                  data-testid={`link-user-${item.pubkey.slice(0, 8)}`}
+                  title={displayName ? `${displayName} — ${npub}` : npub}
+                >
+                  <Avatar className="h-5 w-5 shrink-0">
+                    {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName || "User"} className="object-cover" /> : null}
+                    <AvatarFallback className="bg-slate-100 border border-slate-200 text-[8px] text-slate-400">
+                      {displayName?.charAt(0)?.toUpperCase() || <Users className="h-2.5 w-2.5 text-slate-300" />}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col min-w-0 leading-tight">
+                    <span className="text-[10px] font-medium text-[#333286] hover:text-[#7c86ff] truncate max-w-[120px]">
+                      {displayName || npubShort}
+                    </span>
+                    {displayName && (
+                      <span className="hidden sm:inline text-[8px] font-mono text-slate-400 truncate max-w-[120px]">
+                        {npubShort}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                <span className="hidden sm:inline-flex shrink-0">
+                  <CopyButton text={npub} />
+                </span>
+              </div>
+            );
+          })() : <span className="font-mono text-slate-400">—</span>}
         </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
@@ -1655,34 +1682,40 @@ export default function AdminPage() {
   const [userProfiles, setUserProfiles] = useState<Map<string, { name?: string; picture?: string }>>(new Map());
 
   useEffect(() => {
-    if (adminUsersList.length === 0) return;
+    const activityPubkeys = activityItems.map(a => a.pubkey).filter((pk): pk is string => !!pk);
+    if (adminUsersList.length === 0 && activityPubkeys.length === 0) return;
     let cancelled = false;
-    const allUsers = [...adminUsersList, ...(overviewUsersQuery.data?.items ?? [])];
+    const allPubkeys = [
+      ...adminUsersList.map(u => u.pubkey),
+      ...(overviewUsersQuery.data?.items ?? []).map(u => u.pubkey),
+      ...activityPubkeys,
+    ];
     const seen = new Set<string>();
-    const toFetch = allUsers.filter(u => {
-      if (seen.has(u.pubkey) || userProfiles.has(u.pubkey)) return false;
-      seen.add(u.pubkey);
-      return true;
-    });
+    const toFetch: string[] = [];
+    for (const pk of allPubkeys) {
+      if (seen.has(pk) || userProfiles.has(pk)) continue;
+      seen.add(pk);
+      toFetch.push(pk);
+    }
     if (toFetch.length === 0) return;
     (async () => {
-      const results = await Promise.allSettled(toFetch.map(u => fetchProfile(u.pubkey, 8000)));
+      const results = await Promise.allSettled(toFetch.map(pk => fetchProfile(pk, 8000)));
       if (cancelled) return;
       setUserProfiles(prev => {
         const next = new Map(prev);
         for (let i = 0; i < toFetch.length; i++) {
           const r = results[i];
           if (r.status === "fulfilled" && r.value) {
-            next.set(toFetch[i].pubkey, { name: r.value.display_name || r.value.name, picture: r.value.picture });
+            next.set(toFetch[i], { name: r.value.display_name || r.value.name, picture: r.value.picture });
           } else {
-            next.set(toFetch[i].pubkey, {});
+            next.set(toFetch[i], {});
           }
         }
         return next;
       });
     })();
     return () => { cancelled = true; };
-  }, [adminUsersList, overviewUsersQuery.data]);
+  }, [adminUsersList, overviewUsersQuery.data, activityItems]);
 
   const probeRelayLatency = useCallback(async (url: string): Promise<RelayLatency> => {
     const start = performance.now();
@@ -4523,7 +4556,7 @@ export default function AdminPage() {
                               </th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pubkey</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>
@@ -4543,6 +4576,7 @@ export default function AdminPage() {
                                   key={item.private_id ?? idx}
                                   item={item}
                                   idx={idx}
+                                  profile={item.pubkey ? userProfiles.get(item.pubkey) : undefined}
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}
