@@ -153,14 +153,14 @@ export function LoginFailureModal({
                       href={ext.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-700 hover:border-indigo-400/60 transition-colors"
+                      className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-white hover:border-white hover:text-indigo-900 transition-colors"
                       data-testid={`link-install-${ext.name.toLowerCase()}`}
                     >
-                      <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0">
+                      <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
                         <KeyRound className="h-4 w-4" />
                       </span>
                       <span className="flex-1 text-sm font-semibold">{ext.name}</span>
-                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-indigo-700 transition-colors" />
                     </a>
                   ))}
                 </div>
