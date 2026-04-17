@@ -678,9 +678,9 @@ export default function UserPanelPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     {agentIsLive && !agentCardExpanded && (
                       <div className="hidden sm:flex items-center gap-1.5">
-                        {agentState.lud16 && <Zap className="h-3 w-3 text-amber-400" title={agentState.lud16} />}
-                        {agentState.nip05 && <CheckCircle2 className="h-3 w-3 text-purple-400" title={agentState.nip05} />}
-                        {agentState.website && <Globe className="h-3 w-3 text-cyan-400" title={agentState.website} />}
+                        {agentState.lud16 && <span title={agentState.lud16}><Zap className="h-3 w-3 text-amber-400" /></span>}
+                        {agentState.nip05 && <span title={agentState.nip05}><CheckCircle2 className="h-3 w-3 text-purple-400" /></span>}
+                        {agentState.website && <span title={agentState.website}><Globe className="h-3 w-3 text-cyan-400" /></span>}
                       </div>
                     )}
                     {agentIsLive && (

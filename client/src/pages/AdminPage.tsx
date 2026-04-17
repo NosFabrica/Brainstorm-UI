@@ -1403,7 +1403,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "system") return tab;
+    if (tab === "users" || tab === "activity" || tab === "health") return tab;
     return "overview";
   });
   const [userSearch, setUserSearch] = useState("");
