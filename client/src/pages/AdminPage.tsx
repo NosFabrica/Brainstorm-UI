@@ -1907,7 +1907,7 @@ export default function AdminPage() {
       list = list.filter(u => {
         if (kpiFilter === "scored") return u.latest_status?.toLowerCase() === "success";
         if (kpiFilter === "sp_adopters") return u.latest_ta_status?.toLowerCase() === "success";
-        if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && u.latest_status?.toLowerCase() !== "failed";
+        if (kpiFilter === "queue") return u.latest_status?.toLowerCase() !== "success" && !isFailedStatus(u.latest_status);
         return true;
       });
     }
@@ -1921,12 +1921,12 @@ export default function AdminPage() {
     if (total === 0) return null;
 
     const successCount = users.filter(u => u.latest_status?.toLowerCase() === "success").length;
-    const failedCount = users.filter(u => u.latest_status?.toLowerCase() === "failed").length;
+    const failedCount = users.filter(u => isFailedStatus(u.latest_status)).length;
     const pendingCount = total - successCount - failedCount;
     const successRate = total > 0 ? Math.round((successCount / total) * 100) : 0;
 
     const taSuccessCount = users.filter(u => u.latest_ta_status?.toLowerCase() === "success").length;
-    const taFailedCount = users.filter(u => u.latest_ta_status?.toLowerCase() === "failed").length;
+    const taFailedCount = users.filter(u => isFailedStatus(u.latest_ta_status)).length;
     const taAdoptionRate = total > 0 ? Math.round((taSuccessCount / total) * 100) : 0;
 
     const withTaPubkey = users.filter(u => u.ta_pubkey).length;
@@ -1948,7 +1948,7 @@ export default function AdminPage() {
       } catch { return false; }
     });
     const recentSuccess = last24h.filter(a => a.status?.toLowerCase() === "success").length;
-    const recentFailed = last24h.filter(a => a.status?.toLowerCase() === "failed").length;
+    const recentFailed = last24h.filter(a => isFailedStatus(a.status)).length;
 
     const sortedByUpdate = [...users].sort((a, b) => {
       const ta = new Date(a.last_updated || "").getTime() || 0;
@@ -4386,10 +4386,10 @@ export default function AdminPage() {
                   return t >= startMs && t <= endMs;
                 });
                 const filteredSuccess = filteredItems.filter(a => a.status?.toLowerCase() === "success").length;
-                const filteredFailed = filteredItems.filter(a => a.status?.toLowerCase() === "failed").length;
+                const filteredFailed = filteredItems.filter(a => isFailedStatus(a.status)).length;
                 const filteredTotal = filteredItems.length;
                 const totalCalcsAll = actSummaryUsers.reduce((s, u) => s + (u.times_calculated || 0), 0);
-                const failedUsers = actSummaryUsers.filter(u => u.latest_status?.toLowerCase() === "failed" || u.latest_ta_status?.toLowerCase() === "failed").length;
+                const failedUsers = actSummaryUsers.filter(u => isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)).length;
                 const sortedByUpdate = [...actSummaryUsers].sort((a, b) => {
                   const ta = new Date(a.last_updated || "").getTime() || 0;
                   const tb = new Date(b.last_updated || "").getTime() || 0;
