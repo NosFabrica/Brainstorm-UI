@@ -81,7 +81,16 @@ import { useToast } from "@/hooks/use-toast";
 type AdminTab = "overview" | "users" | "health" | "activity";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
-type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all" | "custom";
+type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all";
+
+function formatTimestamp(dateStr?: string): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  } catch { return dateStr; }
+}
 
 interface SortState {
   key: AdminSortKey;
@@ -347,14 +356,6 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
     staleTime: 30_000,
   });
 
-  const formatDate = (dateStr: string): string => {
-    try {
-      const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    } catch { return dateStr; }
-  };
-
   return (
     <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
       <td colSpan={11} className="px-5 py-4">
@@ -430,7 +431,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                         <Fragment key={item.private_id ?? idx}>
                           <tr className={`border-b ${errorDetail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <span className="text-[11px] font-medium text-slate-700">{formatDate(item.created_at)}</span>
+                              <span className="text-[11px] font-medium text-slate-700">{formatTimestamp(item.created_at)}</span>
                             </td>
                             <td className="px-3 py-2.5">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
@@ -741,8 +742,6 @@ export default function AdminPage() {
   const [activityPage, setActivityPage] = useState(0);
   const [activityPageSize, setActivityPageSize] = useState<PageSizeOption>(25);
   const [activityTimeRange, setActivityTimeRange] = useState<ActivityTimeRange>("24h");
-  const [customRangeFrom, setCustomRangeFrom] = useState("");
-  const [customRangeTo, setCustomRangeTo] = useState("");
   const [kpiFilter, setKpiFilter] = useState<"scored" | "sp_adopters" | "queue" | null>(null);
   const [relayLatencies, setRelayLatencies] = useState<RelayLatency[]>([]);
   const [relayCheckRunning, setRelayCheckRunning] = useState(false);
@@ -1111,15 +1110,6 @@ export default function AdminPage() {
       setTriggeringPubkeys(prev => { const next = new Set(prev); next.delete(pubkey); return next; });
     }
   }, [toast, queryClient]);
-
-  const formatCrmDate = (dateStr?: string): string => {
-    if (!dateStr) return "";
-    try {
-      const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    } catch { return dateStr; }
-  };
 
   const totalPages = activeNameSearch ? Math.max(1, Math.ceil(filteredUsersList.length / pageSize)) : adminUsersTotalPages;
 
@@ -2327,7 +2317,7 @@ export default function AdminPage() {
                                     "bg-slate-50 text-slate-600 border border-slate-200"
                                   }`}>{u.latest_status}</span>
                                 ) : (
-                                  <span className="text-[8px] text-slate-300">—</span>
+                                  <span className="text-[8px] text-slate-400 italic">Pending</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-status-${i}`}>
@@ -2338,14 +2328,14 @@ export default function AdminPage() {
                                     "bg-slate-50 text-slate-600 border border-slate-200"
                                   }`}>{u.latest_ta_status}</span>
                                 ) : (
-                                  <span className="text-[8px] text-slate-300">—</span>
+                                  <span className="text-[8px] text-slate-400 italic">Pending</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-algorithm-${i}`}>
                                 {u.latest_algorithm ? (
                                   <span className="text-[9px] font-mono text-slate-600">{u.latest_algorithm}</span>
                                 ) : (
-                                  <span className="text-[8px] text-slate-300">—</span>
+                                  <span className="text-[8px] text-slate-400 italic">N/A</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-times-calc-${i}`}>
@@ -2353,13 +2343,13 @@ export default function AdminPage() {
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-triggered-${i}`}>
                                 <div>
-                                  <span className="text-[9px] text-slate-600 block">{formatCrmDate(u.last_triggered)}</span>
+                                  <span className="text-[9px] text-slate-600 block">{formatTimestamp(u.last_triggered)}</span>
                                   {timeAgo(u.last_triggered) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_triggered)}</span>}
                                 </div>
                               </td>
                               <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-updated-${i}`}>
                                 <div>
-                                  <span className="text-[9px] text-slate-600 block">{formatCrmDate(u.last_updated)}</span>
+                                  <span className="text-[9px] text-slate-600 block">{formatTimestamp(u.last_updated)}</span>
                                   {timeAgo(u.last_updated) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_updated)}</span>}
                                 </div>
                               </td>
@@ -2801,36 +2791,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-infra-overview">
-                <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
-                <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Infrastructure</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Awaiting dedicated health check endpoints</p>
-                  </div>
-                  <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
-                </div>
-                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {[
-                    { icon: Database, label: "Event Store", detail: "Applesauce EventStore" },
-                    { icon: Cpu, label: "GrapeRank Engine", detail: "Trust computation pipeline" },
-                    { icon: Zap, label: "NIP-85 Publisher", detail: "Trust assertion broadcaster" },
-                    { icon: Globe, label: "Brainstorm Server", detail: "Server health metrics" },
-                  ].map(comp => (
-                    <div key={comp.label} className="p-3 rounded-xl bg-white/30 border border-slate-100/60 space-y-1.5" data-testid={`infra-${comp.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <div className="flex items-center gap-2">
-                        <comp.icon className="h-3.5 w-3.5 text-slate-300" />
-                        <span className="text-xs font-semibold text-slate-400">{comp.label}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-300">{comp.detail}</p>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                        No data
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -2849,7 +2809,6 @@ export default function AdminPage() {
                   "month": "This Month",
                   "quarter": "This Quarter",
                   "all": "All Time",
-                  "custom": "Custom Range",
                 };
                 const rangeShort: Record<ActivityTimeRange, string> = {
                   "24h": "24h",
@@ -2857,14 +2816,10 @@ export default function AdminPage() {
                   "month": "Month",
                   "quarter": "Quarter",
                   "all": "All",
-                  "custom": "Custom",
                 };
 
                 const getStartMs = (range: ActivityTimeRange): number => {
                   if (range === "all") return 0;
-                  if (range === "custom") {
-                    return customRangeFrom ? new Date(customRangeFrom).getTime() : 0;
-                  }
                   const d = new Date();
                   switch (range) {
                     case "24h": return now - 86400000;
@@ -2878,14 +2833,7 @@ export default function AdminPage() {
                     default: return 0;
                   }
                 };
-                const getEndMs = (range: ActivityTimeRange): number => {
-                  if (range === "custom" && customRangeTo) {
-                    const end = new Date(customRangeTo);
-                    end.setHours(23, 59, 59, 999);
-                    return end.getTime();
-                  }
-                  return now;
-                };
+                const getEndMs = (_range: ActivityTimeRange): number => now;
 
                 const startMs = getStartMs(activityTimeRange);
                 const endMs = getEndMs(activityTimeRange);
@@ -2913,7 +2861,7 @@ export default function AdminPage() {
                 const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
                 const uniquePubkeys = new Set(filteredItems.map(a => a.pubkey).filter(Boolean)).size;
 
-                const presets: ActivityTimeRange[] = ["24h", "week", "month", "quarter", "all", "custom"];
+                const presets: ActivityTimeRange[] = ["24h", "week", "month", "quarter", "all"];
 
                 return (
                   <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
@@ -2942,7 +2890,6 @@ export default function AdminPage() {
                             }`}
                             data-testid={`time-range-${p}`}
                           >
-                            {p === "custom" && <Calendar className="h-3 w-3 inline mr-1 -mt-0.5" />}
                             {rangeShort[p]}
                           </button>
                         ))}
@@ -2963,45 +2910,6 @@ export default function AdminPage() {
                           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                         </div>
                       </div>
-                      {activityTimeRange === "custom" && (
-                        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-xl bg-white/60 border border-indigo-100" data-testid="custom-range-picker">
-                          <Calendar className="h-4 w-4 text-[#333286] shrink-0 hidden sm:block" />
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-1 w-full">
-                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">From</label>
-                              <input
-                                type="date"
-                                value={customRangeFrom}
-                                max={customRangeTo || undefined}
-                                onChange={e => setCustomRangeFrom(e.target.value)}
-                                className="flex-1 sm:w-36 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
-                                data-testid="input-custom-from"
-                              />
-                            </div>
-                            <span className="text-slate-300 hidden sm:inline">—</span>
-                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                              <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0">To</label>
-                              <input
-                                type="date"
-                                value={customRangeTo}
-                                min={customRangeFrom || undefined}
-                                onChange={e => setCustomRangeTo(e.target.value)}
-                                className="flex-1 sm:w-36 px-2.5 py-1.5 text-xs font-mono rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
-                                data-testid="input-custom-to"
-                              />
-                            </div>
-                            {(customRangeFrom || customRangeTo) && (
-                              <button
-                                onClick={() => { setCustomRangeFrom(""); setCustomRangeTo(""); }}
-                                className="text-[10px] text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                                data-testid="button-clear-custom-range"
-                              >
-                                Clear
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
                       {activityTimeRange !== "24h" && (
                         <p className="mt-2 text-[9px] text-slate-400 italic">Based on latest 100 activity records. Broader ranges may not reflect full history.</p>
                       )}
@@ -3157,52 +3065,6 @@ export default function AdminPage() {
                       <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.</p>
                     </>
                   )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-session-activity">
-                  <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
-                  <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Session Activity Log</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Awaiting /admin/analytics endpoint</p>
-                    </div>
-                    <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
-                  </div>
-                  <div className="p-5">
-                    <div className="space-y-2">
-                      {["Login events", "Admin session timeline", "User-triggered events"].map(label => (
-                        <div key={label} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/30 border border-slate-100/60">
-                          <Activity className="h-3.5 w-3.5 text-slate-300 shrink-0" />
-                          <span className="text-xs text-slate-400">{label}</span>
-                          <span className="ml-auto text-[10px] text-slate-300">No data</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-gradient-to-br from-slate-50/80 via-slate-50/60 to-slate-100/40 backdrop-blur-xl border border-slate-200/60 shadow-none overflow-hidden opacity-60" data-testid="card-error-log">
-                  <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
-                  <div className="px-5 py-4 border-b border-slate-200/40 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-400" style={{ fontFamily: "var(--font-display)" }}>Platform Error Log</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Awaiting platform-wide error feed</p>
-                    </div>
-                    <span className="text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 border border-slate-200">Unavailable</span>
-                  </div>
-                  <div className="p-5">
-                    <div className="space-y-2">
-                      {["Pipeline failures across users", "API error aggregation", "Error rate trends"].map(label => (
-                        <div key={label} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/30 border border-slate-100/60">
-                          <XCircle className="h-3.5 w-3.5 text-slate-300 shrink-0" />
-                          <span className="text-xs text-slate-400">{label}</span>
-                          <span className="ml-auto text-[10px] text-slate-300">No data</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
 
