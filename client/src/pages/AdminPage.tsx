@@ -4490,7 +4490,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
-                            className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
+                            className="w-full h-full p-3 rounded-xl bg-white/50 border border-slate-100 text-center hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
                             data-testid="summary-failed-users"
                             title="Click to view users with failures"
                           >
