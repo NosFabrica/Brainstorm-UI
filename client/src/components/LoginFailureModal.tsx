@@ -228,7 +228,7 @@ export function LoginFailureModal({
                   >
                     <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     <p className="text-[11px] leading-relaxed font-medium">
-                      Your nsec is your private key. Only paste it on sites you trust. It stays in this tab and is cleared when you close it.
+                      Your nsec is your private key — only paste it on sites you trust.
                     </p>
                   </div>
 
