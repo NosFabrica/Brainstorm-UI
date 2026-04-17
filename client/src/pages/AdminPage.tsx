@@ -670,12 +670,14 @@ function FailureDetailCard({
   retriggerState,
   isInPipeline,
   onViewDetail,
+  onNavigateToUser,
 }: {
   item: BrainstormRequestInstance;
   onRetrigger?: (e: React.MouseEvent) => void;
   retriggerState?: "idle" | "confirming" | "running" | "done" | "error";
   isInPipeline?: boolean;
   onViewDetail?: (e: React.MouseEvent) => void;
+  onNavigateToUser?: (pubkey: string) => void;
 }) {
   const stage = getFailureStage(item) ?? "Pipeline";
   const errorText = extractErrorMessage(item);
@@ -701,6 +703,39 @@ function FailureDetailCard({
             <span>Updated: {fmtFull(item.updated_at)}</span>
             {item.how_many_others_with_priority > 0 && <span>Queue depth: {item.how_many_others_with_priority}</span>}
           </div>
+          {item.pubkey && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+              <span className="font-bold text-red-700/80 uppercase tracking-wider">User:</span>
+              {onNavigateToUser ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onNavigateToUser(item.pubkey!); }}
+                  className="font-mono text-[#333286] hover:text-[#7c86ff] hover:underline break-all text-left"
+                  data-testid={`failure-pubkey-link-${item.private_id ?? "x"}`}
+                >
+                  {item.pubkey}
+                </button>
+              ) : (
+                <span className="font-mono text-slate-700 break-all">{item.pubkey}</span>
+              )}
+              <CopyButton text={item.pubkey} />
+            </div>
+          )}
+          {item.parameters && (
+            <div className="mt-2 text-[10px]">
+              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Parameters</span>
+              <p className="font-mono text-slate-700 bg-white/70 border border-red-100 rounded px-2 py-1.5 break-all whitespace-pre-wrap" data-testid={`failure-parameters-${item.private_id ?? "x"}`}>
+                {item.parameters}
+              </p>
+            </div>
+          )}
+          {item.count_values && (
+            <div className="mt-2 text-[10px]">
+              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Count Values</span>
+              <p className="font-mono text-slate-700 bg-white/70 border border-red-100 rounded px-2 py-1.5 break-all">
+                {item.count_values}
+              </p>
+            </div>
+          )}
           {(onRetrigger || onViewDetail) && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               {onRetrigger && item.pubkey && (
@@ -918,54 +953,54 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger }:
       {expanded && (
         <tr className={style.expanded}>
           <td colSpan={10} className="px-4 py-3">
-            {isFailed && (
-              <div className="mb-3">
-                <FailureDetailCard
-                  item={item}
-                  onRetrigger={item.pubkey && onRetrigger ? handleRetrigger : undefined}
-                  retriggerState={retriggerState}
-                  isInPipeline={isInPipeline}
-                  onViewDetail={(e) => { e.stopPropagation(); onViewDetail(item); }}
-                />
-              </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
-              {item.pubkey && (
-                <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Full Pubkey</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
+            {isFailed ? (
+              <FailureDetailCard
+                item={item}
+                onRetrigger={item.pubkey && onRetrigger ? handleRetrigger : undefined}
+                retriggerState={retriggerState}
+                isInPipeline={isInPipeline}
+                onViewDetail={(e) => { e.stopPropagation(); onViewDetail(item); }}
+                onNavigateToUser={onNavigateToUser}
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+                  {item.pubkey && (
+                    <div>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Full Pubkey</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
+                    </div>
+                  )}
+                  {item.result && (
+                    <div>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                    </div>
+                  )}
+                  {item.count_values && (
+                    <div>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
+                    </div>
+                  )}
+                  {item.parameters && (
+                    <div>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
+                    </div>
+                  )}
                 </div>
-              )}
-              {item.result && !isFailed && (
-                <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
+                    className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
+                    data-testid={`button-view-detail-${item.private_id}`}
+                  >
+                    <Eye className="h-3 w-3" />
+                    View Full Request
+                  </button>
                 </div>
-              )}
-              {item.count_values && (
-                <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
-                </div>
-              )}
-              {item.parameters && (
-                <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
-                </div>
-              )}
-            </div>
-            {!isFailed && (
-              <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
-                  className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
-                  data-testid={`button-view-detail-${item.private_id}`}
-                >
-                  <Eye className="h-3 w-3" />
-                  View Full Request
-                </button>
-              </div>
+              </>
             )}
           </td>
         </tr>
@@ -2822,6 +2857,30 @@ export default function AdminPage() {
                                 </div>
                               </td>
                             </tr>
+                            {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
+                              <tr className="bg-red-50/40 border-b border-red-100" data-testid={`row-failure-summary-${i}`}>
+                                <td colSpan={11} className="px-3 py-1.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+                                    <span className="text-[10px] text-red-800 font-medium">
+                                      {isFailedStatus(u.latest_status) && isFailedStatus(u.latest_ta_status)
+                                        ? "GrapeRank and TA Attestation both failed on the most recent run."
+                                        : isFailedStatus(u.latest_status)
+                                          ? "GrapeRank calculation failed on the most recent run."
+                                          : "TA Attestation failed on the most recent run."}
+                                    </span>
+                                    <span className="text-[9px] text-red-600/80">Open the error history to see the full message.</span>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setExpandedRows(prev => { const next = new Set(prev); next.add(u.pubkey); return next; }); }}
+                                      className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-red-700 bg-white border border-red-300 hover:bg-red-100 transition-colors"
+                                      data-testid={`button-view-error-history-${i}`}
+                                    >
+                                      <Eye className="h-3 w-3" /> View error history
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
                             {isExpanded && (
                               <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} />
                             )}
