@@ -143,7 +143,7 @@ export function LoginFailureModal({
               </DialogHeader>
             </div>
 
-            {errorMessage && (
+            {errorMessage && !showNsecForm && (
               <div className="px-4 sm:px-6 pb-2">
                 <div
                   className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200"
