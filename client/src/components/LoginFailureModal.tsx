@@ -35,14 +35,14 @@ interface LoginFailureModalProps {
 
 const EXTENSIONS = [
   {
-    name: "nos2x",
-    url: "https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp",
-    description: "A lightweight Chrome extension that signs Nostr events for you so you never have to paste your private key.",
-  },
-  {
     name: "Alby",
     url: "https://getalby.com/",
     description: "A popular Bitcoin & Nostr browser extension. It manages your Nostr identity and signs sign-in requests on your behalf.",
+  },
+  {
+    name: "nos2x",
+    url: "https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp",
+    description: "A lightweight Chrome extension that signs Nostr events for you so you never have to paste your private key.",
   },
 ];
 
