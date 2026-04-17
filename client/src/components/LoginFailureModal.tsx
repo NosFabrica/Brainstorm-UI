@@ -158,45 +158,72 @@ export function LoginFailureModal({
             )}
 
             {isNoExtension && !showNsecForm && (
-              <div className="px-4 sm:px-6 pb-3">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
-                  Install an extension
-                </p>
-                <TooltipProvider delayDuration={150}>
-                  <div className="grid grid-cols-2 gap-2">
-                    {EXTENSIONS.map((ext) => (
-                      <Tooltip key={ext.name}>
-                        <TooltipTrigger asChild>
-                          <a
-                            href={ext.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-200 hover:border-slate-300 hover:text-indigo-900 transition-colors"
-                            data-testid={`link-install-${ext.name.toLowerCase()}`}
+              <>
+                <div className="px-4 sm:px-6 pb-3">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
+                    Sign in with your private key
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowNsecForm(true)}
+                    className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center justify-center gap-2"
+                    data-testid="button-show-nsec-form"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Use your private key (nsec)
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="px-4 sm:px-6 pb-4">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2 px-1">
+                    Or sign in with a browser extension
+                  </p>
+                  <TooltipProvider delayDuration={150}>
+                    <div className="grid grid-cols-2 gap-2">
+                      {EXTENSIONS.map((ext) => (
+                        <Tooltip key={ext.name}>
+                          <TooltipTrigger asChild>
+                            <a
+                              href={ext.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600/60 text-white hover:bg-slate-200 hover:border-slate-300 hover:text-indigo-900 transition-colors"
+                              data-testid={`link-install-${ext.name.toLowerCase()}`}
+                            >
+                              <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
+                                <KeyRound className="h-4 w-4" />
+                              </span>
+                              <span className="flex-1 text-sm font-semibold">{ext.name}</span>
+                              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-indigo-700 transition-colors" />
+                            </a>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            align="center"
+                            className="max-w-[280px] bg-slate-950 border border-slate-700 text-slate-200 text-xs leading-relaxed"
+                            data-testid={`tooltip-install-${ext.name.toLowerCase()}`}
                           >
-                            <span className="h-8 w-8 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-200 shrink-0 group-hover:bg-indigo-100 group-hover:border-indigo-300 group-hover:text-indigo-700 transition-colors">
-                              <KeyRound className="h-4 w-4" />
-                            </span>
-                            <span className="flex-1 text-sm font-semibold">{ext.name}</span>
-                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-indigo-700 transition-colors" />
-                          </a>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          align="center"
-                          className="max-w-[280px] bg-slate-950 border border-slate-700 text-slate-200 text-xs leading-relaxed"
-                          data-testid={`tooltip-install-${ext.name.toLowerCase()}`}
-                        >
-                          {ext.description}
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </TooltipProvider>
-              </div>
+                            {ext.description}
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onRetryExtension}
+                      className="mt-2 w-full h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+                      data-testid="button-retry-extension"
+                    >
+                      Try again
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipProvider>
+                </div>
+              </>
             )}
 
-            {!showNsecForm && (
+            {!showNsecForm && !isNoExtension && (
               <div className="px-4 sm:px-6 pb-4 space-y-2">
                 <button
                   type="button"
