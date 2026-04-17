@@ -2470,7 +2470,7 @@ export default function AdminPage() {
                   <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Trend window</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">All Overview sparklines, deltas, and charts use this window{!trends.dataCoversWindow && trends.hasAnyActivity ? " · limited data available" : ""}</p>
                 </div>
-                <div className="inline-flex rounded-lg border border-[#7c86ff]/30 bg-white/70 p-0.5 self-start" role="tablist" aria-label="Trend window">
+                <div className="inline-flex rounded-lg border-2 border-[#7c86ff]/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
                   {(["1h", "24h", "7d", "30d"] as TrendWindow[]).map(w => (
                     <button
                       key={w}
@@ -2478,7 +2478,7 @@ export default function AdminPage() {
                       role="tab"
                       aria-selected={trendWindow === w}
                       onClick={() => setTrendWindow(w)}
-                      className={`px-3 py-1 text-[11px] font-semibold rounded-md transition-all ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"}`}
+                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md ring-1 ring-[#7c86ff]/40" : "text-slate-600 bg-slate-50 hover:bg-[#7c86ff]/10 hover:text-[#333286] hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
                       {w}
