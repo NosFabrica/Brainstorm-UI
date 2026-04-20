@@ -204,6 +204,21 @@ export default function DashboardPage() {
   const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
   const [nip85Dismissed, setNip85Dismissed] = useState(false);
   const [assistantDismissed, setAssistantDismissed] = useState(() => localStorage.getItem("brainstorm_assistant_dismissed") === "true");
+  const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => {
+    try { return localStorage.getItem("brainstorm_assistant_pubkey"); } catch { return null; }
+  });
+  useEffect(() => {
+    const sync = () => {
+      try { setAssistantPubkey(localStorage.getItem("brainstorm_assistant_pubkey")); } catch {}
+    };
+    const onStorage = (e: StorageEvent) => { if (e.key === "brainstorm_assistant_pubkey") sync(); };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("brainstorm-assistant-updated", sync as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("brainstorm-assistant-updated", sync as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -1545,7 +1560,7 @@ export default function DashboardPage() {
             }}
           />
 
-          {nip85Activated && (!assistantDismissed || !!localStorage.getItem("brainstorm_assistant_pubkey")) && (
+          {nip85Activated && !assistantDismissed && !assistantPubkey && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
