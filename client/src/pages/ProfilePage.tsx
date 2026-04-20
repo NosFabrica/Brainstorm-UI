@@ -1628,6 +1628,19 @@ export default function ProfilePage() {
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {nostrProfile?.display_name || nostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
+                          {hexPubkey && (() => {
+                            try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
+                          })() && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30"
+                              data-testid="badge-brainstorm-assistant"
+                              title="This is your Brainstorm Assistant — a bot that publishes your trust scores to Nostr."
+                            >
+                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7c86ff] mr-1" />
+                              Brainstorm Assistant
+                            </Badge>
+                          )}
                           <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-profile-found">
                             Profile Found
                           </Badge>

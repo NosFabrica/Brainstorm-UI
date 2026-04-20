@@ -410,17 +410,16 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             )}
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              {njumpUrl && (
-                <a
-                  href={njumpUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors min-h-[44px]"
-                  data-testid={`link-assistant-view-event-${variant}`}
+              {published?.npub && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/profile/${published.npub}`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
+                  data-testid={`button-assistant-view-profile-${variant}`}
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  View on Nostr
-                </a>
+                  <BrainLogo size={12} className="text-white/95" />
+                  View assistant profile
+                </button>
               )}
               <button
                 type="button"
@@ -432,6 +431,19 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Republish
               </button>
+              {njumpUrl && (
+                <a
+                  href={njumpUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-[#333286] transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 rounded"
+                  data-testid={`link-assistant-view-event-${variant}`}
+                  title="Open the published event on njump"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View on Nostr
+                </a>
+              )}
               {FEATURES.agentSuite ? (
                 <button
                   type="button"
