@@ -1545,7 +1545,7 @@ export default function DashboardPage() {
             }}
           />
 
-          {publishDone && !isRecalculating && nip85Activated && (!assistantDismissed || !!localStorage.getItem("brainstorm_assistant_pubkey")) && (
+          {nip85Activated && (!assistantDismissed || !!localStorage.getItem("brainstorm_assistant_pubkey")) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

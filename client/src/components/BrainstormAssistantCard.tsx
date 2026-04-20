@@ -7,6 +7,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const LS_PUBKEY = "brainstorm_assistant_pubkey";
 const LS_EVENT_ID = "brainstorm_assistant_event_id";
@@ -291,17 +292,36 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
                 {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 Republish
               </button>
-              <button
-                type="button"
-                onClick={handleCustomize}
-                disabled={!FEATURES.agentSuite}
-                title={!FEATURES.agentSuite ? "Coming soon in Agent Suite" : undefined}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#7c86ff]/30 bg-white text-[#333286] text-xs font-semibold transition-colors hover:bg-[#7c86ff]/5 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
-                data-testid={`button-assistant-customize-${variant}`}
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-                Customize{!FEATURES.agentSuite ? " (soon)" : ""}
-              </button>
+              {FEATURES.agentSuite ? (
+                <button
+                  type="button"
+                  onClick={handleCustomize}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#7c86ff]/30 bg-white text-[#333286] text-xs font-semibold transition-colors hover:bg-[#7c86ff]/5 min-h-[44px]"
+                  data-testid={`button-assistant-customize-${variant}`}
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Customize
+                </button>
+              ) : (
+                <TooltipProvider delayDuration={150}>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#7c86ff]/20 bg-white text-[#333286]/60 text-xs font-semibold opacity-70 cursor-not-allowed min-h-[44px]"
+                        aria-disabled="true"
+                        tabIndex={0}
+                        data-testid={`button-assistant-customize-${variant}`}
+                      >
+                        <Wand2 className="h-3.5 w-3.5" />
+                        Customize (soon)
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs" data-testid={`tooltip-assistant-customize-${variant}`}>
+                      Coming soon in Agent Suite
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
         ) : (

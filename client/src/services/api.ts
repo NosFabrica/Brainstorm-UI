@@ -305,7 +305,10 @@ export const apiClient = {
       const errorData = await response.json().catch(() => null);
       let detail = errorData?.detail || errorData?.message || "";
       if (typeof detail === "object") detail = JSON.stringify(detail);
-      throw new Error(detail || `Publish failed (${response.status})`);
+      // Log technical details for debugging, but surface a friendly message to the user.
+      // eslint-disable-next-line no-console
+      console.warn("[assistantProfile] publish failed", { status: response.status, detail });
+      throw new Error("Could not publish your assistant right now. Please try again in a moment.");
     }
     return await response.json();
   },
