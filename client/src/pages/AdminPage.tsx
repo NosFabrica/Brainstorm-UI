@@ -1253,7 +1253,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, liveQueueDepth }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; liveQueueDepth?: number }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, queuePosition }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; queuePosition?: number | "active" }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1377,16 +1377,21 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
         <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
-        <td className="px-2 py-2 text-center text-slate-600 text-[10px]" data-testid={`cell-queue-${item.private_id ?? idx}`}>
+        <td className="px-2 py-2 text-center text-[10px]" data-testid={`cell-queue-${item.private_id ?? idx}`}>
           {(() => {
-            // For currently in-flight rows, show a live count of the other
-            // in-flight requests on the platform (computed at the parent
-            // level). For terminated rows, fall back to the per-record
-            // historical value the backend captured at run time.
-            const depth = isInPipeline && typeof liveQueueDepth === "number"
-              ? liveQueueDepth
-              : item.how_many_others_with_priority;
-            return depth > 0 ? depth : "—";
+            // In-flight rows show their live position in the platform
+            // queue (computed at the parent level): "active" for the row
+            // currently being processed, 1..N for waiting rows in FIFO
+            // order. Terminated rows fall back to the per-record value
+            // the backend captured at run time, with 0 → "—".
+            if (isInPipeline && queuePosition !== undefined) {
+              if (queuePosition === "active") {
+                return <span className="font-semibold text-emerald-600">active</span>;
+              }
+              return <span className="font-semibold text-amber-600 tabular-nums">{queuePosition}</span>;
+            }
+            const depth = item.how_many_others_with_priority;
+            return <span className="text-slate-600">{depth > 0 ? depth : "—"}</span>;
           })()}
         </td>
         <td className="px-2 py-2 text-[10px]">
@@ -1991,21 +1996,50 @@ export default function AdminPage() {
     }).length;
   }, [overviewAllUsers]);
 
-  // Count requests currently moving through the pipeline so the Platform
-  // Activity table's "Queue" column reflects real concurrency. Prefer the
-  // broader overview dataset when available; fall back to the rows on the
-  // current page so the column is never blank when users are queued.
-  const liveInFlightCount = useMemo(() => {
-    const inFlight = (item: BrainstormRequestInstance) => {
-      const p = getActivityPipelineState(item);
-      return p === "active" || p === "waiting";
+  // Assign a live "queue position" to every in-flight request so the
+  // Platform Activity table's Queue column reflects real ordering instead
+  // of one shared concurrency count. Waiting rows are numbered 1..N in
+  // FIFO order (oldest created_at first = next to run); the actively
+  // processing row(s) are tagged as "active". Terminated rows get no
+  // entry and fall back to the per-record backend value.
+  const queuePositionByPrivateId = useMemo(() => {
+    const map = new Map<number, number | "active">();
+    // Prefer the broader overview snapshot for ordering, but merge in any
+    // current-page rows that the snapshot may have missed (it is capped to
+    // 100 records and may lag the live page).
+    const seen = new Set<number>();
+    const merged: BrainstormRequestInstance[] = [];
+    for (const it of overviewAllActivity) {
+      if (typeof it.private_id === "number" && !seen.has(it.private_id)) {
+        seen.add(it.private_id);
+        merged.push(it);
+      }
+    }
+    for (const it of activityItems) {
+      if (typeof it.private_id === "number" && !seen.has(it.private_id)) {
+        seen.add(it.private_id);
+        merged.push(it);
+      }
+    }
+    const tsOf = (s: string | null | undefined) => {
+      if (!s) return 0;
+      try {
+        const d = new Date(s.endsWith("Z") ? s : s + "Z");
+        const t = d.getTime();
+        return isNaN(t) ? 0 : t;
+      } catch { return 0; }
     };
-    const overviewCount = overviewAllActivity.filter(inFlight).length;
-    const pageCount = activityItems.filter(inFlight).length;
-    // If the overview snapshot is capped/stale and reports 0 while the
-    // current page actually has in-flight rows, prefer the page count so
-    // the column still reflects real concurrency.
-    return Math.max(overviewCount, pageCount);
+    const active = merged.filter(i => getActivityPipelineState(i) === "active");
+    const waiting = merged
+      .filter(i => getActivityPipelineState(i) === "waiting")
+      .sort((a, b) => tsOf(a.created_at) - tsOf(b.created_at));
+    for (const a of active) {
+      if (typeof a.private_id === "number") map.set(a.private_id, "active");
+    }
+    waiting.forEach((w, idx) => {
+      if (typeof w.private_id === "number") map.set(w.private_id, idx + 1);
+    });
+    return map;
   }, [overviewAllActivity, activityItems]);
 
   const trends = useMemo(() => {
@@ -4723,7 +4757,7 @@ export default function AdminPage() {
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}
-                                  liveQueueDepth={Math.max(0, liveInFlightCount - 1)}
+                                  queuePosition={typeof item.private_id === "number" ? queuePositionByPrivateId.get(item.private_id) : undefined}
                                   onToggleSelect={() => {
                                     if (!item.pubkey || pid === null || pid === undefined) return;
                                     setSelectedActivityRows(prev => { const next = new Map(prev); if (next.has(pid)) next.delete(pid); else next.set(pid, item.pubkey as string); return next; });
