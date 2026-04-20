@@ -20,9 +20,14 @@ const LS_PROFILE = "brainstorm_assistant_profile";
 const LS_PICTURE_SET_PREFIX = "brainstorm_assistant_picture_set:";
 
 const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
+const DEFAULT_ASSISTANT_BANNER_PATH = "/assistant-banner.webp";
 function getDefaultAssistantPictureUrl(): string {
   if (typeof window === "undefined") return DEFAULT_ASSISTANT_PICTURE_PATH;
   return `${window.location.origin}${DEFAULT_ASSISTANT_PICTURE_PATH}`;
+}
+function getDefaultAssistantBannerUrl(): string {
+  if (typeof window === "undefined") return DEFAULT_ASSISTANT_BANNER_PATH;
+  return `${window.location.origin}${DEFAULT_ASSISTANT_BANNER_PATH}`;
 }
 
 interface AssistantProfile {
@@ -31,6 +36,7 @@ interface AssistantProfile {
   about?: string;
   website?: string;
   picture?: string;
+  banner?: string;
   nip05?: string;
 }
 
@@ -154,19 +160,24 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           about: typeof (p as any).about === "string" ? (p as any).about : undefined,
           website: typeof (p as any).website === "string" ? (p as any).website : undefined,
           picture: typeof (p as any).picture === "string" ? (p as any).picture : undefined,
+          banner: typeof (p as any).banner === "string" ? (p as any).banner : undefined,
           nip05: typeof (p as any).nip05 === "string" ? (p as any).nip05 : undefined,
         };
         setProfile(next);
         writeAssistantProfile(next);
 
-        // If the assistant has no picture set, publish a profile update once
-        // with the Brainstorm-branded default image so other Nostr clients
-        // see a consistent identity. Best-effort: silently swallow failures.
+        // If the assistant has no picture or banner set, publish a profile
+        // update once with the Brainstorm-branded defaults so other Nostr
+        // clients see a consistent identity. Best-effort: silently swallow
+        // failures and keep the local fallback rendering.
         const flagKey = LS_PICTURE_SET_PREFIX + published.pubkey;
         const alreadyTried = (() => { try { return localStorage.getItem(flagKey) === "1"; } catch { return false; } })();
-        if (!next.picture && !alreadyTried) {
+        const needsPicture = !next.picture;
+        const needsBanner = !next.banner;
+        if ((needsPicture || needsBanner) && !alreadyTried) {
           try { localStorage.setItem(flagKey, "1"); } catch {}
-          const defaultPicture = getDefaultAssistantPictureUrl();
+          const defaultPicture = needsPicture ? getDefaultAssistantPictureUrl() : next.picture;
+          const defaultBanner = needsBanner ? getDefaultAssistantBannerUrl() : next.banner;
           try {
             await apiClient.publishBrainstormAssistantProfile({
               name: next.name,
@@ -174,9 +185,10 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               website: next.website,
               nip05: next.nip05,
               picture: defaultPicture,
+              banner: defaultBanner,
             });
             if (cancelled) return;
-            const merged: AssistantProfile = { ...next, picture: defaultPicture };
+            const merged: AssistantProfile = { ...next, picture: defaultPicture, banner: defaultBanner };
             setProfile(merged);
             writeAssistantProfile(merged);
           } catch {
@@ -272,7 +284,24 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       data-testid={`card-brainstorm-assistant-${variant}`}
     >
       <div className={(variant === "settings" ? "relative h-24 sm:h-32 md:h-36 " : "relative h-20 sm:h-24 ") + "bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl"}>
-        <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.25),transparent_50%)]" />
+        {(() => {
+          const bannerSrc = profile?.banner || (isActive ? getDefaultAssistantBannerUrl() : null);
+          if (!bannerSrc) return null;
+          return (
+            <img
+              src={bannerSrc}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              data-testid={`img-assistant-banner-${variant}`}
+            />
+          );
+        })()}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/40 via-[#5b63d9]/30 to-[#333286]/55 mix-blend-multiply pointer-events-none" />
+        <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.25),transparent_50%)] pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         {variant === "dashboard" && onDismiss && !isActive && (
           <button
