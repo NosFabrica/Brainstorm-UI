@@ -161,12 +161,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   return (
     <div
       className={
-        "rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 transition-all duration-500 relative " +
+        "rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 transition-all duration-500 relative " +
         (showCelebration ? "ring-2 ring-amber-300/60 shadow-[0_0_30px_rgba(252,211,77,0.4)]" : "")
       }
       data-testid={`card-brainstorm-assistant-${variant}`}
     >
-      <div className="relative h-20 sm:h-24 bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden">
+      <div className="relative h-20 sm:h-24 bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl">
         <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.25),transparent_50%)]" />
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         {variant === "dashboard" && onDismiss && !isActive && (
