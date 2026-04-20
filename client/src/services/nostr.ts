@@ -503,6 +503,9 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
 export function logout() {
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
+  // Reset the "Maybe later" dismissal so the Publish-Assistant prompt
+  // gets a fresh chance on the next login (only shows if not yet published).
+  localStorage.removeItem("brainstorm_assistant_dismissed");
   clearSecretKey();
   queryClient.clear();
 }
