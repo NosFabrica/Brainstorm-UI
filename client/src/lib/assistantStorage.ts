@@ -27,16 +27,6 @@ const SUFFIX_PROFILE = "profile";
 const SUFFIX_DISMISSED = "dismissed";
 const SUFFIX_PICTURE_SET = "picture_set";
 
-const LEGACY_KEYS = [
-  "brainstorm_assistant_pubkey",
-  "brainstorm_assistant_event_id",
-  "brainstorm_assistant_published_at",
-  "brainstorm_assistant_first_publish_done",
-  "brainstorm_assistant_profile",
-  "brainstorm_assistant_dismissed",
-];
-const LEGACY_PICTURE_SET_PREFIX = "brainstorm_assistant_picture_set:";
-
 export const ASSISTANT_UPDATED_EVENT = "brainstorm-assistant-updated";
 export const USER_CHANGED_EVENT = "brainstorm-user-changed";
 
@@ -147,34 +137,7 @@ export function getCurrentAssistantPubkey(): string | null {
   return safeGet(key(SUFFIX_PUBKEY));
 }
 
-export function clearAssistantDataForOwner(ownerHexPubkey: string): void {
-  if (!ownerHexPubkey) return;
-  const owner = ownerHexPubkey.toLowerCase();
-  const keys: string[] = [];
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(`${KEY_PREFIX}:${owner}:`)) keys.push(k);
-    }
-    for (const k of keys) localStorage.removeItem(k);
-  } catch {}
-}
-
-let legacyCleanupDone = false;
-export function cleanupLegacyAssistantKeys(): void {
-  if (legacyCleanupDone) return;
-  legacyCleanupDone = true;
-  try {
-    for (const k of LEGACY_KEYS) {
-      try { localStorage.removeItem(k); } catch {}
-    }
-    const toRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(LEGACY_PICTURE_SET_PREFIX)) toRemove.push(k);
-    }
-    for (const k of toRemove) {
-      try { localStorage.removeItem(k); } catch {}
-    }
-  } catch {}
-}
+// NOTE: One-time cleanup of pre-Task-#85 unscoped global keys lives at the
+// top of `client/src/services/nostr.ts` so it runs once at app boot before
+// any consumer reads from storage. Keeping the migration there keeps the
+// list of legacy keys in a single place.
