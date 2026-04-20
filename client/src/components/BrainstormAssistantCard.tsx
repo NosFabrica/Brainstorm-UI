@@ -112,7 +112,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3500);
         toast({
-          title: `🎉 ${assistantName} is live on Nostr!`,
+          title: `${assistantName} is live on Nostr!`,
           description: "Tap \"View on Nostr\" to say hi to your new sidekick.",
           duration: 6000,
         });
