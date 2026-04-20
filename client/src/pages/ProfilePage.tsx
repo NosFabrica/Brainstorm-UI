@@ -60,7 +60,7 @@ import {
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { getProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
-import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
+import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -284,8 +284,34 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ProfileResultData = Record<string, any>;
+interface ProfileResultData {
+  influence?: number;
+  followed_by?: GraphEntry[] | number;
+  following?: GraphEntry[] | number;
+  muted_by?: GraphEntry[] | number;
+  reported_by?: GraphEntry[] | number;
+  muting?: GraphEntry[] | number;
+  reporting?: GraphEntry[] | number;
+  hops?: number;
+  personalizedPageRank?: number;
+  influenceRank?: number;
+  followerInput?: number;
+  muterInput?: number;
+  reporterInput?: number;
+  verifiedFollowerCount?: number;
+  verifiedMuterCount?: number;
+  verifiedReporterCount?: number;
+  latestContentEventCreatedAt?: number;
+  whitelisted?: boolean;
+  blacklisted?: boolean;
+}
+
+type ProfileSections = Partial<Record<string, GraphEntry[]>>;
+
+const getSection = (data: ProfileResultData | null | undefined, key: string): GraphEntry[] | undefined => {
+  if (!data) return undefined;
+  return (data as unknown as ProfileSections)[key];
+};
 
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
@@ -549,7 +575,7 @@ export default function ProfilePage() {
         const reports = await fetchReportsByPubkey(hexPubkey);
         reportMetadataCache.current.set(cacheKey, reports);
       } else if (sectionKey === "muted_by") {
-        const pubkeysToFetch = extraPubkeys || toPubkeys(profileResult?.[sectionKey]).slice(0, 50);
+        const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
         const unfetched = pubkeysToFetch.filter(pk => !muteMetadataCache.current.has(pk));
         if (unfetched.length > 0) {
           const results = await Promise.allSettled(
@@ -613,8 +639,8 @@ export default function ProfilePage() {
 
   const mutualPubkeys = useMemo(() => {
     if (!profileResult) return [];
-    const followedBy = toPubkeys(profileResult.followed_by);
-    const following = toPubkeys(profileResult.following);
+    const followedBy = toPubkeys(getSection(profileResult, "followed_by"));
+    const following = toPubkeys(getSection(profileResult, "following"));
     const followingSet = new Set(following);
     return followedBy.filter((pk: string) => followingSet.has(pk));
   }, [profileResult]);
@@ -624,7 +650,7 @@ export default function ProfilePage() {
     const selfGraph = selfData?.graph || selfData;
     const selfFollowedBy = toPubkeys(selfGraph?.followed_by);
     const selfFollowedBySet = new Set(selfFollowedBy);
-    const searchedFollowedBy = toPubkeys(profileResult.followed_by);
+    const searchedFollowedBy = toPubkeys(getSection(profileResult, "followed_by"));
     return searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk));
   }, [selfData, profileResult]);
 
@@ -633,7 +659,7 @@ export default function ProfilePage() {
     const selfGraph = selfData?.graph || selfData;
     const selfFollowing = toPubkeys(selfGraph?.following);
     const selfFollowingSet = new Set(selfFollowing);
-    const searchedFollowing = toPubkeys(profileResult.following);
+    const searchedFollowing = toPubkeys(getSection(profileResult, "following"));
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
   }, [selfData, profileResult]);
 
@@ -652,7 +678,7 @@ export default function ProfilePage() {
     if (!profileResult) return;
     const allPubkeys: string[] = [];
     for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
-      const pks = toPubkeys(profileResult[key]);
+      const pks = toPubkeys(getSection(profileResult, key));
       allPubkeys.push(...pks.slice(0, 10));
     }
     for (const pk of mutualPubkeys.slice(0, 10)) allPubkeys.push(pk);
@@ -735,7 +761,7 @@ export default function ProfilePage() {
     if (cached !== undefined && cached !== null) return cached;
     if (profileResult) {
       for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
-        const map = toInfluenceMap(profileResult[groupKey]);
+        const map = toInfluenceMap(getSection(profileResult, groupKey));
         const val = map.get(pk);
         if (val !== undefined && val !== null) return val;
       }
@@ -757,8 +783,9 @@ export default function ProfilePage() {
   };
 
   const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
-    if (!profileResult || !Array.isArray(profileResult[sectionKey])) return null;
-    const map = toInfluenceMap(profileResult[sectionKey]);
+    const section = getSection(profileResult, sectionKey);
+    if (!section || !Array.isArray(section)) return null;
+    const map = toInfluenceMap(section);
     if (map.size === 0) return null;
     const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
     map.forEach((inf) => {
@@ -844,9 +871,9 @@ export default function ProfilePage() {
         const pubkeys = key === "mutual" ? mutualPubkeys
           : key === "shared_followers" ? sharedFollowerPubkeys
           : key === "shared_following" ? sharedFollowingPubkeys
-          : toPubkeys(profileResult?.[key]);
+          : toPubkeys(getSection(profileResult, key));
         if (pubkeys.length > 0) {
-          const influenceMap = toInfluenceMap(profileResult?.[key]);
+          const influenceMap = toInfluenceMap(getSection(profileResult, key));
           influenceMap.forEach((inf, pk) => {
             if (!expandTrustCache.current.has(pk)) {
               expandTrustCache.current.set(pk, inf);
@@ -878,7 +905,7 @@ export default function ProfilePage() {
       const rawPubkeys = key === "mutual" ? mutualPubkeys
         : key === "shared_followers" ? sharedFollowerPubkeys
         : key === "shared_following" ? sharedFollowingPubkeys
-        : toPubkeys(profileResult?.[key]);
+        : toPubkeys(getSection(profileResult, key));
       if (rawPubkeys.length === 0) return;
       const processed = getSortedFilteredPubkeys(key, rawPubkeys);
       const visCount = sectionVisibleCount[key] || 10;
@@ -905,13 +932,13 @@ export default function ProfilePage() {
     if (!profileResult) return [];
     return groupDefs.filter(g => {
       if (g.key === "mutual") {
-        const fb = toPubkeys(profileResult.followed_by);
-        const fg = toPubkeys(profileResult.following);
+        const fb = toPubkeys(getSection(profileResult, "followed_by"));
+        const fg = toPubkeys(getSection(profileResult, "following"));
         return fb.includes(pk) && fg.includes(pk);
       }
       if (g.key === "shared_followers") return sharedFollowerPubkeys.includes(pk);
       if (g.key === "shared_following") return sharedFollowingPubkeys.includes(pk);
-      return toPubkeys(profileResult[g.key]).includes(pk);
+      return toPubkeys(getSection(profileResult, g.key)).includes(pk);
     });
   };
 
@@ -2003,9 +2030,10 @@ export default function ProfilePage() {
                       </div>
                       <div className="divide-y divide-slate-100">
                         {profileResult.followed_by !== undefined && (() => {
-                          const fbIsArray = Array.isArray(profileResult.followed_by);
-                          const fbCount = fbIsArray ? toPubkeys(profileResult.followed_by).length : (profileResult.followed_by || 0);
-                          const fbExpandable = fbIsArray && fbCount > 0;
+                          const fbValue = profileResult.followed_by;
+                          const fbArray = Array.isArray(fbValue) ? fbValue : null;
+                          const fbCount = fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0);
+                          const fbExpandable = !!fbArray && fbCount > 0;
                           return (
                           <div>
                             <div
@@ -2035,14 +2063,15 @@ export default function ProfilePage() {
                                 {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {fbExpandable && renderExpandedPanel("followed_by", toPubkeys(profileResult.followed_by))}
+                            {fbExpandable && fbArray && renderExpandedPanel("followed_by", toPubkeys(fbArray))}
                           </div>
                           );
                         })()}
                         {profileResult.following !== undefined && (() => {
-                          const fgIsArray = Array.isArray(profileResult.following);
-                          const fgCount = fgIsArray ? toPubkeys(profileResult.following).length : (profileResult.following || 0);
-                          const fgExpandable = fgIsArray && fgCount > 0;
+                          const fgValue = profileResult.following;
+                          const fgArray = Array.isArray(fgValue) ? fgValue : null;
+                          const fgCount = fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0);
+                          const fgExpandable = !!fgArray && fgCount > 0;
                           return (
                           <div>
                             <div
@@ -2072,7 +2101,7 @@ export default function ProfilePage() {
                                 {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {fgExpandable && renderExpandedPanel("following", toPubkeys(profileResult.following))}
+                            {fgExpandable && fgArray && renderExpandedPanel("following", toPubkeys(fgArray))}
                           </div>
                           );
                         })()}
@@ -2224,7 +2253,7 @@ export default function ProfilePage() {
                                 {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {mbExpandable && renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
+                            {mbExpandable && Array.isArray(profileResult.muted_by) && renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
                           </div>
                           );
                         })()}
@@ -2261,7 +2290,7 @@ export default function ProfilePage() {
                                 {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {rbExpandable && renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
+                            {rbExpandable && Array.isArray(profileResult.reported_by) && renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
                           </div>
                           );
                         })()}
@@ -2292,7 +2321,7 @@ export default function ProfilePage() {
                                 {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {mtExpandable && renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
+                            {mtExpandable && Array.isArray(profileResult.muting) && renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
                           </div>
                           );
                         })()}
@@ -2323,7 +2352,7 @@ export default function ProfilePage() {
                                 {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
-                            {rpExpandable && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
+                            {rpExpandable && Array.isArray(profileResult.reporting) && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
                           </div>
                           );
                         })()}
