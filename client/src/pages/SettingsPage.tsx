@@ -59,6 +59,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
 import { MobileMenu } from "@/components/MobileMenu";
+import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 
 export default function SettingsPage() {
   const [location, navigate] = useLocation();
@@ -437,7 +438,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
             <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-service-provider">
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
@@ -880,6 +881,11 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
+
+            <BrainstormAssistantCard
+              variant="settings"
+              lastCalculated={lastCalculated}
+            />
           </div>
 
           <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-settings-presets">

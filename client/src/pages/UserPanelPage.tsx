@@ -229,6 +229,56 @@ export default function UserPanelPage() {
     });
   }, []);
 
+  // Hydrate agent state from lightweight one-click publish (BrainstormAssistantCard)
+  // so users who published via Dashboard/Settings see "active" status here without re-publishing.
+  // Also re-syncs reactively when the lightweight card publishes in another tab/component
+  // via `storage` events and a same-tab `brainstorm-assistant-updated` custom event.
+  useEffect(() => {
+    const STATUS_LEVEL: Record<AgentStatus, number> = {
+      dormant: 0,
+      activating: 1,
+      active: 2,
+      established: 3,
+      networked: 4,
+      trusted: 5,
+    };
+    const sync = () => {
+      try {
+        const lwPubkey = localStorage.getItem("brainstorm_assistant_pubkey");
+        const lwPublishedAtStr = localStorage.getItem("brainstorm_assistant_published_at");
+        if (!lwPubkey || !lwPublishedAtStr) return;
+        const lwTs = Number(lwPublishedAtStr);
+        if (!lwTs || isNaN(lwTs)) return;
+        setAgentState(prev => {
+          if (prev.publishedAt && prev.publishedAt >= lwTs) return prev;
+          const promotedStatus: AgentStatus = STATUS_LEVEL[prev.status] >= STATUS_LEVEL.active ? prev.status : "active";
+          const next: AgentState = {
+            ...prev,
+            status: promotedStatus,
+            publishedAt: lwTs,
+            activatedAt: prev.activatedAt || lwTs,
+          };
+          saveAgentState(next);
+          return next;
+        });
+      } catch {}
+    };
+    sync();
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === "brainstorm_assistant_pubkey" || e.key === "brainstorm_assistant_published_at" || e.key === "brainstorm_assistant_event_id") {
+        sync();
+      }
+    };
+    const onCustom = () => sync();
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("brainstorm-assistant-updated", onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("brainstorm-assistant-updated", onCustom);
+    };
+  }, []);
+
   const { data: selfData, isLoading: selfLoading } = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf(),

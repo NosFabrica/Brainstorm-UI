@@ -275,6 +275,28 @@ export const apiClient = {
     return await response.json();
   },
 
+  async publishDefaultAssistantProfile(): Promise<{ code?: number; message?: string; data?: { event_id?: string; assistant_pubkey?: string } }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/assistantProfile`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (response.status === 404) {
+      throw new Error("The assistant service is unavailable right now.");
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      let detail = errorData?.detail || errorData?.message || "";
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      throw new Error(detail || `Publish failed (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/publishAssistantProfile`,

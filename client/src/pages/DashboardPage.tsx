@@ -69,6 +69,7 @@ import { FEATURES } from "@/config/featureFlags";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
+import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -202,6 +203,7 @@ export default function DashboardPage() {
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
   const [nip85Dismissed, setNip85Dismissed] = useState(false);
+  const [assistantDismissed, setAssistantDismissed] = useState(() => localStorage.getItem("brainstorm_assistant_dismissed") === "true");
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -1542,6 +1544,24 @@ export default function DashboardPage() {
               toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
             }}
           />
+
+          {publishDone && !isRecalculating && nip85Activated && (!assistantDismissed || !!localStorage.getItem("brainstorm_assistant_pubkey")) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.5 }}
+              className="mb-6"
+            >
+              <BrainstormAssistantCard
+                variant="dashboard"
+                lastCalculated={selfData?.history?.last_time_calculated_graperank}
+                onDismiss={() => {
+                  try { localStorage.setItem("brainstorm_assistant_dismissed", "true"); } catch {}
+                  setAssistantDismissed(true);
+                }}
+              />
+            </motion.div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
