@@ -69,7 +69,6 @@ import { FEATURES } from "@/config/featureFlags";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
-import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -931,6 +930,58 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  <AnimatePresence initial={false}>
+                    {!assistantDismissed && !assistantPubkey && (
+                      <motion.div
+                        key="assistant-inline-prompt"
+                        initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                        animate={{ opacity: 1, height: "auto", marginTop: 6, marginBottom: 6 }}
+                        exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                        data-testid="container-assistant-inline-prompt"
+                      >
+                        <div className="rounded-lg bg-gradient-to-br from-[#7c86ff]/8 via-white to-indigo-50/40 border border-[#7c86ff]/20 px-2.5 py-2 flex items-center gap-2.5">
+                          <img
+                            src="/assistant-default.webp"
+                            alt=""
+                            aria-hidden="true"
+                            className="w-7 h-7 rounded-full ring-1 ring-[#7c86ff]/30 shrink-0 object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-slate-900 leading-tight truncate" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                              Publish your assistant
+                            </p>
+                            <p className="text-[10px] text-slate-500 leading-tight truncate">
+                              Speak your trust scores to Nostr apps
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate("/settings")}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            data-testid="button-assistant-inline-publish"
+                          >
+                            Publish
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try { localStorage.setItem("brainstorm_assistant_dismissed", "true"); } catch {}
+                              setAssistantDismissed(true);
+                            }}
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            aria-label="Dismiss publish assistant prompt"
+                            data-testid="button-assistant-inline-dismiss"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <div className="pt-1.5">
                     <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50">
                       <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
@@ -1559,25 +1610,6 @@ export default function DashboardPage() {
               toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
             }}
           />
-
-          {nip85Activated && !assistantDismissed && !assistantPubkey && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.5 }}
-              className="mb-6"
-            >
-              <BrainstormAssistantCard
-                variant="dashboard"
-                prominence="highlighted"
-                lastCalculated={selfData?.history?.last_time_calculated_graperank}
-                onDismiss={() => {
-                  try { localStorage.setItem("brainstorm_assistant_dismissed", "true"); } catch {}
-                  setAssistantDismissed(true);
-                }}
-              />
-            </motion.div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
