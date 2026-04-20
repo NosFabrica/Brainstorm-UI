@@ -58,6 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { getProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -290,10 +291,6 @@ export default function ProfilePage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [profileResult, setProfileResult] = useState<any>(null);
-  const [nostrProfile, setNostrProfile] = useState<{ name?: string; display_name?: string; picture?: string; nip05?: string; about?: string } | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
@@ -388,36 +385,54 @@ export default function ProfilePage() {
     }
   }, [user]);
 
+  const seed = useMemo<ProfileSeed | null>(() => (hexPubkey ? getProfileSeed(hexPubkey) : null), [hexPubkey]);
+
+  const profileQuery = useQuery<any>({
+    queryKey: ["profile", hexPubkey],
+    queryFn: async () => {
+      const res = await apiClient.getUserByPubkey(hexPubkey);
+      return res?.data ?? null;
+    },
+    enabled: !!user && !!hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const nostrProfileQuery = useQuery<{ name?: string; display_name?: string; picture?: string; nip05?: string; about?: string } | null>({
+    queryKey: ["nostr-profile", hexPubkey],
+    queryFn: async () => ((await fetchProfile(hexPubkey)) as any) ?? null,
+    enabled: !!user && !!hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const profileResult: any = profileQuery.data ?? null;
+  const nostrProfile = nostrProfileQuery.data ?? null;
+
+  const seedAsNostrProfile = useMemo(() => {
+    if (!seed) return null;
+    return {
+      name: seed.name,
+      display_name: seed.displayName,
+      picture: seed.picture,
+      nip05: seed.nip05,
+      about: seed.about,
+    } as { name?: string; display_name?: string; picture?: string; nip05?: string; about?: string };
+  }, [seed]);
+
+  const displayNostrProfile = nostrProfile ?? seedAsNostrProfile;
+
+  const loadError = useMemo<string | null>(() => {
+    if (!npubParam) return null;
+    if (user && !hexPubkey) return "Invalid profile identifier";
+    if (profileQuery.isError) return "No profile data found for this identity on the Brainstorm backend.";
+    if (profileQuery.isFetched && !profileQuery.data) return "No profile data found for this identity on the Brainstorm backend.";
+    return null;
+  }, [npubParam, user, hexPubkey, profileQuery.isError, profileQuery.isFetched, profileQuery.data]);
+
+  const isLoading = !seed && !profileResult && profileQuery.isLoading;
+
   useEffect(() => {
-    if (!user || !npubParam) return;
-
-    let hexPubkey: string;
-    try {
-      if (/^npub1[02-9ac-hj-np-z]{20,}$/i.test(npubParam)) {
-        const decoded = nip19.decode(npubParam);
-        if (decoded.type !== "npub" || typeof decoded.data !== "string") {
-          setLoadError("Invalid npub format");
-          setIsLoading(false);
-          return;
-        }
-        hexPubkey = decoded.data;
-      } else if (/^[0-9a-f]{64}$/i.test(npubParam)) {
-        hexPubkey = npubParam.toLowerCase();
-      } else {
-        setLoadError("Invalid profile identifier");
-        setIsLoading(false);
-        return;
-      }
-    } catch {
-      setLoadError("Could not decode this npub");
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setProfileResult(null);
-    setNostrProfile(null);
-    setLoadError(null);
     setExpandedSections({});
     setSectionVisibleCount({});
     expandProfileCache.current.clear();
@@ -427,27 +442,7 @@ export default function ProfilePage() {
     metadataFetchedRef.current.clear();
     setReportMetadataLoading({});
     prefetchedRef.current.clear();
-
-    apiClient.getUserByPubkey(hexPubkey)
-      .then(res => {
-        setProfileResult(res?.data || null);
-        if (!res?.data) {
-          setLoadError("No profile data found for this identity on the Brainstorm backend.");
-        }
-      })
-      .catch(() => {
-        setLoadError("No profile data found for this identity on the Brainstorm backend.");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-
-    fetchProfile(hexPubkey)
-      .then(profile => {
-        if (profile) setNostrProfile(profile as any);
-      })
-      .catch(() => {});
-  }, [user, npubParam]);
+  }, [hexPubkey]);
 
   const handleLogout = () => {
     logout();
@@ -1520,6 +1515,59 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {!loadError && !profileResult && seed && (
+          <div data-testid="card-profile-seed-preview">
+            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative">
+              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start gap-3 sm:gap-4 mb-4">
+                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                    {displayNostrProfile?.picture && (
+                      <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
+                    )}
+                    <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
+                      {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title-seed">
+                        {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
+                      </h3>
+                      <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-slate-50 text-slate-500 border border-slate-200">
+                        <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
+                        Loading
+                      </Badge>
+                    </div>
+                    {displayNostrProfile?.nip05 && (
+                      <p className="text-xs text-indigo-600 font-medium mt-0.5 truncate">{displayNostrProfile.nip05}</p>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]">{displayNpub}</code>
+                    </div>
+                  </div>
+                </div>
+                {displayNostrProfile?.about && (
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 mb-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    {displayNostrProfile.about}
+                  </p>
+                )}
+                <div className="animate-pulse space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="h-14 bg-slate-100 rounded-xl" />
+                    <div className="h-14 bg-slate-100 rounded-xl" />
+                    <div className="h-14 bg-slate-100 rounded-xl" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-10 bg-slate-50 rounded-xl" />
+                    <div className="h-10 bg-slate-50 rounded-xl" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
             <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
@@ -1620,12 +1668,12 @@ export default function ProfilePage() {
                       try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
                     })();
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
-                    const effectivePicture = nostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
+                    const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
                       <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
-                        {effectivePicture && <AvatarImage src={effectivePicture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
+                        {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
                         <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
-                          {(nostrProfile?.display_name || nostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
+                          {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                     );
@@ -1635,7 +1683,7 @@ export default function ProfilePage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
-                            {nostrProfile?.display_name || nostrProfile?.name || displayNpub.slice(0, 18) + "..."}
+                            {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
                           {hexPubkey && (() => {
                             try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
@@ -1654,8 +1702,8 @@ export default function ProfilePage() {
                             Profile Found
                           </Badge>
                         </div>
-                        {nostrProfile?.nip05 && (
-                          <p className="text-xs sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-profile-nip05">{nostrProfile.nip05}</p>
+                        {displayNostrProfile?.nip05 && (
+                          <p className="text-xs sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-profile-nip05">{displayNostrProfile.nip05}</p>
                         )}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
@@ -1792,12 +1840,12 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-                {nostrProfile?.about && (
+                {displayNostrProfile?.about && (
                   <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
                     <p className={`text-xs text-slate-500 leading-relaxed whitespace-pre-line break-words overflow-wrap-anywhere ${!aboutExpanded ? "line-clamp-3" : ""}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
-                      {renderLinkedText(nostrProfile.about)}
+                      {renderLinkedText(displayNostrProfile.about)}
                     </p>
-                    {nostrProfile.about.length > 140 && (
+                    {displayNostrProfile.about.length > 140 && (
                       <button
                         onClick={() => setAboutExpanded(!aboutExpanded)}
                         className="text-xs text-indigo-500 font-medium mt-1"

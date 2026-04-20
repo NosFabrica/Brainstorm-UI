@@ -39,10 +39,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services/nostr";
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { queryClient } from "@/lib/queryClient";
+import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -208,6 +210,66 @@ export default function SearchPage() {
 
   const taPubkey = selfData?.data?.history?.ta_pubkey;
   const hasPovOption = !!taPubkey;
+
+  const prefetchTimersRef = useRef<Map<string, number>>(new Map());
+
+  const seedAndPrefetchProfile = useCallback((result: SearchResult) => {
+    const hex = (result.pubkey || "").toLowerCase();
+    if (!hex) return;
+    const seed: ProfileSeed = {
+      pubkey: hex,
+      npub: result.npub,
+      name: result.name,
+      displayName: result.displayName,
+      picture: result.picture,
+      about: result.about,
+      nip05: result.nip05,
+      banner: result.banner,
+      website: result.website,
+      lud16: result.lud16,
+      wotRank: result.wotRank ?? null,
+      wotFollowers: result.wotFollowers ?? null,
+    };
+    setProfileSeed(hex, seed);
+    queryClient.prefetchQuery({
+      queryKey: ["profile", hex],
+      queryFn: async () => {
+        const res = await apiClient.getUserByPubkey(hex);
+        return res?.data ?? null;
+      },
+      staleTime: 5 * 60_000,
+    }).catch(() => {});
+    queryClient.prefetchQuery({
+      queryKey: ["nostr-profile", hex],
+      queryFn: async () => (await fetchProfile(hex)) ?? null,
+      staleTime: 5 * 60_000,
+    }).catch(() => {});
+  }, []);
+
+  const handlePrefetchEnter = useCallback((result: SearchResult) => {
+    const key = result.pubkey;
+    if (!key || prefetchTimersRef.current.has(key)) return;
+    const timer = window.setTimeout(() => {
+      prefetchTimersRef.current.delete(key);
+      seedAndPrefetchProfile(result);
+    }, 150);
+    prefetchTimersRef.current.set(key, timer);
+  }, [seedAndPrefetchProfile]);
+
+  const handlePrefetchLeave = useCallback((result: SearchResult) => {
+    const t = prefetchTimersRef.current.get(result.pubkey);
+    if (t !== undefined) {
+      window.clearTimeout(t);
+      prefetchTimersRef.current.delete(result.pubkey);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      prefetchTimersRef.current.forEach((t) => window.clearTimeout(t));
+      prefetchTimersRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -721,7 +783,14 @@ export default function SearchPage() {
                     <button
                       key={result.pubkey}
                       className="w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
-                      onClick={() => navigate(`/profile/${result.npub}`)}
+                      onMouseEnter={() => handlePrefetchEnter(result)}
+                      onMouseLeave={() => handlePrefetchLeave(result)}
+                      onFocus={() => handlePrefetchEnter(result)}
+                      onBlur={() => handlePrefetchLeave(result)}
+                      onClick={() => {
+                        seedAndPrefetchProfile(result);
+                        navigate(`/profile/${result.npub}`);
+                      }}
                       data-testid={`result-profile-${idx}`}
                     >
                       <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
