@@ -1615,12 +1615,21 @@ export default function ProfilePage() {
 
                 <div className="relative z-10">
                 <div className="flex items-start gap-3 sm:gap-4 mb-5">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
-                    {nostrProfile?.picture && <AvatarImage src={nostrProfile.picture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
-                    <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
-                      {(nostrProfile?.display_name || nostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  {(() => {
+                    const isOwnAssistant = !!hexPubkey && (() => {
+                      try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
+                    })();
+                    const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
+                    const effectivePicture = nostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
+                    return (
+                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                        {effectivePicture && <AvatarImage src={effectivePicture} alt={nostrProfile?.display_name || nostrProfile?.name || "Profile"} className="object-cover" />}
+                        <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
+                          {(nostrProfile?.display_name || nostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
