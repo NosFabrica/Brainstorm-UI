@@ -336,9 +336,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-[11px] text-slate-500 leading-relaxed flex items-start gap-1.5" data-testid={`text-assistant-safety-${variant}`}>
-              <Sparkles className="h-3 w-3 text-[#7c86ff] mt-0.5 shrink-0" />
-              <span>This <span className="font-semibold text-slate-700">does not</span> affect your main Nostr identity — Brainstorm publishes from a dedicated assistant key.</span>
+            <p className="text-[11px] text-slate-500 leading-relaxed" data-testid={`text-assistant-safety-${variant}`}>
+              This <span className="font-semibold text-slate-700">does not</span> affect your main Nostr identity — Brainstorm publishes from a dedicated assistant key.
             </p>
 
             {error && (
