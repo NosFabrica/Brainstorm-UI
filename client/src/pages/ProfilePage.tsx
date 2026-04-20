@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
@@ -283,6 +284,9 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProfileResultData = Record<string, any>;
+
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
@@ -387,29 +391,29 @@ export default function ProfilePage() {
 
   const seed = useMemo<ProfileSeed | null>(() => (hexPubkey ? getProfileSeed(hexPubkey) : null), [hexPubkey]);
 
-  const profileQuery = useQuery<any>({
+  const profileQuery = useQuery<ProfileResultData | null>({
     queryKey: ["profile", hexPubkey],
     queryFn: async () => {
       const res = await apiClient.getUserByPubkey(hexPubkey);
-      return res?.data ?? null;
+      return (res?.data ?? null) as ProfileResultData | null;
     },
     enabled: !!user && !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  const nostrProfileQuery = useQuery<{ name?: string; display_name?: string; picture?: string; nip05?: string; about?: string } | null>({
+  const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
-    queryFn: async () => ((await fetchProfile(hexPubkey)) as any) ?? null,
+    queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
     enabled: !!user && !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  const profileResult: any = profileQuery.data ?? null;
+  const profileResult = profileQuery.data ?? null;
   const nostrProfile = nostrProfileQuery.data ?? null;
 
-  const seedAsNostrProfile = useMemo(() => {
+  const seedAsNostrProfile = useMemo<ProfileContent | null>(() => {
     if (!seed) return null;
     return {
       name: seed.name,
@@ -417,7 +421,10 @@ export default function ProfilePage() {
       picture: seed.picture,
       nip05: seed.nip05,
       about: seed.about,
-    } as { name?: string; display_name?: string; picture?: string; nip05?: string; about?: string };
+      banner: seed.banner,
+      website: seed.website,
+      lud16: seed.lud16,
+    };
   }, [seed]);
 
   const displayNostrProfile = nostrProfile ?? seedAsNostrProfile;
@@ -1552,15 +1559,25 @@ export default function ProfilePage() {
                     {displayNostrProfile.about}
                   </p>
                 )}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5" data-testid="metric-seed-rank">
+                    <p className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Trust Rank</p>
+                    <p className="text-lg font-bold text-slate-900 font-mono tabular-nums tracking-tight mt-0.5">
+                      {typeof seed.wotRank === "number" ? `#${seed.wotRank.toLocaleString()}` : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5" data-testid="metric-seed-followers">
+                    <p className="text-[10px] font-bold tracking-wider uppercase text-slate-400">Followers</p>
+                    <p className="text-lg font-bold text-slate-900 font-mono tabular-nums tracking-tight mt-0.5">
+                      {typeof seed.wotFollowers === "number" ? seed.wotFollowers.toLocaleString() : "—"}
+                    </p>
+                  </div>
+                </div>
                 <div className="animate-pulse space-y-3">
                   <div className="grid grid-cols-3 gap-3">
                     <div className="h-14 bg-slate-100 rounded-xl" />
                     <div className="h-14 bg-slate-100 rounded-xl" />
                     <div className="h-14 bg-slate-100 rounded-xl" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="h-10 bg-slate-50 rounded-xl" />
-                    <div className="h-10 bg-slate-50 rounded-xl" />
                   </div>
                 </div>
               </div>
