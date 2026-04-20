@@ -50,7 +50,7 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 
 type SearchPov = "nosfabrica" | "mywot";
 
-const MEILI_API = "https://nous-clawds4.tapestry.ninja/api/search/profiles/meili";
+const MEILI_API = "https://brainstorm.world/api/search/profiles/meili";
 
 interface SearchResult {
   pubkey: string;

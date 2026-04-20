@@ -678,7 +678,7 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = "wss://nous-clawds4.tapestry.ninja/relay";
+const WOT_SEARCH_RELAY = "wss://brainstorm.world/relay";
 
 export interface NostrSearchResult {
   pubkey: string;
