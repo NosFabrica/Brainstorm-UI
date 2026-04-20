@@ -1253,7 +1253,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string } }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, liveQueueDepth }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; liveQueueDepth?: number }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1377,7 +1377,18 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
         <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
-        <td className="px-2 py-2 text-center text-slate-600 text-[10px]">{item.how_many_others_with_priority}</td>
+        <td className="px-2 py-2 text-center text-slate-600 text-[10px]" data-testid={`cell-queue-${item.private_id ?? idx}`}>
+          {(() => {
+            // For currently in-flight rows, show a live count of the other
+            // in-flight requests on the platform (computed at the parent
+            // level). For terminated rows, fall back to the per-record
+            // historical value the backend captured at run time.
+            const depth = isInPipeline && typeof liveQueueDepth === "number"
+              ? liveQueueDepth
+              : item.how_many_others_with_priority;
+            return depth > 0 ? depth : "—";
+          })()}
+        </td>
         <td className="px-2 py-2 text-[10px]">
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-slate-400">{item.private_id}</span>
@@ -1979,6 +1990,23 @@ export default function AdminPage() {
       return s === "waiting" || s === "ongoing" || s === "queued" || s === "pending";
     }).length;
   }, [overviewAllUsers]);
+
+  // Count requests currently moving through the pipeline so the Platform
+  // Activity table's "Queue" column reflects real concurrency. Prefer the
+  // broader overview dataset when available; fall back to the rows on the
+  // current page so the column is never blank when users are queued.
+  const liveInFlightCount = useMemo(() => {
+    const inFlight = (item: BrainstormRequestInstance) => {
+      const p = getActivityPipelineState(item);
+      return p === "active" || p === "waiting";
+    };
+    const overviewCount = overviewAllActivity.filter(inFlight).length;
+    const pageCount = activityItems.filter(inFlight).length;
+    // If the overview snapshot is capped/stale and reports 0 while the
+    // current page actually has in-flight rows, prefer the page count so
+    // the column still reflects real concurrency.
+    return Math.max(overviewCount, pageCount);
+  }, [overviewAllActivity, activityItems]);
 
   const trends = useMemo(() => {
     const now = Date.now();
@@ -4695,6 +4723,7 @@ export default function AdminPage() {
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}
+                                  liveQueueDepth={Math.max(0, liveInFlightCount - 1)}
                                   onToggleSelect={() => {
                                     if (!item.pubkey || pid === null || pid === undefined) return;
                                     setSelectedActivityRows(prev => { const next = new Map(prev); if (next.has(pid)) next.delete(pid); else next.set(pid, item.pubkey as string); return next; });
