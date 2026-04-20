@@ -1517,7 +1517,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "health" || tab === "assistants") return tab;
+    if (tab === "users" || tab === "activity" || tab === "health") return tab;
+    if (tab === "assistants" && FEATURES.assistantsAdmin) return tab;
     return "overview";
   });
   const [userSearch, setUserSearch] = useState("");
@@ -1735,9 +1736,9 @@ export default function AdminPage() {
   const assistantStatsQuery = useQuery({
     queryKey: ["/api/admin/assistants/stats"],
     queryFn: () => apiClient.getAdminAssistantStats(),
-    enabled: !!user && activeTab === "assistants",
+    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 30_000,
-    refetchInterval: activeTab === "assistants" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS) : false,
+    refetchInterval: activeTab === "assistants" && FEATURES.assistantsAdmin ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS) : false,
   });
 
   const assistantsListQuery = useQuery({
@@ -1747,16 +1748,16 @@ export default function AdminPage() {
       page: assistantPage + 1,
       size: assistantPageSize,
     }),
-    enabled: !!user && activeTab === "assistants",
+    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin,
     staleTime: 15_000,
     placeholderData: (prev) => prev,
-    refetchInterval: activeTab === "assistants" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
+    refetchInterval: activeTab === "assistants" && FEATURES.assistantsAdmin ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
   });
 
   const assistantHistoryQuery = useQuery({
     queryKey: ["/api/admin/assistants", expandedAssistant, "history"],
     queryFn: () => expandedAssistant ? apiClient.getAdminAssistantHistory(expandedAssistant, { size: 25 }) : Promise.resolve(null),
-    enabled: !!user && activeTab === "assistants" && !!expandedAssistant,
+    enabled: !!user && activeTab === "assistants" && FEATURES.assistantsAdmin && !!expandedAssistant,
     staleTime: 30_000,
   });
 
@@ -2410,7 +2411,7 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "users", label: "Users", icon: Users },
-    { key: "assistants", label: "Assistants", icon: Sparkles },
+    ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
   ];
 
@@ -4899,7 +4900,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {activeTab === "assistants" && (
+          {activeTab === "assistants" && FEATURES.assistantsAdmin && (
             <div className="space-y-6" data-testid="panel-assistants">
               {(() => {
                 const stats = assistantStatsQuery.data;

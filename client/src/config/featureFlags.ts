@@ -8,6 +8,7 @@ const boolEnv = (value: string | undefined, fallback: boolean): boolean => {
 
 export const FEATURES = {
   agentSuite: boolEnv(import.meta.env.VITE_FEATURE_AGENT_SUITE as string | undefined, false),
+  assistantsAdmin: boolEnv(import.meta.env.VITE_FEATURE_ASSISTANTS_ADMIN as string | undefined, false),
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;
