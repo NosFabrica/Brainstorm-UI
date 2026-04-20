@@ -9,6 +9,7 @@ import { apiClient } from "@/services/api";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const LS_PUBKEY = "brainstorm_assistant_pubkey";
 const LS_EVENT_ID = "brainstorm_assistant_event_id";
@@ -207,36 +208,35 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           <h3 className={(isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
             Your Brainstorm Assistant
           </h3>
-          <button
-            type="button"
-            onClick={() => setShowInfo((v) => !v)}
-            onBlur={() => setTimeout(() => setShowInfo(false), 200)}
-            className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
-            aria-label="What is the Brainstorm Assistant?"
-            aria-expanded={showInfo}
-            aria-controls={`assistant-info-popover-${variant}`}
-            data-testid={`button-assistant-info-${variant}`}
-          >
-            <span className="h-5 w-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center" aria-hidden="true">
-              <Info className="h-3 w-3" />
-            </span>
-            {showInfo && (
-              <div
-                id={`assistant-info-popover-${variant}`}
-                role="tooltip"
-                className="absolute z-30 left-1/2 -translate-x-1/2 top-full mt-2 w-72 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-left text-[11px] leading-relaxed text-slate-200 cursor-default"
-                data-testid={`tooltip-assistant-info-${variant}`}
-                onClick={(e) => e.stopPropagation()}
+          <Popover open={showInfo} onOpenChange={setShowInfo}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                aria-label="What is the Brainstorm Assistant?"
+                data-testid={`button-assistant-info-${variant}`}
               >
-                <p className="font-bold text-white mb-1.5">What is this?</p>
-                <p className="mb-2">A small bot that publishes <span className="font-semibold text-indigo-200">your trust scores</span> to Nostr, so any compatible client can read them as you.</p>
-                <p className="font-bold text-white mb-1">It does NOT</p>
-                <p className="mb-2">touch your main Nostr identity, sign on your behalf, or post anything else.</p>
-                <p className="font-bold text-white mb-1">You stay in control</p>
-                <p>Brainstorm holds the assistant's signing key so it can publish on your schedule. You can republish or remove it anytime.</p>
-              </div>
-            )}
-          </button>
+                <span className="h-5 w-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center" aria-hidden="true">
+                  <Info className="h-3 w-3" />
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="bottom"
+              align="center"
+              sideOffset={8}
+              collisionPadding={12}
+              className="w-72 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-left text-[11px] leading-relaxed text-slate-200 z-50"
+              data-testid={`tooltip-assistant-info-${variant}`}
+            >
+              <p className="font-bold text-white mb-1.5">What is this?</p>
+              <p className="mb-2">A small bot that publishes <span className="font-semibold text-indigo-200">your trust scores</span> to Nostr, so any compatible client can read them as you.</p>
+              <p className="font-bold text-white mb-1">It does NOT</p>
+              <p className="mb-2">touch your main Nostr identity, sign on your behalf, or post anything else.</p>
+              <p className="font-bold text-white mb-1">You stay in control</p>
+              <p>Brainstorm holds the assistant's signing key so it can publish on your schedule. You can republish or remove it anytime.</p>
+            </PopoverContent>
+          </Popover>
         </div>
         <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mb-3" data-testid={`text-assistant-tagline-${variant}`}>
           {isActive ? "Your sidekick is publishing your trust scores to Nostr." : "Give your trust scores a voice on Nostr — one click."}
