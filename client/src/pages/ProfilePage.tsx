@@ -59,7 +59,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { getProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
+import { getProfileSeed, clearProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -438,6 +438,12 @@ export default function ProfilePage() {
 
   const profileResult = profileQuery.data ?? null;
   const nostrProfile = nostrProfileQuery.data ?? null;
+
+  useEffect(() => {
+    if (hexPubkey && profileQuery.isSuccess && nostrProfileQuery.isFetched) {
+      clearProfileSeed(hexPubkey);
+    }
+  }, [hexPubkey, profileQuery.isSuccess, nostrProfileQuery.isFetched]);
 
   const seedAsNostrProfile = useMemo<ProfileContent | null>(() => {
     if (!seed) return null;
