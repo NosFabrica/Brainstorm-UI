@@ -626,20 +626,6 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              {!hasSearched && (
-                <div className={`flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-5 ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_1s_both]" : ""}`} data-testid="container-suggestions">
-                  {["bitcoin", "nostr", "privacy", "developers", "clients", "podcasts"].map((term, i) => (
-                    <button
-                      key={term}
-                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[11px] sm:text-xs text-slate-500 bg-white/80 border border-slate-200/80 rounded-full hover:bg-white hover:border-slate-300 hover:text-slate-700 active:bg-slate-50 transition-all ${i >= 4 ? "hidden sm:inline-flex" : ""}`}
-                      onClick={() => { setQuery(term); handleSearch(term); }}
-                      data-testid={`suggestion-${term}`}
-                    >
-                      {term}
-                    </button>
-                  ))}
-                </div>
-              )}
               {hasSearched && (
                 <div className="flex items-center mt-2.5 px-1">
                   {hasPovOption && (
