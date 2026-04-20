@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { Copy, ExternalLink, Info, Loader2, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Copy, ExternalLink, Info, Loader2, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
 import { FEATURES } from "@/config/featureFlags";
@@ -58,13 +59,15 @@ function formatRelative(ts: number): string {
 
 export interface BrainstormAssistantCardProps {
   variant: "dashboard" | "settings";
+  prominence?: "default" | "highlighted";
   onDismiss?: () => void;
   lastCalculated?: string | number | null;
 }
 
-export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: BrainstormAssistantCardProps) {
+export function BrainstormAssistantCard({ variant, prominence = "default", onDismiss, lastCalculated }: BrainstormAssistantCardProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const reduceMotion = useReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedState());
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
@@ -153,6 +156,7 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
 
   const isPending = publishMutation.isPending;
   const isActive = !!published;
+  const isHighlighted = prominence === "highlighted" && !isActive;
 
   return (
     <div
@@ -193,8 +197,14 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
           )}
         </div>
 
+        {isHighlighted && (
+          <div className="inline-flex items-center gap-1.5 mb-1.5" data-testid={`eyebrow-assistant-${variant}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#333286]">Recommended next step</span>
+          </div>
+        )}
         <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
+          <h3 className={(isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
             Your Brainstorm Assistant
           </h3>
           <button
@@ -337,26 +347,68 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePublish}
-                disabled={isPending}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#3730a3]/20"
-                data-testid={`button-assistant-publish-${variant}`}
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Publishing...
-                  </>
-                ) : (
-                  <>
-                    <BrainLogo size={14} className="text-white/90" />
-                    Publish my Assistant
-                  </>
-                )}
-              </button>
+            <div className={"flex flex-col sm:flex-row items-stretch sm:items-center gap-2 " + (isHighlighted ? "pt-1" : "") }>
+              {isHighlighted ? (
+                <motion.div
+                  className="relative flex-1 sm:flex-none"
+                  initial={false}
+                  animate={reduceMotion ? undefined : {
+                    boxShadow: [
+                      "0 0 0px 0px rgba(124,134,255,0.00), 0 14px 30px -14px rgba(55,48,163,0.45)",
+                      "0 0 22px 6px rgba(124,134,255,0.28), 0 18px 36px -14px rgba(55,48,163,0.55)",
+                      "0 0 0px 0px rgba(124,134,255,0.00), 0 14px 30px -14px rgba(55,48,163,0.45)",
+                    ],
+                  }}
+                  transition={reduceMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                  style={{ borderRadius: "0.75rem" }}
+                  whileHover={reduceMotion ? undefined : { y: -1.5 }}
+                  whileTap={reduceMotion ? undefined : { y: 0, scale: 0.985 }}
+                >
+                  <button
+                    type="button"
+                    onClick={handlePublish}
+                    disabled={isPending}
+                    className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,#3730a3_0%,#5b63d9_45%,#7c86ff_75%,#5b63d9_100%)] hover:bg-[position:100%_0] hover:brightness-110"
+                    data-testid={`button-assistant-publish-${variant}`}
+                  >
+                    {!reduceMotion && (
+                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)]" />
+                    )}
+                    {isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin relative z-10" />
+                        <span className="relative z-10">Publishing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <BrainLogo size={14} className="text-white/95 relative z-10" />
+                        <span className="relative z-10">Publish my Assistant</span>
+                        <ArrowRight className="h-4 w-4 relative z-10 transition-transform duration-300 group-hover/cta:translate-x-0.5" />
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={isPending}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#3730a3]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  data-testid={`button-assistant-publish-${variant}`}
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <BrainLogo size={14} className="text-white/90" />
+                      Publish my Assistant
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}

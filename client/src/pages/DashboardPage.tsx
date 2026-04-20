@@ -1554,6 +1554,7 @@ export default function DashboardPage() {
             >
               <BrainstormAssistantCard
                 variant="dashboard"
+                prominence="highlighted"
                 lastCalculated={selfData?.history?.last_time_calculated_graperank}
                 onDismiss={() => {
                   try { localStorage.setItem("brainstorm_assistant_dismissed", "true"); } catch {}
