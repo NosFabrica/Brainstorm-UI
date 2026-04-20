@@ -498,6 +498,103 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
+  async getAdminAssistantStats(): Promise<{
+    totalAssistants: number;
+    totalPublishes: number;
+    publishes24h: number;
+    publishes7d: number;
+    lastPublishAt: string | null;
+  } | null> {
+    try {
+      const response = await authenticatedFetch(
+        `${getBrainstormApi()}/admin/assistants/stats`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+      if (!response.ok) return null;
+      const json = await response.json();
+      const stats = json?.data ?? json;
+      return {
+        totalAssistants: stats?.total_assistants ?? stats?.totalAssistants ?? 0,
+        totalPublishes: stats?.total_publishes ?? stats?.totalPublishes ?? 0,
+        publishes24h: stats?.publishes_24h ?? stats?.publishes24h ?? 0,
+        publishes7d: stats?.publishes_7d ?? stats?.publishes7d ?? 0,
+        lastPublishAt: stats?.last_publish_at ?? stats?.lastPublishAt ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async getAdminAssistants(params: {
+    search?: string;
+    page?: number;
+    size?: number;
+  } = {}): Promise<{
+    items: {
+      owner_pubkey: string;
+      assistant_pubkey?: string | null;
+      event_id?: string | null;
+      publish_count: number;
+      first_published_at?: string | null;
+      last_published_at?: string | null;
+    }[];
+    total: number;
+    page: number;
+    pages: number;
+    size: number;
+  } | null> {
+    try {
+      const qs = new URLSearchParams();
+      if (params.search) qs.set("search", params.search);
+      if (params.page) qs.set("page", params.page.toString());
+      if (params.size) qs.set("size", params.size.toString());
+      const url = `${getBrainstormApi()}/admin/assistants${qs.toString() ? `?${qs}` : ""}`;
+      const response = await authenticatedFetch(url, {
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) return null;
+      const json = await response.json();
+      const data = json?.data ?? json;
+      return {
+        items: data?.items ?? [],
+        total: data?.total ?? 0,
+        page: data?.page ?? 1,
+        pages: data?.pages ?? 1,
+        size: data?.size ?? (params.size ?? 25),
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async getAdminAssistantHistory(ownerPubkey: string, params: { page?: number; size?: number } = {}): Promise<{
+    items: { event_id: string; published_at: string; status?: string | null }[];
+    total: number;
+    page: number;
+    pages: number;
+  } | null> {
+    try {
+      const qs = new URLSearchParams();
+      if (params.page) qs.set("page", params.page.toString());
+      if (params.size) qs.set("size", params.size.toString());
+      const url = `${getBrainstormApi()}/admin/assistants/${ownerPubkey}/history${qs.toString() ? `?${qs}` : ""}`;
+      const response = await authenticatedFetch(url, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) return null;
+      const json = await response.json();
+      const data = json?.data ?? json;
+      return {
+        items: data?.items ?? [],
+        total: data?.total ?? 0,
+        page: data?.page ?? 1,
+        pages: data?.pages ?? 1,
+      };
+    } catch {
+      return null;
+    }
+  },
+
   async triggerUserGraperank(pubkey: string) {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/admin/brainstormPubkey/${pubkey}/trigger_graperank`,

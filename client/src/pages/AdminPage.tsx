@@ -82,6 +82,7 @@ import {
   MinusSquare,
   Minus,
   Maximize2,
+  Sparkles,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -91,7 +92,7 @@ import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, get
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 
-type AdminTab = "overview" | "users" | "health" | "activity";
+type AdminTab = "overview" | "users" | "health" | "activity" | "assistants";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all";
@@ -1516,7 +1517,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "health") return tab;
+    if (tab === "users" || tab === "activity" || tab === "health" || tab === "assistants") return tab;
     return "overview";
   });
   const [userSearch, setUserSearch] = useState("");
@@ -1718,6 +1719,46 @@ export default function AdminPage() {
   const activityItems = activityData?.items ?? [];
   const activityTotal = activityData?.total ?? 0;
   const activityTotalPages = activityData?.pages ?? 1;
+
+  // ----- Brainstorm Assistants admin view -----
+  const [assistantSearch, setAssistantSearch] = useState("");
+  const [assistantDebouncedSearch, setAssistantDebouncedSearch] = useState("");
+  const [assistantPage, setAssistantPage] = useState(0);
+  const [assistantPageSize, setAssistantPageSize] = useState<PageSizeOption>(25);
+  const [expandedAssistant, setExpandedAssistant] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => setAssistantDebouncedSearch(assistantSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [assistantSearch]);
+  useEffect(() => { setAssistantPage(0); }, [assistantDebouncedSearch, assistantPageSize]);
+
+  const assistantStatsQuery = useQuery({
+    queryKey: ["/api/admin/assistants/stats"],
+    queryFn: () => apiClient.getAdminAssistantStats(),
+    enabled: !!user && activeTab === "assistants",
+    staleTime: 30_000,
+    refetchInterval: activeTab === "assistants" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS) : false,
+  });
+
+  const assistantsListQuery = useQuery({
+    queryKey: ["/api/admin/assistants", assistantDebouncedSearch, assistantPage, assistantPageSize],
+    queryFn: () => apiClient.getAdminAssistants({
+      search: assistantDebouncedSearch || undefined,
+      page: assistantPage + 1,
+      size: assistantPageSize,
+    }),
+    enabled: !!user && activeTab === "assistants",
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    refetchInterval: activeTab === "assistants" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_ACTIVITY_MS) : false,
+  });
+
+  const assistantHistoryQuery = useQuery({
+    queryKey: ["/api/admin/assistants", expandedAssistant, "history"],
+    queryFn: () => expandedAssistant ? apiClient.getAdminAssistantHistory(expandedAssistant, { size: 25 }) : Promise.resolve(null),
+    enabled: !!user && activeTab === "assistants" && !!expandedAssistant,
+    staleTime: 30_000,
+  });
 
   const runBulkRetrigger = useCallback(async (rawPubkeys: string[], source: "users" | "activity" | "retry") => {
     const skipSet = triggeringPubkeys;
@@ -2369,6 +2410,7 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "users", label: "Users", icon: Users },
+    { key: "assistants", label: "Assistants", icon: Sparkles },
     { key: "health", label: "System Health", icon: Server },
   ];
 
@@ -4854,6 +4896,216 @@ export default function AdminPage() {
                 </DialogContent>
               </Dialog>
 
+            </div>
+          )}
+
+          {activeTab === "assistants" && (
+            <div className="space-y-6" data-testid="panel-assistants">
+              {(() => {
+                const stats = assistantStatsQuery.data;
+                const statsLoading = assistantStatsQuery.isLoading;
+                const statsUnavailable = !statsLoading && stats === null;
+                return (
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-stats">
+                    <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
+                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                          <Sparkles className="h-4 w-4 text-[#7c86ff]" />
+                          Brainstorm Assistants
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Tracks each successful kind 0 publish from the assistant publish endpoint.</p>
+                      </div>
+                      <StatusBadge status={statsUnavailable ? "disconnected" : assistantStatsQuery.isError ? "disconnected" : "connected"} />
+                    </div>
+                    <div className="p-4 sm:p-5">
+                      {statsLoading ? (
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-pulse">
+                          {[1,2,3,4,5].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+                        </div>
+                      ) : statsUnavailable ? (
+                        <div className="text-center py-6" data-testid="assistant-stats-unavailable">
+                          <WifiOff className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-500">Not Connected</p>
+                          <p className="text-[11px] text-slate-400 mt-1">The backend has not yet exposed <code>/admin/assistants/stats</code>.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-total">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Total Assistants</p>
+                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.totalAssistants ?? 0).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Distinct owner pubkeys</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-publishes">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Total Publishes</p>
+                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.totalPublishes ?? 0).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Successful kind 0 events</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-24h">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last 24h</p>
+                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.publishes24h ?? 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-7d">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last 7 days</p>
+                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.publishes7d ?? 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-last">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last Publish</p>
+                            <p className="text-sm font-semibold text-slate-900 mt-2 leading-tight">{stats?.lastPublishAt ? formatTimestamp(stats.lastPublishAt) : "—"}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {(() => {
+                const data = assistantsListQuery.data;
+                const isUnavailable = !assistantsListQuery.isLoading && data === null;
+                const items = data?.items ?? [];
+                const total = data?.total ?? 0;
+                const totalPages = data?.pages ?? 1;
+                return (
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-list">
+                    <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
+                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">{total.toLocaleString()} owner{total === 1 ? "" : "s"} have published an assistant.</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={assistantSearch}
+                            onChange={(e) => setAssistantSearch(e.target.value)}
+                            placeholder="Search npub or hex…"
+                            className="pl-7 pr-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#7c86ff] w-44 sm:w-56"
+                            data-testid="input-assistant-search"
+                          />
+                        </div>
+                        <StatusBadge status={isUnavailable ? "disconnected" : assistantsListQuery.isError ? "disconnected" : "connected"} />
+                      </div>
+                    </div>
+                    <div className="p-3 sm:p-5">
+                      {assistantsListQuery.isLoading && items.length === 0 ? (
+                        <div className="space-y-2 animate-pulse">
+                          {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-slate-100 rounded-lg" />)}
+                        </div>
+                      ) : isUnavailable ? (
+                        <div className="text-center py-8" data-testid="assistants-list-unavailable">
+                          <WifiOff className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-500">Not Connected</p>
+                          <p className="text-[11px] text-slate-400 mt-1">The backend has not yet exposed <code>/admin/assistants</code>.</p>
+                        </div>
+                      ) : items.length === 0 ? (
+                        <div className="text-center py-8">
+                          <Sparkles className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-400">No assistants published yet</p>
+                          <p className="text-[11px] text-slate-400 mt-1">Once a user publishes their assistant, they'll appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left min-w-[640px]" data-testid="table-assistants">
+                            <thead>
+                              <tr className="border-b border-slate-200/60">
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Owner</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"># Publishes</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">First</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Last</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Latest Event</th>
+                                <th className="px-2 py-2 w-8"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map((it) => {
+                                let npub = it.owner_pubkey;
+                                try { npub = nip19.npubEncode(it.owner_pubkey); } catch {}
+                                const isExpanded = expandedAssistant === it.owner_pubkey;
+                                return (
+                                  <Fragment key={it.owner_pubkey}>
+                                    <tr
+                                      className="border-b border-slate-100 hover:bg-indigo-50/40 cursor-pointer"
+                                      onClick={() => setExpandedAssistant(isExpanded ? null : it.owner_pubkey)}
+                                      data-testid={`row-assistant-${it.owner_pubkey}`}
+                                    >
+                                      <td className="px-2 py-2">
+                                        <div className="flex flex-col">
+                                          <span className="text-[11px] font-mono text-slate-800 truncate max-w-[220px]" title={npub}>{npub.slice(0, 18)}…{npub.slice(-6)}</span>
+                                          <span className="text-[9px] font-mono text-slate-400 truncate max-w-[220px]" title={it.owner_pubkey}>{it.owner_pubkey.slice(0, 12)}…</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-2 py-2 text-[11px] font-bold text-slate-900">{it.publish_count.toLocaleString()}</td>
+                                      <td className="px-2 py-2 text-[10px] text-slate-600">{it.first_published_at ? formatTimestamp(it.first_published_at) : "—"}</td>
+                                      <td className="px-2 py-2 text-[10px] text-slate-600">{it.last_published_at ? formatTimestamp(it.last_published_at) : "—"}</td>
+                                      <td className="px-2 py-2 text-[10px] font-mono text-slate-500 truncate max-w-[180px]" title={it.event_id || ""}>{it.event_id ? `${it.event_id.slice(0, 14)}…` : "—"}</td>
+                                      <td className="px-2 py-2 text-slate-400">
+                                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                      </td>
+                                    </tr>
+                                    {isExpanded && (
+                                      <tr data-testid={`row-assistant-history-${it.owner_pubkey}`}>
+                                        <td colSpan={6} className="px-3 py-3 bg-slate-50/60">
+                                          {assistantHistoryQuery.isLoading ? (
+                                            <div className="text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading history…</div>
+                                          ) : assistantHistoryQuery.data === null ? (
+                                            <div className="text-[11px] text-slate-500">Per-user history endpoint not available.</div>
+                                          ) : (assistantHistoryQuery.data?.items?.length ?? 0) === 0 ? (
+                                            <div className="text-[11px] text-slate-500">No detailed publish events recorded.</div>
+                                          ) : (
+                                            <div className="space-y-1">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Recent publishes</p>
+                                              <ul className="space-y-1 max-h-60 overflow-auto">
+                                                {assistantHistoryQuery.data!.items.map((h, i) => (
+                                                  <li key={`${h.event_id}-${i}`} className="text-[11px] flex items-center gap-2 px-2 py-1 rounded bg-white border border-slate-100">
+                                                    <Clock className="h-3 w-3 text-slate-400" />
+                                                    <span className="text-slate-700">{formatTimestamp(h.published_at)}</span>
+                                                    <span className="font-mono text-slate-500 truncate flex-1" title={h.event_id}>{h.event_id.slice(0, 24)}…</span>
+                                                    {h.status && <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">{h.status}</span>}
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-3">
+                            <div className="text-[10px] text-slate-500">
+                              Page {assistantPage + 1} of {totalPages} · {total.toLocaleString()} total
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select value={String(assistantPageSize)} onValueChange={(v) => setAssistantPageSize(Number(v) as PageSizeOption)}>
+                                <SelectTrigger className="h-7 text-[11px] w-[88px]" data-testid="select-assistant-page-size">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="25">25 / page</SelectItem>
+                                  <SelectItem value="50">50 / page</SelectItem>
+                                  <SelectItem value="100">100 / page</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={assistantPage === 0} onClick={() => setAssistantPage(p => Math.max(0, p - 1))} data-testid="button-assistant-prev">
+                                <ChevronLeft className="h-3 w-3" /> Prev
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={assistantPage + 1 >= totalPages} onClick={() => setAssistantPage(p => p + 1)} data-testid="button-assistant-next">
+                                Next <ChevronRight className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
