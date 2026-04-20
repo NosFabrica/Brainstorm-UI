@@ -285,7 +285,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     >
       <div className={(variant === "settings" ? "relative h-24 sm:h-32 md:h-36 " : "relative h-20 sm:h-24 ") + "bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl"}>
         {(() => {
-          const bannerSrc = profile?.banner || (isActive ? getDefaultAssistantBannerUrl() : null);
+          const bannerSrc = profile?.banner || getDefaultAssistantBannerUrl();
           if (!bannerSrc) return null;
           return (
             <img
@@ -320,7 +320,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         <div className="flex items-end justify-between gap-3 mb-3">
           <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
             {(() => {
-              const pic = profile?.picture || (isActive ? getDefaultAssistantPictureUrl() : null);
+              const pic = profile?.picture || getDefaultAssistantPictureUrl();
               if (pic) {
                 return (
                   <img
