@@ -86,7 +86,7 @@ import {
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, searchProfilesMeili, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
 import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, getApiBaseUrl, type ApiEnvironment } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -2185,14 +2185,19 @@ export default function AdminPage() {
     setOnboardError(null);
     setOnboardResults([]);
     try {
-      const results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
+      let results: NostrSearchResult[] = [];
+      try {
+        results = await searchProfilesMeili(q, { limit: 10, timeoutMs: 8000 });
+      } catch {
+        results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
+      }
       if (results.length === 0) {
         setOnboardError("No profiles found — try a different name");
       } else {
         setOnboardResults(results);
       }
     } catch {
-      setOnboardError("Search failed — relay may be unavailable");
+      setOnboardError("Search failed — backend may be unavailable");
     } finally {
       setOnboardSearching(false);
     }
@@ -3339,7 +3344,7 @@ export default function AdminPage() {
                         </div>
                         <p className="text-[10px] text-slate-400 -mt-1 flex items-center gap-1">
                           <Globe className="h-2.5 w-2.5 shrink-0" />
-                          Powered by NIP-50 WoT search relay
+                          Powered by Brainstorm WoT search
                         </p>
 
                         {onboardResults.length > 0 && !onboardingAll && (

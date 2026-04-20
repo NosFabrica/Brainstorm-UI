@@ -679,6 +679,7 @@ export async function fetchMuteListTimestamp(
 }
 
 const WOT_SEARCH_RELAY = "wss://brainstorm.world/relay";
+const MEILI_SEARCH_API = "https://brainstorm.world/api/search/profiles/meili";
 
 export interface NostrSearchResult {
   pubkey: string;
@@ -688,6 +689,50 @@ export interface NostrSearchResult {
   picture?: string;
   about?: string;
   nip05?: string;
+}
+
+export async function searchProfilesMeili(
+  query: string,
+  options: { limit?: number; timeoutMs?: number; userPubkey?: string; pov?: "house" | "user" } = {}
+): Promise<NostrSearchResult[]> {
+  const { limit = 10, timeoutMs = 8000, userPubkey, pov = "house" } = options;
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+    offset: "0",
+    wotPov: pov,
+  });
+  if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
+
+  const resp = await fetch(`${MEILI_SEARCH_API}?${params.toString()}`, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
+  const data = await resp.json();
+  if (!data?.success) throw new Error("Search service unavailable");
+
+  const hits: any[] = Array.isArray(data.hits) ? data.hits : [];
+  const seen = new Set<string>();
+  const out: NostrSearchResult[] = [];
+  for (const h of hits) {
+    const pubkey: string | undefined = h?.pubkey;
+    if (!pubkey || seen.has(pubkey)) continue;
+    seen.add(pubkey);
+    let npub: string = h?.npub;
+    if (!npub) {
+      try { npub = nip19.npubEncode(pubkey); } catch { continue; }
+    }
+    out.push({
+      pubkey,
+      npub,
+      name: h?.name || undefined,
+      displayName: h?.display_name || h?.displayName || undefined,
+      picture: h?.picture || undefined,
+      about: h?.about || undefined,
+      nip05: h?.nip05 || undefined,
+    });
+  }
+  return out;
 }
 
 export function searchNostrProfiles(
