@@ -69,6 +69,13 @@ import { FEATURES } from "@/config/featureFlags";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
+import {
+  ASSISTANT_UPDATED_EVENT,
+  USER_CHANGED_EVENT,
+  getCurrentAssistantPubkey,
+  readAssistantDismissed,
+  setAssistantDismissed as setAssistantDismissedStorage,
+} from "@/lib/assistantStorage";
 import { MobileMenu } from "@/components/MobileMenu";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -202,20 +209,23 @@ export default function DashboardPage() {
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
   const [nip85Dismissed, setNip85Dismissed] = useState(false);
-  const [assistantDismissed, setAssistantDismissed] = useState(() => localStorage.getItem("brainstorm_assistant_dismissed") === "true");
-  const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => {
-    try { return localStorage.getItem("brainstorm_assistant_pubkey"); } catch { return null; }
-  });
+  const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
+  const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
   useEffect(() => {
     const sync = () => {
-      try { setAssistantPubkey(localStorage.getItem("brainstorm_assistant_pubkey")); } catch {}
+      setAssistantPubkey(getCurrentAssistantPubkey());
+      setAssistantDismissed(readAssistantDismissed());
     };
-    const onStorage = (e: StorageEvent) => { if (e.key === "brainstorm_assistant_pubkey") sync(); };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
+    };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("brainstorm-assistant-updated", sync as EventListener);
+    window.addEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
+    window.addEventListener(USER_CHANGED_EVENT, sync as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("brainstorm-assistant-updated", sync as EventListener);
+      window.removeEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
+      window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
   }, []);
 
@@ -968,7 +978,7 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              try { localStorage.setItem("brainstorm_assistant_dismissed", "true"); } catch {}
+                              setAssistantDismissedStorage(true);
                               setAssistantDismissed(true);
                             }}
                             className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"

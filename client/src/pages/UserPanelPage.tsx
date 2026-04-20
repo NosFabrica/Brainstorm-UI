@@ -7,6 +7,11 @@ import PageBackground from "@/components/PageBackground";
 import workshopBg from "@assets/Gemini_Generated_Image_9rkzed9rkzed9rkz_1775844197287.png";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+import {
+  ASSISTANT_UPDATED_EVENT,
+  USER_CHANGED_EVENT,
+  readPublishedAssistant,
+} from "@/lib/assistantStorage";
 import { MobileMenu } from "@/components/MobileMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -244,10 +249,9 @@ export default function UserPanelPage() {
     };
     const sync = () => {
       try {
-        const lwPubkey = localStorage.getItem("brainstorm_assistant_pubkey");
-        const lwPublishedAtStr = localStorage.getItem("brainstorm_assistant_published_at");
-        if (!lwPubkey || !lwPublishedAtStr) return;
-        const lwTs = Number(lwPublishedAtStr);
+        const lw = readPublishedAssistant();
+        if (!lw) return;
+        const lwTs = lw.publishedAt;
         if (!lwTs || isNaN(lwTs)) return;
         setAgentState(prev => {
           if (prev.publishedAt && prev.publishedAt >= lwTs) return prev;
@@ -265,17 +269,16 @@ export default function UserPanelPage() {
     };
     sync();
     const onStorage = (e: StorageEvent) => {
-      if (!e.key) return;
-      if (e.key === "brainstorm_assistant_pubkey" || e.key === "brainstorm_assistant_published_at" || e.key === "brainstorm_assistant_event_id") {
-        sync();
-      }
+      if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
     const onCustom = () => sync();
     window.addEventListener("storage", onStorage);
-    window.addEventListener("brainstorm-assistant-updated", onCustom);
+    window.addEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
+    window.addEventListener(USER_CHANGED_EVENT, onCustom);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("brainstorm-assistant-updated", onCustom);
+      window.removeEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
+      window.removeEventListener(USER_CHANGED_EVENT, onCustom);
     };
   }, []);
 

@@ -32,6 +32,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { FEATURES } from "@/config/featureFlags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1755,9 +1756,7 @@ export default function ProfilePage() {
                 <div className="relative z-10">
                 <div className="flex items-start gap-3 sm:gap-4 mb-5">
                   {(() => {
-                    const isOwnAssistant = !!hexPubkey && (() => {
-                      try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
-                    })();
+                    const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
@@ -1776,9 +1775,7 @@ export default function ProfilePage() {
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
-                          {hexPubkey && (() => {
-                            try { return localStorage.getItem("brainstorm_assistant_pubkey") === hexPubkey; } catch { return false; }
-                          })() && (
+                          {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"
                               className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30"

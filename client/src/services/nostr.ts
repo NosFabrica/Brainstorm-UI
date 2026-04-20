@@ -134,6 +134,35 @@ const eventStore = new EventStore();
 
 let currentUser: NostrUser | null = null;
 
+// One-time cleanup of pre-Task-#85 unscoped Brainstorm Assistant keys.
+// These were stored globally so that one account's assistant identity bled
+// into the next account that logged in on the same device. Per-user keys
+// (prefix `brainstorm_assistant:<owner>:`) replace them; the legacy keys
+// can be safely removed on app boot.
+(function cleanupLegacyAssistantKeysOnce() {
+  try {
+    const legacy = [
+      "brainstorm_assistant_pubkey",
+      "brainstorm_assistant_event_id",
+      "brainstorm_assistant_published_at",
+      "brainstorm_assistant_first_publish_done",
+      "brainstorm_assistant_profile",
+      "brainstorm_assistant_dismissed",
+    ];
+    for (const k of legacy) {
+      try { localStorage.removeItem(k); } catch {}
+    }
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("brainstorm_assistant_picture_set:")) toRemove.push(k);
+    }
+    for (const k of toRemove) {
+      try { localStorage.removeItem(k); } catch {}
+    }
+  } catch {}
+})();
+
 export function getCurrentUser(): NostrUser | null {
   if (currentUser) return currentUser;
 
@@ -158,11 +187,20 @@ export function getCurrentUser(): NostrUser | null {
 }
 
 function setCurrentUser(user: NostrUser | null) {
+  const prevPubkey = currentUser?.pubkey ?? null;
   currentUser = user;
   if (user) {
     localStorage.setItem("nostr_user", JSON.stringify(user));
   } else {
     localStorage.removeItem("nostr_user");
+  }
+  const nextPubkey = user?.pubkey ?? null;
+  if (prevPubkey !== nextPubkey) {
+    try {
+      window.dispatchEvent(new CustomEvent("brainstorm-user-changed", {
+        detail: { previous: prevPubkey, current: nextPubkey },
+      }));
+    } catch {}
   }
 }
 
@@ -501,11 +539,11 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
 }
 
 export function logout() {
+  // Brainstorm Assistant data is namespaced per owner, so logging out does
+  // not need to wipe it — switching accounts naturally isolates state and
+  // the user's own assistant identity should still be there next login.
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
-  // Reset the "Maybe later" dismissal so the Publish-Assistant prompt
-  // gets a fresh chance on the next login (only shows if not yet published).
-  localStorage.removeItem("brainstorm_assistant_dismissed");
   clearSecretKey();
   queryClient.clear();
 }

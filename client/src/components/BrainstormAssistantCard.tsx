@@ -11,13 +11,20 @@ import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-const LS_PUBKEY = "brainstorm_assistant_pubkey";
-const LS_EVENT_ID = "brainstorm_assistant_event_id";
-const LS_PUBLISHED_AT = "brainstorm_assistant_published_at";
-const LS_FIRST_DONE = "brainstorm_assistant_first_publish_done";
-const LS_PROFILE = "brainstorm_assistant_profile";
-const LS_PICTURE_SET_PREFIX = "brainstorm_assistant_picture_set:";
+import {
+  ASSISTANT_UPDATED_EVENT,
+  USER_CHANGED_EVENT,
+  readAssistantProfile,
+  writeAssistantProfile,
+  readPublishedAssistant,
+  writePublishedAssistant,
+  readFirstPublishDone,
+  setFirstPublishDone,
+  readPictureSet,
+  setPictureSet,
+  type AssistantProfile,
+  type PublishedAssistantState as PublishedState,
+} from "@/lib/assistantStorage";
 
 const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
 const DEFAULT_ASSISTANT_BANNER_PATH = "/assistant-banner.webp";
@@ -30,31 +37,6 @@ function getDefaultAssistantBannerUrl(): string {
   return `${window.location.origin}${DEFAULT_ASSISTANT_BANNER_PATH}`;
 }
 
-interface AssistantProfile {
-  name?: string;
-  display_name?: string;
-  about?: string;
-  website?: string;
-  picture?: string;
-  banner?: string;
-  nip05?: string;
-}
-
-function readAssistantProfile(): AssistantProfile | null {
-  try {
-    const raw = localStorage.getItem(LS_PROFILE);
-    if (!raw) return null;
-    return JSON.parse(raw) as AssistantProfile;
-  } catch { return null; }
-}
-
-function writeAssistantProfile(p: AssistantProfile) {
-  try {
-    localStorage.setItem(LS_PROFILE, JSON.stringify(p));
-    window.dispatchEvent(new CustomEvent("brainstorm-assistant-updated"));
-  } catch {}
-}
-
 function normalizeWebsite(url: string): { href: string; label: string } | null {
   if (!url) return null;
   const trimmed = url.trim();
@@ -63,37 +45,6 @@ function normalizeWebsite(url: string): { href: string; label: string } | null {
   let label = trimmed.replace(/^https?:\/\//i, "").replace(/\/$/, "");
   if (label.length > 40) label = label.slice(0, 37) + "…";
   return { href, label };
-}
-
-interface PublishedState {
-  pubkey: string;
-  npub: string;
-  eventId: string;
-  publishedAt: number;
-}
-
-function readPublishedState(): PublishedState | null {
-  try {
-    const pubkey = localStorage.getItem(LS_PUBKEY);
-    const eventId = localStorage.getItem(LS_EVENT_ID);
-    const publishedAtStr = localStorage.getItem(LS_PUBLISHED_AT);
-    if (!pubkey || !eventId || !publishedAtStr) return null;
-    let npub = pubkey;
-    try { npub = nip19.npubEncode(pubkey); } catch {}
-    return { pubkey, npub, eventId, publishedAt: Number(publishedAtStr) || Date.now() };
-  } catch {
-    return null;
-  }
-}
-
-function writePublishedState(s: PublishedState) {
-  try {
-    localStorage.setItem(LS_PUBKEY, s.pubkey);
-    localStorage.setItem(LS_EVENT_ID, s.eventId);
-    localStorage.setItem(LS_PUBLISHED_AT, String(s.publishedAt));
-    // Same-tab notification — `storage` events only fire across tabs.
-    window.dispatchEvent(new CustomEvent("brainstorm-assistant-updated"));
-  } catch {}
 }
 
 function formatRelative(ts: number): string {
@@ -118,30 +69,30 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const reduceMotion = useReducedMotion();
-  const [published, setPublished] = useState<PublishedState | null>(() => readPublishedState());
+  const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
   const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === LS_PUBKEY || e.key === LS_EVENT_ID || e.key === LS_PUBLISHED_AT) {
-        setPublished(readPublishedState());
-      }
-      if (e.key === LS_PROFILE) {
-        setProfile(readAssistantProfile());
-      }
-    };
-    const onLocal = () => {
-      setPublished(readPublishedState());
+    const refresh = () => {
+      setPublished(readPublishedAssistant());
       setProfile(readAssistantProfile());
     };
+    // Cross-tab key changes still arrive via the legacy `storage` listener,
+    // and the per-user keys we now use share the same `brainstorm_assistant:`
+    // prefix so we just refresh on any matching update.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith("brainstorm_assistant:")) refresh();
+    };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("brainstorm-assistant-updated", onLocal as EventListener);
+    window.addEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
+    window.addEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("brainstorm-assistant-updated", onLocal as EventListener);
+      window.removeEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
+      window.removeEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     };
   }, []);
 
@@ -170,12 +121,11 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         // update once with the Brainstorm-branded defaults so other Nostr
         // clients see a consistent identity. Best-effort: silently swallow
         // failures and keep the local fallback rendering.
-        const flagKey = LS_PICTURE_SET_PREFIX + published.pubkey;
-        const alreadyTried = (() => { try { return localStorage.getItem(flagKey) === "1"; } catch { return false; } })();
+        const alreadyTried = readPictureSet(published.pubkey);
         const needsPicture = !next.picture;
         const needsBanner = !next.banner;
         if ((needsPicture || needsBanner) && !alreadyTried) {
-          try { localStorage.setItem(flagKey, "1"); } catch {}
+          setPictureSet(published.pubkey);
           const defaultPicture = needsPicture ? getDefaultAssistantPictureUrl() : next.picture;
           const defaultBanner = needsBanner ? getDefaultAssistantBannerUrl() : next.banner;
           try {
@@ -219,13 +169,13 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         eventId,
         publishedAt: Date.now(),
       };
-      writePublishedState(state);
+      writePublishedAssistant(state);
       setPublished(state);
       setError(null);
 
-      const isFirst = !localStorage.getItem(LS_FIRST_DONE);
+      const isFirst = !readFirstPublishDone();
       if (isFirst) {
-        try { localStorage.setItem(LS_FIRST_DONE, String(Date.now())); } catch {}
+        setFirstPublishDone();
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3500);
         toast({
