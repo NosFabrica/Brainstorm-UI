@@ -3,9 +3,10 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Copy, ExternalLink, Info, Loader2, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
+import { fetchProfile } from "@/services/nostr";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +16,41 @@ const LS_PUBKEY = "brainstorm_assistant_pubkey";
 const LS_EVENT_ID = "brainstorm_assistant_event_id";
 const LS_PUBLISHED_AT = "brainstorm_assistant_published_at";
 const LS_FIRST_DONE = "brainstorm_assistant_first_publish_done";
+const LS_PROFILE = "brainstorm_assistant_profile";
+
+interface AssistantProfile {
+  name?: string;
+  display_name?: string;
+  about?: string;
+  website?: string;
+  picture?: string;
+  nip05?: string;
+}
+
+function readAssistantProfile(): AssistantProfile | null {
+  try {
+    const raw = localStorage.getItem(LS_PROFILE);
+    if (!raw) return null;
+    return JSON.parse(raw) as AssistantProfile;
+  } catch { return null; }
+}
+
+function writeAssistantProfile(p: AssistantProfile) {
+  try {
+    localStorage.setItem(LS_PROFILE, JSON.stringify(p));
+    window.dispatchEvent(new CustomEvent("brainstorm-assistant-updated"));
+  } catch {}
+}
+
+function normalizeWebsite(url: string): { href: string; label: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let label = trimmed.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  if (label.length > 40) label = label.slice(0, 37) + "…";
+  return { href, label };
+}
 
 interface PublishedState {
   pubkey: string;
@@ -70,6 +106,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   const { toast } = useToast();
   const reduceMotion = useReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedState());
+  const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -79,10 +116,45 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       if (e.key === LS_PUBKEY || e.key === LS_EVENT_ID || e.key === LS_PUBLISHED_AT) {
         setPublished(readPublishedState());
       }
+      if (e.key === LS_PROFILE) {
+        setProfile(readAssistantProfile());
+      }
+    };
+    const onLocal = () => {
+      setPublished(readPublishedState());
+      setProfile(readAssistantProfile());
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("brainstorm-assistant-updated", onLocal as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("brainstorm-assistant-updated", onLocal as EventListener);
+    };
   }, []);
+
+  // Hydrate the assistant's kind-0 profile from relays so we can render
+  // display name, about, and website elegantly in the active state.
+  useEffect(() => {
+    if (!published?.pubkey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await fetchProfile(published.pubkey);
+        if (!p || cancelled) return;
+        const next: AssistantProfile = {
+          name: typeof (p as any).name === "string" ? (p as any).name : undefined,
+          display_name: typeof (p as any).display_name === "string" ? (p as any).display_name : undefined,
+          about: typeof (p as any).about === "string" ? (p as any).about : undefined,
+          website: typeof (p as any).website === "string" ? (p as any).website : undefined,
+          picture: typeof (p as any).picture === "string" ? (p as any).picture : undefined,
+          nip05: typeof (p as any).nip05 === "string" ? (p as any).nip05 : undefined,
+        };
+        setProfile(next);
+        writeAssistantProfile(next);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [published?.pubkey, published?.publishedAt]);
 
   const publishMutation = useMutation({
     mutationFn: async () => apiClient.publishDefaultAssistantProfile(),
@@ -244,6 +316,64 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
         {isActive ? (
           <div className="space-y-3">
+            {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
+              <div
+                className="relative rounded-xl border border-[#7c86ff]/20 bg-gradient-to-br from-white to-indigo-50/40 px-4 py-3.5 overflow-hidden"
+                data-testid={`profile-assistant-${variant}`}
+              >
+                <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-[#7c86ff] to-[#333286]" />
+                <div className="space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4
+                        className="text-sm sm:text-[15px] font-bold text-slate-900 tracking-tight leading-tight truncate"
+                        title={profile?.display_name || profile?.name}
+                        data-testid={`text-assistant-display-name-${variant}`}
+                      >
+                        {profile?.display_name || profile?.name}
+                      </h4>
+                      {profile?.nip05 && (
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5" data-testid={`text-assistant-nip05-${variant}`}>
+                          {profile.nip05}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[9px] font-bold uppercase tracking-widest text-[#333286]" data-testid={`badge-assistant-bot-${variant}`}>
+                      <span className="h-1 w-1 rounded-full bg-[#7c86ff]" />
+                      Bot
+                    </span>
+                  </div>
+
+                  {profile?.about && (
+                    <div className="relative pl-4" data-testid={`text-assistant-about-${variant}`}>
+                      <Quote className="absolute -left-0.5 top-0 h-3 w-3 text-[#7c86ff]/50" aria-hidden="true" />
+                      <p className="text-[12px] leading-relaxed text-slate-600 italic">
+                        {profile.about}
+                      </p>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const w = profile?.website ? normalizeWebsite(profile.website) : null;
+                    if (!w) return null;
+                    return (
+                      <a
+                        href={w.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#333286] hover:text-[#3730a3] transition-colors group/site focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 rounded"
+                        data-testid={`link-assistant-website-${variant}`}
+                      >
+                        <Globe className="h-3 w-3" />
+                        <span className="underline decoration-[#7c86ff]/40 underline-offset-2 group-hover/site:decoration-[#3730a3]">{w.label}</span>
+                        <ExternalLink className="h-3 w-3 opacity-60 group-hover/site:opacity-100" />
+                      </a>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm px-3 py-2.5 space-y-2" data-testid={`details-assistant-${variant}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assistant npub</span>
