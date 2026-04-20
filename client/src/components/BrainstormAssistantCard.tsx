@@ -318,7 +318,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
       <div className={(variant === "settings" ? "px-5 sm:px-7 pb-6 sm:pb-7 -mt-12 sm:-mt-16 " : "px-5 pb-5 -mt-10 sm:-mt-12 ") + "relative"}>
         <div className="flex items-end justify-between gap-3 mb-3">
-          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
+          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-full bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
             {(() => {
               const pic = profile?.picture || getDefaultAssistantPictureUrl();
               if (pic) {
