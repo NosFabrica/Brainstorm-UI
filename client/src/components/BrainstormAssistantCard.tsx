@@ -307,7 +307,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           <button
             type="button"
             onClick={onDismiss}
-            className="absolute top-1 right-1 sm:top-2 sm:right-2 inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3 text-[11px] font-semibold tracking-wide text-white/80 hover:text-white transition-colors rounded-lg focus:outline-none focus:ring-2 focus:ring-white/40"
+            className="absolute top-2 right-2 sm:top-3 sm:right-3 z-10 inline-flex items-center justify-center min-h-[36px] px-3.5 py-1.5 text-[11px] font-semibold tracking-wide text-slate-700 hover:text-slate-900 bg-white/95 hover:bg-white border border-white/60 shadow-md rounded-full backdrop-blur-sm transition-colors focus:outline-none focus:ring-2 focus:ring-white/60"
             aria-label="Dismiss Brainstorm Assistant card"
             data-testid={`button-assistant-dismiss-${variant}`}
           >
