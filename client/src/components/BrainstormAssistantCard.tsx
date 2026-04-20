@@ -17,6 +17,13 @@ const LS_EVENT_ID = "brainstorm_assistant_event_id";
 const LS_PUBLISHED_AT = "brainstorm_assistant_published_at";
 const LS_FIRST_DONE = "brainstorm_assistant_first_publish_done";
 const LS_PROFILE = "brainstorm_assistant_profile";
+const LS_PICTURE_SET_PREFIX = "brainstorm_assistant_picture_set:";
+
+const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
+function getDefaultAssistantPictureUrl(): string {
+  if (typeof window === "undefined") return DEFAULT_ASSISTANT_PICTURE_PATH;
+  return `${window.location.origin}${DEFAULT_ASSISTANT_PICTURE_PATH}`;
+}
 
 interface AssistantProfile {
   name?: string;
@@ -151,6 +158,31 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         };
         setProfile(next);
         writeAssistantProfile(next);
+
+        // If the assistant has no picture set, publish a profile update once
+        // with the Brainstorm-branded default image so other Nostr clients
+        // see a consistent identity. Best-effort: silently swallow failures.
+        const flagKey = LS_PICTURE_SET_PREFIX + published.pubkey;
+        const alreadyTried = (() => { try { return localStorage.getItem(flagKey) === "1"; } catch { return false; } })();
+        if (!next.picture && !alreadyTried) {
+          try { localStorage.setItem(flagKey, "1"); } catch {}
+          const defaultPicture = getDefaultAssistantPictureUrl();
+          try {
+            await apiClient.publishBrainstormAssistantProfile({
+              name: next.name,
+              about: next.about,
+              website: next.website,
+              nip05: next.nip05,
+              picture: defaultPicture,
+            });
+            if (cancelled) return;
+            const merged: AssistantProfile = { ...next, picture: defaultPicture };
+            setProfile(merged);
+            writeAssistantProfile(merged);
+          } catch {
+            // Network/404/etc — keep local fallback rendering only.
+          }
+        }
       } catch {}
     })();
     return () => { cancelled = true; };
@@ -257,8 +289,24 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
       <div className={(variant === "settings" ? "px-5 sm:px-7 pb-6 sm:pb-7 -mt-12 sm:-mt-16 " : "px-5 pb-5 -mt-10 sm:-mt-12 ") + "relative"}>
         <div className="flex items-end justify-between gap-3 mb-3">
-          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
-            <BrainLogo size={variant === "settings" ? 44 : variant === "dashboard" ? 32 : 36} className="text-[#333286]" />
+          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
+            {(() => {
+              const pic = profile?.picture || (isActive ? getDefaultAssistantPictureUrl() : null);
+              if (pic) {
+                return (
+                  <img
+                    src={pic}
+                    alt="Brainstorm Assistant avatar"
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    data-testid={`img-assistant-avatar-${variant}`}
+                  />
+                );
+              }
+              return <BrainLogo size={variant === "settings" ? 44 : variant === "dashboard" ? 32 : 36} className="text-[#333286]" />;
+            })()}
           </div>
           {isActive && (
             <div className="flex items-center gap-1.5 mb-1" data-testid={`status-assistant-${variant}`}>
