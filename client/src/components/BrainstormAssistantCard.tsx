@@ -239,7 +239,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       }
       data-testid={`card-brainstorm-assistant-${variant}`}
     >
-      <div className="relative h-20 sm:h-24 bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl">
+      <div className={(variant === "settings" ? "relative h-24 sm:h-32 md:h-36 " : "relative h-20 sm:h-24 ") + "bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl"}>
         <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.25),transparent_50%)]" />
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         {variant === "dashboard" && onDismiss && !isActive && (
@@ -255,10 +255,10 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         )}
       </div>
 
-      <div className="px-5 pb-5 -mt-10 sm:-mt-12 relative">
+      <div className={(variant === "settings" ? "px-5 sm:px-7 pb-6 sm:pb-7 -mt-12 sm:-mt-16 " : "px-5 pb-5 -mt-10 sm:-mt-12 ") + "relative"}>
         <div className="flex items-end justify-between gap-3 mb-3">
-          <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg flex items-center justify-center shrink-0" data-testid={`avatar-assistant-${variant}`}>
-            <BrainLogo size={variant === "dashboard" ? 32 : 36} className="text-[#333286]" />
+          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-2xl bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
+            <BrainLogo size={variant === "settings" ? 44 : variant === "dashboard" ? 32 : 36} className="text-[#333286]" />
           </div>
           {isActive && (
             <div className="flex items-center gap-1.5 mb-1" data-testid={`status-assistant-${variant}`}>
@@ -277,7 +277,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </div>
         )}
         <div className="flex items-center gap-2 mb-1">
-          <h3 className={(isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
+          <h3 className={(variant === "settings" ? "text-xl sm:text-2xl md:text-3xl" : isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
             Your Brainstorm Assistant
           </h3>
           <Popover open={showInfo} onOpenChange={setShowInfo}>
@@ -310,12 +310,13 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             </PopoverContent>
           </Popover>
         </div>
-        <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mb-3" data-testid={`text-assistant-tagline-${variant}`}>
+        <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
           {isActive ? "Your sidekick is publishing your trust scores to Nostr." : "Give your trust scores a voice on Nostr — one click."}
         </p>
 
         {isActive ? (
-          <div className="space-y-3">
+          <div className={(variant === "settings" ? "space-y-5" : "space-y-3")}>
+            <div className={variant === "settings" ? "lg:grid lg:grid-cols-[1.4fr_1fr] lg:gap-5 space-y-3 lg:space-y-0" : "space-y-3"}>
             {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
               <div
                 className="relative rounded-xl border border-[#7c86ff]/20 bg-gradient-to-br from-white to-indigo-50/40 px-4 py-3.5 overflow-hidden"
@@ -401,6 +402,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   <span className="text-[11px] text-slate-600">{formatRelative(lastCalcTs)}</span>
                 </div>
               )}
+            </div>
             </div>
 
             {error && (
