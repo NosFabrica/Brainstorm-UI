@@ -82,9 +82,12 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
   const publishMutation = useMutation({
     mutationFn: async () => apiClient.publishDefaultAssistantProfile(),
     onSuccess: (resp) => {
-      const data = resp?.data ?? {};
-      const pubkey = data.assistant_pubkey;
-      const eventId = data.event_id;
+      // Backend may return the payload either at the top level or wrapped under `data`.
+      const top = resp || {};
+      const wrapped = resp?.data || {};
+      const pubkey = top.assistant_pubkey || wrapped.assistant_pubkey;
+      const eventId = top.event_id || wrapped.event_id;
+      const assistantName = (top.name || wrapped.name || "Your Brainstorm Assistant").toString();
       if (!pubkey || !eventId) {
         setError("The assistant was published, but no identity was returned. Please try again.");
         return;
@@ -105,12 +108,12 @@ export function BrainstormAssistantCard({ variant, onDismiss, lastCalculated }: 
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3500);
         toast({
-          title: "🎉 Your assistant is live on Nostr!",
+          title: `🎉 ${assistantName} is live on Nostr!`,
           description: "Tap \"View on Nostr\" to say hi to your new sidekick.",
           duration: 6000,
         });
       } else {
-        toast({ title: "Assistant updated", description: "Your assistant profile was republished." });
+        toast({ title: `${assistantName} updated`, description: "Your assistant profile was republished." });
       }
     },
     onError: (err: Error) => {

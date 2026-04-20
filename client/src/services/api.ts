@@ -275,17 +275,30 @@ export const apiClient = {
     return await response.json();
   },
 
-  async publishDefaultAssistantProfile(): Promise<{ code?: number; message?: string; data?: { event_id?: string; assistant_pubkey?: string } }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/assistantProfile`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-        signal: AbortSignal.timeout(30000),
-      },
-    );
-    if (response.status === 404) {
+  async publishDefaultAssistantProfile(): Promise<{
+    code?: number;
+    message?: string;
+    name?: string;
+    event_id?: string;
+    assistant_pubkey?: string;
+    data?: { event_id?: string; assistant_pubkey?: string; name?: string };
+  }> {
+    let response: Response;
+    try {
+      response = await authenticatedFetch(
+        `${getBrainstormApi()}/user/assistantProfile`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+          signal: AbortSignal.timeout(30000),
+        },
+      );
+    } catch (err) {
+      // Network/transport-level failures (TypeError: Failed to fetch, AbortError, DNS, CORS, etc.)
+      throw new Error("The assistant service is unavailable right now.");
+    }
+    if (response.status === 404 || response.status === 502 || response.status === 503 || response.status === 504) {
       throw new Error("The assistant service is unavailable right now.");
     }
     if (!response.ok) {
