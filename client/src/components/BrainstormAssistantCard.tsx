@@ -6,7 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile } from "@/services/nostr";
+import { fetchProfile, fetchAssistantPointer, publishAssistantPointer, getCurrentUser } from "@/services/nostr";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -71,6 +71,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   const reduceMotion = useReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
   const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
+  const [userPubkey, setUserPubkey] = useState<string | null>(() => getCurrentUser()?.pubkey ?? null);
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -79,6 +80,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     const refresh = () => {
       setPublished(readPublishedAssistant());
       setProfile(readAssistantProfile());
+      setUserPubkey(getCurrentUser()?.pubkey ?? null);
     };
     // Cross-tab key changes still arrive via the legacy `storage` listener,
     // and the per-user keys we now use share the same `brainstorm_assistant:`
@@ -95,6 +97,35 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       window.removeEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     };
   }, []);
+
+  // Cross-device sync (Task #86): when this device has no local pointer for
+  // the current user, query Nostr for the user's NIP-78 assistant pointer
+  // event. If one exists, hydrate local state so the active card appears
+  // automatically without re-publishing.
+  useEffect(() => {
+    if (!userPubkey || published) return;
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchAssistantPointer(userPubkey);
+      if (cancelled || !remote) return;
+      // Re-check local in case a publish raced us.
+      if (readPublishedAssistant()) return;
+      // Make sure the user hasn't changed while we were awaiting.
+      const stillCurrent = getCurrentUser()?.pubkey ?? null;
+      if (stillCurrent !== userPubkey) return;
+      let npub = remote.pubkey;
+      try { npub = nip19.npubEncode(remote.pubkey); } catch {}
+      const state: PublishedState = {
+        pubkey: remote.pubkey,
+        npub,
+        eventId: remote.eventId,
+        publishedAt: remote.publishedAt,
+      };
+      writePublishedAssistant(state);
+      setPublished(state);
+    })();
+    return () => { cancelled = true; };
+  }, [userPubkey, published]);
 
   // Hydrate the assistant's kind-0 profile from relays so we can render
   // display name, about, and website elegantly in the active state.
@@ -172,6 +203,15 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       writePublishedAssistant(state);
       setPublished(state);
       setError(null);
+
+      // Cross-device sync (Task #86): publish a NIP-78 pointer under the
+      // user's own pubkey so other devices they sign in from can rediscover
+      // this assistant. Best-effort — local card stays usable on failure.
+      publishAssistantPointer({
+        pubkey: state.pubkey,
+        eventId: state.eventId,
+        publishedAt: state.publishedAt,
+      }).catch(() => {});
 
       const isFirst = !readFirstPublishDone();
       if (isFirst) {

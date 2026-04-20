@@ -326,6 +326,91 @@ export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[
   return Array.from(writeRelays)
 }
 
+// NIP-78 application-specific data: stores the user's Brainstorm Assistant
+// pointer (assistant pubkey + kind 0 event id) under their own pubkey so any
+// device they sign in from can rediscover their existing assistant.
+export const ASSISTANT_POINTER_D_TAG = "brainstorm.world/assistant";
+
+export interface AssistantPointer {
+  pubkey: string;
+  eventId: string;
+  publishedAt: number;
+}
+
+export async function fetchAssistantPointer(
+  userPubkey: string,
+  timeoutMs = 10000,
+): Promise<AssistantPointer | null> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(userPubkey, PROFILE_RELAYS);
+
+    // NIP-78 events are addressable/replaceable — different relays may hold
+    // different versions. Collect candidates across relays for the duration
+    // of the timeout and pick the newest by `created_at` so we hydrate from
+    // the most recent pointer rather than whichever relay answered first.
+    const newest = await new Promise<any | null>((resolve) => {
+      let best: any = null;
+      const sub = pool.request(writeRelays, {
+        kinds: [30078],
+        authors: [userPubkey],
+        "#d": [ASSISTANT_POINTER_D_TAG],
+      }).subscribe({
+        next: (event: any) => {
+          try { eventStore.add(event); } catch {}
+          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) {
+            best = event;
+          }
+        },
+        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
+        complete: () => resolve(best),
+      });
+      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
+    });
+
+    if (!newest) return null;
+
+    let parsed: any = null;
+    try { parsed = JSON.parse((newest as any).content || "{}"); } catch { return null; }
+    const pubkey = typeof parsed?.pubkey === "string" ? parsed.pubkey : null;
+    const eventId = typeof parsed?.event_id === "string" ? parsed.event_id : null;
+    if (!pubkey || !eventId) return null;
+    const publishedAt = Number(parsed.published_at) ||
+      ((newest as any).created_at ? (newest as any).created_at * 1000 : Date.now());
+    return { pubkey, eventId, publishedAt };
+  } catch {
+    return null;
+  }
+}
+
+export async function publishAssistantPointer(
+  pointer: AssistantPointer,
+): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  if (!window.nostr && !hasLocalSecretKey()) {
+    return { success: false, error: "No signer available" };
+  }
+
+  const event = {
+    kind: 30078,
+    tags: [["d", ASSISTANT_POINTER_D_TAG]],
+    content: JSON.stringify({
+      pubkey: pointer.pubkey,
+      event_id: pointer.eventId,
+      published_at: pointer.publishedAt,
+    }),
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+
+  try {
+    const signed = await signEventLocally(event);
+    return await publishToRelays(signed);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+  }
+}
+
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
