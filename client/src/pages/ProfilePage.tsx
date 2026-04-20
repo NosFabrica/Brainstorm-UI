@@ -195,10 +195,43 @@ const ADMIN_HISTORY_FAILURE_HINTS: Record<AdminHistoryFailureStage, { label: str
 
 function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number }) {
   const [expanded, setExpanded] = useState(false);
+  const userTimeZone = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined;
+  const parseServerDate = (d: string): Date => {
+    const trimmed = d.trim();
+    const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed);
+    const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+    return new Date(hasTz ? normalized : `${normalized}Z`);
+  };
   const fmtDate = (d: string | null) => {
     if (!d) return "—";
-    try { return new Date(d).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
-    catch { return d; }
+    try {
+      const date = parseServerDate(d);
+      if (isNaN(date.getTime())) return d;
+      return date.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: userTimeZone,
+      });
+    } catch { return d; }
+  };
+  const fmtDateFull = (d: string | null) => {
+    if (!d) return "—";
+    try {
+      const date = parseServerDate(d);
+      if (isNaN(date.getTime())) return d;
+      return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZoneName: "short",
+        timeZone: userTimeZone,
+      });
+    } catch { return d; }
   };
   const statusFailed = (item.status || "").toLowerCase() === "failure";
   const taFailed = (item.ta_status || "").toLowerCase() === "failure";
@@ -226,8 +259,8 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
         <td className="px-2 py-2 font-mono text-slate-600">{item.algorithm || "—"}</td>
         <td className="px-2 py-2 text-center text-slate-600">{item.how_many_others_with_priority}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{fmtDate(item.created_at)}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap" title={fmtDateFull(item.created_at)}>{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap" title={fmtDateFull(item.updated_at)}>{fmtDate(item.updated_at)}</td>
       </tr>
       {expanded && (
         <tr className="bg-amber-50/30">
