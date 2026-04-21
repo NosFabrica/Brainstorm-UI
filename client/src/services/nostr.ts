@@ -13,6 +13,12 @@ if (!NIP85_RELAY_URL) {
 }
 
 export function getNip85RelayUrl(): string {
+  if (!NIP85_RELAY_URL) {
+    throw new Error(
+      "VITE_NIP85_RELAY_URL is not configured. NIP-85 publish/read flows are disabled. " +
+        "Set VITE_NIP85_RELAY_URL at build time (see README and Dockerfile).",
+    );
+  }
   return NIP85_RELAY_URL;
 }
 

@@ -41,9 +41,18 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
+    let nip85Relay: string;
+    try {
+      nip85Relay = getNip85RelayUrl();
+    } catch (err: any) {
+      setActivateState("error");
+      setErrorMessage(err?.message || "NIP-85 relay URL is not configured.");
+      return;
+    }
+
     let signedEvent: Record<string, unknown>;
     try {
-      signedEvent = await signNip85(serviceKey, getNip85RelayUrl());
+      signedEvent = await signNip85(serviceKey, nip85Relay);
     } catch (err: any) {
       setActivateState("cancelled");
       setTimeout(() => setActivateState("idle"), 3000);

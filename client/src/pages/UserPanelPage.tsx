@@ -395,14 +395,21 @@ export default function UserPanelPage() {
   const taHistory = useMemo((): TaHistoryEntry[] => {
     const entries: TaHistoryEntry[] = [];
     if (grapeRank) {
+      let nip85Relay: string | null = null;
+      try {
+        nip85Relay = getNip85RelayUrl();
+      } catch {
+        nip85Relay = null;
+      }
       const createdAt = grapeRank.created_at ? new Date(grapeRank.created_at.endsWith?.("Z") ? grapeRank.created_at : grapeRank.created_at + "Z") : null;
       const updatedAt = grapeRank.updated_at ? new Date(grapeRank.updated_at.endsWith?.("Z") ? grapeRank.updated_at : grapeRank.updated_at + "Z") : null;
       const taStatus = grapeRank.ta_status;
+      const relays = nip85Relay ? [nip85Relay] : [];
       if (updatedAt && !isNaN(updatedAt.getTime())) {
-        entries.push({ timestamp: updatedAt.getTime(), eventKind: 30382, relays: [getNip85RelayUrl()], status: taStatus?.toLowerCase() === "success" ? "success" : taStatus?.toLowerCase() === "failure" ? "failure" : "pending" });
+        entries.push({ timestamp: updatedAt.getTime(), eventKind: 30382, relays, status: taStatus?.toLowerCase() === "success" ? "success" : taStatus?.toLowerCase() === "failure" ? "failure" : "pending" });
       }
       if (createdAt && !isNaN(createdAt.getTime()) && createdAt.getTime() !== updatedAt?.getTime()) {
-        entries.push({ timestamp: createdAt.getTime(), eventKind: 30382, relays: [getNip85RelayUrl()], status: "success" });
+        entries.push({ timestamp: createdAt.getTime(), eventKind: 30382, relays, status: "success" });
       }
     }
     const localHistory = localStorage.getItem("brainstorm_ta_history");

@@ -181,9 +181,20 @@ export default function SettingsPage() {
       return;
     }
 
+    let nip85Relay: string;
+    try {
+      nip85Relay = getNip85RelayUrl();
+    } catch (err) {
+      setRepublishState("error");
+      const msg = err instanceof Error ? err.message : "NIP-85 relay URL is not configured.";
+      setRepublishError(msg);
+      toast({ title: "NIP-85 relay not configured", description: msg, variant: "destructive", duration: 5000 });
+      return;
+    }
+
     let signedEvent: Record<string, unknown>;
     try {
-      signedEvent = await signNip85(taPubkey, getNip85RelayUrl());
+      signedEvent = await signNip85(taPubkey, nip85Relay);
     } catch {
       setRepublishState("idle");
       toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
