@@ -88,7 +88,7 @@ import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, T
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, searchProfilesMeili, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
-import { apiClient, isAuthRedirecting, getApiEnvironment, setApiEnvironment, getApiBaseUrl, type ApiEnvironment } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1594,8 +1594,6 @@ export default function AdminPage() {
   const [detailData, setDetailData] = useState<Record<string, unknown> | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailRequestId, setDetailRequestId] = useState<number | null>(null);
-  const [apiEnv, setApiEnv] = useState<ApiEnvironment>(getApiEnvironment);
-  const [envSwitchTarget, setEnvSwitchTarget] = useState<ApiEnvironment | null>(null);
   const queryClient = useQueryClient();
 
   const isNameSearch = useCallback((q: string) => {
@@ -1917,18 +1915,6 @@ export default function AdminPage() {
     logout();
     navigate("/");
   };
-
-  const confirmEnvSwitch = useCallback(() => {
-    if (!envSwitchTarget) return;
-    setApiEnvironment(envSwitchTarget);
-    setApiEnv(envSwitchTarget);
-    setEnvSwitchTarget(null);
-    queryClient.invalidateQueries();
-    toast({
-      title: `Switched to ${envSwitchTarget === "production" ? "Production" : "Staging"}`,
-      description: `All data now loading from ${envSwitchTarget === "production" ? "brainstormserver.nosfabrica.com" : "brainstormserver-staging.nosfabrica.com"}`,
-    });
-  }, [envSwitchTarget, queryClient, toast]);
 
   const selfData = selfQuery.data?.data;
   const network: NetworkGraph | null = selfData?.graph ?? null;
@@ -2558,27 +2544,6 @@ export default function AdminPage() {
                   <div className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
                   <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 uppercase">NosFabrica Admin</p>
                 </div>
-                <button
-                  onClick={() => setEnvSwitchTarget(apiEnv === "staging" ? "production" : "staging")}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border shadow-sm backdrop-blur-sm cursor-pointer transition-all hover:shadow-md ${
-                    apiEnv === "production"
-                      ? "bg-emerald-50/80 border-emerald-300/40 hover:border-emerald-400/60"
-                      : "bg-amber-50/80 border-amber-300/40 hover:border-amber-400/60"
-                  }`}
-                  data-testid="button-env-selector"
-                >
-                  <div className={`w-1.5 h-1.5 rounded-full ${
-                    apiEnv === "production"
-                      ? "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]"
-                      : "bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]"
-                  }`} />
-                  <span className={`text-[9px] font-bold tracking-[0.1em] uppercase ${
-                    apiEnv === "production" ? "text-emerald-700" : "text-amber-700"
-                  }`}>
-                    {apiEnv === "production" ? "Production" : "Staging"}
-                  </span>
-                  <ChevronsUpDown className={`h-2.5 w-2.5 ${apiEnv === "production" ? "text-emerald-400" : "text-amber-400"}`} />
-                </button>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
@@ -3234,14 +3199,12 @@ export default function AdminPage() {
                 <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    API connectivity — <span className={`font-mono font-semibold ${apiEnv === "production" ? "text-emerald-600" : "text-amber-600"}`}>{apiEnv === "production" ? "production" : "staging"}</span>
-                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">API connectivity</p>
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {(() => {
-                      const baseUrl = getApiBaseUrl().replace(/^https?:\/\//, "");
+                      const baseUrl = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
                       return [
                         { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
@@ -4103,7 +4066,7 @@ export default function AdminPage() {
                     <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
                       <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
-                        <li>A GrapeRank calculation request is sent to the Brainstorm staging server for this user's pubkey</li>
+                        <li>A GrapeRank calculation request is sent to the Brainstorm server for this user's pubkey</li>
                         <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
                         <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
                         <li>Progress and results will appear in the <span className="font-semibold">Activity tab</span> once processing begins</li>
@@ -5183,67 +5146,6 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!envSwitchTarget} onOpenChange={(open) => { if (!open) setEnvSwitchTarget(null); }}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Server className="h-4 w-4" />
-              Switch to {envSwitchTarget === "production" ? "Production" : "Staging"}?
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500 pt-1 break-words">
-              {envSwitchTarget === "production"
-                ? "You are about to connect to the live production server. All dashboard data will reload from the production API. Actions taken here affect real users and data."
-                : "You are about to connect to the staging server. All dashboard data will reload from the staging API."
-              }
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border p-3 mt-1">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${apiEnv === "production" ? "bg-emerald-500" : "bg-amber-500"}`} />
-                <span className="text-slate-500 font-medium">{apiEnv === "production" ? "Production" : "Staging"}</span>
-              </div>
-              <span className="text-slate-300">→</span>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${envSwitchTarget === "production" ? "bg-emerald-500" : "bg-amber-500"}`} />
-                <span className="font-semibold text-slate-800">{envSwitchTarget === "production" ? "Production" : "Staging"}</span>
-              </div>
-            </div>
-          </div>
-          {envSwitchTarget === "production" && (
-            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 mt-1">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-800 leading-relaxed">
-                Production data is live. Triggering calculations or modifying users will affect the real platform.
-              </p>
-            </div>
-          )}
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEnvSwitchTarget(null)}
-              className="text-xs w-full sm:w-auto"
-              data-testid="button-env-cancel"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={confirmEnvSwitch}
-              className={`text-xs gap-1.5 w-full sm:w-auto ${
-                envSwitchTarget === "production"
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  : "bg-amber-600 hover:bg-amber-700 text-white"
-              }`}
-              data-testid="button-env-confirm"
-            >
-              <Server className="h-3.5 w-3.5" />
-              Switch to {envSwitchTarget === "production" ? "Production" : "Staging"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -1,34 +1,26 @@
 import { extractAdminFlag } from "@/lib/jwt";
 import { clearUserCache, signEventLocally, hasLocalSecretKey } from "./nostr";
 
-export type ApiEnvironment = "staging" | "production";
+const RAW_API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const API_BASE_URL = RAW_API_URL.replace(/\/+$/, "");
 
-const API_URLS: Record<ApiEnvironment, string> = {
-  staging: "https://brainstormserver-staging.nosfabrica.com",
-  production: "https://brainstormserver.nosfabrica.com",
-};
-
-const ENV_STORAGE_KEY = "brainstorm_api_env";
-
-export function getApiEnvironment(): ApiEnvironment {
-  const token = localStorage.getItem("brainstorm_session_token");
-  const isAdmin = token ? extractAdminFlag(token) : false;
-  if (!isAdmin) return "staging";
-  const stored = localStorage.getItem(ENV_STORAGE_KEY);
-  if (stored === "production") return "production";
-  return "staging";
+if (!API_BASE_URL) {
+  // eslint-disable-next-line no-console
+  console.error(
+    "[api] VITE_API_URL is not set. The frontend cannot reach the Brainstorm Backend. " +
+      "Set VITE_API_URL at build time (see README and Dockerfile).",
+  );
 }
 
-export function setApiEnvironment(env: ApiEnvironment): void {
-  localStorage.setItem(ENV_STORAGE_KEY, env);
-}
-
-export function getApiBaseUrl(): string {
-  return API_URLS[getApiEnvironment()];
+// One-time cleanup of the legacy environment-switch key from prior versions.
+try {
+  localStorage.removeItem("brainstorm_api_env");
+} catch {
+  // ignore (e.g. SSR / private mode)
 }
 
 function getBrainstormApi(): string {
-  return getApiBaseUrl();
+  return API_BASE_URL;
 }
 
 let isReauthenticating = false;
