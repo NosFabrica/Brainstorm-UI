@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
-import { publishToRelays, getCurrentUser, signNip85 } from "@/services/nostr";
+import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl } from "@/services/nostr";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
@@ -43,7 +43,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
 
     let signedEvent: Record<string, unknown>;
     try {
-      signedEvent = await signNip85(serviceKey,"wss://nip85.nosfabrica.com");
+      signedEvent = await signNip85(serviceKey, getNip85RelayUrl());
     } catch (err: any) {
       setActivateState("cancelled");
       setTimeout(() => setActivateState("idle"), 3000);

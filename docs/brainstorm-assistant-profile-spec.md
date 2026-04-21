@@ -85,7 +85,7 @@ Merge user-provided fields with server-side templated fields:
 ```json
 [
   ["client", "Brainstorm"],
-  ["p", "<brainstorm_service_pubkey>", "wss://nip85.nosfabrica.com", "service_provider"]
+  ["p", "<brainstorm_service_pubkey>", "<nip85_relay_url>", "service_provider"]
 ]
 ```
 
@@ -118,8 +118,12 @@ wss://relay.damus.io
 wss://relay.nostr.band
 wss://nos.lol
 wss://relay.snort.social
-wss://nip85.nosfabrica.com
+<nip85_relay_url>
 ```
+
+> The `<nip85_relay_url>` placeholder is supplied at build time via the
+> `VITE_NIP85_RELAY_URL` environment variable (see `README.md` and
+> `Dockerfile`).
 
 The frontend confirmation dialog (UserPanelPage.tsx line 1335) tells users: *"This will publish a kind 0 profile event to 5 Nostr relays."*
 

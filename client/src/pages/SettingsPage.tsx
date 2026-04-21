@@ -49,7 +49,7 @@ import {
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
-import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
@@ -183,7 +183,7 @@ export default function SettingsPage() {
 
     let signedEvent: Record<string, unknown>;
     try {
-      signedEvent = await signNip85(taPubkey, "wss://nip85.nosfabrica.com");
+      signedEvent = await signNip85(taPubkey, getNip85RelayUrl());
     } catch {
       setRepublishState("idle");
       toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });

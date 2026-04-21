@@ -1,6 +1,21 @@
 import { nip19, finalizeEvent, getPublicKey } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
 
+const RAW_NIP85_RELAY_URL = (import.meta.env.VITE_NIP85_RELAY_URL as string | undefined) ?? "";
+const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
+
+if (!NIP85_RELAY_URL) {
+  // eslint-disable-next-line no-console
+  console.error(
+    "[nostr] VITE_NIP85_RELAY_URL is not set. NIP-85 publish/read flows will fail. " +
+      "Set VITE_NIP85_RELAY_URL at build time (see README and Dockerfile).",
+  );
+}
+
+export function getNip85RelayUrl(): string {
+  return NIP85_RELAY_URL;
+}
+
 function hexToBytes(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) throw new Error("Invalid hex");
   const bytes = new Uint8Array(hex.length / 2);
@@ -299,10 +314,10 @@ export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, tim
 
   if (event) {
     for (const tag of event.tags) {
-      if (tag[0] === "30382:rank" && tag[1] === innerPubkey && tag[2] == "wss://nip85.nosfabrica.com") {
+      if (tag[0] === "30382:rank" && tag[1] === innerPubkey && tag[2] == NIP85_RELAY_URL) {
         isUsingRank = true
       }
-      if (tag[0] === "30382:followers" && tag[1] === innerPubkey && tag[2] == "wss://nip85.nosfabrica.com") {
+      if (tag[0] === "30382:followers" && tag[1] === innerPubkey && tag[2] == NIP85_RELAY_URL) {
         isUsingFollowers = true
       }
     }

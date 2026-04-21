@@ -8,8 +8,10 @@ RUN apk add --no-cache python3 make g++ bash
 # VITE env vars
 
 ARG VITE_API_URL
+ARG VITE_NIP85_RELAY_URL
 
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_NIP85_RELAY_URL=$VITE_NIP85_RELAY_URL
 
 # Copy package.json first
 COPY package.json package-lock.json ./

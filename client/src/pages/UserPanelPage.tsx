@@ -70,7 +70,7 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
-import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, type NostrUser } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, getNip85RelayUrl, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -399,10 +399,10 @@ export default function UserPanelPage() {
       const updatedAt = grapeRank.updated_at ? new Date(grapeRank.updated_at.endsWith?.("Z") ? grapeRank.updated_at : grapeRank.updated_at + "Z") : null;
       const taStatus = grapeRank.ta_status;
       if (updatedAt && !isNaN(updatedAt.getTime())) {
-        entries.push({ timestamp: updatedAt.getTime(), eventKind: 30382, relays: ["wss://nip85.nosfabrica.com"], status: taStatus?.toLowerCase() === "success" ? "success" : taStatus?.toLowerCase() === "failure" ? "failure" : "pending" });
+        entries.push({ timestamp: updatedAt.getTime(), eventKind: 30382, relays: [getNip85RelayUrl()], status: taStatus?.toLowerCase() === "success" ? "success" : taStatus?.toLowerCase() === "failure" ? "failure" : "pending" });
       }
       if (createdAt && !isNaN(createdAt.getTime()) && createdAt.getTime() !== updatedAt?.getTime()) {
-        entries.push({ timestamp: createdAt.getTime(), eventKind: 30382, relays: ["wss://nip85.nosfabrica.com"], status: "success" });
+        entries.push({ timestamp: createdAt.getTime(), eventKind: 30382, relays: [getNip85RelayUrl()], status: "success" });
       }
     }
     const localHistory = localStorage.getItem("brainstorm_ta_history");

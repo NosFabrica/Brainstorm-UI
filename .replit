@@ -68,3 +68,8 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+VITE_NIP85_RELAY_URL = "wss://nip85-staging.nosfabrica.com"
