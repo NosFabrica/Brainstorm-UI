@@ -460,36 +460,6 @@ export const apiClient = {
     return json?.data ?? json;
   },
 
-  async verifyNsecEncryption() {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/nsec-encryption/verify`,
-      { method: "POST", signal: AbortSignal.timeout(30000) },
-    );
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      let detail = errorData?.detail || errorData?.message || "";
-      if (typeof detail === "object") detail = JSON.stringify(detail);
-      throw new Error(detail || `Verify encryption failed (${response.status})`);
-    }
-    const json = await response.json();
-    return json?.data ?? json;
-  },
-
-  async rotateNsecEncryption() {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/nsec-encryption/rotate`,
-      { method: "POST", signal: AbortSignal.timeout(60000) },
-    );
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      let detail = errorData?.detail || errorData?.message || "";
-      if (typeof detail === "object") detail = JSON.stringify(detail);
-      throw new Error(detail || `Rotate encryption key failed (${response.status})`);
-    }
-    const json = await response.json();
-    return json?.data ?? json;
-  },
-
   async getAdminAssistantStats(): Promise<{
     totalAssistants: number;
     totalPublishes: number;

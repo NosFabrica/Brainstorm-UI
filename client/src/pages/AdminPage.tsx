@@ -71,8 +71,6 @@ import {
   Eye,
   Play,
   Loader2,
-  ShieldCheck,
-  KeyRound,
   UserPlus,
   Calendar,
   ArrowRight,
@@ -1562,13 +1560,6 @@ export default function AdminPage() {
   const [fetchingMatching, setFetchingMatching] = useState(false);
   const [bulkLastResult, setBulkLastResult] = useState<{ source: "users" | "activity"; successes: string[]; failures: { pubkey: string; error: string }[] } | null>(null);
   const SELECT_ALL_MATCHING_CAP = 200;
-  const [verifyRunning, setVerifyRunning] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [rotateRunning, setRotateRunning] = useState(false);
-  const [rotateResult, setRotateResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
-  const [rotateAcknowledged, setRotateAcknowledged] = useState(false);
-  const [verifyConfirmOpen, setVerifyConfirmOpen] = useState(false);
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupMode, setLookupMode] = useState<"lookup" | "onboard">("lookup");
   const [lookupInput, setLookupInput] = useState("");
@@ -2140,54 +2131,6 @@ export default function AdminPage() {
     setPageSize(parseInt(val, 10) as PageSizeOption);
     setUserPage(0);
   }, []);
-
-  const extractSafeMessage = (result: unknown, fallback: string): string => {
-    if (typeof result === "string") return result;
-    if (typeof result === "object" && result !== null) {
-      const r = result as Record<string, unknown>;
-      if (typeof r.message === "string") return r.message;
-      if (typeof r.detail === "string") return r.detail;
-      if (typeof r.status === "string") return r.status;
-    }
-    return fallback;
-  };
-
-  const handleVerifyEncryption = useCallback(async () => {
-    setVerifyConfirmOpen(false);
-    setVerifyRunning(true);
-    setVerifyResult(null);
-    try {
-      const result = await apiClient.verifyNsecEncryption();
-      const msg = extractSafeMessage(result, "Verification complete");
-      setVerifyResult({ success: true, message: msg });
-      toast({ title: "Encryption Verified", description: msg });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setVerifyResult({ success: false, message: msg });
-      toast({ title: "Verification Failed", description: msg, variant: "destructive" });
-    } finally {
-      setVerifyRunning(false);
-    }
-  }, [toast]);
-
-  const handleRotateEncryption = useCallback(async () => {
-    setRotateConfirmOpen(false);
-    setRotateRunning(true);
-    setRotateResult(null);
-    try {
-      const result = await apiClient.rotateNsecEncryption();
-      const msg = extractSafeMessage(result, "Key rotation complete");
-      setRotateResult({ success: true, message: msg });
-      setVerifyResult(null);
-      toast({ title: "Key Rotated", description: msg });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setRotateResult({ success: false, message: msg });
-      toast({ title: "Rotation Failed", description: msg, variant: "destructive" });
-    } finally {
-      setRotateRunning(false);
-    }
-  }, [toast]);
 
   const jumpToUser = useCallback((pubkey: string, displayName?: string) => {
     setUserSearch(pubkey);
@@ -4224,186 +4167,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-encryption-security">
-                <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-sky-500 to-cyan-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Encryption Security</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Nsec-at-rest encryption key management</p>
-                </div>
-                <div className="p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-verify-row">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="h-8 w-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-800">Verify Encryption</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Check all encrypted nsec rows decrypt with the current key</p>
-                        {verifyResult && (
-                          <p className={`text-[10px] font-medium mt-1.5 ${verifyResult.success ? "text-emerald-600" : "text-red-600"}`} data-testid="verify-result">
-                            {verifyResult.message}
-                          </p>
-                        )}
-                        {!verifyResult && !verifyRunning && (
-                          <p className="text-[10px] text-slate-400 mt-1.5 italic">Not checked yet</p>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setVerifyConfirmOpen(true)}
-                      disabled={verifyRunning || rotateRunning}
-                      className="text-xs gap-1.5 shrink-0 w-full sm:w-auto no-default-hover-elevate no-default-active-elevate"
-                      data-testid="button-verify-encryption"
-                    >
-                      {verifyRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                      {verifyRunning ? "Verifying..." : "Run Verify"}
-                    </Button>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 rounded-xl bg-white/50 border border-slate-100" data-testid="encryption-rotate-row">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-                        <KeyRound className="h-4 w-4 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-800">Rotate Encryption Key</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">Re-encrypt all nsec values with a new key</p>
-                        {rotateResult && (
-                          <p className={`text-[10px] font-medium mt-1.5 ${rotateResult.success ? "text-emerald-600" : "text-red-600"}`} data-testid="rotate-result">
-                            {rotateResult.message}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { setRotateAcknowledged(false); setRotateConfirmOpen(true); }}
-                      disabled={rotateRunning || verifyRunning}
-                      className="text-xs gap-1.5 shrink-0 w-full sm:w-auto border-amber-200 text-amber-700 hover:bg-amber-50 no-default-hover-elevate no-default-active-elevate"
-                      data-testid="button-rotate-encryption"
-                    >
-                      {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                      {rotateRunning ? "Rotating..." : "Rotate Key"}
-                    </Button>
-                  </div>
-
-                  <Dialog open={verifyConfirmOpen} onOpenChange={setVerifyConfirmOpen}>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                          <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                          Confirm Encryption Verify
-                        </DialogTitle>
-                        <DialogDescription className="text-sm text-slate-600 pt-1">
-                          You are about to run a verification check on nsec encryption. Please review the details below before confirming.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="pt-2 space-y-4">
-                        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                          <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
-                            <li>The server checks that all stored nsec private keys can be successfully decrypted with the current encryption key</li>
-                            <li>Each nsec is decrypted and re-validated to confirm data integrity</li>
-                            <li>This is a <span className="font-semibold">read-only operation</span> — no data is modified or overwritten</li>
-                            <li>Results will be displayed inline on the Encryption Security card</li>
-                          </ul>
-                        </div>
-                        <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
-                          <p className="text-xs text-blue-800">Verification is safe to run at any time. It does not change any keys or data. It is recommended to run a verify before performing a key rotation to ensure all nsec values are in a healthy state.</p>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setVerifyConfirmOpen(false)}
-                            className="text-xs no-default-hover-elevate no-default-active-elevate"
-                            data-testid="button-cancel-verify"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={handleVerifyEncryption}
-                            disabled={verifyRunning}
-                            className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white no-default-hover-elevate no-default-active-elevate"
-                            data-testid="button-confirm-verify"
-                          >
-                            {verifyRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                            {verifyRunning ? "Verifying..." : "Confirm Verify"}
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={rotateConfirmOpen} onOpenChange={(open) => { setRotateConfirmOpen(open); if (open) setRotateAcknowledged(false); }}>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-amber-700">
-                          <KeyRound className="h-5 w-5" />
-                          Confirm Key Rotation
-                        </DialogTitle>
-                        <DialogDescription className="text-sm text-slate-600 pt-1">
-                          You are about to rotate the nsec encryption key. Please review the details below carefully before confirming.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="pt-2 space-y-4">
-                        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                          <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
-                            <li>A new encryption key is generated on the server</li>
-                            <li>All stored nsec private keys are decrypted with the old key and <span className="font-semibold">re-encrypted with the new key</span></li>
-                            <li>This operation is <span className="font-semibold">irreversible</span> — the old key is discarded after rotation</li>
-                            <li>This is resource-intensive and may take several seconds depending on the number of stored nsec values</li>
-                            <li>Any previous verify result will be cleared — run verify again after rotation to confirm success</li>
-                          </ul>
-                        </div>
-                        <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
-                          <p className="text-xs text-blue-800">Key rotation is typically done as a security precaution — for example, if you suspect the current key has been compromised or as part of a regular rotation schedule. Always run "Run Verify" first to ensure all nsec values are decryptable before rotating.</p>
-                        </div>
-                        <label className="flex items-start gap-3 p-3.5 rounded-xl bg-red-50 border border-red-200 cursor-pointer select-none" data-testid="checkbox-rotate-acknowledge">
-                          <input
-                            type="checkbox"
-                            checked={rotateAcknowledged}
-                            onChange={(e) => setRotateAcknowledged(e.target.checked)}
-                            className="mt-0.5 h-4 w-4 rounded border-red-300 text-red-600 accent-red-600 shrink-0"
-                          />
-                          <span className="text-xs font-medium text-red-800 leading-relaxed">
-                            I understand this action is <span className="font-bold">irreversible</span>, the old encryption key will be permanently discarded, and I want to proceed with key rotation.
-                          </span>
-                        </label>
-                        <div className="flex justify-end gap-2 pt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setRotateConfirmOpen(false)}
-                            className="text-xs no-default-hover-elevate no-default-active-elevate"
-                            data-testid="button-cancel-rotate"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={handleRotateEncryption}
-                            disabled={rotateRunning || !rotateAcknowledged}
-                            className="text-xs gap-1.5 no-default-hover-elevate no-default-active-elevate"
-                            data-testid="button-confirm-rotate"
-                          >
-                            {rotateRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                            {rotateRunning ? "Rotating..." : "Confirm Rotation"}
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
 
             </div>
           )}
