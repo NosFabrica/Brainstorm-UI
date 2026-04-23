@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -832,6 +833,8 @@ export default function NetworkPage() {
     setUser(u);
   }, [navigate]);
 
+  const { preset: trustPreset } = useTrustPresetSync(!!user);
+
   const selfQuery = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf(),
@@ -934,7 +937,7 @@ export default function NetworkPage() {
   const flaggedPubkeySet = useMemo(() => {
     if (!networkData) return new Set<string>();
     return getFlaggedPubkeys(networkData, getVerifiedThreshold());
-  }, [networkData]);
+  }, [networkData, trustPreset]);
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
@@ -973,7 +976,7 @@ export default function NetworkPage() {
       const score = trustCache.current.get(pk);
       return typeof score === "number" && score >= TA_THRESHOLD;
     });
-  }, [getGroupPubkeys, trustLoadedCount]);
+  }, [getGroupPubkeys, trustLoadedCount, trustPreset]);
 
   const getGroupCount = useCallback((key: GroupKey): number => {
     if (verifiedOnly && isVerifiableGroup(key)) {

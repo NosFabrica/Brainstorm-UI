@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
@@ -238,6 +239,8 @@ export default function DashboardPage() {
     setUser(u);
   }, [navigate]);
 
+  const { preset: trustPreset } = useTrustPresetSync(!!user);
+
   const needsProfile = !!user && !user.displayName && !user.picture;
   const profileQuery = useQuery({
     queryKey: ["profile", user?.pubkey],
@@ -394,7 +397,7 @@ export default function DashboardPage() {
       verifiedFollowersCount: countVerified(network.followed_by),
       verifiedFollowingCount: countVerified(network.following),
     };
-  }, [network]);
+  }, [network, trustPreset]);
 
   const grapeRankStatus = grapeRank
     ? (grapeRank as any).status || "complete"
@@ -654,7 +657,7 @@ export default function DashboardPage() {
       else counts.unverified++;
     }
     return counts;
-  }, [network]);
+  }, [network, trustPreset]);
 
   const directFollowingTierCounts = useMemo(() => {
     if (!network) return {} as Record<string, number>;
@@ -676,7 +679,7 @@ export default function DashboardPage() {
       else counts.unverified++;
     }
     return counts;
-  }, [network]);
+  }, [network, trustPreset]);
 
   const followingPieData = useMemo(() => {
     return TIER_CONFIG.map((tier) => ({

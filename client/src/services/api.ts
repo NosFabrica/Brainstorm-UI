@@ -267,6 +267,41 @@ export const apiClient = {
     return await response.json();
   },
 
+  async getGrapeRankPreset(): Promise<{
+    code?: number;
+    message?: string;
+    data?: { preset?: string };
+  }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/graperank/preset`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to load your trust perspective preset (${response.status}).`,
+      );
+    }
+    return await response.json();
+  },
+
+  async setGrapeRankPreset(
+    preset: "DEFAULT" | "PERMISSIVE" | "RESTRICTIVE",
+  ): Promise<{ code?: number; message?: string; data?: { preset?: string } }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/graperank/preset`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Couldn't save your trust perspective. Please try again (${response.status}).`,
+      );
+    }
+    return await response.json();
+  },
+
   async publishDefaultAssistantProfile(): Promise<{
     code?: number;
     message?: string;
