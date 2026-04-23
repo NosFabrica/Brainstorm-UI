@@ -96,7 +96,7 @@ export default function SettingsPage() {
       setOptimisticPreset(null);
       toast({
         title: "Trust perspective updated",
-        description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
+        description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"}`,
         duration: 2000,
       });
     },
