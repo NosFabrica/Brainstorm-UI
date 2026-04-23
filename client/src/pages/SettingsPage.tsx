@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { setActivePreset, presetToBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
 import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
+import { AdminBadge } from "@/components/AdminBadge";
 import PageBackground from "@/components/PageBackground";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -371,6 +372,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAdminPubkey(user?.pubkey) && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-settings-profile-menu">

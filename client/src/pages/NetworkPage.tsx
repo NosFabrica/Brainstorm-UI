@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
+import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -1348,6 +1349,7 @@ export default function NetworkPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAdminPubkey(user?.pubkey) && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
+import { AdminBadge } from "@/components/AdminBadge";
 import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
@@ -793,6 +794,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center gap-2 sm:gap-4">
+                {isAdminPubkey(user?.pubkey) && <AdminBadge />}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">

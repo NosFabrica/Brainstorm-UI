@@ -42,6 +42,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services/nostr";
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
+import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
@@ -453,6 +454,7 @@ export default function SearchPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAdminPubkey(user?.pubkey) && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">

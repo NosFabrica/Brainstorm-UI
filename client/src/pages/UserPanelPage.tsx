@@ -72,6 +72,7 @@ import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
 import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, getNip85RelayUrl, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
+import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSocialActions } from "@/hooks/useSocialActions";
 
@@ -633,6 +634,7 @@ export default function UserPanelPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAdminPubkey(user?.pubkey) && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-agentsuite-profile-menu">

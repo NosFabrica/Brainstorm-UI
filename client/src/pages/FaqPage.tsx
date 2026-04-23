@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
+import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -176,6 +177,7 @@ export default function FaqPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {user && isAdminPubkey(user?.pubkey) && <AdminBadge />}
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

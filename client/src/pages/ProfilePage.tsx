@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
+import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -1417,6 +1418,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAdmin && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div
