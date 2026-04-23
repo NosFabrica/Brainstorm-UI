@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { setActivePreset, presetToBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { setActivePreset, presetToBackend, presetDisplayLabel, presetDisplayLabelFromBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { PresetBadge } from "@/components/PresetBadge";
 import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import PageBackground from "@/components/PageBackground";
@@ -95,10 +96,16 @@ export default function SettingsPage() {
       });
       queryClient.invalidateQueries({ queryKey: key });
       setOptimisticPreset(null);
+      const lastResult = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
+      const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
+      const newLabel = presetDisplayLabel(preset);
+      const description = previousUsedLabel
+        ? `Next calculation will use ${newLabel}. Current scores were calculated with ${previousUsedLabel}.`
+        : `Next calculation will use ${newLabel}.`;
       toast({
         title: "Trust perspective updated",
-        description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"}`,
-        duration: 2000,
+        description,
+        duration: 4000,
       });
     },
     onError: (error, _preset, context) => {
@@ -784,11 +791,18 @@ export default function SettingsPage() {
 
                 <div className="space-y-3">
                   {lastCalculated && (
-                    <div className="flex items-center justify-between" data-testid="row-gr-last-calculated">
+                    <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="row-gr-last-calculated">
                       <span className="text-xs text-slate-500">Last calculated</span>
-                      <span className="text-xs text-slate-600">
-                        {new Date(typeof lastCalculated === "string" && !lastCalculated.endsWith("Z") ? lastCalculated + "Z" : lastCalculated).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <span className="text-xs text-slate-600">
+                          {new Date(typeof lastCalculated === "string" && !lastCalculated.endsWith("Z") ? lastCalculated + "Z" : lastCalculated).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </span>
+                        <PresetBadge
+                          preset={grapeRankData?.data?.graperank_preset_used}
+                          size="xs"
+                          testId="badge-gr-preset-used"
+                        />
+                      </div>
                     </div>
                   )}
                   {lastTriggered && (

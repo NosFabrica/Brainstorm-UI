@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
+import { PresetBadge } from "@/components/PresetBadge";
 import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
@@ -910,8 +911,15 @@ export default function DashboardPage() {
                           NIP-85 Declaration
                         </span>
                         {selfData?.history?.last_time_calculated_graperank && (
-                          <span className="text-[9px] text-slate-400 block mt-1 leading-none">
-                            Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank.endsWith("Z") ? selfData.history.last_time_calculated_graperank : selfData.history.last_time_calculated_graperank + "Z"))}
+                          <span className="text-[9px] text-slate-400 mt-1 leading-none flex items-center gap-1.5 flex-wrap">
+                            <span>
+                              Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank.endsWith("Z") ? selfData.history.last_time_calculated_graperank : selfData.history.last_time_calculated_graperank + "Z"))}
+                            </span>
+                            <PresetBadge
+                              preset={grapeRank?.graperank_preset_used}
+                              size="xs"
+                              testId="badge-dashboard-preset-used"
+                            />
                           </span>
                         )}
                       </div>

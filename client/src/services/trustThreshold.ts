@@ -54,3 +54,20 @@ export function setActivePreset(preset: TrustPreset): void {
 export function getVerifiedThreshold(): number {
   return PRESET_THRESHOLDS[getActivePreset()];
 }
+
+const PRESET_DISPLAY_LABEL: Record<TrustPreset, string> = {
+  relax: "Relax",
+  default: "Default",
+  strict: "Strict",
+};
+
+export function presetDisplayLabel(preset: TrustPreset): string {
+  return PRESET_DISPLAY_LABEL[preset];
+}
+
+export function presetDisplayLabelFromBackend(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const upper = value.toUpperCase();
+  if (!(upper in BACKEND_TO_PRESET)) return null;
+  return PRESET_DISPLAY_LABEL[BACKEND_TO_PRESET[upper]];
+}
