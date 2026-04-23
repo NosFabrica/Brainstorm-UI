@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getActivePreset, setActivePreset, setCustomThreshold, getCustomThreshold, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { setActivePreset, presetToBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
 import PageBackground from "@/components/PageBackground";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,43 +73,49 @@ export default function SettingsPage() {
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const [deactivateState, setDeactivateState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
   const [deactivateError, setDeactivateError] = useState("");
-  const [activePreset, setActivePresetState] = useState<TrustPreset>(getActivePreset());
-  const [customValue, setCustomValue] = useState<string>(() => {
-    const stored = getCustomThreshold();
-    return stored !== null ? stored.toFixed(2) : "0.05";
-  });
   const { toast } = useToast();
 
-  const currentThreshold = activePreset === "custom"
-    ? (getCustomThreshold() ?? PRESET_THRESHOLDS.default)
-    : PRESET_THRESHOLDS[activePreset];
+  const { preset: serverPreset, isLoading: presetLoading } = useTrustPresetSync(!!user);
+  const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
+  const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
+  const currentThreshold = PRESET_THRESHOLDS[activePreset];
 
-  const handlePresetChange = useCallback((preset: Exclude<TrustPreset, "custom">) => {
-    setActivePreset(preset);
-    setActivePresetState(preset);
-    setCustomThreshold(null);
-    setCustomValue(PRESET_THRESHOLDS[preset].toFixed(2));
-    toast({
-      title: "Trust perspective updated",
-      description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
-      duration: 2000,
-    });
-  }, [toast]);
+  const setPresetMutation = useMutation({
+    mutationFn: (preset: TrustPreset) => apiClient.setGrapeRankPreset(presetToBackend(preset)),
+    onMutate: (preset) => {
+      const previous = optimisticPreset;
+      setOptimisticPreset(preset);
+      return { previous };
+    },
+    onSuccess: (_data, preset) => {
+      setActivePreset(preset);
+      const key = trustPresetQueryKey(user?.pubkey);
+      queryClient.setQueryData(key, {
+        data: { preset: presetToBackend(preset) },
+      });
+      queryClient.invalidateQueries({ queryKey: key });
+      setOptimisticPreset(null);
+      toast({
+        title: "Trust perspective updated",
+        description: `Switched to ${preset === "relax" ? "Relax" : preset === "strict" ? "Strict" : "Default"} (verified threshold: ≥ ${PRESET_THRESHOLDS[preset].toFixed(2)})`,
+        duration: 2000,
+      });
+    },
+    onError: (error, _preset, context) => {
+      setOptimisticPreset(context?.previous ?? null);
+      toast({
+        variant: "destructive",
+        title: "Couldn't save preset",
+        description: error instanceof Error ? error.message : "Please try again.",
+        duration: 5000,
+      });
+    },
+  });
 
-  const handleCustomValueCommit = useCallback((rawValue: string) => {
-    const parsed = parseFloat(rawValue);
-    if (isNaN(parsed)) return;
-    const clamped = Math.max(0, Math.min(1, Math.round(parsed * 100) / 100));
-    setCustomThreshold(clamped);
-    setActivePreset("custom");
-    setActivePresetState("custom");
-    setCustomValue(clamped.toFixed(2));
-    toast({
-      title: "Custom threshold set",
-      description: `Verified threshold: ≥ ${clamped.toFixed(2)}`,
-      duration: 2000,
-    });
-  }, [toast]);
+  const handlePresetChange = useCallback((preset: TrustPreset) => {
+    if (preset === activePreset || setPresetMutation.isPending) return;
+    setPresetMutation.mutate(preset);
+  }, [activePreset, setPresetMutation]);
 
   const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
 
@@ -923,67 +930,58 @@ export default function SettingsPage() {
                 Adjust how strict the verified threshold is across Brainstorm. This controls which accounts appear as "verified" on Dashboard, Network, and Profile pages.
               </p>
 
-              <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips">
-                {([
-                  { key: "relax" as const, label: "Relax", desc: "More trusting" },
-                  { key: "default" as const, label: "Default", desc: "Balanced" },
-                  { key: "strict" as const, label: "Strict", desc: "Safety-first" },
-                ]).map((preset) => {
-                  const isActive = activePreset === preset.key;
-                  return (
-                    <button
-                      key={preset.key}
-                      onClick={() => handlePresetChange(preset.key)}
-                      className={
-                        "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer " +
-                        (isActive
-                          ? "border-[#7c86ff]/30 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20"
-                          : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100")
-                      }
-                      data-testid={`chip-preset-${preset.key}`}
-                    >
-                      <span className={
-                        "text-xs font-bold block " +
-                        (isActive ? "text-[#333286]" : "text-slate-500")
-                      }>{preset.label}</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">{preset.desc}</span>
-                      <span className={
-                        "text-[10px] font-mono block mt-1 " +
-                        (isActive ? "text-[#7c86ff]" : "text-slate-400")
-                      }>≥ {PRESET_THRESHOLDS[preset.key].toFixed(2)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3" data-testid="input-custom-threshold-section">
-                <label className="text-xs font-semibold text-slate-700 block mb-2">Custom Threshold</label>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 font-mono shrink-0">≥</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={customValue}
-                    onChange={(e) => setCustomValue(e.target.value)}
-                    onBlur={(e) => handleCustomValueCommit(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleCustomValueCommit((e.target as HTMLInputElement).value); }}
-                    className={
-                      "w-24 rounded-lg border px-3 py-1.5 text-sm font-mono text-center transition-all outline-none " +
-                      (activePreset === "custom"
-                        ? "border-[#7c86ff]/40 bg-[#333286]/5 text-[#333286] ring-1 ring-[#7c86ff]/20 focus:ring-2 focus:ring-[#7c86ff]/30"
-                        : "border-slate-200 bg-slate-50 text-slate-600 focus:border-[#7c86ff]/40 focus:ring-1 focus:ring-[#7c86ff]/20")
-                    }
-                    data-testid="input-custom-threshold"
-                  />
-                  <span className="text-[11px] text-slate-400">Enter a value between 0.00 and 1.00</span>
+              {presetLoading && !serverPreset ? (
+                <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips-loading">
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 animate-pulse h-[64px]"
+                    />
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips">
+                  {([
+                    { key: "relax" as const, label: "Relax", desc: "More trusting" },
+                    { key: "default" as const, label: "Default", desc: "Balanced" },
+                    { key: "strict" as const, label: "Strict", desc: "Safety-first" },
+                  ]).map((preset) => {
+                    const isActive = activePreset === preset.key;
+                    const isPendingThis = setPresetMutation.isPending && setPresetMutation.variables === preset.key;
+                    return (
+                      <button
+                        key={preset.key}
+                        onClick={() => handlePresetChange(preset.key)}
+                        disabled={setPresetMutation.isPending}
+                        className={
+                          "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 " +
+                          (isActive
+                            ? "border-[#7c86ff]/30 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20"
+                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100")
+                        }
+                        data-testid={`chip-preset-${preset.key}`}
+                      >
+                        <span className={
+                          "text-xs font-bold block " +
+                          (isActive ? "text-[#333286]" : "text-slate-500")
+                        }>
+                          {preset.label}
+                          {isPendingThis && <Loader2 className="inline ml-1 h-3 w-3 animate-spin" />}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">{preset.desc}</span>
+                        <span className={
+                          "text-[10px] font-mono block mt-1 " +
+                          (isActive ? "text-[#7c86ff]" : "text-slate-400")
+                        }>≥ {PRESET_THRESHOLDS[preset.key].toFixed(2)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-presets-detail">
                 <p className="text-xs text-slate-500 leading-relaxed">
-                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)}{activePreset === "custom" ? " (custom)" : ""} — accounts with a trust assertion score below this are marked as unverified.
+                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)} — accounts with a trust assertion score below this are marked as unverified.
                 </p>
               </div>
             </div>

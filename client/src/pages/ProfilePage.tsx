@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
@@ -441,6 +442,8 @@ export default function ProfilePage() {
     if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
   }, [navigate]);
 
+  const { preset: trustPreset } = useTrustPresetSync(!!user);
+
   useEffect(() => {
     if (user) {
       apiClient.getSelf().then(res => {
@@ -749,7 +752,7 @@ export default function ProfilePage() {
     if (!profileResult || profileResult.influence === undefined) return null;
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
     return TIER_THRESHOLDS.find(t => score >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1];
-  }, [profileResult]);
+  }, [profileResult, trustPreset]);
 
   const confidenceGuidance = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
@@ -776,7 +779,7 @@ export default function ProfilePage() {
     const mb = count(profileResult.muted_by);
     const rb = count(profileResult.reported_by);
     return { followers: fb.verified, followersTotal: fb.total, following: fg.verified, followingTotal: fg.total, mutedBy: mb.verified, mutedByTotal: mb.total, reportedBy: rb.verified, reportedByTotal: rb.total };
-  }, [profileResult]);
+  }, [profileResult, trustPreset]);
 
   const followerTierBreakdown = useMemo(() => {
     if (!profileResult || !Array.isArray(profileResult.followed_by)) return null;
@@ -794,7 +797,7 @@ export default function ProfilePage() {
     const total = map.size;
     if (total === 0) return null;
     return { counts, total };
-  }, [profileResult]);
+  }, [profileResult, trustPreset]);
 
   const getTrustForPk = useCallback((pk: string): number => {
     const cached = expandTrustCache.current.get(pk);
@@ -843,7 +846,7 @@ export default function ProfilePage() {
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
     return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [profileResult]);
+  }, [profileResult, trustPreset]);
 
   const getSortedFilteredPubkeys = useCallback((key: string, pubkeys: string[]): string[] => {
     const filter = sectionFilter[key] || "all";
@@ -901,7 +904,7 @@ export default function ProfilePage() {
       });
     }
     return sorted;
-  }, [sectionFilter, sectionSort, sectionSearch, reportTypeFilterState, getTrustForPk, getNameForPk, getReportForPubkey]);
+  }, [sectionFilter, sectionSort, sectionSearch, reportTypeFilterState, getTrustForPk, getNameForPk, getReportForPubkey, trustPreset]);
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
