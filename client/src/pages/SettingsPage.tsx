@@ -78,7 +78,6 @@ export default function SettingsPage() {
   const { preset: serverPreset, isLoading: presetLoading } = useTrustPresetSync(!!user);
   const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
   const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
-  const currentThreshold = PRESET_THRESHOLDS[activePreset];
 
   const setPresetMutation = useMutation({
     mutationFn: (preset: TrustPreset) => apiClient.setGrapeRankPreset(presetToBackend(preset)),
@@ -969,21 +968,12 @@ export default function SettingsPage() {
                           {isPendingThis && <Loader2 className="inline ml-1 h-3 w-3 animate-spin" />}
                         </span>
                         <span className="text-[10px] text-slate-400 block mt-0.5">{preset.desc}</span>
-                        <span className={
-                          "text-[10px] font-mono block mt-1 " +
-                          (isActive ? "text-[#7c86ff]" : "text-slate-400")
-                        }>≥ {PRESET_THRESHOLDS[preset.key].toFixed(2)}</span>
                       </button>
                     );
                   })}
                 </div>
               )}
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-testid="callout-presets-detail">
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  <span className="font-semibold text-slate-700">Current verified threshold:</span> ≥ {currentThreshold.toFixed(2)} — accounts with a trust assertion score below this are marked as unverified.
-                </p>
-              </div>
             </div>
           </div>
 
