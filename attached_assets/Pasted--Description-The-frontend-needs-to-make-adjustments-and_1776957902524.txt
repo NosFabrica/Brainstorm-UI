@@ -1,0 +1,92 @@
+## Description
+
+The frontend needs to make adjustments and update appropriate UI elements to make use of the new features introduced in PRs from [Feature: Support User-selected Presets for GrapeRank calculation](https://www.notion.so/Feature-Support-User-selected-Presets-for-GrapeRank-calculation-32c0dd16b66580dda136dfdda159b553?pvs=21) parent task.
+
+### **API reference**
+
+All routes are authenticated via the same JWT flow as the rest of `/user/*`. Base path: the brainstorm_server origin.
+
+#### **`GET /user/graperank/preset`**
+
+Returns the current user's selected preset. `NULL` in DB normalizes to `"DEFAULT"`.
+
+Response `200`:
+
+```json
+{
+  "code": 200,
+  "message": null,
+  "data": { "preset": "DEFAULT" }
+}
+```
+
+`data.preset` is always one of `"DEFAULT"`, `"PERMISSIVE"`, `"RESTRICTIVE"`. `CUSTOM` will never be returned by this endpoint until CUSTOM is implemented.
+
+#### **`PUT /user/graperank/preset`**
+
+Sets the current user's preset. Does not trigger a recalculation.
+
+Request body:
+
+```json
+{ "preset": "PERMISSIVE" }
+```
+
+Response `200`:
+
+```json
+{
+  "code": 200,
+  "message": null,
+  "data": { "preset": "PERMISSIVE" }
+}
+```
+
+Errors:
+
+- `400 {"detail": "Unknown preset '<raw>'"}` — value not in enum.
+- `400 {"detail": "Preset 'CUSTOM' is not assignable via this endpoint"}` — CUSTOM sent here. Use `PUT /user/graperank/preset/custom` (once implemented).
+
+Accepts case-insensitive input (`"permissive"` works); always round-trips in UPPERCASE.
+
+#### **`PUT /user/graperank/preset/custom`**
+
+Stub today. Will eventually accept all 12 params for CUSTOM preset.
+
+Response `501`:
+
+```json
+{ "detail": "Custom preset not implemented yet" }
+```
+
+#### **`POST /user/graperank` (existing, behavior change)**
+
+Triggering a calc now also persists which preset was used. The response's `BrainstormRequestInstance` gains two fields:
+
+```json
+{
+  ...,
+  "graperank_preset_used": "PERMISSIVE",
+  "graperank_params": { "template": "PERMISSIVE" }
+}
+```
+
+`graperank_params` is the exact object sent to Redis — mostly relevant internally; UI likely only needs `graperank_preset_used` for display.
+
+#### **`GET /user/graperankResult` (existing, behavior change)**
+
+`BrainstormRequestInstance` here also carries `graperank_preset_used` for the latest stored calc result.
+
+### **Frontend tasks**
+
+1. Build API client: `getGrapeRankPreset(): Promise<"DEFAULT"|"PERMISSIVE"|"RESTRICTIVE">` and `setGrapeRankPreset(preset): Promise<void>`.
+2. Replace localStorage-only preset flow in the settings page. Call `GET /user/graperank/preset` on mount to hydrate, call `PUT` on change. Server is authoritative; localStorage can stay as a transient cache if useful, but stop treating it as the source of truth.
+3. After a successful `PUT`, show a non-blocking toast/hint: *"Next calculation will use . Current scores were calculated using ."* (the old preset comes from the last-known `graperank_preset_used` on the result).
+4. Surface `graperank_preset_used` on the GrapeRank result view. Short label, e.g. *"Calculated with: RESTRICTIVE"*.
+5. Preset names on the wire are UPPERCASE strings. Keep UI display labels (`"Permissive" / "Default" / "Restrictive"`) in a separate mapping layer.
+6. Disable or hide any `"CUSTOM"` option until the `/user/graperank/preset/custom` endpoint stops returning 501. The UI shouldn't even offer the choice yet.
+7. Error handling:
+    - `400` on `PUT`: show `detail` from response body.
+    - Network / 5xx: standard retry / generic toast.
+8. Optional polish: preset-preview tooltips describing rigor/attenuation in plain language. Not blocking.
+9. Consider an inline explainer for users: *"Permissive = more inclusive trust; Restrictive = stricter filters; Default = balanced."*
