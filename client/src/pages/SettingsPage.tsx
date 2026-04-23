@@ -487,7 +487,7 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 ) : nip85Activated ? (
-                  <div className="space-y-4 flex-1 flex flex-col">
+                  <div className="flex-1 flex flex-col gap-4">
                     <div className="flex items-center justify-between" data-testid="row-sp-status">
                       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200" data-testid="badge-sp-active">
@@ -685,7 +685,7 @@ export default function SettingsPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-4 flex-1 flex flex-col">
+                  <div className="flex-1 flex flex-col gap-4">
                     <div className="flex items-center justify-between" data-testid="row-sp-status-inactive">
                       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200" data-testid="badge-sp-inactive">
@@ -745,7 +745,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="p-5 space-y-4 flex-1 flex flex-col">
+              <div className="p-5 flex-1 flex flex-col gap-4">
                 {grapeRankLoading ? (
                   <div className="space-y-3 animate-pulse">
                     <div className="flex items-center justify-between">
