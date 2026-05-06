@@ -7,7 +7,7 @@ import {
   Copy,
   ChevronDown,
   ChevronRight,
-  Sparkles,
+  BadgeCheck,
   Radio,
   User as UserIcon,
   Loader2,
@@ -867,7 +867,7 @@ function AssignedAssistantSection({
               )}
               {profile.website && (
                 <div className="flex items-center gap-1 mt-0.5">
-                  {isAssistant && <Sparkles className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {isAssistant && <BadgeCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
                   <a
                     href={profile.website}
                     target="_blank"
@@ -994,7 +994,7 @@ function Kind0Panel({
               )}
               {profile.website && (
                 <div className="flex items-center gap-1 mt-0.5">
-                  {isAssistant && <Sparkles className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {isAssistant && <BadgeCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
                   <a
                     href={profile.website}
                     target="_blank"
