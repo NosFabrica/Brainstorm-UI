@@ -1,0 +1,563 @@
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Copy,
+  ChevronDown,
+  ChevronRight,
+  Sparkles,
+  Radio,
+  User as UserIcon,
+  Loader2,
+  Info,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/hooks/use-toast";
+import {
+  checkNip85Health,
+  fetchProfile,
+  type Nip85HealthCheck,
+  type Nip85TagCheck,
+} from "@/services/nostr";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
+
+const STAFF_TIMEOUT_MS = 8000;
+
+type CheckStatus = "ok" | "warn" | "error" | "neutral";
+
+function classifyTag(tag: Nip85TagCheck, expectedRelayConfigured: boolean, hasTaPubkey: boolean) {
+  const pubkeyStatus: CheckStatus = !tag.present
+    ? "error"
+    : !hasTaPubkey
+    ? "neutral"
+    : tag.pubkeyMatches
+    ? "ok"
+    : "error";
+  const relayStatus: CheckStatus = !tag.present
+    ? "error"
+    : !expectedRelayConfigured
+    ? "warn"
+    : tag.relayMatches
+    ? "ok"
+    : "error";
+  return { pubkeyStatus, relayStatus };
+}
+
+function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolean): {
+  label: string;
+  tone: CheckStatus;
+} {
+  if (!health) return { label: "Loading", tone: "neutral" };
+  if (!health.eventFound) return { label: "Missing", tone: "error" };
+  const checks: CheckStatus[] = [
+    health.rankTag.present ? "ok" : "error",
+    health.followersTag.present ? "ok" : "error",
+  ];
+  if (hasTaPubkey) {
+    checks.push(health.rankTag.pubkeyMatches ? "ok" : "error");
+    checks.push(health.followersTag.pubkeyMatches ? "ok" : "error");
+  }
+  if (health.expectedRelayConfigured) {
+    checks.push(health.rankTag.relayMatches ? "ok" : "error");
+    checks.push(health.followersTag.relayMatches ? "ok" : "error");
+  } else {
+    checks.push("warn");
+  }
+  if (checks.includes("error")) return { label: "Issues found", tone: "error" };
+  if (checks.includes("warn")) return { label: "Configuration warning", tone: "warn" };
+  return { label: "Healthy", tone: "ok" };
+}
+
+function StatusIcon({ status, className = "h-3.5 w-3.5" }: { status: CheckStatus; className?: string }) {
+  if (status === "ok") return <CheckCircle2 className={`${className} text-emerald-500`} />;
+  if (status === "warn") return <AlertTriangle className={`${className} text-amber-500`} />;
+  if (status === "error") return <XCircle className={`${className} text-red-500`} />;
+  return <Info className={`${className} text-slate-400`} />;
+}
+
+function StatusPill({ tone, label, testId }: { tone: CheckStatus; label: string; testId: string }) {
+  const tones: Record<CheckStatus, string> = {
+    ok: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    warn: "bg-amber-50 text-amber-700 border-amber-200",
+    error: "bg-red-50 text-red-700 border-red-200",
+    neutral: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${tones[tone]}`}
+      data-testid={testId}
+    >
+      <StatusIcon status={tone} className="h-3 w-3" />
+      {label}
+    </span>
+  );
+}
+
+function MiniCopy({ text, testId }: { text: string; testId: string }) {
+  const { toast } = useToast();
+  if (!text) return null;
+  return (
+    <button
+      type="button"
+      className="p-0.5 rounded hover:bg-slate-100 transition-colors shrink-0"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 });
+      }}
+      data-testid={testId}
+      aria-label="Copy to clipboard"
+    >
+      <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600" />
+    </button>
+  );
+}
+
+function CheckRow({
+  status,
+  label,
+  detail,
+  testId,
+  children,
+}: {
+  status: CheckStatus;
+  label: string;
+  detail?: string | null;
+  testId: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex items-start gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors"
+      data-testid={testId}
+    >
+      <StatusIcon status={status} className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-medium text-slate-700 leading-tight">{label}</p>
+        {detail && <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{detail}</p>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MismatchPair({
+  expected,
+  actual,
+  expectedLabel = "expected",
+  actualLabel = "actual",
+  testIdPrefix,
+}: {
+  expected: string | null;
+  actual: string | null;
+  expectedLabel?: string;
+  actualLabel?: string;
+  testIdPrefix: string;
+}) {
+  return (
+    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+      <div className="p-1.5 rounded-md bg-emerald-50/60 border border-emerald-100">
+        <p className="text-[8px] uppercase tracking-wide text-emerald-700/70 font-bold mb-0.5">{expectedLabel}</p>
+        <div className="flex items-center gap-1 min-w-0">
+          <code className="font-mono text-[9px] text-emerald-800 truncate flex-1" data-testid={`${testIdPrefix}-expected`}>
+            {expected || "—"}
+          </code>
+          {expected && <MiniCopy text={expected} testId={`button-copy-${testIdPrefix}-expected`} />}
+        </div>
+      </div>
+      <div className="p-1.5 rounded-md bg-red-50/60 border border-red-100">
+        <p className="text-[8px] uppercase tracking-wide text-red-700/70 font-bold mb-0.5">{actualLabel}</p>
+        <div className="flex items-center gap-1 min-w-0">
+          <code className="font-mono text-[9px] text-red-800 truncate flex-1" data-testid={`${testIdPrefix}-actual`}>
+            {actual || "—"}
+          </code>
+          {actual && <MiniCopy text={actual} testId={`button-copy-${testIdPrefix}-actual`} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RawJsonBlock({ value, testIdPrefix }: { value: unknown; testIdPrefix: string }) {
+  const [open, setOpen] = useState(false);
+  const json = useMemo(() => {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return "";
+    }
+  }, [value]);
+  if (!json) return null;
+  return (
+    <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-100/70 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+          data-testid={`button-toggle-${testIdPrefix}`}
+        >
+          {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          Raw JSON
+        </button>
+        <MiniCopy text={json} testId={`button-copy-${testIdPrefix}`} />
+      </div>
+      {open && (
+        <pre
+          className="p-2 text-[10px] font-mono text-slate-700 overflow-x-auto max-h-60 leading-relaxed"
+          data-testid={`text-${testIdPrefix}`}
+        >
+          {json}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function formatTimestamp(unix: number | null): string {
+  if (!unix) return "—";
+  try {
+    return new Date(unix * 1000).toLocaleString();
+  } catch {
+    return "—";
+  }
+}
+
+function truncateMid(s: string | null, head = 10, tail = 6): string {
+  if (!s) return "—";
+  if (s.length <= head + tail + 1) return s;
+  return `${s.slice(0, head)}…${s.slice(-tail)}`;
+}
+
+function isLikelyBrainstormWebsite(website: string | undefined): boolean {
+  if (!website || typeof website !== "string") return false;
+  const lower = website.toLowerCase();
+  if (lower.includes("brainstorm")) return true;
+  if (lower.includes("nosfabrica")) return true;
+  try {
+    const host = new URL(website).host.toLowerCase();
+    if (typeof window !== "undefined" && window.location?.host && host === window.location.host.toLowerCase()) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+function PanelShell({
+  title,
+  icon,
+  pill,
+  children,
+  testId,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  pill?: React.ReactNode;
+  children: React.ReactNode;
+  testId: string;
+}) {
+  return (
+    <div
+      className="p-3 rounded-xl bg-white border border-indigo-100 shadow-sm flex flex-col min-h-[180px]"
+      data-testid={testId}
+    >
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-1.5">
+          {icon}
+          <p className="font-bold text-[11px] text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+            {title}
+          </p>
+        </div>
+        {pill}
+      </div>
+      <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+function SkeletonChecklist() {
+  return (
+    <div className="space-y-1.5" data-testid="status-nip85-loading">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+          <div className="h-3.5 w-3.5 rounded-full bg-slate-100 animate-pulse" />
+          <div className="h-3 flex-1 bg-slate-100 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Nip85Panel({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
+  const query = useQuery<Nip85HealthCheck>({
+    queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
+    queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  const data = query.data;
+  const hasTaPubkey = !!taPubkey;
+  const overall = overallStatus(query.isLoading ? undefined : data, hasTaPubkey);
+
+  return (
+    <PanelShell
+      title="Trust Provider List (kind 10040)"
+      icon={<Radio className="h-3.5 w-3.5 text-[#333286]" />}
+      pill={
+        <StatusPill
+          tone={query.isLoading ? "neutral" : overall.tone}
+          label={query.isLoading ? "Loading" : overall.label}
+          testId="status-nip85-overall"
+        />
+      }
+      testId="card-nip85-health"
+    >
+      {!hasTaPubkey && (
+        <div
+          className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 mb-2"
+          data-testid="status-nip85-no-ta"
+        >
+          <Info className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-slate-600 leading-tight">
+            TA pubkey not yet assigned for this user. Inner-pubkey checks are unavailable until the backend assigns one.
+          </p>
+        </div>
+      )}
+
+      {query.isLoading ? (
+        <SkeletonChecklist />
+      ) : query.isError ? (
+        <div
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          data-testid="status-nip85-error"
+        >
+          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          <p className="text-[10px] text-red-700">Failed to fetch kind 10040 from relays.</p>
+        </div>
+      ) : data ? (
+        <div className="space-y-0.5">
+          <CheckRow
+            status={data.eventFound ? "ok" : "error"}
+            label="Event found on relays"
+            detail={
+              data.eventFound
+                ? `Published ${formatTimestamp(data.createdAt)}`
+                : "No kind 10040 event returned from outbox relays."
+            }
+            testId="check-nip85-event-found"
+          />
+
+          {data.eventFound && (
+            <>
+              <CheckRow
+                status={data.rankTag.present ? "ok" : "error"}
+                label="Has 30382:rank tag"
+                testId="check-nip85-rank-present"
+              />
+              <CheckRow
+                status={data.followersTag.present ? "ok" : "error"}
+                label="Has 30382:followers tag"
+                testId="check-nip85-followers-present"
+              />
+
+              {(["rankTag", "followersTag"] as const).map((slot) => {
+                const tag = data[slot];
+                const slotLabel = slot === "rankTag" ? "rank" : "followers";
+                if (!tag.present) return null;
+                const { pubkeyStatus, relayStatus } = classifyTag(
+                  tag,
+                  data.expectedRelayConfigured,
+                  hasTaPubkey,
+                );
+                return (
+                  <div key={slot} className="space-y-0.5">
+                    <CheckRow
+                      status={pubkeyStatus}
+                      label={`${slotLabel} inner pubkey matches assigned TA`}
+                      detail={
+                        !hasTaPubkey
+                          ? `Found: ${truncateMid(tag.innerPubkey)} (no TA to compare)`
+                          : tag.pubkeyMatches
+                          ? `Matches: ${truncateMid(tag.innerPubkey)}`
+                          : "Mismatch — see below"
+                      }
+                      testId={`check-nip85-${slotLabel}-pubkey`}
+                    >
+                      {hasTaPubkey && !tag.pubkeyMatches && (
+                        <MismatchPair
+                          expected={data.expectedTaPubkey}
+                          actual={tag.innerPubkey}
+                          testIdPrefix={`mismatch-${slotLabel}-pubkey`}
+                        />
+                      )}
+                    </CheckRow>
+                    <CheckRow
+                      status={relayStatus}
+                      label={`${slotLabel} relay hint matches NIP-85 relay`}
+                      detail={
+                        !data.expectedRelayConfigured
+                          ? "Expected relay not configured (VITE_NIP85_RELAY_URL is empty)."
+                          : tag.relayMatches
+                          ? `Matches: ${tag.relayHint}`
+                          : "Mismatch — see below"
+                      }
+                      testId={`check-nip85-${slotLabel}-relay`}
+                    >
+                      {data.expectedRelayConfigured && !tag.relayMatches && (
+                        <MismatchPair
+                          expected={data.expectedRelay}
+                          actual={tag.relayHint}
+                          testIdPrefix={`mismatch-${slotLabel}-relay`}
+                        />
+                      )}
+                    </CheckRow>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {data.rawEvent && <RawJsonBlock value={data.rawEvent} testIdPrefix="raw-10040" />}
+        </div>
+      ) : null}
+    </PanelShell>
+  );
+}
+
+function Kind0Panel({ pubkey }: { pubkey: string }) {
+  const query = useQuery<{ profile: ProfileContent | null }>({
+    queryKey: ["admin/kind0-profile", pubkey],
+    queryFn: async () => {
+      const profile = await fetchProfile(pubkey, STAFF_TIMEOUT_MS);
+      return { profile: profile ?? null };
+    },
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  const profile = query.data?.profile;
+  const isAssistant = isLikelyBrainstormWebsite((profile as any)?.website);
+
+  const pill = query.isLoading ? (
+    <StatusPill tone="neutral" label="Loading" testId="status-kind0-overall" />
+  ) : !profile ? (
+    <StatusPill tone="error" label="Missing" testId="status-kind0-overall" />
+  ) : isAssistant ? (
+    <StatusPill tone="ok" label="Brainstorm Assistant" testId="status-kind0-overall" />
+  ) : (
+    <StatusPill tone="neutral" label="Standard profile" testId="status-kind0-overall" />
+  );
+
+  return (
+    <PanelShell
+      title="Profile Metadata (kind 0)"
+      icon={<UserIcon className="h-3.5 w-3.5 text-[#333286]" />}
+      pill={pill}
+      testId="card-kind0-health"
+    >
+      {query.isLoading ? (
+        <div className="space-y-2" data-testid="status-kind0-loading">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+              <div className="h-2.5 w-24 bg-slate-100 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="h-2.5 w-full bg-slate-100 rounded animate-pulse" />
+          <div className="h-2.5 w-3/4 bg-slate-100 rounded animate-pulse" />
+        </div>
+      ) : query.isError ? (
+        <div
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          data-testid="status-kind0-error"
+        >
+          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          <p className="text-[10px] text-red-700">Failed to fetch kind 0 from relays.</p>
+        </div>
+      ) : !profile ? (
+        <div
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
+          data-testid="status-kind0-empty"
+        >
+          <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+          <p className="text-[10px] text-slate-600">No kind 0 metadata found on relays.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <Avatar className="h-10 w-10 border border-slate-200">
+              <AvatarImage src={(profile as any).picture} alt={(profile as any).display_name || (profile as any).name || "profile"} />
+              <AvatarFallback className="text-[10px] bg-slate-100 text-slate-500">
+                {((profile as any).display_name || (profile as any).name || "?").slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-semibold text-slate-800 truncate" data-testid="text-kind0-display-name">
+                {(profile as any).display_name || (profile as any).name || "(no name)"}
+              </p>
+              {(profile as any).nip05 && (
+                <p className="text-[10px] text-slate-500 truncate" data-testid="text-kind0-nip05">
+                  {(profile as any).nip05}
+                </p>
+              )}
+              {isAssistant && (profile as any).website && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Sparkles className="h-3 w-3 text-emerald-500" />
+                  <a
+                    href={(profile as any).website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-700 hover:underline truncate"
+                    data-testid="link-kind0-website"
+                  >
+                    {(profile as any).website}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {(profile as any).about && (
+            <p className="text-[10px] text-slate-600 leading-snug line-clamp-2" data-testid="text-kind0-about">
+              {(profile as any).about}
+            </p>
+          )}
+
+          <RawJsonBlock value={profile} testIdPrefix="raw-kind0" />
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
+  return (
+    <div
+      className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm"
+      data-testid={`card-nostr-health-${pubkey.slice(0, 8)}`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 text-[#333286] hidden" />
+          <Radio className="h-4 w-4 text-[#333286]" />
+          <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+            Nostr Health
+          </p>
+        </div>
+        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+          Live from relays
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Nip85Panel pubkey={pubkey} taPubkey={taPubkey} />
+        <Kind0Panel pubkey={pubkey} />
+      </div>
+    </div>
+  );
+}
+
+export default NostrHealthCard;

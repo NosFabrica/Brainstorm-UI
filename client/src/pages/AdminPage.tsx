@@ -6,6 +6,7 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -798,6 +799,8 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
               )}
             </div>
           </div>
+
+          <NostrHealthCard pubkey={pubkey} taPubkey={taPubkey} />
 
           <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">

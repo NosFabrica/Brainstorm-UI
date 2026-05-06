@@ -311,6 +311,114 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
 }
 
 
+export interface Nip85TagCheck {
+  present: boolean;
+  innerPubkey: string | null;
+  relayHint: string | null;
+  pubkeyMatches: boolean;
+  relayMatches: boolean;
+}
+
+export interface Nip85HealthCheck {
+  expectedTaPubkey: string | null;
+  expectedRelay: string;
+  expectedRelayConfigured: boolean;
+  eventFound: boolean;
+  createdAt: number | null;
+  rankTag: Nip85TagCheck;
+  followersTag: Nip85TagCheck;
+  rawEvent: NostrEvent | null;
+}
+
+const EMPTY_TAG_CHECK: Nip85TagCheck = {
+  present: false,
+  innerPubkey: null,
+  relayHint: null,
+  pubkeyMatches: false,
+  relayMatches: false,
+};
+
+export async function checkNip85Health(
+  pubkey: string,
+  expectedTaPubkey: string | null,
+  timeoutMs = 10000,
+): Promise<Nip85HealthCheck> {
+  const expectedRelay = NIP85_RELAY_URL;
+  const expectedRelayConfigured = expectedRelay.length > 0;
+
+  const event = await fetchTrustProviderList(pubkey, timeoutMs);
+
+  const result: Nip85HealthCheck = {
+    expectedTaPubkey,
+    expectedRelay,
+    expectedRelayConfigured,
+    eventFound: !!event,
+    createdAt: event?.created_at ?? null,
+    rankTag: { ...EMPTY_TAG_CHECK },
+    followersTag: { ...EMPTY_TAG_CHECK },
+    rawEvent: event ?? null,
+  };
+
+  if (!event) return result;
+
+  // Aggregate per-slot using existential ("any matching tag wins") semantics
+  // to match the behavior of isUsingBrainstorm. If multiple tags of the same
+  // type exist, a single matching tag is enough to mark the slot healthy.
+  // We surface the matching tag's values when present; otherwise we fall back
+  // to the first tag of that type so admins can still see what was published.
+  const slots = ["rankTag", "followersTag"] as const;
+  const tagNameFor = { rankTag: "30382:rank", followersTag: "30382:followers" } as const;
+
+  for (const slot of slots) {
+    const matching = event.tags.filter(
+      (t) => Array.isArray(t) && t.length > 0 && t[0] === tagNameFor[slot],
+    );
+    if (matching.length === 0) continue;
+
+    let anyPubkeyMatches = false;
+    let anyRelayMatches = false;
+    let bestTag: string[] | null = null;
+    let pubkeyMatchTag: string[] | null = null;
+    let relayMatchTag: string[] | null = null;
+
+    for (const tag of matching) {
+      const inner = typeof tag[1] === "string" ? tag[1] : null;
+      const hint = typeof tag[2] === "string" ? tag[2] : null;
+      const pubkeyOk = !!expectedTaPubkey && inner === expectedTaPubkey;
+      // Preserve loose-equality semantics from isUsingBrainstorm.
+      // eslint-disable-next-line eqeqeq
+      const relayOk = expectedRelayConfigured && (hint as any) == expectedRelay;
+      if (pubkeyOk) {
+        anyPubkeyMatches = true;
+        pubkeyMatchTag = pubkeyMatchTag ?? tag;
+      }
+      if (relayOk) {
+        anyRelayMatches = true;
+        relayMatchTag = relayMatchTag ?? tag;
+      }
+      if (pubkeyOk && relayOk) {
+        bestTag = tag;
+      }
+    }
+
+    // Prefer the fully-matching tag for display; otherwise prefer one matching
+    // pubkey, then one matching relay, then the first tag we saw.
+    const display = bestTag ?? pubkeyMatchTag ?? relayMatchTag ?? matching[0];
+    const inner = typeof display[1] === "string" ? display[1] : null;
+    const hint = typeof display[2] === "string" ? display[2] : null;
+
+    result[slot] = {
+      present: true,
+      innerPubkey: inner,
+      relayHint: hint,
+      pubkeyMatches: anyPubkeyMatches,
+      relayMatches: anyRelayMatches,
+    };
+  }
+
+  return result;
+}
+
 export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, timeoutMs = 10000): Promise<boolean> {
   console.log("isUsingBrainstorm", pubkey, innerPubkey)
   const event = await fetchTrustProviderList(pubkey, timeoutMs)
