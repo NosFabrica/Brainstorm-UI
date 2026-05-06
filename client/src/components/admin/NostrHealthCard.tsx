@@ -456,19 +456,21 @@ function AssistantIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="currentColor"
+      viewBox="0 0 25 24"
+      fill="none"
+      stroke="currentColor"
       className={className}
       aria-hidden="true"
     >
       <g clipPath="url(#bs-assistant-icon-clip)">
-        <path d="M18.65 10.7599C18.73 10.3099 18.78 9.8499 18.78 9.3799C18.78 5.1099 15.32 1.6499 11.05 1.6499C8.58999 1.6499 6.40999 2.7999 4.98999 4.5899H11.85V14.2099H5.02999C5.41999 14.6999 5.85999 15.1399 6.35999 15.5199V22.3699H13.66V18.9899H18.17V15.3199H20.67L18.65 10.7599Z" />
-        <path d="M5.20996 9.58975H5.56996L5.38996 9.23975L5.20996 9.58975Z" />
-        <path d="M1.8999 5.82983V12.9498H10.6099V5.82983H1.8999ZM6.4799 11.4698L6.0899 10.6598H4.6999L4.3099 11.4698L3.3499 10.9998L5.3999 6.79983L7.4499 10.9998L6.4899 11.4698H6.4799ZM8.9899 11.2898H7.9199V7.48983H8.9899V11.2898Z" />
+        <path d="M10.672 8.76001V13.12" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="round" />
+        <path d="M7.92201 13.12L5.79201 8.76001L3.66201 13.12" strokeWidth="1.5" strokeLinecap="square" />
+        <path d="M4.20201 12.1201H7.40201" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M7.03201 18.16V21.6901H13.862V18.5301H18.082V15.1H20.452L18.532 10.83C18.602 10.44 19.022 7.68005 17.422 5.50005C16.042 3.63005 13.922 2.30005 11.422 2.30005H11.272C9.76201 2.30005 8.34201 2.73005 7.15201 3.48005" strokeWidth="1.5" strokeMiterlimit="10" />
       </g>
       <defs>
         <clipPath id="bs-assistant-icon-clip">
-          <rect width="24" height="24" fill="white" />
+          <rect width="24" height="24" fill="white" transform="translate(0.0620117)" />
         </clipPath>
       </defs>
     </svg>
