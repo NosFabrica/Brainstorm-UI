@@ -452,6 +452,29 @@ interface Kind0QueryResult {
   profile: AdminProfile | null;
 }
 
+function AssistantIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <g clipPath="url(#bs-assistant-icon-clip)">
+        <path d="M18.65 10.7599C18.73 10.3099 18.78 9.8499 18.78 9.3799C18.78 5.1099 15.32 1.6499 11.05 1.6499C8.58999 1.6499 6.40999 2.7999 4.98999 4.5899H11.85V14.2099H5.02999C5.41999 14.6999 5.85999 15.1399 6.35999 15.5199V22.3699H13.66V18.9899H18.17V15.3199H20.67L18.65 10.7599Z" />
+        <path d="M5.20996 9.58975H5.56996L5.38996 9.23975L5.20996 9.58975Z" />
+        <path d="M1.8999 5.82983V12.9498H10.6099V5.82983H1.8999ZM6.4799 11.4698L6.0899 10.6598H4.6999L4.3099 11.4698L3.3499 10.9998L5.3999 6.79983L7.4499 10.9998L6.4899 11.4698H6.4799ZM8.9899 11.2898H7.9199V7.48983H8.9899V11.2898Z" />
+      </g>
+      <defs>
+        <clipPath id="bs-assistant-icon-clip">
+          <rect width="24" height="24" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
 function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
   if (!event || typeof event.content !== "string") return null;
   try {
@@ -496,7 +519,7 @@ function AssignedAssistantSection({
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          <AssistantIcon className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
           <p
             className="font-bold text-[11px] text-slate-800"
             style={{ fontFamily: "var(--font-display)" }}
