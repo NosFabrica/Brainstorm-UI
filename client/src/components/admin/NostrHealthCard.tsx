@@ -305,14 +305,15 @@ function SkeletonChecklist() {
   );
 }
 
-function Nip85Panel({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
-  const query = useQuery<Nip85HealthCheck>({
-    queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
-    queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
-    staleTime: 60_000,
-    retry: 0,
-  });
+type Nip85QueryResult = ReturnType<typeof useQuery<Nip85HealthCheck>>;
 
+function Nip85Panel({
+  taPubkey,
+  query,
+}: {
+  taPubkey: string | null;
+  query: Nip85QueryResult;
+}) {
   const data = query.data;
   const hasTaPubkey = !!taPubkey;
   const overall = overallStatus(query.isLoading ? undefined : data, hasTaPubkey);
@@ -460,16 +461,175 @@ function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
   }
 }
 
-function Kind0Panel({ pubkey }: { pubkey: string }) {
-  const query = useQuery<Kind0QueryResult>({
-    queryKey: ["admin/kind0-profile", pubkey],
+function useKind0Query(pubkey: string | null) {
+  return useQuery<Kind0QueryResult>({
+    queryKey: ["admin/kind0-profile", pubkey ?? ""],
     queryFn: async () => {
+      if (!pubkey) return { event: null, profile: null };
       const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS)) ?? null;
       return { event, profile: parseProfileFromEvent(event) };
     },
+    enabled: !!pubkey,
     staleTime: 60_000,
     retry: 0,
   });
+}
+
+function AssignedAssistantSection({
+  assistantPubkey,
+  selfAssigned,
+}: {
+  assistantPubkey: string;
+  selfAssigned: boolean;
+}) {
+  const query = useKind0Query(assistantPubkey);
+  const event = query.data?.event ?? null;
+  const profile = query.data?.profile ?? null;
+  const isAssistant = isLikelyBrainstormWebsite(profile?.website);
+  const displayName = profile?.display_name || profile?.name || "(no name)";
+  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
+
+  return (
+    <div
+      className="mt-3 pt-3 border-t border-slate-200"
+      data-testid="section-assigned-assistant"
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Sparkles className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          <p
+            className="font-bold text-[11px] text-slate-800"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Assigned Brainstorm Assistant
+          </p>
+          {selfAssigned && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-600 text-[9px] font-semibold"
+              data-testid="badge-assistant-self-assigned"
+            >
+              Self-assigned
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <code
+            className="font-mono text-[9px] text-slate-500 truncate"
+            data-testid="text-assistant-pubkey"
+          >
+            {truncateMid(assistantPubkey)}
+          </code>
+          <MiniCopy text={assistantPubkey} testId="button-copy-assistant-pubkey" />
+        </div>
+      </div>
+
+      {query.isLoading ? (
+        <div className="space-y-2" data-testid="status-assistant-kind0-loading">
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+              <div className="h-2.5 w-24 bg-slate-100 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+      ) : query.isError ? (
+        <div
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          data-testid="status-assistant-kind0-error"
+        >
+          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          <p className="text-[10px] text-red-700">
+            Failed to fetch assistant kind 0 from relays.
+          </p>
+        </div>
+      ) : !event || !profile ? (
+        <div
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
+          data-testid="status-assistant-kind0-empty"
+        >
+          <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+          <p className="text-[10px] text-slate-600">
+            {event
+              ? "Assistant kind 0 found but content could not be parsed."
+              : "No kind 0 metadata found on relays for assigned assistant."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <Avatar className="h-10 w-10 border border-slate-200">
+              <AvatarImage src={profile.picture} alt={displayName} />
+              <AvatarFallback className="text-[10px] bg-slate-100 text-slate-500">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p
+                className="text-[12px] font-semibold text-slate-800 truncate"
+                data-testid="text-assistant-display-name"
+              >
+                {displayName}
+              </p>
+              {profile.nip05 && (
+                <p
+                  className="text-[10px] text-slate-500 truncate"
+                  data-testid="text-assistant-nip05"
+                >
+                  {profile.nip05}
+                </p>
+              )}
+              {isAssistant && profile.website && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Sparkles className="h-3 w-3 text-emerald-500" />
+                  <a
+                    href={profile.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-700 hover:underline truncate"
+                    data-testid="link-assistant-website"
+                  >
+                    {profile.website}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {profile.about && (
+            <p
+              className="text-[10px] text-slate-600 leading-snug line-clamp-2"
+              data-testid="text-assistant-about"
+            >
+              {profile.about}
+            </p>
+          )}
+
+          <div
+            className="flex items-center gap-1.5 text-[10px] text-slate-500"
+            data-testid="text-assistant-created-at"
+          >
+            <Info className="h-3 w-3 text-slate-400" />
+            <span>Published {formatTimestamp(event.created_at)}</span>
+          </div>
+
+          <RawJsonBlock value={event} testIdPrefix="raw-assistant-kind0" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Kind0Panel({
+  pubkey,
+  assistantPubkey,
+  selfAssigned,
+}: {
+  pubkey: string;
+  assistantPubkey: string | null;
+  selfAssigned: boolean;
+}) {
+  const query = useKind0Query(pubkey);
 
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
@@ -576,6 +736,13 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
           </div>
 
           <RawJsonBlock value={event} testIdPrefix="raw-kind0" />
+
+          {assistantPubkey && (
+            <AssignedAssistantSection
+              assistantPubkey={assistantPubkey}
+              selfAssigned={selfAssigned}
+            />
+          )}
         </div>
       )}
     </PanelShell>
@@ -583,6 +750,20 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
 }
 
 export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | null }) {
+  const nip85Query = useQuery<Nip85HealthCheck>({
+    queryKey: ["admin/nip85-health", pubkey, taPubkey ?? ""],
+    queryFn: () => checkNip85Health(pubkey, taPubkey, STAFF_TIMEOUT_MS),
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  const assistantPubkey =
+    taPubkey ??
+    nip85Query.data?.rankTag.innerPubkey ??
+    nip85Query.data?.followersTag.innerPubkey ??
+    null;
+  const selfAssigned = !!assistantPubkey && assistantPubkey === pubkey;
+
   return (
     <div
       className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm"
@@ -601,8 +782,8 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Nip85Panel pubkey={pubkey} taPubkey={taPubkey} />
-        <Kind0Panel pubkey={pubkey} />
+        <Nip85Panel taPubkey={taPubkey} query={nip85Query} />
+        <Kind0Panel pubkey={pubkey} assistantPubkey={assistantPubkey} selfAssigned={selfAssigned} />
       </div>
     </div>
   );
