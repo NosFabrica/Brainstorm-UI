@@ -319,6 +319,15 @@ export interface Nip85TagCheck {
   relayMatches: boolean;
 }
 
+export interface Nip85TagDetail {
+  index: number;
+  innerPubkey: string | null;
+  relayHint: string | null;
+  pubkeyMatches: boolean;
+  relayMatches: boolean;
+  isWinner: boolean;
+}
+
 export interface Nip85HealthCheck {
   expectedTaPubkey: string | null;
   expectedRelay: string;
@@ -327,6 +336,8 @@ export interface Nip85HealthCheck {
   createdAt: number | null;
   rankTag: Nip85TagCheck;
   followersTag: Nip85TagCheck;
+  rankTags: Nip85TagDetail[];
+  followersTags: Nip85TagDetail[];
   rawEvent: NostrEvent | null;
 }
 
@@ -356,6 +367,8 @@ export async function checkNip85Health(
     createdAt: event?.created_at ?? null,
     rankTag: { ...EMPTY_TAG_CHECK },
     followersTag: { ...EMPTY_TAG_CHECK },
+    rankTags: [],
+    followersTags: [],
     rawEvent: event ?? null,
   };
 
@@ -380,8 +393,9 @@ export async function checkNip85Health(
     let bestTag: string[] | null = null;
     let pubkeyMatchTag: string[] | null = null;
     let relayMatchTag: string[] | null = null;
+    const details: Nip85TagDetail[] = [];
 
-    for (const tag of matching) {
+    matching.forEach((tag, idx) => {
       const inner = typeof tag[1] === "string" ? tag[1] : null;
       const hint = typeof tag[2] === "string" ? tag[2] : null;
       const pubkeyOk = !!expectedTaPubkey && inner === expectedTaPubkey;
@@ -397,13 +411,25 @@ export async function checkNip85Health(
         relayMatchTag = relayMatchTag ?? tag;
       }
       if (pubkeyOk && relayOk) {
-        bestTag = tag;
+        bestTag = bestTag ?? tag;
       }
-    }
+      details.push({
+        index: idx,
+        innerPubkey: inner,
+        relayHint: hint,
+        pubkeyMatches: pubkeyOk,
+        relayMatches: relayOk,
+        isWinner: false,
+      });
+    });
 
     // Prefer the fully-matching tag for display; otherwise prefer one matching
     // pubkey, then one matching relay, then the first tag we saw.
     const display = bestTag ?? pubkeyMatchTag ?? relayMatchTag ?? matching[0];
+    const winnerIdx = matching.indexOf(display);
+    if (winnerIdx >= 0 && details[winnerIdx]) {
+      details[winnerIdx].isWinner = true;
+    }
     const inner = typeof display[1] === "string" ? display[1] : null;
     const hint = typeof display[2] === "string" ? display[2] : null;
 
@@ -414,6 +440,8 @@ export async function checkNip85Health(
       pubkeyMatches: anyPubkeyMatches,
       relayMatches: anyRelayMatches,
     };
+    if (slot === "rankTag") result.rankTags = details;
+    else result.followersTags = details;
   }
 
   return result;

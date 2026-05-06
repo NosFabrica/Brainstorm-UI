@@ -21,6 +21,7 @@ import {
   getNip85RelayUrl,
   type Nip85HealthCheck,
   type Nip85TagCheck,
+  type Nip85TagDetail,
 } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import type { NostrEvent } from "applesauce-core/helpers";
@@ -58,6 +59,18 @@ function classifyTag(tag: Nip85TagCheck, expectedRelayConfigured: boolean, hasTa
   return { pubkeyStatus, relayStatus };
 }
 
+function hasStaleDuplicate(tags: Nip85TagDetail[] | undefined, hasTaPubkey: boolean, expectedRelayConfigured: boolean): boolean {
+  if (!tags || tags.length <= 1) return false;
+  return tags.some((t) => {
+    if (!t.isWinner) {
+      const pubkeyBad = hasTaPubkey && !t.pubkeyMatches;
+      const relayBad = expectedRelayConfigured && !t.relayMatches;
+      return pubkeyBad || relayBad;
+    }
+    return false;
+  });
+}
+
 function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolean): {
   label: string;
   tone: CheckStatus;
@@ -76,6 +89,12 @@ function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolea
     checks.push(health.rankTag.relayMatches ? "ok" : "error");
     checks.push(health.followersTag.relayMatches ? "ok" : "error");
   } else {
+    checks.push("warn");
+  }
+  if (
+    hasStaleDuplicate(health.rankTags, hasTaPubkey, health.expectedRelayConfigured) ||
+    hasStaleDuplicate(health.followersTags, hasTaPubkey, health.expectedRelayConfigured)
+  ) {
     checks.push("warn");
   }
   if (checks.includes("error")) return { label: "Issues found", tone: "error" };
@@ -261,6 +280,233 @@ function isLikelyBrainstormWebsite(website: string | undefined): boolean {
   return false;
 }
 
+function TagDetailCard({
+  detail,
+  slotLabel,
+  hasTaPubkey,
+  expectedRelayConfigured,
+  testIdPrefix,
+}: {
+  detail: Nip85TagDetail;
+  slotLabel: string;
+  hasTaPubkey: boolean;
+  expectedRelayConfigured: boolean;
+  testIdPrefix: string;
+}) {
+  const pubkeyTone: CheckStatus = !hasTaPubkey
+    ? "neutral"
+    : detail.pubkeyMatches
+    ? "ok"
+    : "error";
+  const relayTone: CheckStatus = !expectedRelayConfigured
+    ? "warn"
+    : detail.relayMatches
+    ? "ok"
+    : "error";
+  // Only treat as fully "Active" when this tag is the winner AND both checks
+  // pass on this same tag — matches isUsingBrainstorm conjunction semantics.
+  // A winner picked as a partial-match fallback is shown as "Best match" amber
+  // so admins don't get a misleading green status.
+  const isFullyActive =
+    detail.isWinner &&
+    (!hasTaPubkey || detail.pubkeyMatches) &&
+    (!expectedRelayConfigured || detail.relayMatches);
+  const cardTone: CheckStatus = isFullyActive
+    ? "ok"
+    : detail.isWinner
+    ? "warn"
+    : pubkeyTone === "error" || relayTone === "error"
+    ? "warn"
+    : "neutral";
+  const cardClasses: Record<CheckStatus, string> = {
+    ok: "border-emerald-200 bg-emerald-50/40",
+    warn: "border-amber-200 bg-amber-50/40",
+    error: "border-red-200 bg-red-50/40",
+    neutral: "border-slate-200 bg-slate-50/60",
+  };
+  return (
+    <div
+      className={`rounded-lg border ${cardClasses[cardTone]} p-2 space-y-1.5`}
+      data-testid={`${testIdPrefix}-card`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+            {slotLabel} #{detail.index + 1}
+          </span>
+          {isFullyActive ? (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-bold uppercase tracking-wider"
+              data-testid={`${testIdPrefix}-winner`}
+            >
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Active
+            </span>
+          ) : detail.isWinner ? (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              data-testid={`${testIdPrefix}-best-match`}
+            >
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Best match
+            </span>
+          ) : cardTone === "warn" ? (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              data-testid={`${testIdPrefix}-stale`}
+            >
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Stale
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[8px] font-bold uppercase tracking-wider"
+              data-testid={`${testIdPrefix}-duplicate`}
+            >
+              Duplicate
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
+              pubkeyTone === "ok"
+                ? "text-emerald-600"
+                : pubkeyTone === "error"
+                ? "text-red-600"
+                : "text-slate-400"
+            }`}
+            data-testid={`${testIdPrefix}-pubkey-status`}
+          >
+            <StatusIcon status={pubkeyTone} className="h-3 w-3" />
+            Pubkey
+          </span>
+          <span
+            className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
+              relayTone === "ok"
+                ? "text-emerald-600"
+                : relayTone === "error"
+                ? "text-red-600"
+                : "text-amber-600"
+            }`}
+            data-testid={`${testIdPrefix}-relay-status`}
+          >
+            <StatusIcon status={relayTone} className="h-3 w-3" />
+            Relay
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-1">
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold w-12 shrink-0">
+            Pubkey
+          </span>
+          <code
+            className="font-mono text-[9px] text-slate-700 truncate flex-1"
+            data-testid={`${testIdPrefix}-pubkey-value`}
+          >
+            {detail.innerPubkey || "—"}
+          </code>
+          {detail.innerPubkey && (
+            <MiniCopy text={detail.innerPubkey} testId={`button-copy-${testIdPrefix}-pubkey`} />
+          )}
+        </div>
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold w-12 shrink-0">
+            Relay
+          </span>
+          <code
+            className="font-mono text-[9px] text-slate-700 truncate flex-1"
+            data-testid={`${testIdPrefix}-relay-value`}
+          >
+            {detail.relayHint || "—"}
+          </code>
+          {detail.relayHint && (
+            <MiniCopy text={detail.relayHint} testId={`button-copy-${testIdPrefix}-relay`} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AllTagsDisclosure({
+  tags,
+  slotLabel,
+  hasTaPubkey,
+  expectedRelayConfigured,
+  testIdPrefix,
+}: {
+  tags: Nip85TagDetail[] | undefined;
+  slotLabel: string;
+  hasTaPubkey: boolean;
+  expectedRelayConfigured: boolean;
+  testIdPrefix: string;
+}) {
+  const safeTags = tags ?? [];
+  const hasIssues = safeTags.some(
+    (t) =>
+      !t.isWinner &&
+      ((hasTaPubkey && !t.pubkeyMatches) || (expectedRelayConfigured && !t.relayMatches)),
+  );
+  const [open, setOpen] = useState(hasIssues);
+  if (safeTags.length <= 1) return null;
+  const listId = `${testIdPrefix}-list`;
+  return (
+    <div className="mt-1 mb-1.5" data-testid={`${testIdPrefix}-disclosure`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={listId}
+        className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border transition-colors ${
+          hasIssues
+            ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+            : "border-slate-200 bg-slate-50/60 hover:bg-slate-100"
+        }`}
+        data-testid={`${testIdPrefix}-toggle`}
+      >
+        <div className="flex items-center gap-1.5">
+          {open ? (
+            <ChevronDown className="h-3 w-3 text-slate-500" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-slate-500" />
+          )}
+          <span className="text-[10px] font-semibold text-slate-700">
+            {safeTags.length} {slotLabel} tags published
+          </span>
+          {hasIssues && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              data-testid={`${testIdPrefix}-issues-badge`}
+            >
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Stale tags
+            </span>
+          )}
+        </div>
+        <span className="text-[9px] text-slate-500">
+          {open ? "Hide details" : "Show all"}
+        </span>
+      </button>
+      {open && (
+        <div id={listId} className="mt-1.5 space-y-1.5" data-testid={`${testIdPrefix}-list`}>
+          {safeTags.map((detail) => (
+            <TagDetailCard
+              key={`${slotLabel}-${detail.index}`}
+              detail={detail}
+              slotLabel={slotLabel}
+              hasTaPubkey={hasTaPubkey}
+              expectedRelayConfigured={expectedRelayConfigured}
+              testIdPrefix={`${testIdPrefix}-tag-${detail.index}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PanelShell({
   title,
   icon,
@@ -387,6 +633,7 @@ function Nip85Panel({
               {(["rankTag", "followersTag"] as const).map((slot) => {
                 const tag = data[slot];
                 const slotLabel = slot === "rankTag" ? "rank" : "followers";
+                const allTags = slot === "rankTag" ? data.rankTags : data.followersTags;
                 if (!tag.present) return null;
                 const { pubkeyStatus, relayStatus } = classifyTag(
                   tag,
@@ -435,6 +682,13 @@ function Nip85Panel({
                         />
                       )}
                     </CheckRow>
+                    <AllTagsDisclosure
+                      tags={allTags}
+                      slotLabel={slotLabel}
+                      hasTaPubkey={hasTaPubkey}
+                      expectedRelayConfigured={data.expectedRelayConfigured}
+                      testIdPrefix={`all-${slotLabel}-tags`}
+                    />
                   </div>
                 );
               })}
