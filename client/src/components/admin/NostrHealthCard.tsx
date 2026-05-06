@@ -908,14 +908,47 @@ function AssignedAssistantSection({
   );
 }
 
+function AssistantPendingPlaceholder() {
+  return (
+    <div
+      className="mt-3 pt-3 border-t border-slate-200"
+      data-testid="section-assigned-assistant-pending"
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <AssistantIcon className="h-4 w-4 text-slate-300 shrink-0" />
+          <p
+            className="font-bold text-[11px] text-slate-400"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Assigned Brainstorm Assistant
+          </p>
+        </div>
+        <span className="text-[9px] text-slate-400 font-medium">Resolving…</span>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+            <div className="h-2.5 w-24 bg-slate-100 rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Kind0Panel({
   pubkey,
   assistantPubkey,
   selfAssigned,
+  assistantResolving,
 }: {
   pubkey: string;
   assistantPubkey: string | null;
   selfAssigned: boolean;
+  assistantResolving: boolean;
 }) {
   const query = useKind0Query(pubkey);
 
@@ -1029,12 +1062,14 @@ function Kind0Panel({
         </div>
       )}
 
-      {assistantPubkey && (
+      {assistantPubkey ? (
         <AssignedAssistantSection
           assistantPubkey={assistantPubkey}
           selfAssigned={selfAssigned}
         />
-      )}
+      ) : assistantResolving ? (
+        <AssistantPendingPlaceholder />
+      ) : null}
     </PanelShell>
   );
 }
@@ -1053,6 +1088,10 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
     nip85Query.data?.followersTag.innerPubkey ??
     null;
   const selfAssigned = !!assistantPubkey && assistantPubkey === pubkey;
+  // While we're still waiting on the 10040 to resolve the assistant pubkey
+  // (only matters when no admin TA is assigned), render a placeholder so the
+  // right column doesn't briefly look like the assistant section is missing.
+  const assistantResolving = !taPubkey && nip85Query.isLoading;
 
   return (
     <div
@@ -1073,7 +1112,12 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Nip85Panel taPubkey={taPubkey} query={nip85Query} />
-        <Kind0Panel pubkey={pubkey} assistantPubkey={assistantPubkey} selfAssigned={selfAssigned} />
+        <Kind0Panel
+          pubkey={pubkey}
+          assistantPubkey={assistantPubkey}
+          selfAssigned={selfAssigned}
+          assistantResolving={assistantResolving}
+        />
       </div>
     </div>
   );
