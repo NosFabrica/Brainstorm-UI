@@ -385,9 +385,9 @@ export async function checkNip85Health(
       const inner = typeof tag[1] === "string" ? tag[1] : null;
       const hint = typeof tag[2] === "string" ? tag[2] : null;
       const pubkeyOk = !!expectedTaPubkey && inner === expectedTaPubkey;
-      // Preserve loose-equality semantics from isUsingBrainstorm.
-      // eslint-disable-next-line eqeqeq
-      const relayOk = expectedRelayConfigured && (hint as any) == expectedRelay;
+      // Preserve loose-equality semantics from isUsingBrainstorm by normalizing
+      // both sides to strings before strict comparison.
+      const relayOk = expectedRelayConfigured && hint !== null && String(hint) === String(expectedRelay);
       if (pubkeyOk) {
         anyPubkeyMatches = true;
         pubkeyMatchTag = pubkeyMatchTag ?? tag;

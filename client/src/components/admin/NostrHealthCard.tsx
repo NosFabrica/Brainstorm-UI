@@ -23,6 +23,17 @@ import {
 } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 
+interface AdminProfileFields {
+  name?: string;
+  display_name?: string;
+  about?: string;
+  picture?: string;
+  nip05?: string;
+  website?: string;
+}
+
+type AdminProfile = ProfileContent & AdminProfileFields;
+
 const STAFF_TIMEOUT_MS = 8000;
 
 type CheckStatus = "ok" | "warn" | "error" | "neutral";
@@ -66,7 +77,7 @@ function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolea
     checks.push("warn");
   }
   if (checks.includes("error")) return { label: "Issues found", tone: "error" };
-  if (checks.includes("warn")) return { label: "Configuration warning", tone: "warn" };
+  if (checks.includes("warn")) return { label: "Issues found", tone: "warn" };
   return { label: "Healthy", tone: "ok" };
 }
 
@@ -428,18 +439,20 @@ function Nip85Panel({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | n
 }
 
 function Kind0Panel({ pubkey }: { pubkey: string }) {
-  const query = useQuery<{ profile: ProfileContent | null }>({
+  const query = useQuery<{ profile: AdminProfile | null }>({
     queryKey: ["admin/kind0-profile", pubkey],
     queryFn: async () => {
       const profile = await fetchProfile(pubkey, STAFF_TIMEOUT_MS);
-      return { profile: profile ?? null };
+      return { profile: (profile as AdminProfile | undefined) ?? null };
     },
     staleTime: 60_000,
     retry: 0,
   });
 
   const profile = query.data?.profile;
-  const isAssistant = isLikelyBrainstormWebsite((profile as any)?.website);
+  const isAssistant = isLikelyBrainstormWebsite(profile?.website);
+  const displayName = profile?.display_name || profile?.name || "(no name)";
+  const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
 
   const pill = query.isLoading ? (
     <StatusPill tone="neutral" label="Loading" testId="status-kind0-overall" />
@@ -490,40 +503,40 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
         <div className="space-y-2">
           <div className="flex items-start gap-2">
             <Avatar className="h-10 w-10 border border-slate-200">
-              <AvatarImage src={(profile as any).picture} alt={(profile as any).display_name || (profile as any).name || "profile"} />
+              <AvatarImage src={profile.picture} alt={displayName} />
               <AvatarFallback className="text-[10px] bg-slate-100 text-slate-500">
-                {((profile as any).display_name || (profile as any).name || "?").slice(0, 2).toUpperCase()}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <p className="text-[12px] font-semibold text-slate-800 truncate" data-testid="text-kind0-display-name">
-                {(profile as any).display_name || (profile as any).name || "(no name)"}
+                {displayName}
               </p>
-              {(profile as any).nip05 && (
+              {profile.nip05 && (
                 <p className="text-[10px] text-slate-500 truncate" data-testid="text-kind0-nip05">
-                  {(profile as any).nip05}
+                  {profile.nip05}
                 </p>
               )}
-              {isAssistant && (profile as any).website && (
+              {isAssistant && profile.website && (
                 <div className="flex items-center gap-1 mt-0.5">
                   <Sparkles className="h-3 w-3 text-emerald-500" />
                   <a
-                    href={(profile as any).website}
+                    href={profile.website}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[10px] text-emerald-700 hover:underline truncate"
                     data-testid="link-kind0-website"
                   >
-                    {(profile as any).website}
+                    {profile.website}
                   </a>
                 </div>
               )}
             </div>
           </div>
 
-          {(profile as any).about && (
+          {profile.about && (
             <p className="text-[10px] text-slate-600 leading-snug line-clamp-2" data-testid="text-kind0-about">
-              {(profile as any).about}
+              {profile.about}
             </p>
           )}
 
