@@ -579,14 +579,16 @@ function AssignedAssistantSection({
                   {profile.nip05}
                 </p>
               )}
-              {isAssistant && profile.website && (
+              {profile.website && (
                 <div className="flex items-center gap-1 mt-0.5">
-                  <Sparkles className="h-3 w-3 text-emerald-500" />
+                  {isAssistant && <Sparkles className="h-3 w-3 text-emerald-500 shrink-0" />}
                   <a
                     href={profile.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[10px] text-emerald-700 hover:underline truncate"
+                    className={`text-[10px] hover:underline truncate ${
+                      isAssistant ? "text-emerald-700" : "text-slate-600"
+                    }`}
                     data-testid="link-assistant-website"
                   >
                     {profile.website}
@@ -687,7 +689,7 @@ function Kind0Panel({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" data-testid="status-kind0-success">
           <div className="flex items-start gap-2">
             <Avatar className="h-10 w-10 border border-slate-200">
               <AvatarImage src={profile.picture} alt={displayName} />
@@ -704,14 +706,16 @@ function Kind0Panel({
                   {profile.nip05}
                 </p>
               )}
-              {isAssistant && profile.website && (
+              {profile.website && (
                 <div className="flex items-center gap-1 mt-0.5">
-                  <Sparkles className="h-3 w-3 text-emerald-500" />
+                  {isAssistant && <Sparkles className="h-3 w-3 text-emerald-500 shrink-0" />}
                   <a
                     href={profile.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[10px] text-emerald-700 hover:underline truncate"
+                    className={`text-[10px] hover:underline truncate ${
+                      isAssistant ? "text-emerald-700" : "text-slate-600"
+                    }`}
                     data-testid="link-kind0-website"
                   >
                     {profile.website}
@@ -736,14 +740,14 @@ function Kind0Panel({
           </div>
 
           <RawJsonBlock value={event} testIdPrefix="raw-kind0" />
-
-          {assistantPubkey && (
-            <AssignedAssistantSection
-              assistantPubkey={assistantPubkey}
-              selfAssigned={selfAssigned}
-            />
-          )}
         </div>
+      )}
+
+      {assistantPubkey && (
+        <AssignedAssistantSection
+          assistantPubkey={assistantPubkey}
+          selfAssigned={selfAssigned}
+        />
       )}
     </PanelShell>
   );
