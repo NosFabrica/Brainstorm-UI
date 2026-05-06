@@ -521,7 +521,7 @@ function AssignedAssistantSection({
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <AssistantIcon className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          <AssistantIcon className="h-4 w-4 text-emerald-500 shrink-0" />
           <p
             className="font-bold text-[11px] text-slate-800"
             style={{ fontFamily: "var(--font-display)" }}
