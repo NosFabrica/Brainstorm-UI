@@ -289,89 +289,14 @@ export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): P
   return undefined;
 }
 
-// Collect replaceable-event candidates across relays for a short settle window
-// after each *newer* match arrives, then return the one with the highest
-// created_at. Returns undefined on timeout/error/no events. Settling protects
-// us from picking a stale copy when one relay answers fast and another holds
-// a newer revision — important for kind 10040 which is admin-debug-critical.
-// The settle timer resets every time we see a strictly newer event, capped by
-// the overall timeoutMs so worst-case latency is still bounded.
-async function fetchLatestReplaceable(
-  relays: string[],
-  filter: Parameters<typeof pool.request>[1],
-  timeoutMs: number,
-  settleMs = 600,
-): Promise<NostrEvent | undefined> {
-  return new Promise<NostrEvent | undefined>((resolve) => {
-    let best: NostrEvent | undefined;
-    let resolved = false;
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    const overall = setTimeout(() => finish(), timeoutMs);
-    const sub = pool.request(relays, filter).subscribe({
-      next: (event) => {
-        const ev = event as NostrEvent;
-        const isNewer = !best || ev.created_at > best.created_at;
-        if (isNewer) {
-          best = ev;
-          // Reset the settle window so a newer revision arriving slightly
-          // after a fast stale relay still gets picked up.
-          if (settleTimer) clearTimeout(settleTimer);
-          settleTimer = setTimeout(() => finish(), settleMs);
-        } else if (!settleTimer) {
-          // First event ever (but not strictly newer than nothing — defensive)
-          settleTimer = setTimeout(() => finish(), settleMs);
-        }
-      },
-      error: () => finish(),
-      complete: () => finish(),
-    });
-
-    function finish() {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(overall);
-      if (settleTimer) clearTimeout(settleTimer);
-      try { sub.unsubscribe(); } catch {}
-      resolve(best);
-    }
-  });
-}
-
-// Normalize a relay URL for dedup: trim whitespace, lowercase, strip a
-// single trailing slash. Outbox relays often store wss://x/ and wss://x as
-// distinct entries; without normalizing we'd query the same relay twice.
-function normalizeRelayUrl(url: string): string {
-  return url.trim().toLowerCase().replace(/\/+$/, "");
-}
-
-function dedupRelays(urls: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const u of urls) {
-    if (!u) continue;
-    const key = normalizeRelayUrl(u);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(u);
-  }
-  return out;
-}
-
 export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
   try {
-    const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
-    // Query the NIP-85 relay first — Brainstorm publishes 10040 there, and
-    // most general-purpose relays don't carry kind 10040. Outbox relays remain
-    // a fallback so we still find events published elsewhere. Dedup with URL
-    // normalization so trailing-slash variants don't double up.
-    const nip85 = NIP85_RELAY_URL;
-    const writeRelays = nip85 ? dedupRelays([nip85, ...baseRelays]) : dedupRelays(baseRelays);
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
 
-    const event = await fetchLatestReplaceable(
-      writeRelays,
-      { kinds: [10040], authors: [pubkey] },
-      timeoutMs,
-    );
+    const event = await Promise.race([
+      firstValueFrom(pool.request(writeRelays, { kinds: [10040], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
 
     if (!event) return undefined;
 
@@ -379,7 +304,7 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
       eventStore.add(event as any);
     } catch {}
 
-    return event;
+    return event as NostrEvent;
   } catch {}
 
   return undefined;
