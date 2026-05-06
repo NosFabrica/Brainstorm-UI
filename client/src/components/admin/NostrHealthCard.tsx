@@ -78,7 +78,7 @@ function overallStatus(health: Nip85HealthCheck | undefined, hasTaPubkey: boolea
     checks.push("warn");
   }
   if (checks.includes("error")) return { label: "Issues found", tone: "error" };
-  if (checks.includes("warn")) return { label: "Config missing", tone: "neutral" };
+  if (checks.includes("warn")) return { label: "Issues found", tone: "warn" };
   return { label: "Healthy", tone: "ok" };
 }
 

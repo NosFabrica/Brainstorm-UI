@@ -555,30 +555,16 @@ export async function fetchProfileEvent(pubkey: string, timeoutMs = 10000): Prom
 }
 
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
-  try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-    const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
-
-    if (!event) return undefined;
-
+  const event = await fetchProfileEvent(pubkey, timeoutMs);
+  if (!event) return undefined;
+  if (isValidProfile(event as any)) {
+    return getProfileContent(event as any);
+  }
+  if (typeof event.content === "string") {
     try {
-      eventStore.add(event as any);
+      return JSON.parse(event.content) as ProfileContent;
     } catch {}
-
-    if (isValidProfile(event as any)) {
-      return getProfileContent(event as any);
-    }
-
-    if (typeof event.content === "string") {
-      try {
-        return JSON.parse(event.content) as ProfileContent;
-      } catch {}
-    }
-  } catch {}
-
+  }
   return undefined;
 }
 
