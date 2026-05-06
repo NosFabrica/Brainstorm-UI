@@ -540,9 +540,15 @@ export async function publishAssistantPointer(
   }
 }
 
-export async function fetchProfileEvent(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+export async function fetchProfileEvent(
+  pubkey: string,
+  timeoutMs = 10000,
+  extraRelays: string[] = [],
+): Promise<NostrEvent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
+    const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   checkNip85Health,
   fetchProfileEvent,
+  getNip85RelayUrl,
   type Nip85HealthCheck,
   type Nip85TagCheck,
 } from "@/services/nostr";
@@ -486,12 +487,14 @@ function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
   }
 }
 
-function useKind0Query(pubkey: string | null) {
+function useKind0Query(pubkey: string | null, extraRelays: string[] = []) {
+  const extrasKey = extraRelays.filter((r) => r.length > 0).sort().join(",");
   return useQuery<Kind0QueryResult>({
-    queryKey: ["admin/kind0-profile", pubkey ?? ""],
+    queryKey: ["admin/kind0-profile", pubkey ?? "", extrasKey],
     queryFn: async () => {
       if (!pubkey) return { event: null, profile: null };
-      const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS)) ?? null;
+      const event =
+        (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS, extraRelays)) ?? null;
       return { event, profile: parseProfileFromEvent(event) };
     },
     enabled: !!pubkey,
@@ -507,7 +510,11 @@ function AssignedAssistantSection({
   assistantPubkey: string;
   selfAssigned: boolean;
 }) {
-  const query = useKind0Query(assistantPubkey);
+  const assistantExtraRelays = useMemo(() => {
+    const url = getNip85RelayUrl();
+    return url ? [url] : [];
+  }, []);
+  const query = useKind0Query(assistantPubkey, assistantExtraRelays);
   const event = query.data?.event ?? null;
   const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
