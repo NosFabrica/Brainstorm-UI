@@ -245,15 +245,18 @@ function truncateMid(s: string | null, head = 10, tail = 6): string {
 
 function isLikelyBrainstormWebsite(website: string | undefined): boolean {
   if (!website || typeof website !== "string") return false;
-  const lower = website.toLowerCase();
-  if (lower.includes("brainstorm")) return true;
-  if (lower.includes("nosfabrica")) return true;
+  let host: string | null = null;
   try {
-    const host = new URL(website).host.toLowerCase();
-    if (typeof window !== "undefined" && window.location?.host && host === window.location.host.toLowerCase()) {
-      return true;
-    }
-  } catch {}
+    host = new URL(website).host.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!host) return false;
+  if (typeof window !== "undefined" && window.location?.host && host === window.location.host.toLowerCase()) {
+    return true;
+  }
+  if (host === "brainstorm.world" || host.endsWith(".brainstorm.world")) return true;
+  if (host === "nosfabrica.com" || host.endsWith(".nosfabrica.com")) return true;
   return false;
 }
 
@@ -313,18 +316,22 @@ function Nip85Panel({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | n
   const data = query.data;
   const hasTaPubkey = !!taPubkey;
   const overall = overallStatus(query.isLoading ? undefined : data, hasTaPubkey);
+  const pillTone: CheckStatus = query.isLoading
+    ? "neutral"
+    : query.isError
+    ? "error"
+    : overall.tone;
+  const pillLabel = query.isLoading
+    ? "Loading"
+    : query.isError
+    ? "Fetch failed"
+    : overall.label;
 
   return (
     <PanelShell
       title="Trust Provider List (kind 10040)"
       icon={<Radio className="h-3.5 w-3.5 text-[#333286]" />}
-      pill={
-        <StatusPill
-          tone={query.isLoading ? "neutral" : overall.tone}
-          label={query.isLoading ? "Loading" : overall.label}
-          testId="status-nip85-overall"
-        />
-      }
+      pill={<StatusPill tone={pillTone} label={pillLabel} testId="status-nip85-overall" />}
       testId="card-nip85-health"
     >
       {!hasTaPubkey && (
@@ -472,6 +479,8 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
 
   const pill = query.isLoading ? (
     <StatusPill tone="neutral" label="Loading" testId="status-kind0-overall" />
+  ) : query.isError ? (
+    <StatusPill tone="error" label="Fetch failed" testId="status-kind0-overall" />
   ) : !profile ? (
     <StatusPill tone="error" label="Missing" testId="status-kind0-overall" />
   ) : isAssistant ? (
