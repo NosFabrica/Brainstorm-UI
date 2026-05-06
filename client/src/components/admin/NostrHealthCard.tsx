@@ -17,11 +17,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import {
   checkNip85Health,
-  fetchProfile,
+  fetchProfileEvent,
   type Nip85HealthCheck,
   type Nip85TagCheck,
 } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import type { NostrEvent } from "applesauce-core/helpers";
 
 interface AdminProfileFields {
   name?: string;
@@ -438,18 +439,33 @@ function Nip85Panel({ pubkey, taPubkey }: { pubkey: string; taPubkey: string | n
   );
 }
 
+interface Kind0QueryResult {
+  event: NostrEvent | null;
+  profile: AdminProfile | null;
+}
+
+function parseProfileFromEvent(event: NostrEvent | null): AdminProfile | null {
+  if (!event || typeof event.content !== "string") return null;
+  try {
+    return JSON.parse(event.content) as AdminProfile;
+  } catch {
+    return null;
+  }
+}
+
 function Kind0Panel({ pubkey }: { pubkey: string }) {
-  const query = useQuery<{ profile: AdminProfile | null }>({
+  const query = useQuery<Kind0QueryResult>({
     queryKey: ["admin/kind0-profile", pubkey],
     queryFn: async () => {
-      const profile = await fetchProfile(pubkey, STAFF_TIMEOUT_MS);
-      return { profile: (profile as AdminProfile | undefined) ?? null };
+      const event = (await fetchProfileEvent(pubkey, STAFF_TIMEOUT_MS)) ?? null;
+      return { event, profile: parseProfileFromEvent(event) };
     },
     staleTime: 60_000,
     retry: 0,
   });
 
-  const profile = query.data?.profile;
+  const event = query.data?.event ?? null;
+  const profile = query.data?.profile ?? null;
   const isAssistant = isLikelyBrainstormWebsite(profile?.website);
   const displayName = profile?.display_name || profile?.name || "(no name)";
   const initials = (profile?.display_name || profile?.name || "?").slice(0, 2).toUpperCase();
@@ -491,13 +507,15 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
           <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
           <p className="text-[10px] text-red-700">Failed to fetch kind 0 from relays.</p>
         </div>
-      ) : !profile ? (
+      ) : !event || !profile ? (
         <div
           className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
           data-testid="status-kind0-empty"
         >
           <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-          <p className="text-[10px] text-slate-600">No kind 0 metadata found on relays.</p>
+          <p className="text-[10px] text-slate-600">
+            {event ? "Kind 0 event found but content could not be parsed." : "No kind 0 metadata found on relays."}
+          </p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -540,7 +558,15 @@ function Kind0Panel({ pubkey }: { pubkey: string }) {
             </p>
           )}
 
-          <RawJsonBlock value={profile} testIdPrefix="raw-kind0" />
+          <div
+            className="flex items-center gap-1.5 text-[10px] text-slate-500"
+            data-testid="text-kind0-created-at"
+          >
+            <Info className="h-3 w-3 text-slate-400" />
+            <span>Published {formatTimestamp(event.created_at)}</span>
+          </div>
+
+          <RawJsonBlock value={event} testIdPrefix="raw-kind0" />
         </div>
       )}
     </PanelShell>

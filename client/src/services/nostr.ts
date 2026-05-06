@@ -540,6 +540,20 @@ export async function publishAssistantPointer(
   }
 }
 
+export async function fetchProfileEvent(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+  try {
+    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const event = await Promise.race([
+      firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
+    ]);
+    if (!event) return undefined;
+    try { eventStore.add(event as any); } catch {}
+    return event as NostrEvent;
+  } catch {}
+  return undefined;
+}
+
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
