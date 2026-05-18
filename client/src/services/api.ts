@@ -267,6 +267,33 @@ export const apiClient = {
     return await response.json();
   },
 
+  async searchByText(
+    text: string,
+    onlyRanked: boolean = true,
+    timeoutMs: number = 15000,
+  ): Promise<{
+    code: number;
+    message: string | null;
+    data: {
+      query: string;
+      numResults: number;
+      results: Array<Record<string, unknown>>;
+    };
+  }> {
+    const params = new URLSearchParams({
+      text,
+      onlyRanked: String(onlyRanked),
+    });
+    const response = await fetch(
+      `${getBrainstormApi()}/search/byText?${params.toString()}`,
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Search failed (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async getGrapeRankPreset(): Promise<{
     code?: number;
     message?: string;

@@ -53,8 +53,6 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 
 type SearchPov = "nosfabrica" | "mywot";
 
-const MEILI_API = "https://brainstorm.world/api/search/profiles/meili";
-
 interface SearchResult {
   pubkey: string;
   npub: string;
@@ -71,85 +69,67 @@ interface SearchResult {
   wotFollowers?: number | null;
 }
 
-interface MeiliResponse {
-  success: boolean;
-  hits: MeiliHit[];
-  estimatedTotalHits?: number;
-  processingTimeMs?: number;
-  povSuffix?: string;
-  nip05Result?: { pubkey: string; npub: string } | null;
-}
+function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult | null {
+  const pubkey = typeof hit.pubkey === "string" ? hit.pubkey : null;
+  if (!pubkey) return null;
 
-interface MeiliHit {
-  pubkey: string;
-  npub: string;
-  name?: string;
-  display_name?: string;
-  displayName?: string;
-  picture?: string;
-  about?: string;
-  nip05?: string;
-  website?: string;
-  lud16?: string;
-  banner?: string;
-  created_at?: number;
-  wot_rank?: number;
-  wot_followers?: number;
-}
+  let npub: string;
+  try {
+    npub = nip19.npubEncode(pubkey);
+  } catch {
+    return null;
+  }
 
-function meiliHitToResult(hit: MeiliHit): SearchResult {
+  // The new /search/byText endpoint returns rank as a dynamic key:
+  // `rank_<taPubkey>` (e.g. `rank_be7bf5de...`: 96). Pick up whichever
+  // rank_* key the server included.
+  let wotRank: number | null = null;
+  for (const key of Object.keys(hit)) {
+    if (key.startsWith("rank_") && typeof hit[key] === "number") {
+      wotRank = hit[key] as number;
+      break;
+    }
+  }
+
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+
   return {
-    pubkey: hit.pubkey,
-    npub: hit.npub,
-    name: hit.name,
-    displayName: hit.display_name || hit.displayName,
-    picture: hit.picture,
-    about: hit.about,
-    nip05: hit.nip05,
-    website: hit.website,
-    lud16: hit.lud16,
-    banner: hit.banner,
-    createdAt: hit.created_at,
-    wotRank: hit.wot_rank ?? null,
-    wotFollowers: hit.wot_followers ?? null,
+    pubkey,
+    npub,
+    name: str(hit.name),
+    displayName: str(hit.display_name) || str(hit.displayName),
+    picture: str(hit.picture),
+    about: str(hit.about),
+    nip05: str(hit.nip05),
+    website: str(hit.website),
+    lud16: str(hit.lud16),
+    banner: str(hit.banner),
+    createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
+    wotRank,
+    wotFollowers: null,
   };
 }
 
-async function searchMeili(
+async function searchByText(
   query: string,
-  pov: SearchPov,
-  userPubkey?: string,
-  limit = 30,
-  offset = 0,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
-  const params = new URLSearchParams({
-    q: query,
-    limit: String(limit),
-    offset: String(offset),
-    wotPov: pov === "nosfabrica" ? "house" : "user",
-  });
-
-  if (pov === "mywot" && userPubkey) {
-    params.set("userPubkey", userPubkey);
+  const start = performance.now();
+  const data = await apiClient.searchByText(query, true);
+  const hits = data?.data?.results || [];
+  const results: SearchResult[] = [];
+  const seen = new Set<string>();
+  for (const h of hits) {
+    const mapped = byTextResultToSearchResult(h);
+    if (!mapped) continue;
+    if (seen.has(mapped.pubkey)) continue;
+    seen.add(mapped.pubkey);
+    results.push(mapped);
   }
-
-  const resp = await fetch(`${MEILI_API}?${params.toString()}`, {
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Search failed: ${resp.status}`);
-  }
-
-  const data: MeiliResponse = await resp.json();
-  if (!data.success) {
-    throw new Error("Search service unavailable");
-  }
-
   return {
-    results: (data.hits || []).map(meiliHitToResult),
-    total: data.estimatedTotalHits || 0,
-    timeMs: data.processingTimeMs || 0,
+    results,
+    total: data?.data?.numResults || results.length,
+    timeMs: Math.round(performance.now() - start),
   };
 }
 
@@ -372,7 +352,7 @@ export default function SearchPage() {
     const start = performance.now();
 
     try {
-      const { results: searchResults, timeMs } = await searchMeili(q, pov, user?.pubkey, 30);
+      const { results: searchResults, timeMs } = await searchByText(q);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));
@@ -561,8 +541,9 @@ export default function SearchPage() {
                         {pov === "nosfabrica" && <Check className="h-3 w-3 text-indigo-400 ml-auto" />}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-emerald-50/40 focus:text-slate-800 ${pov === "mywot" ? "bg-emerald-50/40" : ""}`}
-                        onClick={() => handlePovSwitch("mywot")}
+                        disabled
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md opacity-60 cursor-not-allowed"
+                        title="Coming soon"
                         data-testid="pov-option-mywot"
                       >
                         <Avatar className="h-5 w-5 shrink-0">
@@ -570,7 +551,7 @@ export default function SearchPage() {
                           <AvatarFallback className="bg-slate-100 text-slate-500 font-medium text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
                         <span className="text-[13px] text-slate-700 truncate">{user.displayName || "My WoT"}</span>
-                        {pov === "mywot" && <Check className="h-3 w-3 text-emerald-400 ml-auto" />}
+                        <span className="text-[10px] text-slate-400 ml-auto whitespace-nowrap">Coming soon</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-0.5 bg-slate-100/60" />
                       <DropdownMenuItem
