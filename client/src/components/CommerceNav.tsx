@@ -34,7 +34,7 @@ import { MobileMenu } from "@/components/MobileMenu";
 
 interface CommerceNavProps {
   user: NostrUser | null;
-  pageTitle: string;
+  pageTitle?: string;
 }
 
 export function CommerceNav({ user, pageTitle }: CommerceNavProps) {

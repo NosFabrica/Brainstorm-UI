@@ -23,7 +23,7 @@ export default function BillingPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col relative overflow-hidden" data-testid="page-billing">
       <PageBackground />
-      <CommerceNav user={user} pageTitle="Billing" />
+      <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 w-full">
