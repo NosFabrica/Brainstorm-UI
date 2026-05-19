@@ -143,11 +143,13 @@ export default function CheckoutPage() {
                   className="w-full bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white font-semibold shadow-sm cursor-not-allowed opacity-70"
                   disabled
                   data-testid="button-subscribe"
+                  aria-label="Subscribe — payment integration coming soon"
+                  title="Payment integration coming soon"
                 >
                   <Lock className="h-4 w-4 mr-2" />
-                  Subscribe — ${total}{billingLabel}
+                  Subscribe — ${total}{billingLabel} · Payment integration coming soon
                 </Button>
-                <p className="text-center text-[10px] text-slate-400" data-testid="text-subscribe-disabled">Button disabled until payments go live.</p>
+                <p className="text-center text-[11px] text-slate-500 font-medium" data-testid="text-subscribe-disabled">Payment integration coming soon — this button is intentionally disabled while we finalize our payment provider.</p>
               </div>
             </div>
 

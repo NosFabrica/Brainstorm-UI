@@ -13,7 +13,13 @@ export default function CheckoutSuccessPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const params = new URLSearchParams(window.location.search);
   const plan = params.get("plan") || "monthly";
+  const billing = params.get("billing") === "annual" ? "annual" : "monthly";
   const planName = plan === "bimonthly" ? "Bi-Monthly Pulse" : "Monthly Pulse";
+  const cadence = plan === "bimonthly" ? "Auto-recalc twice a month" : "Auto-recalc once a month";
+  const monthly = plan === "bimonthly" ? 12 : 8;
+  const annual = Math.round(monthly * 12 * 0.84);
+  const total = billing === "annual" ? annual : monthly;
+  const billingLabel = billing === "annual" ? "/yr" : "/mo";
 
   useEffect(() => {
     document.title = "Subscription confirmed — Brainstorm";
@@ -40,7 +46,32 @@ export default function CheckoutSuccessPage() {
                 Welcome to <span className="font-bold text-[#333286]">{planName}</span>. Your trust scores will refresh automatically on the cadence for your plan.
               </p>
 
-              <div className="mt-6 rounded-xl bg-white/80 border border-slate-200 p-4 max-w-md mx-auto text-left" data-testid="card-receipt-info">
+              <div className="mt-6 rounded-xl bg-white/80 border border-[#7c86ff]/20 p-5 max-w-md mx-auto text-left" data-testid="card-order-summary">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#333286] mb-3">Order summary</p>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500 font-medium">Plan</span>
+                    <span className="text-slate-900 font-bold" data-testid="text-summary-plan">{planName}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500 font-medium">Cadence</span>
+                    <span className="text-slate-900 font-semibold" data-testid="text-summary-cadence">{cadence}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500 font-medium">Billing</span>
+                    <span className="text-slate-900 font-semibold capitalize" data-testid="text-summary-billing">{billing}</span>
+                  </div>
+                  <div className="h-px bg-slate-200 my-2" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-700 font-bold">Total</span>
+                    <span className="text-base text-[#333286] font-bold" style={{ fontFamily: "var(--font-display)" }} data-testid="text-summary-total">
+                      ${total}{billingLabel}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-white/80 border border-slate-200 p-4 max-w-md mx-auto text-left" data-testid="card-receipt-info">
                 <div className="flex items-center gap-2 mb-2">
                   <Mail className="h-4 w-4 text-slate-500" />
                   <p className="text-sm font-bold text-slate-700">Receipt on its way</p>

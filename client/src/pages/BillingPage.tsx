@@ -76,6 +76,20 @@ export default function BillingPage() {
                     Upgrade plan
                   </Button>
                 </div>
+                <div className="mt-5 pt-4 border-t border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div data-testid="row-billing-cycle">
+                    <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500 mb-1">Billing cycle</p>
+                    <p className="text-slate-700 font-semibold">—</p>
+                  </div>
+                  <div data-testid="row-next-renewal">
+                    <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500 mb-1">Next renewal</p>
+                    <p className="text-slate-700 font-semibold">—</p>
+                  </div>
+                  <div data-testid="row-amount-due">
+                    <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500 mb-1">Amount due</p>
+                    <p className="text-slate-700 font-semibold">$0.00</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -95,9 +109,9 @@ export default function BillingPage() {
               <div className="p-5">
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center" data-testid="state-empty-payment">
                   <p className="text-sm font-semibold text-slate-700 mb-1">No payment method on file</p>
-                  <p className="text-xs text-slate-500 mb-4">Add one when you upgrade to a paid plan.</p>
-                  <Button variant="outline" disabled className="border-slate-300 text-slate-400 cursor-not-allowed" data-testid="button-add-payment">
-                    Add payment method
+                  <p className="text-xs text-slate-500 mb-4">Payment integration coming soon — you'll be able to add and manage cards here once we go live.</p>
+                  <Button variant="outline" disabled className="border-slate-300 text-slate-400 cursor-not-allowed" data-testid="button-manage-payment" title="Payment integration coming soon">
+                    Manage payment method
                   </Button>
                 </div>
               </div>

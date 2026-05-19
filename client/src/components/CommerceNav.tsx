@@ -204,16 +204,28 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                  onClick={() => navigate("/")}
-                  data-testid="button-back-home"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                    onClick={() => navigate("/pricing")}
+                    data-testid="button-nav-pricing-unauth"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Pricing
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
+                    onClick={() => navigate("/")}
+                    data-testid="button-back-home"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </Button>
+                </>
               )}
             </div>
           </div>
