@@ -33,7 +33,9 @@ export default function BillingPage() {
               <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Billing</p>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-billing-title">
-              Subscription & receipts
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
+                Subscription & receipts
+              </span>
             </h1>
             <p className="text-slate-600 font-medium" data-testid="text-billing-subtitle">
               Manage your plan, payment method, and download past receipts.
