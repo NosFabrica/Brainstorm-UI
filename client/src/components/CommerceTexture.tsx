@@ -6,7 +6,7 @@ export function CommerceTexture() {
       data-testid="commerce-texture"
     >
       <svg
-        className="absolute inset-0 w-full h-full opacity-[0.09]"
+        className="absolute inset-0 w-full h-full opacity-[0.22]"
         xmlns="http://www.w3.org/2000/svg"
         preserveAspectRatio="xMidYMid slice"
       >
@@ -18,25 +18,25 @@ export function CommerceTexture() {
             patternUnits="userSpaceOnUse"
             patternTransform="rotate(8)"
           >
-            <line x1="0" y1="0" x2="70" y2="70" stroke="#7c86ff" strokeWidth="0.4" />
-            <line x1="140" y1="0" x2="70" y2="70" stroke="#7c86ff" strokeWidth="0.4" />
-            <line x1="0" y1="140" x2="70" y2="70" stroke="#7c86ff" strokeWidth="0.4" />
-            <line x1="140" y1="140" x2="70" y2="70" stroke="#7c86ff" strokeWidth="0.4" />
+            <line x1="0" y1="0" x2="70" y2="70" stroke="#333286" strokeWidth="0.6" />
+            <line x1="140" y1="0" x2="70" y2="70" stroke="#333286" strokeWidth="0.6" />
+            <line x1="0" y1="140" x2="70" y2="70" stroke="#333286" strokeWidth="0.6" />
+            <line x1="140" y1="140" x2="70" y2="70" stroke="#333286" strokeWidth="0.6" />
 
-            <circle cx="0" cy="0" r="1.4" fill="#7c86ff" />
-            <circle cx="140" cy="0" r="1.4" fill="#7c86ff" />
-            <circle cx="0" cy="140" r="1.4" fill="#7c86ff" />
-            <circle cx="140" cy="140" r="1.4" fill="#7c86ff" />
+            <circle cx="0" cy="0" r="1.8" fill="#7c86ff" />
+            <circle cx="140" cy="0" r="1.8" fill="#7c86ff" />
+            <circle cx="0" cy="140" r="1.8" fill="#7c86ff" />
+            <circle cx="140" cy="140" r="1.8" fill="#7c86ff" />
 
-            <circle cx="70" cy="70" r="2.2" fill="#333286" />
-            <circle cx="70" cy="70" r="5" fill="none" stroke="#333286" strokeWidth="0.35" opacity="0.55" />
+            <circle cx="70" cy="70" r="2.6" fill="#333286" />
+            <circle cx="70" cy="70" r="6" fill="none" stroke="#333286" strokeWidth="0.5" opacity="0.6" />
           </pattern>
 
-          <radialGradient id="trustFade" cx="50%" cy="0%" r="120%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-            <stop offset="55%" stopColor="#ffffff" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.85" />
-          </radialGradient>
+          <linearGradient id="trustFade" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0" />
+            <stop offset="65%" stopColor="#F8FAFC" stopOpacity="0" />
+            <stop offset="100%" stopColor="#F8FAFC" stopOpacity="0.7" />
+          </linearGradient>
         </defs>
 
         <rect width="100%" height="100%" fill="url(#trustWeb)" />
