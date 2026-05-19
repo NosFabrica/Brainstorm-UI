@@ -43,6 +43,11 @@ export default function RefundPolicyPage() {
               </section>
 
               <section>
+                <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Cancellation</h2>
+                <p>Cancel any time from your Billing page — there's no cancellation fee and no phone call required. Your subscription remains active through the end of your current billing period. Cancellation stops future renewals; it does not retroactively refund prior billing periods on monthly plans.</p>
+              </section>
+
+              <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Monthly subscriptions</h2>
                 <p>Cancel from your Billing page anytime. Your subscription remains active through the end of the current billing period, after which it ends and no further charges occur. Partial-month refunds are not issued.</p>
               </section>
@@ -63,13 +68,18 @@ export default function RefundPolicyPage() {
               </section>
 
               <section>
-                <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>How to request a refund</h2>
-                <p>Email <a href="mailto:support@nosfabrica.com?subject=Refund%20Request" className="text-[#333286] font-semibold hover:underline" data-testid="link-refund-support-email">support@nosfabrica.com</a> with your account email, the charge in question, and a brief description. We respond within 2 business days.</p>
+                <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Refund process</h2>
+                <p>Email <a href="mailto:support@nosfabrica.com?subject=Refund%20Request" className="text-[#333286] font-semibold hover:underline" data-testid="link-refund-support-email">support@nosfabrica.com</a> with your account email, the charge in question, and a brief description. We respond within 2 business days, and approved refunds are returned to the original payment method within 5–10 business days depending on your card issuer.</p>
               </section>
 
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Changes to this policy</h2>
                 <p>We may update this policy from time to time. Material changes will be announced via email to active subscribers and posted here with an updated revision date.</p>
+              </section>
+
+              <section>
+                <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Contact</h2>
+                <p>Questions about a charge, a refund, or this policy? Email <a href="mailto:support@nosfabrica.com?subject=Billing%20Question" className="text-[#333286] font-semibold hover:underline" data-testid="link-refund-contact-email">support@nosfabrica.com</a> and we'll get back to you within 2 business days.</p>
               </section>
             </div>
 
