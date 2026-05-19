@@ -95,6 +95,28 @@ export default function BillingPage() {
               </div>
             </div>
 
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-receipts">
+              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
+                    <Receipt className="h-4 w-4 text-[#333286]" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Receipts & invoices</h2>
+                    <p className="text-xs text-slate-500">Download past charges</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="rounded-xl border border-slate-200 bg-white/60 p-8 text-center" data-testid="state-empty-receipts">
+                  <Download className="h-6 w-6 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-700">No receipts yet</p>
+                  <p className="text-xs text-slate-500 mt-1">Receipts for paid subscriptions will appear here.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-payment-method">
               <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
               <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
@@ -115,28 +137,6 @@ export default function BillingPage() {
                   <Button variant="outline" disabled className="border-slate-300 text-slate-400 cursor-not-allowed" data-testid="button-manage-payment" title="Payment integration coming soon">
                     Manage payment method
                   </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-receipts">
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                    <Receipt className="h-4 w-4 text-[#333286]" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Receipts & invoices</h2>
-                    <p className="text-xs text-slate-500">Download past charges</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="rounded-xl border border-slate-200 bg-white/60 p-8 text-center" data-testid="state-empty-receipts">
-                  <Download className="h-6 w-6 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-700">No receipts yet</p>
-                  <p className="text-xs text-slate-500 mt-1">Receipts for paid subscriptions will appear here.</p>
                 </div>
               </div>
             </div>
