@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Check, Sparkles, ChevronDown, RefreshCw, Heart, Server, Code, CreditCard } from "lucide-react";
+import { Check, Sparkles, ChevronDown, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, type NostrUser } from "@/services/nostr";
@@ -97,12 +97,6 @@ const faqs = [
     q: "What payment methods do you accept?",
     a: "All major credit and debit cards (Visa, Mastercard, American Express, Discover). Payment processing is handled by a PCI-compliant provider — your card details never touch our servers.",
   },
-];
-
-const transparencyItems = [
-  { icon: Server, label: "Infrastructure", pct: 60, detail: "Relays, servers, GrapeRank compute" },
-  { icon: Code, label: "Engineering", pct: 30, detail: "Open-source development" },
-  { icon: CreditCard, label: "Processing fees", pct: 10, detail: "Card brand & processor" },
 ];
 
 export default function PricingPage() {
@@ -252,36 +246,7 @@ export default function PricingPage() {
             })}
           </div>
 
-          <div className="mt-12 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="section-transparency">
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                  <Heart className="h-4 w-4 text-[#333286]" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Where your $8 goes</h2>
-                  <p className="text-xs text-slate-500">We believe in transparency. Quarterly reports published on our blog.</p>
-                </div>
-              </div>
-            </div>
-            <div className="p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {transparencyItems.map(({ icon: Icon, label, pct, detail }) => (
-                  <div key={label} className="rounded-xl border border-[#7c86ff]/15 bg-white/80 p-4" data-testid={`card-transparency-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Icon className="h-4 w-4 text-[#333286]" />
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{label}</span>
-                    </div>
-                    <p className="text-3xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{pct}%</p>
-                    <p className="text-xs text-slate-500 mt-1">{detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="section-pricing-faq">
+          <div className="mt-12 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="section-pricing-faq">
             <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
             <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
               <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Common questions</h2>
