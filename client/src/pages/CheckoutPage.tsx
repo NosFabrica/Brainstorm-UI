@@ -186,11 +186,11 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/60 p-4 flex items-start gap-3" data-testid="card-trust-badge">
-                <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div className="text-xs text-emerald-800 leading-relaxed">
-                  <p className="font-bold mb-0.5">PCI-compliant processing (planned)</p>
-                  <p className="text-emerald-700">Once payments go live, card details will be tokenized by our PCI-compliant payment provider — Brainstorm will not see or store raw card numbers. No real card data is collected on this preview page.</p>
+              <div className="rounded-2xl bg-[#7c86ff]/8 border border-[#7c86ff]/25 p-4 flex items-start gap-3" data-testid="card-trust-badge">
+                <ShieldCheck className="h-5 w-5 text-[#7c86ff] shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-700 leading-relaxed">
+                  <p className="font-bold mb-0.5 text-[#333286]">PCI-compliant processing (planned)</p>
+                  <p className="text-slate-600">Once payments go live, card details will be tokenized by our PCI-compliant payment provider — Brainstorm will not see or store raw card numbers. No real card data is collected on this preview page.</p>
                 </div>
               </div>
             </div>
