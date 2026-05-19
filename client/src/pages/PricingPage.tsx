@@ -136,7 +136,7 @@ export default function PricingPage() {
               </span>
             </h1>
             <p className="text-slate-600 font-medium text-lg max-w-2xl mx-auto" data-testid="text-pricing-subtitle">
-              Choose a refresh schedule so Brainstorm uses the latest trust data.
+              Choose a refresh schedule so your trust graph uses the latest data.
             </p>
           </div>
 
