@@ -28,7 +28,7 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col relative overflow-hidden" data-testid="page-checkout">
       <PageBackground />
-      <CommerceNav user={user} pageTitle="Checkout" />
+      <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10 w-full">
@@ -43,7 +43,9 @@ export default function CheckoutPage() {
               <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Checkout</p>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-checkout-title">
-              Complete your subscription
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
+                Complete your subscription
+              </span>
             </h1>
             <p className="text-slate-600 font-medium" data-testid="text-checkout-subtitle">
               You're upgrading to <span className="font-bold text-[#333286]">{plan.name}</span> — {plan.cadence}.
