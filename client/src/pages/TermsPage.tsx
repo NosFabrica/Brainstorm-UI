@@ -29,7 +29,9 @@ export default function TermsPage() {
               <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Terms of Service</p>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-terms-title">
-              Terms of Service
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
+                Terms of Service
+              </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium" data-testid="text-terms-updated">Last updated: {LAST_UPDATED}</p>
           </div>

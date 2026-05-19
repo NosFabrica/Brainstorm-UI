@@ -29,7 +29,9 @@ export default function RefundPolicyPage() {
               <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Refund Policy</p>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-refund-title">
-              Refund & cancellation policy
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
+                Refund & cancellation policy
+              </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium" data-testid="text-refund-updated">Last updated: {LAST_UPDATED}</p>
           </div>

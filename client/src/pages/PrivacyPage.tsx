@@ -29,7 +29,9 @@ export default function PrivacyPage() {
               <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Privacy Policy</p>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-privacy-title">
-              Privacy Policy
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
+                Privacy Policy
+              </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium" data-testid="text-privacy-updated">Last updated: {LAST_UPDATED}</p>
           </div>
