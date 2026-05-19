@@ -16,25 +16,17 @@ export function PricingIcon({ className, size = 16 }: PricingIconProps) {
     >
       <g clipPath="url(#pricing-icon-clip)">
         <path
-          d="M7.56 18.67L7.53999 22.17L12.56 18.67H22V2H2V18.67H7.56Z"
+          d="M9.86996 10C9.86996 10.5523 9.42225 11 8.86996 11C8.31768 11 7.86996 10.5523 7.86996 10C7.86996 9.44772 8.31768 9 8.86996 9C9.42225 9 9.86996 9.44772 9.86996 10Z"
+          fill="currentColor"
+        />
+        <path
+          d="M21.23 15.22L13.55 22.91L3.66 13.02V5.33L10.99 5L21.23 15.22Z"
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinecap="square"
         />
         <path
-          d="M12 7.37031V6.32031"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="square"
-        />
-        <path
-          d="M12 13.6299V14.6799"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="square"
-        />
-        <path
-          d="M9.91 12.8804V13.6304H14.09V10.9404L11.02 10.2504C10.37 10.0804 9.91 9.96035 9.91 9.96035V7.36035H13.81V8.10035"
+          d="M20.33 9.78L12.45 2H6.98999"
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinecap="square"
