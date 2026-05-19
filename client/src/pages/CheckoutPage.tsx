@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getCurrentUser, type NostrUser } from "@/services/nostr";
 import PageBackground from "@/components/PageBackground";
-import { CommerceTexture } from "@/components/CommerceTexture";
 import { Footer } from "@/components/Footer";
 import { CommerceNav } from "@/components/CommerceNav";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
@@ -29,7 +28,6 @@ export default function CheckoutPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col relative overflow-hidden" data-testid="page-checkout">
       <PageBackground />
-      <CommerceTexture />
       <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">
