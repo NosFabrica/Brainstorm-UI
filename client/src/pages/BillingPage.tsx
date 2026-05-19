@@ -74,7 +74,6 @@ export default function BillingPage() {
                     onClick={() => navigate("/pricing")}
                     data-testid="button-upgrade-plan"
                   >
-                    <Sparkles className="h-4 w-4 mr-2" />
                     Upgrade plan
                   </Button>
                 </div>
