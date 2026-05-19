@@ -52,6 +52,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { PricingIcon } from "@/components/PricingIcon";
+import { BillingIcon } from "@/components/BillingIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
