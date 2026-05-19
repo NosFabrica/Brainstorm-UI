@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
-import { CheckCircle2, ArrowRight, Receipt, Mail } from "lucide-react";
+import { CheckCircle2, ArrowRight, Receipt, Mail, RefreshCw, Network, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getCurrentUser, type NostrUser } from "@/services/nostr";
 import PageBackground from "@/components/PageBackground";
@@ -78,6 +78,42 @@ export default function CheckoutSuccessPage() {
                 <p className="text-xs text-amber-800 leading-relaxed">
                   Once payments go live, a receipt and subscription details will be sent to your billing email and surfaced on your Billing page. Nothing has been sent yet because this is a preview.
                 </p>
+              </div>
+
+              <div className="mt-6 rounded-xl bg-white/80 border border-[#7c86ff]/20 p-5 max-w-md mx-auto text-left" data-testid="card-whats-next">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#333286] mb-3">What happens next</p>
+                <ol className="space-y-3">
+                  <li className="flex items-start gap-3" data-testid="next-step-cadence">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-[#7c86ff]/15 text-[#333286] text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                        <RefreshCw className="h-3.5 w-3.5 text-[#333286]" />
+                        Automatic recalculation
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">{cadence}. Your trust graph will refresh on schedule without manual triggers.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3" data-testid="next-step-network">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-[#7c86ff]/15 text-[#333286] text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Network className="h-3.5 w-3.5 text-[#333286]" />
+                        Fresh insights
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">Updated GrapeRank scores and Web of Trust signals flow to your Dashboard, Network, and Profile pages.</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3" data-testid="next-step-manage">
+                    <span className="flex-shrink-0 h-6 w-6 rounded-full bg-[#7c86ff]/15 text-[#333286] text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                        <LayoutDashboard className="h-3.5 w-3.5 text-[#333286]" />
+                        Manage anytime
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5">Review charges, update payment, or change plans from the Billing page once payments go live.</p>
+                    </div>
+                  </li>
+                </ol>
               </div>
 
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
