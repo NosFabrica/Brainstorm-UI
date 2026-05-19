@@ -182,7 +182,11 @@ export default function PricingPage() {
                   {tier.highlight && (
                     <div className="absolute top-4 right-4">
                       <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white text-[10px] font-bold uppercase tracking-wide shadow-lg" data-testid={`badge-popular-${tier.id}`}>
-                        <Sparkles className="h-3 w-3" />
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M11.1699 2L20.6199 11.46C20.6899 11.53 20.7499 11.61 20.7899 11.71C20.8299 11.8 20.8499 11.9 20.8499 12C20.8499 12.1 20.8299 12.2 20.7899 12.29C20.7499 12.38 20.6899 12.47 20.6199 12.54L11.1699 22" stroke="#fff" strokeWidth="1.71" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M5.4099 4.26L3.1499 2" stroke="#fff" strokeWidth="1.71" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M9.3099 8.15039L12.6199 11.4604C12.7599 11.6104 12.8399 11.8004 12.8399 12.0004C12.8399 12.2004 12.7599 12.3904 12.6199 12.5404L3.1499 22.0004" stroke="#fff" strokeWidth="1.71" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                         Most popular
                       </div>
                     </div>
