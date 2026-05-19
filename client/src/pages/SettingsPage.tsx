@@ -1031,7 +1031,6 @@ export default function SettingsPage() {
                     onClick={() => navigate("/billing")}
                     data-testid="button-manage-subscription"
                   >
-                    <Receipt className="h-4 w-4 mr-2" />
                     Manage subscription
                   </Button>
                   <Button
