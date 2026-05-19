@@ -38,7 +38,7 @@ export default function PrivacyPage() {
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-sm text-amber-900 leading-relaxed">
               <p className="font-bold mb-1">Document being finalized</p>
-              <p className="text-amber-800">Our full Privacy Policy is being finalized with legal counsel. For specific data-handling questions, please contact <a href="mailto:support@nosfabrica.com" className="font-semibold underline">support@nosfabrica.com</a>. The summary below describes our intended practices.</p>
+              <p className="text-amber-800">Our full Privacy Policy is being finalized with legal counsel. For specific data-handling questions, please contact <a href="mailto:support@nosfabrica.com" className="font-semibold underline" data-testid="link-banner-support-email">support@nosfabrica.com</a>. The summary below describes our intended practices.</p>
             </div>
           </div>
 
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
               </section>
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Your choices</h2>
-                <p>You can cancel your subscription at any time from your Billing page. You can request export or deletion of personal data we hold about you by emailing <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a>. Note: data you've published to Nostr is on a public network and cannot be deleted from relays we don't control.</p>
+                <p>You can cancel your subscription at any time from your Billing page. You can request export or deletion of personal data we hold about you by emailing <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-support-email">support@nosfabrica.com</a>. Note: data you've published to Nostr is on a public network and cannot be deleted from relays we don't control.</p>
               </section>
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Security</h2>
@@ -75,12 +75,12 @@ export default function PrivacyPage() {
               </section>
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>Contact</h2>
-                <p>Privacy questions or data requests? Email <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a>.</p>
+                <p>Privacy questions or data requests? Email <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-support-email">support@nosfabrica.com</a>.</p>
               </section>
             </div>
             <div className="border-t border-slate-100 px-6 sm:px-8 py-4 bg-slate-50/50 flex items-center gap-2 text-xs text-slate-600">
               <Mail className="h-4 w-4 text-[#7c86ff]" />
-              <span>Privacy questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a></span>
+              <span>Privacy questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-support-email">support@nosfabrica.com</a></span>
             </div>
           </div>
 

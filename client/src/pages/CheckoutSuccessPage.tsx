@@ -90,7 +90,7 @@ export default function CheckoutSuccessPage() {
                   Go to dashboard
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-                <Link href="/billing">
+                <Link href="/billing" data-testid="link-view-billing">
                   <Button variant="outline" className="border-[#7c86ff]/30 text-[#333286] hover:bg-[#7c86ff]/8 font-semibold w-full sm:w-auto" data-testid="button-view-billing">
                     <Receipt className="h-4 w-4 mr-2" />
                     View billing

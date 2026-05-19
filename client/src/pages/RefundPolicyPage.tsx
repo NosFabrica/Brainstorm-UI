@@ -64,7 +64,7 @@ export default function RefundPolicyPage() {
 
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>How to request a refund</h2>
-                <p>Email <a href="mailto:support@nosfabrica.com?subject=Refund%20Request" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a> with your account email, the charge in question, and a brief description. We respond within 2 business days.</p>
+                <p>Email <a href="mailto:support@nosfabrica.com?subject=Refund%20Request" className="text-[#333286] font-semibold hover:underline" data-testid="link-refund-support-email">support@nosfabrica.com</a> with your account email, the charge in question, and a brief description. We respond within 2 business days.</p>
               </section>
 
               <section>
@@ -75,7 +75,7 @@ export default function RefundPolicyPage() {
 
             <div className="border-t border-slate-100 px-6 sm:px-8 py-4 bg-slate-50/50 flex items-center gap-2 text-xs text-slate-600">
               <Mail className="h-4 w-4 text-[#7c86ff]" />
-              <span>Questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a></span>
+              <span>Questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-refund-footer-email">support@nosfabrica.com</a></span>
             </div>
           </div>
 

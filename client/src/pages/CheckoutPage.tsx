@@ -133,9 +133,9 @@ export default function CheckoutPage() {
 
                 <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-500 leading-relaxed" data-testid="text-consent">
                   By subscribing you agree to our{" "}
-                  <Link href="/terms" className="text-[#333286] font-semibold hover:underline">Terms</Link>,{" "}
-                  <Link href="/privacy" className="text-[#333286] font-semibold hover:underline">Privacy Policy</Link>, and{" "}
-                  <Link href="/refund-policy" className="text-[#333286] font-semibold hover:underline">Refund Policy</Link>.
+                  <Link href="/terms" className="text-[#333286] font-semibold hover:underline" data-testid="link-consent-terms">Terms</Link>,{" "}
+                  <Link href="/privacy" className="text-[#333286] font-semibold hover:underline" data-testid="link-consent-privacy">Privacy Policy</Link>, and{" "}
+                  <Link href="/refund-policy" className="text-[#333286] font-semibold hover:underline" data-testid="link-consent-refund">Refund Policy</Link>.
                   Your subscription auto-renews each {billing === "annual" ? "year" : "month"}; cancel anytime from your Billing page.
                 </div>
 

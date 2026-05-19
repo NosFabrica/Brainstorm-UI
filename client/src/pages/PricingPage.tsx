@@ -118,7 +118,7 @@ export default function PricingPage() {
 
   const handleTierClick = (tier: Tier) => {
     if (tier.id === "observer") {
-      navigate(user ? "/dashboard" : "/");
+      navigate(user ? "/dashboard" : "/login");
       return;
     }
     navigate(`${tier.ctaPath}&billing=${billing}`);

@@ -147,10 +147,17 @@ export default function BillingPage() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-900">Cancel subscription</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Available once you have an active paid plan. See our <Link href="/refund-policy" className="text-[#333286] font-semibold hover:underline">Refund Policy</Link>.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Available once you have an active paid plan. See our <Link href="/refund-policy" className="text-[#333286] font-semibold hover:underline" data-testid="link-cancel-refund-policy">Refund Policy</Link>.</p>
                   </div>
                 </div>
-                <Button variant="outline" disabled className="border-rose-200 text-rose-300 cursor-not-allowed" data-testid="button-cancel-subscription">
+                <Button
+                  variant="outline"
+                  disabled
+                  className="border-rose-200 text-rose-300 cursor-not-allowed"
+                  data-testid="button-cancel-subscription"
+                  title="Payment integration coming soon — cancel will be enabled once you're on a paid plan"
+                  aria-label="Cancel subscription — disabled until payments go live"
+                >
                   Cancel
                 </Button>
               </div>

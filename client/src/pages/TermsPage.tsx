@@ -38,7 +38,7 @@ export default function TermsPage() {
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-sm text-amber-900 leading-relaxed">
               <p className="font-bold mb-1">Document being finalized</p>
-              <p className="text-amber-800">Our full Terms of Service are being finalized with legal counsel. For specific questions about the terms governing your use of Brainstorm, please contact <a href="mailto:support@nosfabrica.com" className="font-semibold underline">support@nosfabrica.com</a>. The summary below describes our intended terms.</p>
+              <p className="text-amber-800">Our full Terms of Service are being finalized with legal counsel. For specific questions about the terms governing your use of Brainstorm, please contact <a href="mailto:support@nosfabrica.com" className="font-semibold underline" data-testid="link-banner-support-email">support@nosfabrica.com</a>. The summary below describes our intended terms.</p>
             </div>
           </div>
 
@@ -75,12 +75,12 @@ export default function TermsPage() {
               </section>
               <section>
                 <h2 className="text-lg font-bold text-slate-900 mb-2" style={{ fontFamily: "var(--font-display)" }}>8. Contact</h2>
-                <p>Questions about these terms? Email <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a>.</p>
+                <p>Questions about these terms? Email <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-support-email">support@nosfabrica.com</a>.</p>
               </section>
             </div>
             <div className="border-t border-slate-100 px-6 sm:px-8 py-4 bg-slate-50/50 flex items-center gap-2 text-xs text-slate-600">
               <Mail className="h-4 w-4 text-[#7c86ff]" />
-              <span>Legal questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline">support@nosfabrica.com</a></span>
+              <span>Legal questions? <a href="mailto:support@nosfabrica.com" className="text-[#333286] font-semibold hover:underline" data-testid="link-support-email">support@nosfabrica.com</a></span>
             </div>
           </div>
 
