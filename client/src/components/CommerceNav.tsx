@@ -71,9 +71,10 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                 onClick={() => navigate(user ? "/dashboard" : "/")}
                 data-testid="button-commerce-brand"
               >
+                <BrainLogo size={28} className="text-indigo-500" />
                 <span
                   className="text-lg sm:text-xl font-bold tracking-tight text-white"
-                  style={{ fontFamily: "var(--font-display)" }}
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   data-testid="text-logo"
                 >
                   Brainstorm
