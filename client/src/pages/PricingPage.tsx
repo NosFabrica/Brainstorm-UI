@@ -144,14 +144,14 @@ export default function PricingPage() {
             <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm">
               <button
                 onClick={() => setBilling("monthly")}
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${billing === "monthly" ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30" : "text-slate-500 hover:text-[#333286]"}`}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${billing === "monthly" ? "bg-[#3730a3] text-white" : "text-slate-500 hover:text-[#333286]"}`}
                 data-testid="button-billing-monthly"
               >
                 Monthly
               </button>
               <button
                 onClick={() => setBilling("annual")}
-                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${billing === "annual" ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30" : "text-slate-500 hover:text-[#333286]"}`}
+                className={`px-5 py-2 rounded-full text-sm font-semibold transition-all flex items-center gap-2 ${billing === "annual" ? "bg-[#3730a3] text-white" : "text-slate-500 hover:text-[#333286]"}`}
                 data-testid="button-billing-annual"
               >
                 Annual
@@ -234,7 +234,7 @@ export default function PricingPage() {
                     </ul>
 
                     <Button
-                      className="w-full bg-[#3730a3] hover:bg-[#2e2785] text-white font-semibold shadow-lg shadow-[#3730a3]/30"
+                      className="w-full bg-[#3730a3] hover:bg-[#3730a3] text-white font-semibold"
                       onClick={() => handleTierClick(tier)}
                       data-testid={`button-select-${tier.id}`}
                     >
