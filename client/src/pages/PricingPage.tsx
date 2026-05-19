@@ -234,7 +234,8 @@ export default function PricingPage() {
                     </ul>
 
                     <Button
-                      className="w-full bg-[#3730a3] hover:bg-[#3730a3] text-white font-semibold"
+                      variant="outline"
+                      className="w-full bg-[#3730a3] hover:bg-[#3730a3] bg-none border-0 text-white hover:text-white font-semibold shadow-none"
                       onClick={() => handleTierClick(tier)}
                       data-testid={`button-select-${tier.id}`}
                     >
