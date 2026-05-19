@@ -39,10 +39,10 @@ export default function CheckoutSuccessPage() {
                 <CheckCircle2 className="h-8 w-8 text-emerald-600" />
               </div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2" style={{ fontFamily: "var(--font-display)" }} data-testid="text-success-title">
-                You're all set
+                Preview: you're all set
               </h1>
               <p className="text-slate-600 font-medium max-w-lg mx-auto" data-testid="text-success-subtitle">
-                Welcome to <span className="font-bold text-[#333286]">{planName}</span>. Your trust scores will refresh automatically on the cadence for your plan.
+                This is a preview of the confirmation screen for <span className="font-bold text-[#333286]">{planName}</span>. Payment integration is coming soon — no charge was made, no subscription was activated, and no receipt was sent.
               </p>
 
               <div className="mt-6 rounded-xl bg-white/80 border border-[#7c86ff]/20 p-5 max-w-md mx-auto text-left" data-testid="card-order-summary">
@@ -70,13 +70,13 @@ export default function CheckoutSuccessPage() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl bg-white/80 border border-slate-200 p-4 max-w-md mx-auto text-left" data-testid="card-receipt-info">
+              <div className="mt-4 rounded-xl bg-amber-50/70 border border-amber-200 p-4 max-w-md mx-auto text-left" data-testid="card-receipt-info">
                 <div className="flex items-center gap-2 mb-2">
-                  <Mail className="h-4 w-4 text-slate-500" />
-                  <p className="text-sm font-bold text-slate-700">Receipt on its way</p>
+                  <Mail className="h-4 w-4 text-amber-700" />
+                  <p className="text-sm font-bold text-amber-900">Receipts coming soon</p>
                 </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  A receipt and subscription details have been sent to your billing email. You can review charges and manage your plan anytime from your Billing page.
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Once payments go live, a receipt and subscription details will be sent to your billing email and surfaced on your Billing page. Nothing has been sent yet because this is a preview.
                 </p>
               </div>
 
