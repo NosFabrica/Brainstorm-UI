@@ -19,7 +19,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col relative overflow-hidden" data-testid="page-privacy">
       <PageBackground />
-      <CommerceNav user={user} pageTitle="Privacy" />
+      <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 w-full">
