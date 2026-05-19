@@ -172,7 +172,7 @@ export default function PricingPage() {
               return (
                 <div
                   key={tier.id}
-                  className={`relative rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border overflow-hidden flex flex-col transition-all duration-500 hover:-translate-y-1 ${
+                  className={`relative rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border overflow-hidden flex flex-col transition-all duration-500 hover:-translate-y-1 select-none cursor-default ${
                     tier.highlight
                       ? "border-[#7c86ff]/50 shadow-[0_20px_40px_-12px_rgba(124,134,255,0.35)] ring-2 ring-[#7c86ff]/20"
                       : "border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40"
