@@ -17,6 +17,7 @@ import {
   Sparkles,
   Receipt,
 } from "lucide-react";
+import { PricingIcon } from "@/components/PricingIcon";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { Button } from "@/components/ui/button";
@@ -210,7 +211,7 @@ export default function FaqPage() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-indigo-100" />
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing">
-                      <Sparkles className="mr-2 h-4 w-4" />
+                      <PricingIcon className="mr-2 h-4 w-4" />
                       <span>Pricing</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">

@@ -14,6 +14,7 @@ import {
   Sparkles,
   Receipt,
 } from "lucide-react";
+import { PricingIcon } from "@/components/PricingIcon";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -176,7 +177,7 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="bg-indigo-100" />
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing">
-                      <Sparkles className="mr-2 h-4 w-4" />
+                      <PricingIcon className="mr-2 h-4 w-4" />
                       <span>Pricing</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">
@@ -231,7 +232,7 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                   >
                     <DropdownMenuLabel className="text-xs text-slate-500">Browse</DropdownMenuLabel>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing-unauth">
-                      <Sparkles className="mr-2 h-4 w-4" />
+                      <PricingIcon className="mr-2 h-4 w-4" />
                       <span>Pricing</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq-unauth">

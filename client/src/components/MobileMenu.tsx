@@ -15,6 +15,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { PricingIcon } from "@/components/PricingIcon";
 import { FEATURES } from "@/config/featureFlags";
 
 interface MobileMenuProps {
@@ -43,7 +44,7 @@ const primaryNav = [
 ];
 
 const helpNav = [
-  { path: "/pricing", label: "Pricing", icon: Sparkles },
+  { path: "/pricing", label: "Pricing", icon: PricingIcon },
   { path: "/faq", label: "FAQ", icon: HelpCircle },
   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
 ];
