@@ -193,16 +193,11 @@ export default function PricingPage() {
                   )}
                   <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                   <div className="p-6 flex flex-col flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                        <BrainLogo size={20} className="text-[#333286]" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-tier-name-${tier.id}`}>
-                          {tier.name}
-                        </h3>
-                        <p className="text-xs text-slate-500" data-testid={`text-tier-tagline-${tier.id}`}>{tier.tagline}</p>
-                      </div>
+                    <div className="mb-1">
+                      <h3 className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid={`text-tier-name-${tier.id}`}>
+                        {tier.name}
+                      </h3>
+                      <p className="text-xs text-slate-500" data-testid={`text-tier-tagline-${tier.id}`}>{tier.tagline}</p>
                     </div>
 
                     <div className="mt-5 mb-1">
