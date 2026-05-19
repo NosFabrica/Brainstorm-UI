@@ -80,6 +80,15 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                 </span>
               </button>
 
+              {pageTitle && (
+                <span
+                  className="hidden sm:inline-flex items-center text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300/80 border-l border-white/10 pl-3 sm:pl-4"
+                  data-testid="text-commerce-page-title"
+                >
+                  {pageTitle}
+                </span>
+              )}
+
               {user && (
                 <div className="hidden lg:flex gap-1">
                   <Button
@@ -204,28 +213,38 @@ export function CommerceNav({ user, pageTitle }: CommerceNavProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                    onClick={() => navigate("/pricing")}
-                    data-testid="button-nav-pricing-unauth"
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2 text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                      data-testid="button-unauth-menu"
+                    >
+                      <Menu className="h-4 w-4" />
+                      Menu
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-52 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    Pricing
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                    onClick={() => navigate("/")}
-                    data-testid="button-back-home"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back
-                  </Button>
-                </>
+                    <DropdownMenuLabel className="text-xs text-slate-500">Browse</DropdownMenuLabel>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing-unauth">
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      <span>Pricing</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq-unauth">
+                      <HelpCircle className="mr-2 h-4 w-4" />
+                      <span>FAQ</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="bg-indigo-100" />
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/")} data-testid="dropdown-back-home">
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      <span>Back to home</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           </div>
