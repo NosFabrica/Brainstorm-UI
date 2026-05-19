@@ -7,19 +7,18 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { CommerceNav } from "@/components/CommerceNav";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
+import { resolvePlan, planTotal, billingLabel } from "@/lib/plans";
 
 export default function CheckoutSuccessPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
   const params = new URLSearchParams(window.location.search);
-  const plan = params.get("plan") || "monthly";
-  const billing = params.get("billing") === "annual" ? "annual" : "monthly";
-  const planName = plan === "bimonthly" ? "Bi-Monthly Pulse" : "Monthly Pulse";
-  const cadence = plan === "bimonthly" ? "Auto-recalc twice a month" : "Auto-recalc once a month";
-  const monthly = plan === "bimonthly" ? 12 : 8;
-  const annual = Math.round(monthly * 12 * 0.84);
-  const total = billing === "annual" ? annual : monthly;
-  const billingLabel = billing === "annual" ? "/yr" : "/mo";
+  const billing: "monthly" | "annual" = params.get("billing") === "annual" ? "annual" : "monthly";
+  const plan = resolvePlan(params.get("plan"));
+  const planName = plan.name;
+  const cadence = plan.cadence;
+  const total = planTotal(plan, billing);
+  const billingLabelStr = billingLabel(billing);
 
   useEffect(() => {
     document.title = "Subscription confirmed — Brainstorm";
@@ -65,7 +64,7 @@ export default function CheckoutSuccessPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-700 font-bold">Total</span>
                     <span className="text-base text-[#333286] font-bold" style={{ fontFamily: "var(--font-display)" }} data-testid="text-summary-total">
-                      ${total}{billingLabel}
+                      ${total}{billingLabelStr}
                     </span>
                   </div>
                 </div>

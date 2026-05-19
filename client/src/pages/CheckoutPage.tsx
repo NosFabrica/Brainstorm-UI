@@ -9,21 +9,16 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { CommerceNav } from "@/components/CommerceNav";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
-
-const PLAN_INFO: Record<string, { name: string; monthly: number; annual: number; cadence: string }> = {
-  monthly: { name: "Monthly Pulse", monthly: 8, annual: 80, cadence: "1× monthly recalculation" },
-  bimonthly: { name: "Bi-Monthly Pulse", monthly: 12, annual: 120, cadence: "2× monthly recalculation" },
-};
+import { resolvePlan, planTotal, billingLabel as billingLabelFn } from "@/lib/plans";
 
 export default function CheckoutPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
   const params = new URLSearchParams(window.location.search);
-  const planKey = params.get("plan") || "monthly";
-  const billing = (params.get("billing") === "annual" ? "annual" : "monthly") as "monthly" | "annual";
-  const plan = PLAN_INFO[planKey] || PLAN_INFO.monthly;
-  const total = billing === "annual" ? plan.annual : plan.monthly;
-  const billingLabel = billing === "annual" ? "/yr" : "/mo";
+  const billing: "monthly" | "annual" = params.get("billing") === "annual" ? "annual" : "monthly";
+  const plan = resolvePlan(params.get("plan"));
+  const total = planTotal(plan, billing);
+  const billingLabel = billingLabelFn(billing);
 
   useEffect(() => {
     document.title = `Checkout — ${plan.name} — Brainstorm`;

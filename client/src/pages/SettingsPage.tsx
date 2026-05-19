@@ -1035,7 +1035,7 @@ export default function SettingsPage() {
                     data-testid="button-manage-subscription"
                   >
                     <Receipt className="h-4 w-4 mr-2" />
-                    Manage
+                    Manage subscription
                   </Button>
                   <Button
                     className="bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white font-semibold shadow-sm flex-1 sm:flex-none"
@@ -1043,7 +1043,7 @@ export default function SettingsPage() {
                     data-testid="button-upgrade-subscription"
                   >
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Upgrade
+                    Upgrade plan
                   </Button>
                 </div>
               </div>
