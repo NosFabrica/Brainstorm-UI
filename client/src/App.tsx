@@ -16,6 +16,13 @@ import ProfilePage from "@/pages/ProfilePage";
 import FaqPage from "@/pages/FaqPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
+import PricingPage from "@/pages/PricingPage";
+import CheckoutPage from "@/pages/CheckoutPage";
+import CheckoutSuccessPage from "@/pages/CheckoutSuccessPage";
+import BillingPage from "@/pages/BillingPage";
+import RefundPolicyPage from "@/pages/RefundPolicyPage";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
 import { FEATURES } from "@/config/featureFlags";
 
 function ScrollToTop() {
@@ -41,6 +48,13 @@ function Router() {
         <Route path="/network" component={NetworkPage} />
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/faq" component={FaqPage} />
+        <Route path="/pricing" component={PricingPage} />
+        <Route path="/checkout" component={CheckoutPage} />
+        <Route path="/checkout/success" component={CheckoutSuccessPage} />
+        <Route path="/billing" component={BillingPage} />
+        <Route path="/refund-policy" component={RefundPolicyPage} />
+        <Route path="/terms" component={TermsPage} />
+        <Route path="/privacy" component={PrivacyPage} />
         {FEATURES.agentSuite && <Route path="/agentsuite" component={UserPanelPage} />}
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />

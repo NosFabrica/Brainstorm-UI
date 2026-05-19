@@ -48,6 +48,8 @@ import {
   Globe,
   Shield,
   Copy,
+  Sparkles,
+  Receipt,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
@@ -404,6 +406,14 @@ export default function SettingsPage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    <span>Pricing</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">
+                    <Receipt className="mr-2 h-4 w-4" />
+                    <span>Billing</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                     <HelpCircle className="mr-2 h-4 w-4" />
                     <span>FAQ</span>
@@ -992,6 +1002,51 @@ export default function SettingsPage() {
                 </div>
               )}
 
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500" data-testid="section-subscription">
+            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-[#333286]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-subscription-title">Subscription</h2>
+                  <p className="text-xs text-slate-500" data-testid="text-subscription-subtitle">Your plan and billing</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-subscription-tier">Observer</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600" data-testid="badge-subscription-tier">Free</span>
+                  </div>
+                  <p className="text-xs text-slate-500" data-testid="text-subscription-cadence">Manual recalculation, up to 1× per month</p>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    className="border-[#7c86ff]/30 text-[#333286] hover:bg-[#7c86ff]/8 font-semibold flex-1 sm:flex-none"
+                    onClick={() => navigate("/billing")}
+                    data-testid="button-manage-subscription"
+                  >
+                    <Receipt className="h-4 w-4 mr-2" />
+                    Manage
+                  </Button>
+                  <Button
+                    className="bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white font-semibold shadow-sm flex-1 sm:flex-none"
+                    onClick={() => navigate("/pricing")}
+                    data-testid="button-upgrade-subscription"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Upgrade
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 

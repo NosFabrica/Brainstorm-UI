@@ -82,6 +82,7 @@ import {
   Minus,
   Maximize2,
   Sparkles,
+  Receipt,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -2445,6 +2446,14 @@ export default function AdminPage() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-indigo-100" />
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    <span>Pricing</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">
+                    <Receipt className="mr-2 h-4 w-4" />
+                    <span>Billing</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                     <HelpCircle className="mr-2 h-4 w-4" />
                     <span>FAQ</span>
