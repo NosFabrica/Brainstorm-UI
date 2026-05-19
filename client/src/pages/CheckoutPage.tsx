@@ -68,11 +68,11 @@ export default function CheckoutPage() {
               </div>
 
               <div className="p-5 space-y-5">
-                <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 flex items-start gap-2.5" data-testid="banner-coming-soon">
-                  <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="rounded-xl border border-[#7c86ff]/25 bg-[#7c86ff]/8 p-3 flex items-start gap-2.5" data-testid="banner-coming-soon">
+                  <Info className="h-4 w-4 text-[#7c86ff] shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs font-bold text-amber-900">Payments coming soon</p>
-                    <p className="text-xs text-amber-700 mt-0.5">This is a preview of the checkout flow. Card processing isn't live yet — no charges will be made.</p>
+                    <p className="text-xs font-bold text-[#333286]">Payments coming soon</p>
+                    <p className="text-xs text-slate-600 mt-0.5">This is a preview of the checkout flow. Card processing isn't live yet — no charges will be made.</p>
                   </div>
                 </div>
 
