@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getCurrentUser, type NostrUser } from "@/services/nostr";
 import { useEffect } from "react";
 import PageBackground from "@/components/PageBackground";
+import { CommerceTexture } from "@/components/CommerceTexture";
 import { Footer } from "@/components/Footer";
 import { CommerceNav } from "@/components/CommerceNav";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
@@ -121,6 +122,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-pricing">
       <PageBackground />
+      <CommerceTexture />
       <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">

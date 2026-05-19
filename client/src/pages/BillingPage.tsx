@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser, type NostrUser } from "@/services/nostr";
 import { isAuthRedirecting } from "@/services/api";
 import PageBackground from "@/components/PageBackground";
+import { CommerceTexture } from "@/components/CommerceTexture";
 import { Footer } from "@/components/Footer";
 import { CommerceNav } from "@/components/CommerceNav";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
@@ -23,6 +24,7 @@ export default function BillingPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col relative overflow-hidden" data-testid="page-billing">
       <PageBackground />
+      <CommerceTexture />
       <CommerceNav user={user} />
 
       <main className="flex-1 relative z-10">
