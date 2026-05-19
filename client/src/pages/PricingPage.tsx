@@ -57,7 +57,7 @@ const tiers: Tier[] = [
       "Priority queue access",
       "Email support",
     ],
-    cta: "Choose Monthly",
+    cta: "Start Monthly Pulse",
     ctaPath: "/checkout?plan=monthly",
     highlight: true,
   },
@@ -75,7 +75,7 @@ const tiers: Tier[] = [
       "Early access to new features",
       "Direct support channel",
     ],
-    cta: "Choose Bi-Monthly",
+    cta: "Start Bi-Monthly Pulse",
     ctaPath: "/checkout?plan=bimonthly",
   },
 ];
