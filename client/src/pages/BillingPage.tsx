@@ -48,7 +48,7 @@ export default function BillingPage() {
               <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                    <Sparkles className="h-4 w-4 text-[#333286]" />
+                    <Receipt className="h-4 w-4 text-[#333286]" />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Current plan</h2>
