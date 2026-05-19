@@ -132,11 +132,11 @@ export default function PricingPage() {
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-pricing-title">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x block pb-1">
-                Pick your refresh cadence
+                Choose how often your trust graph refreshes
               </span>
             </h1>
             <p className="text-slate-600 font-medium text-lg max-w-2xl mx-auto" data-testid="text-pricing-subtitle">
-              You're paying for one thing: how often your personal Web of Trust is recalculated. No fake feature gates — just frequency.
+              Every plan unlocks the full Brainstorm experience. The only thing that changes is how frequently your personal Web of Trust is recalculated — so you can pick the cadence that matches how actively you use it.
             </p>
           </div>
 
