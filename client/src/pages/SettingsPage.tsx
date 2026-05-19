@@ -1022,7 +1022,7 @@ export default function SettingsPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-subscription-tier">Free Observer</p>
+                    <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-subscription-tier">Observer</p>
                     <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600" data-testid="badge-subscription-tier">Free</span>
                   </div>
                   <p className="text-xs text-slate-500" data-testid="text-subscription-cadence">Manual recalculation, up to 1× per month</p>
