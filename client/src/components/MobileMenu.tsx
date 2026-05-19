@@ -192,12 +192,6 @@ export function MobileMenu({
               <div className="space-y-1.5 mt-auto">
                 <p className="px-3 pb-1 text-[10px] font-semibold text-indigo-300/60 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-account">Account</p>
                 <NavButton
-                  item={{ path: "/billing", label: "Billing", icon: Receipt }}
-                  active={currentPath === "/billing"}
-                  onClose={onClose}
-                  navigate={navigate}
-                />
-                <NavButton
                   item={{ path: "/settings", label: "Settings", icon: SettingsIcon }}
                   active={currentPath === "/settings"}
                   onClose={onClose}

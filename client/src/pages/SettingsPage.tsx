@@ -411,10 +411,6 @@ export default function SettingsPage() {
                     <PricingIcon className="mr-2 h-4 w-4" />
                     <span>Pricing</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">
-                    <Receipt className="mr-2 h-4 w-4" />
-                    <span>Billing</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                     <HelpCircle className="mr-2 h-4 w-4" />
                     <span>FAQ</span>
