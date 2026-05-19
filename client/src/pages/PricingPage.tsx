@@ -29,7 +29,7 @@ interface Tier {
 const tiers: Tier[] = [
   {
     id: "observer",
-    name: "Observer",
+    name: "Free Observer",
     tagline: "Try it out",
     monthlyPrice: 0,
     annualPrice: 0,

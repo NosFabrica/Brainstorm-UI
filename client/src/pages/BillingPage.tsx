@@ -59,7 +59,7 @@ export default function BillingPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-2xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-current-tier-name">
-                        Observer
+                        Free Observer
                       </p>
                       <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600" data-testid="badge-current-tier">
                         Free
