@@ -1,0 +1,69 @@
+Profile page perf — Phase 1 (FE-only)
+Context
+Route /users/{pubkey} (ProfilePage.tsx) freezes on load for high-degree pubkeys. Test pubkey: 104,630 total followers (14,325 verified) — page wedges before any section is opened, and section expansion (Followers / Shared / etc.) compounds the cost.
+
+This phase touches only the frontend (ProfilePage.tsx). Backend payload shrink + pagination is deferred to Phase 2.
+
+Root causes (FE-side) at 100k scale
+getSortedFilteredPubkeys sorts the full 104k array on every render (:852-908). Called inline from renderExpandedPanel (:1042) — useCallback memoizes the function, not the result. Worst offender once Followers is expanded.
+
+Sort comparator calls getTrustForPk(a) + getTrustForPk(b) which scans up to 6 sections via toInfluenceMap(getSection(...)) (:803-814) — allocates a fresh 104k Map for every comparator call. O(N log N × Map-build). This is what causes the freeze.
+
+followerTierBreakdown / verifiedCounts / getTierBreakdown (:769-850) each rebuild a 104k Map from scratch.
+
+getGroupsForPubkey per visible row (:964-1019) — for each of the 10 rendered rows, scans 9 group definitions × 104k pubkeys with .includes(pk).
+
+setForceRender storm — every prefetched profile and every trust fetch resolves with setForceRender(c => c+1) (:568, :573, :582). Initial prefetch fires ~60-90 callbacks → tens of full re-renders, each repeating all the 104k walks above.
+
+Cache wiped on every pubkey navigation (:512-522) — back-button to a previously viewed profile pays full cost again.
+
+N+1 trust fetches for computed sections (mutual, shared_followers, shared_following) — these lack inline influence values, so fetchSectionProfiles calls apiClient.getUserByPubkey(pk) per visible pubkey (:575-579). For these sections, every fetched "user" is itself a multi-MB graph response. Critical fix even in FE-only phase: derive their influence from profileResult (their pubkey appears in followed_by/following of the viewed profile, so influence is already known) instead of re-fetching.
+
+Phase 1 plan — concrete steps
+Step A — Precompute per-section influence Maps once
+Add a single useMemo keyed on profileResult that returns Record<SectionKey, Map<pubkey, influence|null>>. Section keys: followed_by, following, muted_by, muting, reported_by, reporting.
+
+Wire callers:
+
+getTrustForPk (:803) — read from the cached maps instead of looping + toInfluenceMap.
+followerTierBreakdown (:785) — use the followed_by map.
+verifiedCounts (:769) — derive from the maps.
+getTierBreakdown (:829) — use map for the given section.
+toggleSection (:920) — seed expandTrustCache from the cached map.
+Also fixes root cause #7: for mutual / shared_followers / shared_following, when seeding expandTrustCache, look up the pubkey in followed_by/following maps of profileResult and skip the trust-only API call entirely. The trust score is already present.
+
+Step B — Memoize sort/filter result per section
+Extract the expanded-panel body into a child component <ExpandedPanel> taking props: sectionKey, pubkeys, filter, sort, search, reportTypeFilter, influenceMap, groupsByPubkey, profileCache, trustCache, callbacks.
+
+Inside <ExpandedPanel>, compute processed via useMemo([pubkeys, filter, sort, search, reportTypeFilter, influenceMap, nameMap]). Wrap component in React.memo.
+
+This collapses repeated 104k sorts down to one per change in filter/sort/search.
+
+Step C — Pre-build group membership map
+Add useMemo keyed on profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys, selfFlaggedSet: returns Map<pubkey, GroupDef[]>. Iterate each source once, push to the map per pubkey.
+
+Replace getGroupsForPubkey(pk) (:964) callsites with groupsByPubkey.get(pk) ?? [].
+
+Step D — Kill the setForceRender storm
+Replace per-profile callbacks with batched updates:
+
+In fetchSectionProfiles (:549) and the eager prefetch effect (:721), collect profile results into a buffer and flush with one setForceRender per Promise.allSettled resolution rather than per callback.
+For the streaming fetchProfiles(missingProfiles, cb) (:571) — debounce the bump with requestAnimationFrame (coalesce all callbacks fired within the frame into one render).
+Optional: wrap state updates in React.startTransition so the sort is treated as non-urgent and won't block input.
+
+Step E — Promote profile/trust caches to module-level
+Move expandProfileCache, expandTrustCache, reportMetadataCache, muteMetadataCache from useRef to module-level Maps (in a new Brainstorm-UI/client/src/services/profilePageCache.ts or similar). Drop the clearing useEffect (:512-522) — navigation between profiles keeps the data.
+
+Add a soft LRU cap (e.g. 5000 profiles) to bound memory.
+
+Step F — Defer non-critical prefetch
+The eager prefetch effect (:721-742) fires 60-90 relay queries on mount before user interaction. Wrap in requestIdleCallback (fallback setTimeout(0)) so it doesn't compete with initial render. Skip if user has already expanded a section.
+
+Critical files
+Brainstorm-UI/client/src/pages/ProfilePage.tsx — all changes
+New: Brainstorm-UI/client/src/services/profilePageCache.ts — module-level caches (Step E)
+Reuse / existing utilities
+toInfluenceMap, toPubkeys, getSection from services/graphHelpers.ts — keep, used inside the new memoized maps.
+getVerifiedThreshold from services/trustThreshold.ts — unchanged.
+fetchProfiles / eventStore from services/nostr.ts — unchanged; only call patterns change.
+
