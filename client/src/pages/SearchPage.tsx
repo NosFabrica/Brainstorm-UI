@@ -52,6 +52,27 @@ import { MobileMenu } from "@/components/MobileMenu";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 type SearchPov = "nosfabrica" | "mywot";
+type SearchBackend = "meilisearch" | "vespa";
+
+const SEARCH_BACKEND_STORAGE_KEY = "brainstorm_search_backend";
+
+function loadSearchBackend(): SearchBackend {
+  try {
+    const v = localStorage.getItem(SEARCH_BACKEND_STORAGE_KEY);
+    if (v === "vespa" || v === "meilisearch") return v;
+  } catch {
+    // ignore
+  }
+  return "meilisearch";
+}
+
+function saveSearchBackend(backend: SearchBackend): void {
+  try {
+    localStorage.setItem(SEARCH_BACKEND_STORAGE_KEY, backend);
+  } catch {
+    // ignore
+  }
+}
 
 interface SearchResult {
   pubkey: string;
@@ -80,14 +101,20 @@ function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult 
     return null;
   }
 
-  // The new /search/byText endpoint returns rank as a dynamic key:
-  // `rank_<taPubkey>` (e.g. `rank_be7bf5de...`: 96). Pick up whichever
-  // rank_* key the server included.
+  // Rank field comes from two possible sources:
+  //   - Meilisearch (`/search/byText`): dynamic `rank_<taPubkey>` key,
+  //     e.g. `rank_be7bf5de...`: 96.
+  //   - Vespa (`/search`): `quality_score`, e.g. 97.
+  // Map either into `wotRank` so the result card renders unchanged.
   let wotRank: number | null = null;
-  for (const key of Object.keys(hit)) {
-    if (key.startsWith("rank_") && typeof hit[key] === "number") {
-      wotRank = hit[key] as number;
-      break;
+  if (typeof hit.quality_score === "number") {
+    wotRank = hit.quality_score as number;
+  } else {
+    for (const key of Object.keys(hit)) {
+      if (key.startsWith("rank_") && typeof hit[key] === "number") {
+        wotRank = hit[key] as number;
+        break;
+      }
     }
   }
 
@@ -113,10 +140,20 @@ function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult 
 
 async function searchByText(
   query: string,
+  backend: SearchBackend = "meilisearch",
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
-  const data = await apiClient.searchByText(query, true);
-  const hits = data?.data?.results || [];
+  let hits: Array<Record<string, unknown>> = [];
+  let total = 0;
+  if (backend === "vespa") {
+    const data = await apiClient.searchByTextVespa(query);
+    hits = data?.results || [];
+    total = data?.numResults || hits.length;
+  } else {
+    const data = await apiClient.searchByText(query, true);
+    hits = data?.data?.results || [];
+    total = data?.data?.numResults || hits.length;
+  }
   const results: SearchResult[] = [];
   const seen = new Set<string>();
   for (const h of hits) {
@@ -128,7 +165,7 @@ async function searchByText(
   }
   return {
     results,
-    total: data?.data?.numResults || results.length,
+    total: total || results.length,
     timeMs: Math.round(performance.now() - start),
   };
 }
@@ -161,6 +198,8 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
   const [pov, setPov] = useState<SearchPov>("nosfabrica");
+  const [searchBackend, setSearchBackend] = useState<SearchBackend>(() => loadSearchBackend());
+  const [lastSearchBackend, setLastSearchBackend] = useState<SearchBackend>(searchBackend);
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -351,20 +390,30 @@ export default function SearchPage() {
     setHasSearched(true);
     const start = performance.now();
 
+    const backendForThisSearch = searchBackend;
     try {
-      const { results: searchResults, timeMs } = await searchByText(q);
+      const { results: searchResults, timeMs } = await searchByText(q, backendForThisSearch);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));
-    } catch {
+      setLastSearchBackend(backendForThisSearch);
+    } catch (err) {
       if (searchAbortRef.current !== searchId) return;
       setResults([]);
+      setLastSearchBackend(backendForThisSearch);
+      const backendName = backendForThisSearch === "vespa" ? "Vespa" : "Meilisearch";
+      const message = err instanceof Error ? err.message : String(err ?? "");
+      toast({
+        title: `${backendName} search failed`,
+        description: message || "Please try again or switch backends.",
+        variant: "destructive",
+      });
     } finally {
       if (searchAbortRef.current === searchId) {
         setIsSearching(false);
       }
     }
-  }, [query, pov, user?.pubkey, navigate, resetFilters]);
+  }, [query, pov, searchBackend, user?.pubkey, navigate, resetFilters, toast]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -380,6 +429,24 @@ export default function SearchPage() {
       }
     }
   }, [pov, hasSearched, query, handleSearch]);
+
+  const prevBackendRef = useRef(searchBackend);
+  const handleBackendSwitch = useCallback((next: SearchBackend) => {
+    setSearchBackend((prev) => {
+      if (prev === next) return prev;
+      saveSearchBackend(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (prevBackendRef.current !== searchBackend) {
+      prevBackendRef.current = searchBackend;
+      if (hasSearched && query.trim()) {
+        handleSearch();
+      }
+    }
+  }, [searchBackend, hasSearched, query, handleSearch]);
 
   const handleLogout = () => {
     logout();
@@ -609,18 +676,40 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              {hasSearched && (
-                <div className="flex items-center mt-2.5 px-1">
-                  {hasPovOption && (
-                    <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
-                      <Telescope className="h-3 w-3 text-slate-400" />
-                      <p className="text-[11px] text-slate-400">
-                        Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
-                      </p>
-                    </div>
-                  )}
+              <div className="flex items-center justify-between gap-2 mt-2.5 px-1">
+                {hasSearched && hasPovOption ? (
+                  <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
+                    <Telescope className="h-3 w-3 text-slate-400" />
+                    <p className="text-[11px] text-slate-400">
+                      Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+                    </p>
+                  </div>
+                ) : <span />}
+                <div
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 p-0.5 text-[10px] sm:text-[11px] shrink-0"
+                  role="group"
+                  aria-label="Search backend"
+                  data-testid="group-search-backend"
+                >
+                  <span className="px-1.5 text-slate-400 hidden sm:inline">Engine:</span>
+                  <button
+                    onClick={() => handleBackendSwitch("meilisearch")}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    aria-pressed={searchBackend === "meilisearch"}
+                    data-testid="button-backend-meilisearch"
+                  >
+                    Meilisearch
+                  </button>
+                  <button
+                    onClick={() => handleBackendSwitch("vespa")}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    aria-pressed={searchBackend === "vespa"}
+                    data-testid="button-backend-vespa"
+                  >
+                    Vespa
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -659,7 +748,10 @@ export default function SearchPage() {
                   {hasActiveFilters
                     ? `Showing ${filteredResults.length} of ${results.length} result${results.length !== 1 ? "s" : ""}`
                     : `About ${results.length} result${results.length !== 1 ? "s" : ""}`
-                  } ({(searchTime / 1000).toFixed(2)} seconds)
+                  } ({(searchTime / 1000).toFixed(2)} seconds) via{" "}
+                  <span className="font-medium text-slate-500" data-testid="text-search-backend-label">
+                    {lastSearchBackend === "vespa" ? "Vespa" : "Meilisearch"}
+                  </span>
                 </p>
                 <button
                   className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${showFilters || hasActiveFilters ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent"}`}

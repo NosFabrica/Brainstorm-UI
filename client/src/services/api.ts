@@ -23,6 +23,10 @@ function getBrainstormApi(): string {
   return API_BASE_URL;
 }
 
+const VESPA_SEARCH_URL =
+  (import.meta.env.VITE_VESPA_SEARCH_URL as string | undefined) ??
+  "http://164.92.120.98:8000/search";
+
 let isReauthenticating = false;
 let reauthPromise: Promise<boolean> | null = null;
 let isRedirectingToLogin = false;
@@ -292,6 +296,44 @@ export const apiClient = {
       throw new Error(`Search failed (${response.status})`);
     }
     return await response.json();
+  },
+
+  async searchByTextVespa(
+    text: string,
+    timeoutMs: number = 15000,
+  ): Promise<{
+    results: Array<Record<string, unknown>>;
+    numResults: number;
+  }> {
+    const response = await fetch(VESPA_SEARCH_URL, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query_text: text }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`Vespa search failed (${response.status})`);
+    }
+    const data = await response.json();
+    // Vespa response shapes vary — accept a top-level array, `results`,
+    // `hits`, or `root.children` to be defensive about the wire format.
+    let hits: Array<Record<string, unknown>> = [];
+    if (Array.isArray(data)) {
+      hits = data as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data?.results)) {
+      hits = data.results;
+    } else if (Array.isArray(data?.hits)) {
+      hits = data.hits;
+    } else if (Array.isArray(data?.root?.children)) {
+      hits = data.root.children.map((c: Record<string, unknown>) => {
+        const fields = (c?.fields as Record<string, unknown> | undefined) ?? c;
+        return fields;
+      });
+    }
+    return { results: hits, numResults: hits.length };
   },
 
   async getGrapeRankPreset(): Promise<{
