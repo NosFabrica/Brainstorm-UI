@@ -250,12 +250,12 @@ export default function SearchPage() {
     [vespaWeights],
   );
   const VESPA_WEIGHT_LABELS: Record<keyof VespaWeights, string> = {
-    w_name: "Name",
-    w_display_name: "Display Name",
-    w_about: "About",
-    w_name_gram: "Name (Partial)",
-    w_display_name_gram: "Display Name (Partial)",
-    w_pubkey_gram: "Pubkey (Partial)",
+    w_name: "Name Weight",
+    w_display_name: "Display Name Weight",
+    w_about: "About Weight",
+    w_name_gram: "Name (Partial) Weight",
+    w_display_name_gram: "Display Name (Partial) Weight",
+    w_pubkey_gram: "Pubkey (Partial) Weight",
     w_quality: "TA Score Weight",
   };
   const [firstVisit] = useState(() => {
