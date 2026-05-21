@@ -25,7 +25,17 @@ function getBrainstormApi(): string {
 
 const VESPA_SEARCH_URL =
   (import.meta.env.VITE_VESPA_SEARCH_URL as string | undefined) ??
-  "http://164.92.120.98:8000/search";
+  "https://vespa-staging.nosfabrica.com/search";
+
+const DEFAULT_VESPA_WEIGHTS = {
+  w_name: 3,
+  w_display_name: 3,
+  w_about: 1,
+  w_name_gram: 0.5,
+  w_display_name_gram: 0.5,
+  w_pubkey_gram: 0.1,
+  w_quality: 1,
+} as const;
 
 let isReauthenticating = false;
 let reauthPromise: Promise<boolean> | null = null;
@@ -311,7 +321,7 @@ export const apiClient = {
         "Accept": "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ query_text: text }),
+      body: JSON.stringify({ query_text: text, ...DEFAULT_VESPA_WEIGHTS }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
