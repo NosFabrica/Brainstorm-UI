@@ -249,6 +249,15 @@ export default function SearchPage() {
     () => VESPA_WEIGHT_KEYS.every((k) => vespaWeights[k] === DEFAULT_VESPA_WEIGHTS[k]),
     [vespaWeights],
   );
+  const VESPA_WEIGHT_LABELS: Record<keyof VespaWeights, string> = {
+    w_name: "Name",
+    w_display_name: "Display Name",
+    w_about: "About",
+    w_name_gram: "Name (Partial)",
+    w_display_name_gram: "Display Name (Partial)",
+    w_pubkey_gram: "Pubkey (Partial)",
+    w_quality: "TA Score Weight",
+  };
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -803,8 +812,11 @@ export default function SearchPage() {
                             key={key}
                             className="flex flex-col gap-1"
                           >
-                            <span className="text-[10px] text-slate-500 font-mono truncate">
-                              {key}
+                            <span
+                              className="text-[10px] text-slate-500 truncate"
+                              title={key}
+                            >
+                              {VESPA_WEIGHT_LABELS[key]}
                             </span>
                             <Input
                               type="number"
