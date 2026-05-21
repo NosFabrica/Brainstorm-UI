@@ -27,15 +27,80 @@ const VESPA_SEARCH_URL =
   (import.meta.env.VITE_VESPA_SEARCH_URL as string | undefined) ??
   "https://vespa-staging.nosfabrica.com/search";
 
-const DEFAULT_VESPA_WEIGHTS = {
+export type VespaWeights = {
+  w_name: number;
+  w_display_name: number;
+  w_about: number;
+  w_name_gram: number;
+  w_display_name_gram: number;
+  w_pubkey_gram: number;
+  w_quality: number;
+};
+
+export const DEFAULT_VESPA_WEIGHTS: VespaWeights = {
   w_name: 3,
-  w_display_name: 3,
+  w_display_name: 0,
   w_about: 1,
   w_name_gram: 0.5,
-  w_display_name_gram: 0.5,
+  w_display_name_gram: 0,
   w_pubkey_gram: 0.1,
   w_quality: 1,
-} as const;
+};
+
+export const VESPA_WEIGHT_KEYS: Array<keyof VespaWeights> = [
+  "w_name",
+  "w_display_name",
+  "w_about",
+  "w_name_gram",
+  "w_display_name_gram",
+  "w_pubkey_gram",
+  "w_quality",
+];
+
+const VESPA_WEIGHTS_STORAGE_KEY = "brainstorm_vespa_weights";
+const VESPA_WEIGHT_MAX = 1000;
+
+function sanitizeWeights(input: unknown): VespaWeights {
+  const out: VespaWeights = { ...DEFAULT_VESPA_WEIGHTS };
+  if (!input || typeof input !== "object") return out;
+  const obj = input as Record<string, unknown>;
+  for (const k of VESPA_WEIGHT_KEYS) {
+    const v = obj[k];
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+      out[k] = Math.min(v, VESPA_WEIGHT_MAX);
+    }
+  }
+  return out;
+}
+
+export function getVespaWeights(): VespaWeights {
+  try {
+    const raw = localStorage.getItem(VESPA_WEIGHTS_STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_VESPA_WEIGHTS };
+    return sanitizeWeights(JSON.parse(raw));
+  } catch {
+    return { ...DEFAULT_VESPA_WEIGHTS };
+  }
+}
+
+export function setVespaWeights(weights: VespaWeights): VespaWeights {
+  const clean = sanitizeWeights(weights);
+  try {
+    localStorage.setItem(VESPA_WEIGHTS_STORAGE_KEY, JSON.stringify(clean));
+  } catch {
+    // ignore
+  }
+  return clean;
+}
+
+export function resetVespaWeights(): VespaWeights {
+  try {
+    localStorage.removeItem(VESPA_WEIGHTS_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_VESPA_WEIGHTS };
+}
 
 let isReauthenticating = false;
 let reauthPromise: Promise<boolean> | null = null;
@@ -321,7 +386,7 @@ export const apiClient = {
         "Accept": "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ query_text: text, ...DEFAULT_VESPA_WEIGHTS }),
+      body: JSON.stringify({ query_text: text, ...getVespaWeights() }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {

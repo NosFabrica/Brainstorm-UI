@@ -43,7 +43,16 @@ import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import {
+  apiClient,
+  isAuthRedirecting,
+  getVespaWeights,
+  setVespaWeights,
+  resetVespaWeights,
+  DEFAULT_VESPA_WEIGHTS,
+  VESPA_WEIGHT_KEYS,
+  type VespaWeights,
+} from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
@@ -200,6 +209,46 @@ export default function SearchPage() {
   const [pov, setPov] = useState<SearchPov>("nosfabrica");
   const [searchBackend, setSearchBackend] = useState<SearchBackend>(() => loadSearchBackend());
   const [lastSearchBackend, setLastSearchBackend] = useState<SearchBackend>(searchBackend);
+  const [vespaWeights, setVespaWeightsState] = useState<VespaWeights>(() => getVespaWeights());
+  const [vespaWeightDrafts, setVespaWeightDrafts] = useState<Record<keyof VespaWeights, string>>(() => {
+    const w = getVespaWeights();
+    return VESPA_WEIGHT_KEYS.reduce((acc, k) => {
+      acc[k] = String(w[k]);
+      return acc;
+    }, {} as Record<keyof VespaWeights, string>);
+  });
+  const [showVespaWeights, setShowVespaWeights] = useState(false);
+  const handleWeightDraftChange = useCallback((key: keyof VespaWeights, raw: string) => {
+    setVespaWeightDrafts((prev) => ({ ...prev, [key]: raw }));
+  }, []);
+  const commitWeightDraft = useCallback((key: keyof VespaWeights) => {
+    setVespaWeightsState((prev) => {
+      const raw = vespaWeightDrafts[key];
+      const parsed = raw === "" || raw === "." ? 0 : Number(raw);
+      const valid = Number.isFinite(parsed) && parsed >= 0;
+      const nextVal = valid ? parsed : prev[key];
+      const next: VespaWeights = { ...prev, [key]: nextVal };
+      setVespaWeights(next);
+      if (!valid || String(nextVal) !== raw) {
+        setVespaWeightDrafts((d) => ({ ...d, [key]: String(nextVal) }));
+      }
+      return next;
+    });
+  }, [vespaWeightDrafts]);
+  const handleResetVespaWeights = useCallback(() => {
+    const next = resetVespaWeights();
+    setVespaWeightsState(next);
+    setVespaWeightDrafts(
+      VESPA_WEIGHT_KEYS.reduce((acc, k) => {
+        acc[k] = String(next[k]);
+        return acc;
+      }, {} as Record<keyof VespaWeights, string>),
+    );
+  }, []);
+  const weightsAreDefault = useMemo(
+    () => VESPA_WEIGHT_KEYS.every((k) => vespaWeights[k] === DEFAULT_VESPA_WEIGHTS[k]),
+    [vespaWeights],
+  );
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -710,6 +759,78 @@ export default function SearchPage() {
                   </button>
                 </div>
               </div>
+              {searchBackend === "vespa" && (
+                <div
+                  className="mt-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5"
+                  data-testid="container-vespa-weights"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowVespaWeights((v) => !v)}
+                      className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                      aria-expanded={showVespaWeights}
+                      data-testid="button-toggle-vespa-weights"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      Ranking weights
+                      <ChevronDown
+                        className={`h-3 w-3 transition-transform ${showVespaWeights ? "rotate-180" : ""}`}
+                      />
+                      {!weightsAreDefault && (
+                        <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                      )}
+                    </button>
+                    {!weightsAreDefault && (
+                      <button
+                        type="button"
+                        onClick={handleResetVespaWeights}
+                        className="text-[10px] sm:text-[11px] text-slate-400 hover:text-slate-700 transition-colors"
+                        data-testid="button-reset-vespa-weights"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  {showVespaWeights && (
+                    <>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 leading-snug">
+                        Higher value = field counts more in the relevance score. Changes apply to your next search and are saved on this device.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {VESPA_WEIGHT_KEYS.map((key) => (
+                          <label
+                            key={key}
+                            className="flex flex-col gap-1"
+                          >
+                            <span className="text-[10px] text-slate-500 font-mono truncate">
+                              {key}
+                            </span>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.1"
+                              inputMode="decimal"
+                              value={vespaWeightDrafts[key]}
+                              onChange={(e) => handleWeightDraftChange(key, e.target.value)}
+                              onBlur={() => commitWeightDraft(key)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  commitWeightDraft(key);
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="h-8 text-xs px-2"
+                              data-testid={`input-vespa-${key.replace(/_/g, "-")}`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
