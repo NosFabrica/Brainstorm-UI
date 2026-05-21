@@ -968,7 +968,6 @@ export async function fetchMuteListTimestamp(
 }
 
 const WOT_SEARCH_RELAY = "wss://brainstorm.world/relay";
-const MEILI_SEARCH_API = "https://brainstorm.world/api/search/profiles/meili";
 
 export interface NostrSearchResult {
   pubkey: string;
@@ -980,46 +979,44 @@ export interface NostrSearchResult {
   nip05?: string;
 }
 
+/**
+ * Search profiles via the Brainstorm backend `/search/byText` endpoint.
+ * Replaces the legacy Meilisearch endpoint. The `limit`/`userPubkey`/`pov`
+ * options are accepted for backward compatibility but currently unused
+ * because the new endpoint does not yet support pagination or per-user POV.
+ * The result list is sliced client-side to `limit` after deduplication.
+ */
 export async function searchProfilesMeili(
   query: string,
   options: { limit?: number; timeoutMs?: number; userPubkey?: string; pov?: "house" | "user" } = {}
 ): Promise<NostrSearchResult[]> {
-  const { limit = 10, timeoutMs = 8000, userPubkey, pov = "house" } = options;
-  const params = new URLSearchParams({
-    q: query,
-    limit: String(limit),
-    offset: "0",
-    wotPov: pov,
-  });
-  if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
-
-  const resp = await fetch(`${MEILI_SEARCH_API}?${params.toString()}`, {
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
-  const data = await resp.json();
-  if (!data?.success) throw new Error("Search service unavailable");
-
-  const hits: any[] = Array.isArray(data.hits) ? data.hits : [];
+  const { limit = 10, timeoutMs = 8000 } = options;
+  const { apiClient } = await import("./api");
+  // Admin onboarding search needs to surface unranked profiles too
+  // (legacy Meili endpoint didn't gate on rank). Frontend Search page
+  // calls apiClient.searchByText() directly with onlyRanked=true.
+  const data = await apiClient.searchByText(query, false, timeoutMs);
+  const hits = Array.isArray(data?.data?.results) ? data.data.results : [];
   const seen = new Set<string>();
   const out: NostrSearchResult[] = [];
   for (const h of hits) {
-    const pubkey: string | undefined = h?.pubkey;
+    const pubkey = typeof h?.pubkey === "string" ? (h.pubkey as string) : undefined;
     if (!pubkey || seen.has(pubkey)) continue;
     seen.add(pubkey);
-    let npub: string = h?.npub;
-    if (!npub) {
-      try { npub = nip19.npubEncode(pubkey); } catch { continue; }
-    }
+    let npub: string;
+    try { npub = nip19.npubEncode(pubkey); } catch { continue; }
+    const str = (v: unknown): string | undefined =>
+      typeof v === "string" && v.length > 0 ? v : undefined;
     out.push({
       pubkey,
       npub,
-      name: h?.name || undefined,
-      displayName: h?.display_name || h?.displayName || undefined,
-      picture: h?.picture || undefined,
-      about: h?.about || undefined,
-      nip05: h?.nip05 || undefined,
+      name: str(h?.name),
+      displayName: str(h?.display_name) || str(h?.displayName),
+      picture: str(h?.picture),
+      about: str(h?.about),
+      nip05: str(h?.nip05),
     });
+    if (out.length >= limit) break;
   }
   return out;
 }
