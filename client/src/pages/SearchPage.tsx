@@ -761,6 +761,8 @@ export default function SearchPage() {
                   <button
                     className="px-2 text-slate-300 hover:text-slate-500 transition-colors"
                     onClick={() => {
+                      searchAbortRef.current++;
+                      setIsSearching(false);
                       setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus();
                       try {
                         const url = new URL(window.location.href);

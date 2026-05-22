@@ -906,15 +906,17 @@ export default function ProfilePage() {
       return;
     }
     setUser(u);
+  }, [navigate]);
 
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const group = urlParams.get("fromGroup");
-    if (group) setFromGroup(group);
+    setFromGroup(group || null);
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
-    if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
-    if (urlParams.get("fromSearch") === "1") setFromSearch(true);
-  }, [navigate]);
+    setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
+    setFromSearch(urlParams.get("fromSearch") === "1");
+  }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
