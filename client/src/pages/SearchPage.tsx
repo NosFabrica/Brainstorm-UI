@@ -89,36 +89,44 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
 
   const wot = (hit.wot && typeof hit.wot === "object") ? (hit.wot as Record<string, unknown>) : null;
 
-  // Rank may appear under several field names depending on POV/endpoint shape.
+  // Legacy Meili endpoint returns snake_case `wot_rank` / `wot_followers`
+  // (overall, house POV) plus per-TA variants `wot_rank_<taPubkey8>` /
+  // `wot_followers_<taPubkey8>` for the "user" (mywot) POV.
+  // Per-TA POV variants use the first 8 hex chars of the trust-anchor pubkey
+  // as the suffix (e.g. `wot_rank_78ed0837`). Match exactly to avoid colliding
+  // with similarly-prefixed but unrelated keys.
+  const TA_RANK_RE = /^wot_rank_[0-9a-f]{8}$/i;
+  const TA_FOLLOWERS_RE = /^wot_followers_[0-9a-f]{8}$/i;
+
   let wotRank: number | null =
+    num(hit.wot_rank) ??
     num(hit.wotRank) ??
     num(hit.rank) ??
-    num(hit.wot_score) ??
-    num(hit.wotScore) ??
-    num(hit.score) ??
-    num(hit.grapeRank) ??
-    num(hit.grapeRankScore) ??
-    num(hit.influence) ??
-    (wot ? num(wot.rank) ?? num(wot.score) ?? num(wot.influence) : null);
+    (wot ? num(wot.rank) ?? num(wot.score) : null);
   if (wotRank === null) {
     for (const key of Object.keys(hit)) {
-      if (key.startsWith("rank_") && typeof hit[key] === "number") {
-        wotRank = hit[key] as number;
-        break;
+      if (TA_RANK_RE.test(key)) {
+        const v = num(hit[key]);
+        if (v !== null) {
+          wotRank = v;
+          break;
+        }
       }
     }
   }
   let wotFollowers: number | null =
+    num(hit.wot_followers) ??
     num(hit.wotFollowers) ??
     num(hit.followers) ??
-    num(hit.followerCount) ??
-    num(hit.followers_count) ??
-    (wot ? num(wot.followers) ?? num(wot.followerCount) : null);
+    (wot ? num(wot.followers) : null);
   if (wotFollowers === null) {
     for (const key of Object.keys(hit)) {
-      if (key.startsWith("followers_") && typeof hit[key] === "number") {
-        wotFollowers = hit[key] as number;
-        break;
+      if (TA_FOLLOWERS_RE.test(key)) {
+        const v = num(hit[key]);
+        if (v !== null) {
+          wotFollowers = v;
+          break;
+        }
       }
     }
   }
@@ -152,12 +160,6 @@ async function searchByText(
   const apiPov = pov === "mywot" ? "user" : "house";
   const data = await apiClient.searchProfilesLegacyMeili(query, apiPov, userPubkey, 50);
   const hits = data.hits;
-  // One-time debug: log the first hit's keys so we can verify which field
-  // carries the WoT rank in the live response. Safe to remove later.
-  if (hits.length > 0) {
-    // eslint-disable-next-line no-console
-    console.debug("[search] sample hit keys:", Object.keys(hits[0]), hits[0]);
-  }
   const total = data.estimatedTotalHits ?? hits.length;
   const results: SearchResult[] = [];
   const seen = new Set<string>();
