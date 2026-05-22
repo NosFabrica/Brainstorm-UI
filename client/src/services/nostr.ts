@@ -312,6 +312,142 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
 }
 
 
+export interface Nip85TagCheck {
+  present: boolean;
+  innerPubkey: string | null;
+  relayHint: string | null;
+  pubkeyMatches: boolean;
+  relayMatches: boolean;
+}
+
+export interface Nip85TagDetail {
+  index: number;
+  innerPubkey: string | null;
+  relayHint: string | null;
+  pubkeyMatches: boolean;
+  relayMatches: boolean;
+  isWinner: boolean;
+}
+
+export interface Nip85HealthCheck {
+  expectedTaPubkey: string | null;
+  expectedRelay: string;
+  expectedRelayConfigured: boolean;
+  eventFound: boolean;
+  createdAt: number | null;
+  rankTag: Nip85TagCheck;
+  followersTag: Nip85TagCheck;
+  rankTags: Nip85TagDetail[];
+  followersTags: Nip85TagDetail[];
+  rawEvent: NostrEvent | null;
+}
+
+const EMPTY_TAG_CHECK: Nip85TagCheck = {
+  present: false,
+  innerPubkey: null,
+  relayHint: null,
+  pubkeyMatches: false,
+  relayMatches: false,
+};
+
+export async function checkNip85Health(
+  pubkey: string,
+  expectedTaPubkey: string | null,
+  timeoutMs = 10000,
+): Promise<Nip85HealthCheck> {
+  const expectedRelay = NIP85_RELAY_URL;
+  const expectedRelayConfigured = expectedRelay.length > 0;
+
+  const event = await fetchTrustProviderList(pubkey, timeoutMs);
+
+  const result: Nip85HealthCheck = {
+    expectedTaPubkey,
+    expectedRelay,
+    expectedRelayConfigured,
+    eventFound: !!event,
+    createdAt: event?.created_at ?? null,
+    rankTag: { ...EMPTY_TAG_CHECK },
+    followersTag: { ...EMPTY_TAG_CHECK },
+    rankTags: [],
+    followersTags: [],
+    rawEvent: event ?? null,
+  };
+
+  if (!event) return result;
+
+  // Aggregate per-slot using existential ("any matching tag wins") semantics
+  // to match the behavior of isUsingBrainstorm. If multiple tags of the same
+  // type exist, a single matching tag is enough to mark the slot healthy.
+  // We surface the matching tag's values when present; otherwise we fall back
+  // to the first tag of that type so admins can still see what was published.
+  const slots = ["rankTag", "followersTag"] as const;
+  const tagNameFor = { rankTag: "30382:rank", followersTag: "30382:followers" } as const;
+
+  for (const slot of slots) {
+    const matching = event.tags.filter(
+      (t) => Array.isArray(t) && t.length > 0 && t[0] === tagNameFor[slot],
+    );
+    if (matching.length === 0) continue;
+
+    let anyPubkeyMatches = false;
+    let anyRelayMatches = false;
+    let bestTag: string[] | null = null;
+    let pubkeyMatchTag: string[] | null = null;
+    let relayMatchTag: string[] | null = null;
+    const details: Nip85TagDetail[] = [];
+
+    matching.forEach((tag, idx) => {
+      const inner = typeof tag[1] === "string" ? tag[1] : null;
+      const hint = typeof tag[2] === "string" ? tag[2] : null;
+      const pubkeyOk = !!expectedTaPubkey && inner === expectedTaPubkey;
+      // Preserve loose-equality semantics from isUsingBrainstorm by normalizing
+      // both sides to strings before strict comparison.
+      const relayOk = expectedRelayConfigured && hint !== null && String(hint) === String(expectedRelay);
+      if (pubkeyOk) {
+        anyPubkeyMatches = true;
+        pubkeyMatchTag = pubkeyMatchTag ?? tag;
+      }
+      if (relayOk) {
+        anyRelayMatches = true;
+        relayMatchTag = relayMatchTag ?? tag;
+      }
+      if (pubkeyOk && relayOk) {
+        bestTag = bestTag ?? tag;
+      }
+      details.push({
+        index: idx,
+        innerPubkey: inner,
+        relayHint: hint,
+        pubkeyMatches: pubkeyOk,
+        relayMatches: relayOk,
+        isWinner: false,
+      });
+    });
+
+    // Prefer the fully-matching tag for display; otherwise prefer one matching
+    // pubkey, then one matching relay, then the first tag we saw.
+    const display = bestTag ?? pubkeyMatchTag ?? relayMatchTag ?? matching[0];
+    const winnerIdx = matching.indexOf(display);
+    if (winnerIdx >= 0 && details[winnerIdx]) {
+      details[winnerIdx].isWinner = true;
+    }
+    const inner = typeof display[1] === "string" ? display[1] : null;
+    const hint = typeof display[2] === "string" ? display[2] : null;
+
+    result[slot] = {
+      present: true,
+      innerPubkey: inner,
+      relayHint: hint,
+      pubkeyMatches: anyPubkeyMatches,
+      relayMatches: anyRelayMatches,
+    };
+    if (slot === "rankTag") result.rankTags = details;
+    else result.followersTags = details;
+  }
+
+  return result;
+}
+
 export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, timeoutMs = 10000): Promise<boolean> {
   console.log("isUsingBrainstorm", pubkey, innerPubkey)
   const event = await fetchTrustProviderList(pubkey, timeoutMs)
@@ -433,31 +569,37 @@ export async function publishAssistantPointer(
   }
 }
 
-export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+export async function fetchProfileEvent(
+  pubkey: string,
+  timeoutMs = 10000,
+  extraRelays: string[] = [],
+): Promise<NostrEvent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
+    const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
     const event = await Promise.race([
       firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
     ]);
-
     if (!event) return undefined;
-
-    try {
-      eventStore.add(event as any);
-    } catch {}
-
-    if (isValidProfile(event as any)) {
-      return getProfileContent(event as any);
-    }
-
-    if (typeof event.content === "string") {
-      try {
-        return JSON.parse(event.content) as ProfileContent;
-      } catch {}
-    }
+    try { eventStore.add(event as any); } catch {}
+    return event as NostrEvent;
   } catch {}
+  return undefined;
+}
 
+export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+  const event = await fetchProfileEvent(pubkey, timeoutMs);
+  if (!event) return undefined;
+  if (isValidProfile(event as any)) {
+    return getProfileContent(event as any);
+  }
+  if (typeof event.content === "string") {
+    try {
+      return JSON.parse(event.content) as ProfileContent;
+    } catch {}
+  }
   return undefined;
 }
 
@@ -827,7 +969,6 @@ export async function fetchMuteListTimestamp(
 }
 
 const WOT_SEARCH_RELAY = "wss://brainstorm.world/relay";
-const MEILI_SEARCH_API = "https://brainstorm.world/api/search/profiles/meili";
 
 export interface NostrSearchResult {
   pubkey: string;
@@ -839,46 +980,44 @@ export interface NostrSearchResult {
   nip05?: string;
 }
 
+/**
+ * Search profiles via the Brainstorm backend `/search/byText` endpoint.
+ * Replaces the legacy Meilisearch endpoint. The `limit`/`userPubkey`/`pov`
+ * options are accepted for backward compatibility but currently unused
+ * because the new endpoint does not yet support pagination or per-user POV.
+ * The result list is sliced client-side to `limit` after deduplication.
+ */
 export async function searchProfilesMeili(
   query: string,
   options: { limit?: number; timeoutMs?: number; userPubkey?: string; pov?: "house" | "user" } = {}
 ): Promise<NostrSearchResult[]> {
-  const { limit = 10, timeoutMs = 8000, userPubkey, pov = "house" } = options;
-  const params = new URLSearchParams({
-    q: query,
-    limit: String(limit),
-    offset: "0",
-    wotPov: pov,
-  });
-  if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
-
-  const resp = await fetch(`${MEILI_SEARCH_API}?${params.toString()}`, {
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
-  const data = await resp.json();
-  if (!data?.success) throw new Error("Search service unavailable");
-
-  const hits: any[] = Array.isArray(data.hits) ? data.hits : [];
+  const { limit = 10, timeoutMs = 8000 } = options;
+  const { apiClient } = await import("./api");
+  // Admin onboarding search needs to surface unranked profiles too
+  // (legacy Meili endpoint didn't gate on rank). Frontend Search page
+  // calls apiClient.searchByText() directly with onlyRanked=true.
+  const data = await apiClient.searchByText(query, false, timeoutMs);
+  const hits = Array.isArray(data?.data?.results) ? data.data.results : [];
   const seen = new Set<string>();
   const out: NostrSearchResult[] = [];
   for (const h of hits) {
-    const pubkey: string | undefined = h?.pubkey;
+    const pubkey = typeof h?.pubkey === "string" ? (h.pubkey as string) : undefined;
     if (!pubkey || seen.has(pubkey)) continue;
     seen.add(pubkey);
-    let npub: string = h?.npub;
-    if (!npub) {
-      try { npub = nip19.npubEncode(pubkey); } catch { continue; }
-    }
+    let npub: string;
+    try { npub = nip19.npubEncode(pubkey); } catch { continue; }
+    const str = (v: unknown): string | undefined =>
+      typeof v === "string" && v.length > 0 ? v : undefined;
     out.push({
       pubkey,
       npub,
-      name: h?.name || undefined,
-      displayName: h?.display_name || h?.displayName || undefined,
-      picture: h?.picture || undefined,
-      about: h?.about || undefined,
-      nip05: h?.nip05 || undefined,
+      name: str(h?.name),
+      displayName: str(h?.display_name) || str(h?.displayName),
+      picture: str(h?.picture),
+      about: str(h?.about),
+      nip05: str(h?.nip05),
     });
+    if (out.length >= limit) break;
   }
   return out;
 }

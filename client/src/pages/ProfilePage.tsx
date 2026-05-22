@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -48,7 +48,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -64,6 +64,12 @@ import {
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { getProfileSeed, clearProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
+import {
+  expandProfileCache,
+  expandTrustCache,
+  reportMetadataCache,
+  muteMetadataCache,
+} from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -349,6 +355,469 @@ const getSection = (data: ProfileResultData | null | undefined, key: string): Gr
   return (data as unknown as ProfileSections)[key];
 };
 
+type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
+type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
+type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
+
+interface GroupDef { key: string; label: string; colors: string }
+
+const GROUP_DEFS: GroupDef[] = [
+  { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
+  { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
+  { key: "mutual", label: "Mutual", colors: "bg-teal-50 text-teal-500 border-teal-100" },
+  { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
+  { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
+  { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
+  { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
+  { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
+  { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
+];
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "trust-desc", label: "Trust \u2193" },
+  { value: "trust-asc", label: "Trust \u2191" },
+  { value: "name-asc", label: "A\u2013Z" },
+  { value: "name-desc", label: "Z\u2013A" },
+];
+
+const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
+  { value: "all", label: "All", color: "bg-slate-100 text-slate-600" },
+  { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
+  { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
+  { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
+  { value: "neutral", label: "Neutral", color: "bg-indigo-50 text-indigo-500" },
+  { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
+  { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
+];
+
+const REPORT_TYPE_BADGE_COLORS: Record<string, string> = {
+  spam: "bg-amber-50 text-amber-700 border-amber-200",
+  impersonation: "bg-red-50 text-red-700 border-red-200",
+  nudity: "bg-pink-50 text-pink-700 border-pink-200",
+  illegal: "bg-red-50 text-red-800 border-red-300",
+  profanity: "bg-orange-50 text-orange-700 border-orange-200",
+  other: "bg-slate-50 text-slate-600 border-slate-200",
+};
+
+const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
+  { value: "all", label: "All Types", dotColor: "bg-slate-300" },
+  { value: "spam", label: "Spam", dotColor: "bg-amber-500" },
+  { value: "impersonation", label: "Impersonation", dotColor: "bg-red-500" },
+  { value: "nudity", label: "Nudity", dotColor: "bg-pink-500" },
+  { value: "illegal", label: "Illegal", dotColor: "bg-red-700" },
+  { value: "profanity", label: "Profanity", dotColor: "bg-orange-500" },
+  { value: "other", label: "Other", dotColor: "bg-slate-400" },
+  { value: "unavailable", label: "Unavailable", dotColor: "bg-slate-300" },
+];
+
+const SECTION_BORDER_COLORS: Record<string, string> = {
+  followed_by: "border-blue-300",
+  following: "border-blue-300",
+  mutual: "border-teal-300",
+  shared_followers: "border-indigo-300",
+  shared_following: "border-indigo-300",
+  muted_by: "border-amber-300",
+  reported_by: "border-red-300",
+  muting: "border-amber-200",
+  reporting: "border-slate-300",
+};
+
+function getTierKey(score: number): string {
+  if (score >= 0.50) return "high";
+  if (score >= 0.20) return "trusted";
+  if (score >= 0.07) return "neutral";
+  if (score >= getVerifiedThreshold()) return "low";
+  return "unverified";
+}
+
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setV(value), delay);
+    return () => window.clearTimeout(id);
+  }, [value, delay]);
+  return v;
+}
+
+function getTrustForPkFromMaps(pk: string, sectionInfluenceMaps: Record<string, Map<string, number | null>>): number {
+  const cached = expandTrustCache.get(pk);
+  if (cached !== undefined && cached !== null) return cached;
+  for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"] as const) {
+    const val = sectionInfluenceMaps[groupKey]?.get(pk);
+    if (val !== undefined && val !== null) return val;
+  }
+  return -1;
+}
+
+function computeProcessedPubkeys(
+  key: string,
+  pubkeys: string[],
+  filter: FilterMode,
+  sort: SortMode,
+  search: string,
+  reportTypeFilter: ReportTypeFilter,
+  sectionInfluenceMaps: Record<string, Map<string, number | null>>,
+  getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined,
+): string[] {
+  const verifiedThreshold = getVerifiedThreshold();
+  let filtered = pubkeys;
+  if (filter !== "all") {
+    filtered = filtered.filter(pk => {
+      const score = getTrustForPkFromMaps(pk, sectionInfluenceMaps);
+      if (score < 0) return filter === "unverified";
+      if (filter === "verified") return score >= verifiedThreshold;
+      return getTierKey(score) === filter;
+    });
+  }
+  if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
+    filtered = filtered.filter(pk => {
+      const report = getReportForPubkey(key, pk);
+      if (reportTypeFilter === "unavailable") return !report;
+      return report?.reportType === reportTypeFilter;
+    });
+  }
+  const trimmed = search.toLowerCase().trim();
+  if (trimmed) {
+    filtered = filtered.filter(pk => {
+      const profile = expandProfileCache.get(pk);
+      const name = (profile?.display_name || profile?.name || "").toLowerCase();
+      const nip05 = (profile?.nip05 || "").toLowerCase();
+      if (name.includes(trimmed) || nip05.includes(trimmed)) return true;
+      if (trimmed.startsWith("npub")) {
+        try {
+          const npub = nip19.npubEncode(pk).toLowerCase();
+          return npub.includes(trimmed);
+        } catch { return false; }
+      }
+      return false;
+    });
+  }
+  const sorted = [...filtered];
+  if (sort === "trust-desc" || sort === "trust-asc") {
+    sorted.sort((a, b) => {
+      const sa = getTrustForPkFromMaps(a, sectionInfluenceMaps);
+      const sb = getTrustForPkFromMaps(b, sectionInfluenceMaps);
+      return sort === "trust-desc" ? sb - sa : sa - sb;
+    });
+  } else {
+    sorted.sort((a, b) => {
+      const pa = expandProfileCache.get(a);
+      const pb = expandProfileCache.get(b);
+      const na = (pa?.display_name || pa?.name || "").toLowerCase();
+      const nb = (pb?.display_name || pb?.name || "").toLowerCase();
+      if (!na && !nb) return 0;
+      if (!na) return 1;
+      if (!nb) return -1;
+      return sort === "name-asc" ? na.localeCompare(nb) : nb.localeCompare(na);
+    });
+  }
+  return sorted;
+}
+
+interface ExpandedPanelProps {
+  sectionKey: string;
+  pubkeys: string[];
+  filter: FilterMode;
+  sort: SortMode;
+  search: string;
+  reportTypeFilter: ReportTypeFilter;
+  visibleCount: number;
+  filterDropdownOpen: boolean;
+  reportTypeDropdownOpen: boolean;
+  reportMetaLoading: boolean;
+  sectionInfluenceMaps: Record<string, Map<string, number | null>>;
+  groupsByPubkey: Map<string, GroupDef[]>;
+  getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined;
+  formatRelativeTime: (timestamp: number) => string;
+  navigateToProfile: (pk: string) => void;
+  onSetSort: (k: string, v: SortMode) => void;
+  onSetFilter: (k: string, v: FilterMode) => void;
+  onSetSearch: (k: string, v: string) => void;
+  onSetReportTypeFilter: (k: string, v: ReportTypeFilter) => void;
+  onSetVisibleCount: (k: string, n: number) => void;
+  onToggleFilterDropdown: (k: string, open: boolean) => void;
+  onToggleReportTypeDropdown: (k: string, open: boolean) => void;
+  onShowMore: (k: string, processed: string[], currentVisible: number) => void;
+  onEnsureVisibleFetched: (k: string, visiblePubkeys: string[]) => void;
+  renderToken: number;
+}
+
+const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
+  const {
+    sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
+    filterDropdownOpen, reportTypeDropdownOpen, reportMetaLoading,
+    sectionInfluenceMaps, groupsByPubkey, getReportForPubkey, formatRelativeTime,
+    navigateToProfile, onSetSort, onSetFilter, onSetSearch, onSetReportTypeFilter,
+    onSetVisibleCount, onToggleFilterDropdown, onToggleReportTypeDropdown, onShowMore,
+    onEnsureVisibleFetched, renderToken,
+  } = props;
+
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const processed = useMemo(
+    () => computeProcessedPubkeys(key, pubkeys, filter, sort, debouncedSearch, reportTypeFilter, sectionInfluenceMaps, getReportForPubkey),
+    // renderToken in deps so name-sort updates as profiles stream in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key, pubkeys, filter, sort, debouncedSearch, reportTypeFilter, sectionInfluenceMaps, getReportForPubkey, renderToken],
+  );
+
+  const isReportFilterSection = key === "reported_by" || key === "reporting";
+  const isFiltered = filter !== "all" || debouncedSearch.trim().length > 0 || reportTypeFilter !== "all";
+  const visiblePubkeys = useMemo(() => processed.slice(0, visibleCount), [processed, visibleCount]);
+  const borderColor = SECTION_BORDER_COLORS[key] || "border-slate-300";
+
+  useEffect(() => {
+    if (visiblePubkeys.length === 0) return;
+    const needsFetch = visiblePubkeys.some(pk => !expandProfileCache.has(pk) || !expandTrustCache.has(pk));
+    if (needsFetch) onEnsureVisibleFetched(key, visiblePubkeys);
+  }, [key, visiblePubkeys, onEnsureVisibleFetched]);
+
+  return (
+    <div className="border-t border-slate-100 bg-slate-50/50">
+      <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-gradient-to-r from-white/80 via-indigo-50/20 to-white/80 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 mr-1">
+            <ArrowUpDown className="h-3 w-3 text-slate-400" />
+            <div className="flex rounded-md overflow-hidden border border-slate-200">
+              {SORT_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  data-testid={`sort-${opt.value}-${key}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, !filterDropdownOpen); }}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              data-testid={`filter-toggle-${key}`}
+            >
+              <Filter className="h-3 w-3" />
+              {filter !== "all" ? FILTER_OPTIONS.find(f => f.value === filter)?.label : "Filter"}
+              <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+            {filterDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                  {FILTER_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSetFilter(key, opt.value);
+                        onSetVisibleCount(key, 10);
+                        onToggleFilterDropdown(key, false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
+                      data-testid={`filter-${opt.value}-${key}`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {isReportFilterSection && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, !reportTypeDropdownOpen); }}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                data-testid={`report-type-filter-toggle-${key}`}
+              >
+                <span className="w-2 h-2 rounded-full bg-current opacity-50" />
+                {reportTypeFilter !== "all" ? reportTypeFilter : "Type"}
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
+              {reportTypeDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, false); }} />
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                    {REPORT_TYPE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSetReportTypeFilter(key, opt.value);
+                          onSetVisibleCount(key, 10);
+                          onToggleReportTypeDropdown(key, false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 hover:bg-slate-50"}`}
+                        data-testid={`report-type-filter-${opt.value}-${key}`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {reportMetaLoading && (
+            <span className="flex items-center gap-1 text-[10px] text-indigo-400 ml-auto">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              <span>fetching relay data</span>
+            </span>
+          )}
+          {isFiltered && (
+            <span className={`text-[10px] text-slate-400 ${reportMetaLoading ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
+              {processed.length} of {pubkeys.length}
+            </span>
+          )}
+        </div>
+        <div className="relative">
+          <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { onSetSearch(key, e.target.value); onSetVisibleCount(key, 10); }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Search by name or npub..."
+            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+            data-testid={`search-input-${key}`}
+          />
+          {search && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onSetSearch(key, ""); onSetVisibleCount(key, 10); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              data-testid={`search-clear-${key}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className={`border-l-2 ${borderColor} ml-4`}>
+        {visiblePubkeys.map(pk => {
+          const profile = expandProfileCache.get(pk);
+          const trustScore = expandTrustCache.get(pk);
+          const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
+          const overlappingGroups = (groupsByPubkey.get(pk) ?? []).filter(g => g.key !== key);
+
+          const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
+          const circ = 2 * Math.PI * 18;
+          const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
+          const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
+
+          if (profile === undefined) {
+            return (
+              <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
+                <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+                  <div className="h-2 w-16 bg-slate-100 rounded animate-pulse" />
+                </div>
+              </div>
+            );
+          }
+
+          const isReportSection = key === "reported_by" || key === "reporting";
+          const isMuteSection = key === "muted_by" || key === "muting";
+          const reportMeta = isReportSection ? getReportForPubkey(key, pk) : undefined;
+          const muteMeta = isMuteSection ? muteMetadataCache.get(pk) : undefined;
+
+          return (
+            <div
+              key={pk}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 cursor-pointer transition-colors"
+              onClick={() => navigateToProfile(pk)}
+              data-testid={`expand-profile-${pk.slice(0,8)}`}
+            >
+              <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
+                {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
+                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
+                  {displayName.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
+                {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
+                {isReportSection && reportMeta && (
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
+                      {reportMeta.reportType}
+                    </Badge>
+                    <span className="text-[10px] text-slate-400" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
+                    {reportMeta.reason && (
+                      <span className="text-[10px] text-slate-400 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
+                    )}
+                  </div>
+                )}
+                {isReportSection && !reportMeta && reportMetaLoading && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <div className="h-2 w-10 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-2 w-8 bg-slate-100 rounded animate-pulse" />
+                  </div>
+                )}
+                {isReportSection && !reportMeta && !reportMetaLoading && (
+                  <span className="text-[10px] text-slate-300 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
+                )}
+                {isMuteSection && muteMeta && (
+                  <span className="text-[10px] text-slate-400" data-testid={`mute-time-${pk.slice(0,8)}`}>{formatRelativeTime(muteMeta.timestamp)}</span>
+                )}
+              </div>
+              {overlappingGroups.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {overlappingGroups.map(g => (
+                    <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
+                  ))}
+                </div>
+              )}
+              {trustScore !== undefined && trustScore !== null && (
+                <div className="w-6 h-6 relative shrink-0">
+                  <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
+                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100" />
+                    <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
+                      className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700">{trustPct}</span>
+                </div>
+              )}
+              {trustScore === undefined && (
+                <Loader2 className="h-3 w-3 text-indigo-300 animate-spin shrink-0" />
+              )}
+            </div>
+          );
+        })}
+        {processed.length > visibleCount && (
+          <div className="px-3 py-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onShowMore(key, processed, visibleCount); }}
+              className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+              data-testid={`button-show-more-${key}`}
+            >
+              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining)</span>
+            </button>
+          </div>
+        )}
+        {processed.length === 0 && isFiltered && (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-slate-400">No users match this filter</p>
+            <button
+              onClick={(e) => { e.stopPropagation(); onSetFilter(key, "all"); onSetReportTypeFilter(key, "all"); }}
+              className="text-xs text-[#3730a3] font-medium mt-1.5 hover:underline"
+              data-testid={`filter-clear-${key}`}
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export default function ProfilePage() {
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
@@ -364,16 +833,18 @@ export default function ProfilePage() {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
-  const expandProfileCache = useRef<Map<string, any>>(new Map());
-  const expandTrustCache = useRef<Map<string, number | null>>(new Map());
-  const reportMetadataCache = useRef<Map<string, ReportMetadata[]>>(new Map());
-  const muteMetadataCache = useRef<Map<string, MuteMetadata>>(new Map());
   const [reportMetadataLoading, setReportMetadataLoading] = useState<Record<string, boolean>>({});
   const [forceRender, setForceRender] = useState(0);
+  const hasExpandedRef = useRef(false);
+  const rafBumpRef = useRef<number | null>(null);
+  const bumpRerender = useCallback(() => {
+    if (rafBumpRef.current !== null) return;
+    rafBumpRef.current = requestAnimationFrame(() => {
+      rafBumpRef.current = null;
+      startTransition(() => setForceRender((c) => c + 1));
+    });
+  }, []);
 
-  type SortMode = "trust-desc" | "trust-asc" | "name-asc" | "name-desc";
-  type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | "unverified";
-  type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
   const [sectionSort, setSectionSort] = useState<Record<string, SortMode>>({});
   const [sectionFilter, setSectionFilter] = useState<Record<string, FilterMode>>({});
   const [sectionSearch, setSectionSearch] = useState<Record<string, string>>({});
@@ -383,6 +854,7 @@ export default function ProfilePage() {
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
+  const [fromSearch, setFromSearch] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -434,14 +906,17 @@ export default function ProfilePage() {
       return;
     }
     setUser(u);
+  }, [navigate]);
 
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const group = urlParams.get("fromGroup");
-    if (group) setFromGroup(group);
+    setFromGroup(group || null);
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
-    if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
-  }, [navigate]);
+    setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
+    setFromSearch(urlParams.get("fromSearch") === "1");
+  }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
@@ -455,16 +930,194 @@ export default function ProfilePage() {
 
   const seed = useMemo<ProfileSeed | null>(() => (hexPubkey ? getProfileSeed(hexPubkey) : null), [hexPubkey]);
 
-  const profileQuery = useQuery<ProfileResultData | null>({
-    queryKey: ["profile", hexPubkey],
+  // Overview drives the header (influence + counts). Lists load lazily on expand.
+  const profileOverviewQuery = useQuery<{
+    pubkey: string;
+    influence: number | null;
+    counts: {
+      followed_by: number;
+      following: number;
+      muted_by: number;
+      muting: number;
+      reported_by: number;
+      reporting: number;
+    };
+  } | null>({
+    queryKey: ["profile-overview", hexPubkey],
     queryFn: async () => {
-      const res = await apiClient.getUserByPubkey(hexPubkey);
-      return (res?.data ?? null) as ProfileResultData | null;
+      const res = await apiClient.getUserOverview(hexPubkey);
+      return res?.data ?? null;
     },
     enabled: !!user && !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
+
+  // Per-section stats (total + verified + tier counts) for all 6 relationships.
+  // Fires in parallel with overview on profile open. Server runs 6 Cypher scans
+  // in parallel; first paint of badges depends on this landing.
+  type SectionStats = {
+    total: number;
+    verified: number;
+    tier_counts: {
+      high: number;
+      trusted: number;
+      neutral: number;
+      low: number;
+      unverified: number;
+    };
+  };
+  const profileStatsQuery = useQuery<{
+    followed_by: SectionStats;
+    following: SectionStats;
+    muted_by: SectionStats;
+    muting: SectionStats;
+    reported_by: SectionStats;
+    reporting: SectionStats;
+  } | null>({
+    queryKey: ["profile-stats", hexPubkey, trustPreset],
+    queryFn: async () => {
+      const res = await apiClient.getUserStats(hexPubkey, {
+        verified_threshold: getVerifiedThreshold(),
+        tier_high: 0.5,
+        tier_trusted: 0.2,
+        tier_neutral: 0.07,
+      });
+      return res?.data ?? null;
+    },
+    enabled: !!user && !!hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  // Per-section connection queries (cursor-paginated).
+  //  - followed_by + following: eager (drive mutual/shared computations).
+  //  - the other four: lazy, only fire when their section is expanded.
+  const SECTION_LIMIT = 200;
+  const useConnectionsQuery = (
+    kind:
+      | "followed_by"
+      | "following"
+      | "muted_by"
+      | "muting"
+      | "reported_by"
+      | "reporting",
+    eager: boolean = false,
+  ) =>
+    useInfiniteQuery<
+      { items: GraphEntry[]; next_cursor: string | null },
+      Error,
+      { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
+      readonly unknown[],
+      string | undefined
+    >({
+      queryKey: ["profile-conn", hexPubkey, kind, trustPreset],
+      queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+        const res = await apiClient.getUserConnections(hexPubkey, kind, {
+          limit: SECTION_LIMIT,
+          cursor: pageParam || undefined,
+        });
+        return {
+          items: (res?.data?.items ?? []) as GraphEntry[],
+          next_cursor: (res?.data?.next_cursor ?? null) as string | null,
+        };
+      },
+      initialPageParam: undefined,
+      getNextPageParam: (lastPage: { next_cursor: string | null }) =>
+        lastPage?.next_cursor ?? undefined,
+      enabled:
+        !!user && !!hexPubkey && (eager || !!expandedSections[kind]),
+      staleTime: 5 * 60_000,
+      retry: false,
+    });
+
+  const followedByQuery = useConnectionsQuery("followed_by", true);
+  const followingQuery = useConnectionsQuery("following");
+  const mutedByQuery = useConnectionsQuery("muted_by");
+  const mutingQuery = useConnectionsQuery("muting");
+  const reportedByQuery = useConnectionsQuery("reported_by");
+  const reportingQuery = useConnectionsQuery("reporting");
+
+  // Flatten paginated items per section.
+  const flattenItems = (q: { data?: { pages?: { items: GraphEntry[] }[] } }) =>
+    q.data?.pages?.flatMap((p) => p.items) ?? null;
+
+  const followedByItems = flattenItems(followedByQuery);
+  const followingItems = flattenItems(followingQuery);
+  const mutedByItems = flattenItems(mutedByQuery);
+  const mutingItems = flattenItems(mutingQuery);
+  const reportedByItems = flattenItems(reportedByQuery);
+  const reportingItems = flattenItems(reportingQuery);
+
+  const sectionStats = useMemo<Record<string, SectionStats | null>>(
+    () => ({
+      followed_by: profileStatsQuery.data?.followed_by ?? null,
+      following: profileStatsQuery.data?.following ?? null,
+      muted_by: profileStatsQuery.data?.muted_by ?? null,
+      muting: profileStatsQuery.data?.muting ?? null,
+      reported_by: profileStatsQuery.data?.reported_by ?? null,
+      reporting: profileStatsQuery.data?.reporting ?? null,
+    }),
+    [profileStatsQuery.data],
+  );
+
+  // Seed expandTrustCache from any loaded section items so subsequent
+  // ExpandedPanel renders don't fire a per-pubkey getUserOverview() each.
+  useEffect(() => {
+    const seedFrom = (items: GraphEntry[] | null) => {
+      if (!items) return;
+      for (const it of items) {
+        if (typeof it === "string") continue;
+        if (!expandTrustCache.has(it.pubkey)) {
+          expandTrustCache.set(it.pubkey, it.influence ?? null);
+        }
+      }
+    };
+    seedFrom(followedByItems);
+    seedFrom(followingItems);
+    seedFrom(mutedByItems);
+    seedFrom(mutingItems);
+    seedFrom(reportedByItems);
+    seedFrom(reportingItems);
+  }, [
+    followedByItems,
+    followingItems,
+    mutedByItems,
+    mutingItems,
+    reportedByItems,
+    reportingItems,
+  ]);
+
+  // Composed ProfileResultData: counts as numbers (from overview) until each
+  // section's lazy query lands its array. UI already handles the number-or-array
+  // dual shape via Array.isArray() checks.
+  const profileQuery = {
+    data: useMemo<ProfileResultData | null>(() => {
+      const ov = profileOverviewQuery.data;
+      if (!ov) return null;
+      return {
+        influence: ov.influence ?? undefined,
+        followed_by: followedByItems ?? ov.counts.followed_by,
+        following: followingItems ?? ov.counts.following,
+        muted_by: mutedByItems ?? ov.counts.muted_by,
+        muting: mutingItems ?? ov.counts.muting,
+        reported_by: reportedByItems ?? ov.counts.reported_by,
+        reporting: reportingItems ?? ov.counts.reporting,
+      } as ProfileResultData;
+    }, [
+      profileOverviewQuery.data,
+      followedByItems,
+      followingItems,
+      mutedByItems,
+      mutingItems,
+      reportedByItems,
+      reportingItems,
+    ]),
+    isLoading: profileOverviewQuery.isLoading,
+    isError: profileOverviewQuery.isError,
+    isFetched: profileOverviewQuery.isFetched,
+    isSuccess: profileOverviewQuery.isSuccess,
+  };
 
   const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
@@ -512,12 +1165,9 @@ export default function ProfilePage() {
   useEffect(() => {
     setExpandedSections({});
     setSectionVisibleCount({});
-    expandProfileCache.current.clear();
-    expandTrustCache.current.clear();
-    reportMetadataCache.current.clear();
-    muteMetadataCache.current.clear();
-    metadataFetchedRef.current.clear();
     setReportMetadataLoading({});
+    hasExpandedRef.current = false;
+    metadataFetchedRef.current.clear();
     prefetchedRef.current.clear();
   }, [hexPubkey]);
 
@@ -546,53 +1196,46 @@ export default function ProfilePage() {
   const fetchAbortRef = useRef<number>(0);
   const prefetchedRef = useRef<Set<string>>(new Set());
 
-  const fetchSectionProfiles = async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
+  const fetchSectionProfiles = useCallback(async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
     const fetchId = ++fetchAbortRef.current;
     const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
-      pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk)
+      pk => !expandProfileCache.has(pk)
     );
     if (toFetch.length === 0) return;
-    const profilePubkeys = toFetch.filter(pk => !expandProfileCache.current.has(pk));
-    const trustPubkeys = toFetch.filter(pk => !expandTrustCache.current.has(pk));
     const missingProfiles: string[] = [];
-    for (const pk of profilePubkeys) {
+    for (const pk of toFetch) {
       const event = eventStore.getReplaceable(0, pk);
       if (event) {
-        if (isValidProfile(event)) expandProfileCache.current.set(pk, getProfileContent(event));
+        if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
       } else {
         missingProfiles.push(pk);
       }
     }
     if (fetchAbortRef.current !== fetchId) return;
-    if (missingProfiles.length > 0 || trustPubkeys.length > 0) {
-      setForceRender(c => c + 1);
+    if (missingProfiles.length > 0) {
+      bumpRerender();
     }
     await Promise.allSettled([
       ...(missingProfiles.length > 0 ? [fetchProfiles(missingProfiles, (pubkey, profile) => {
-        expandProfileCache.current.set(pubkey, profile);
-        setForceRender(c => c + 1);
+        expandProfileCache.set(pubkey, profile);
+        bumpRerender();
       })] : []),
-      ...trustPubkeys.map(pk =>
-        apiClient.getUserByPubkey(pk)
-          .then(resp => expandTrustCache.current.set(pk, resp?.data?.influence ?? null))
-          .catch(() => expandTrustCache.current.set(pk, null))
-      ),
     ]);
     if (fetchAbortRef.current !== fetchId) return;
-    setForceRender(c => c + 1);
+    bumpRerender();
     const nextStart = startIdx + count;
     if (nextStart < pubkeys.length) {
       const nextBatch = pubkeys.slice(nextStart, nextStart + count).filter(
-        pk => !expandProfileCache.current.has(pk) && !eventStore.getReplaceable(0, pk)
+        pk => !expandProfileCache.has(pk) && !eventStore.getReplaceable(0, pk)
       );
       if (nextBatch.length > 0) {
         nextBatch.forEach(pk => prefetchedRef.current.add(pk));
         fetchProfiles(nextBatch, (pubkey, profile) => {
-          expandProfileCache.current.set(pubkey, profile);
+          expandProfileCache.set(pubkey, profile);
         });
       }
     }
-  };
+  }, [bumpRerender]);
 
   const metadataFetchedRef = useRef<Set<string>>(new Set());
 
@@ -606,7 +1249,7 @@ export default function ProfilePage() {
     }
 
     if (sectionKey === "muting") {
-      if (muteMetadataCache.current.has(hexPubkey)) return;
+      if (muteMetadataCache.has(hexPubkey)) return;
     }
 
     setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: true }));
@@ -614,38 +1257,38 @@ export default function ProfilePage() {
     try {
       if (sectionKey === "reported_by") {
         const reports = await fetchReportsForPubkey(hexPubkey);
-        reportMetadataCache.current.set(cacheKey, reports);
+        reportMetadataCache.set(cacheKey, reports);
       } else if (sectionKey === "reporting") {
         const reports = await fetchReportsByPubkey(hexPubkey);
-        reportMetadataCache.current.set(cacheKey, reports);
+        reportMetadataCache.set(cacheKey, reports);
       } else if (sectionKey === "muted_by") {
         const pubkeysToFetch = extraPubkeys || toPubkeys(getSection(profileResult, sectionKey)).slice(0, 50);
-        const unfetched = pubkeysToFetch.filter(pk => !muteMetadataCache.current.has(pk));
+        const unfetched = pubkeysToFetch.filter(pk => !muteMetadataCache.has(pk));
         if (unfetched.length > 0) {
           const results = await Promise.allSettled(
             unfetched.map(pk => fetchMuteListTimestamp(pk))
           );
           for (const r of results) {
             if (r.status === "fulfilled" && r.value) {
-              muteMetadataCache.current.set(r.value.muterPubkey, r.value);
+              muteMetadataCache.set(r.value.muterPubkey, r.value);
             }
           }
         }
       } else if (sectionKey === "muting") {
         const result = await fetchMuteListTimestamp(hexPubkey);
         if (result) {
-          muteMetadataCache.current.set(hexPubkey, result);
+          muteMetadataCache.set(hexPubkey, result);
         }
       }
     } catch {}
 
     setReportMetadataLoading(prev => ({ ...prev, [sectionKey]: false }));
-    setForceRender(c => c + 1);
-  }, [hexPubkey, profileResult]);
+    bumpRerender();
+  }, [hexPubkey, profileResult, bumpRerender]);
 
   const getReportForPubkey = useCallback((sectionKey: string, pubkey: string): ReportMetadata | undefined => {
     const cacheKey = `${sectionKey}:${hexPubkey}`;
-    const reports = reportMetadataCache.current.get(cacheKey);
+    const reports = reportMetadataCache.get(cacheKey);
     if (!reports) return undefined;
     const matching = sectionKey === "reported_by"
       ? reports.filter(r => r.reporterPubkey === pubkey)
@@ -672,14 +1315,6 @@ export default function ProfilePage() {
     return `${relative} · ${absolute}`;
   }, []);
 
-  const reportTypeBadgeColors: Record<string, string> = {
-    spam: "bg-amber-50 text-amber-700 border-amber-200",
-    impersonation: "bg-red-50 text-red-700 border-red-200",
-    nudity: "bg-pink-50 text-pink-700 border-pink-200",
-    illegal: "bg-red-50 text-red-800 border-red-300",
-    profanity: "bg-orange-50 text-orange-700 border-orange-200",
-    other: "bg-slate-50 text-slate-600 border-slate-200",
-  };
 
   const mutualPubkeys = useMemo(() => {
     if (!profileResult) return [];
@@ -720,26 +1355,82 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!profileResult) return;
-    const allPubkeys: string[] = [];
-    for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
-      const pks = toPubkeys(getSection(profileResult, key));
-      allPubkeys.push(...pks.slice(0, 10));
-    }
-    for (const pk of mutualPubkeys.slice(0, 10)) allPubkeys.push(pk);
-    for (const pk of sharedFollowerPubkeys.slice(0, 10)) allPubkeys.push(pk);
-    for (const pk of sharedFollowingPubkeys.slice(0, 10)) allPubkeys.push(pk);
-    const unique = [...new Set(allPubkeys)].filter(pk => {
-      if (prefetchedRef.current.has(pk)) return false;
-      const cached = eventStore.getReplaceable(0, pk);
-      return !cached;
-    });
-    if (unique.length > 0) {
-      unique.forEach(pk => prefetchedRef.current.add(pk));
-      fetchProfiles(unique, (pubkey, profile) => {
-        expandProfileCache.current.set(pubkey, profile);
+    const runPrefetch = () => {
+      if (hasExpandedRef.current) return;
+      const allPubkeys: string[] = [];
+      for (const key of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
+        const pks = toPubkeys(getSection(profileResult, key));
+        allPubkeys.push(...pks.slice(0, 10));
+      }
+      for (const pk of mutualPubkeys.slice(0, 10)) allPubkeys.push(pk);
+      for (const pk of sharedFollowerPubkeys.slice(0, 10)) allPubkeys.push(pk);
+      for (const pk of sharedFollowingPubkeys.slice(0, 10)) allPubkeys.push(pk);
+      const unique = [...new Set(allPubkeys)].filter(pk => {
+        if (prefetchedRef.current.has(pk)) return false;
+        const cached = eventStore.getReplaceable(0, pk);
+        return !cached;
       });
+      if (unique.length > 0) {
+        unique.forEach(pk => prefetchedRef.current.add(pk));
+        fetchProfiles(unique, (pubkey, profile) => {
+          expandProfileCache.set(pubkey, profile);
+        });
+      }
+    };
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
+    const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+    let handle: number;
+    let isIdle = false;
+    if (typeof ric === "function") {
+      handle = ric(runPrefetch, { timeout: 2000 });
+      isIdle = true;
+    } else {
+      handle = window.setTimeout(runPrefetch, 0);
     }
+    return () => {
+      if (isIdle && typeof cic === "function") cic(handle);
+      else window.clearTimeout(handle);
+    };
   }, [profileResult, mutualPubkeys, sharedFollowerPubkeys, sharedFollowingPubkeys]);
+
+  const sectionInfluenceMaps = useMemo(() => {
+    const out: Record<string, Map<string, number | null>> = {
+      followed_by: new Map(),
+      following: new Map(),
+      muted_by: new Map(),
+      muting: new Map(),
+      reported_by: new Map(),
+      reporting: new Map(),
+    };
+    if (!profileResult) return out;
+    for (const key of Object.keys(out)) {
+      out[key] = toInfluenceMap(getSection(profileResult, key));
+    }
+    return out;
+  }, [profileResult]);
+
+  const groupsByPubkey = useMemo(() => {
+    const map = new Map<string, GroupDef[]>();
+    if (!profileResult) return map;
+    const push = (pk: string, def: GroupDef) => {
+      const existing = map.get(pk);
+      if (existing) existing.push(def);
+      else map.set(pk, [def]);
+    };
+    const defsByKey = Object.fromEntries(GROUP_DEFS.map(d => [d.key, d]));
+    const followedSet = new Set<string>();
+    const followingSet = new Set<string>();
+    sectionInfluenceMaps.followed_by.forEach((_v, pk) => { followedSet.add(pk); push(pk, defsByKey.followed_by); });
+    sectionInfluenceMaps.following.forEach((_v, pk) => { followingSet.add(pk); push(pk, defsByKey.following); });
+    sectionInfluenceMaps.muted_by.forEach((_v, pk) => push(pk, defsByKey.muted_by));
+    sectionInfluenceMaps.muting.forEach((_v, pk) => push(pk, defsByKey.muting));
+    sectionInfluenceMaps.reported_by.forEach((_v, pk) => push(pk, defsByKey.reported_by));
+    sectionInfluenceMaps.reporting.forEach((_v, pk) => push(pk, defsByKey.reporting));
+    for (const pk of followedSet) if (followingSet.has(pk)) push(pk, defsByKey.mutual);
+    for (const pk of sharedFollowerPubkeys) push(pk, defsByKey.shared_followers);
+    for (const pk of sharedFollowingPubkeys) push(pk, defsByKey.shared_following);
+    return map;
+  }, [profileResult, sectionInfluenceMaps, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
   const TIER_THRESHOLDS = [
     { key: "high", name: "Highly Trusted", min: 0.50, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
@@ -768,77 +1459,97 @@ export default function ProfilePage() {
 
   const verifiedCounts = useMemo(() => {
     if (!profileResult) return { followers: 0, followersTotal: 0, following: 0, followingTotal: 0, mutedBy: 0, mutedByTotal: 0, reportedBy: 0, reportedByTotal: 0 };
-    const count = (arr: any) => {
-      const map = toInfluenceMap(arr);
+    // Prefer server-side stats (accurate over the full relationship); fall back
+    // to overview total + the loaded-subset influence map only when the section
+    // hasn't been fetched yet.
+    const threshold = getVerifiedThreshold();
+    const countVerifiedFromMap = (map: Map<string, number | null>) => {
       let verified = 0;
-      const threshold = getVerifiedThreshold();
       map.forEach((inf) => { if (inf !== null && inf >= threshold) verified++; });
-      return { verified, total: map.size };
+      return verified;
     };
-    const fb = count(profileResult.followed_by);
-    const fg = count(profileResult.following);
-    const mb = count(profileResult.muted_by);
-    const rb = count(profileResult.reported_by);
-    return { followers: fb.verified, followersTotal: fb.total, following: fg.verified, followingTotal: fg.total, mutedBy: mb.verified, mutedByTotal: mb.total, reportedBy: rb.verified, reportedByTotal: rb.total };
-  }, [profileResult, trustPreset]);
+    const ov = profileOverviewQuery.data?.counts;
+    const fbStats = sectionStats.followed_by;
+    const fgStats = sectionStats.following;
+    const mbStats = sectionStats.muted_by;
+    const rbStats = sectionStats.reported_by;
+    return {
+      followers: fbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.followed_by),
+      followersTotal: fbStats?.total ?? ov?.followed_by ?? sectionInfluenceMaps.followed_by.size,
+      following: fgStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.following),
+      followingTotal: fgStats?.total ?? ov?.following ?? sectionInfluenceMaps.following.size,
+      mutedBy: mbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.muted_by),
+      mutedByTotal: mbStats?.total ?? ov?.muted_by ?? sectionInfluenceMaps.muted_by.size,
+      reportedBy: rbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.reported_by),
+      reportedByTotal: rbStats?.total ?? ov?.reported_by ?? sectionInfluenceMaps.reported_by.size,
+    };
+  }, [profileResult, sectionInfluenceMaps, trustPreset, profileOverviewQuery.data, sectionStats]);
 
   const followerTierBreakdown = useMemo(() => {
-    if (!profileResult || !Array.isArray(profileResult.followed_by)) return null;
-    const map = toInfluenceMap(profileResult.followed_by);
-    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-    map.forEach((inf) => {
-      if (inf === null || inf === undefined) {
-        counts.unverified++;
-      } else if (inf >= 0.50) counts.high++;
-      else if (inf >= 0.20) counts.trusted++;
-      else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= getVerifiedThreshold()) counts.low++;
-      else counts.unverified++;
-    });
-    const total = map.size;
+    if (!profileResult) return null;
+    // Prefer server-computed tier counts (full relationship); fall back to
+    // counting the loaded subset's influence map when stats aren't in yet.
+    const serverStats = sectionStats.followed_by;
+    let counts: Record<string, number>;
+    let total: number;
+    if (serverStats) {
+      counts = { ...serverStats.tier_counts };
+      total = serverStats.total;
+    } else {
+      if (!Array.isArray(profileResult.followed_by)) return null;
+      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+      const verifiedMin = getVerifiedThreshold();
+      sectionInfluenceMaps.followed_by.forEach((inf: number | null) => {
+        if (inf === null || inf === undefined) {
+          counts.unverified++;
+        } else if (inf >= 0.50) counts.high++;
+        else if (inf >= 0.20) counts.trusted++;
+        else if (inf >= 0.07) counts.neutral++;
+        else if (inf >= verifiedMin) counts.low++;
+        else counts.unverified++;
+      });
+      total = sectionInfluenceMaps.followed_by.size;
+    }
     if (total === 0) return null;
     return { counts, total };
-  }, [profileResult, trustPreset]);
+  }, [profileResult, sectionInfluenceMaps, trustPreset]);
 
   const getTrustForPk = useCallback((pk: string): number => {
-    const cached = expandTrustCache.current.get(pk);
+    const cached = expandTrustCache.get(pk);
     if (cached !== undefined && cached !== null) return cached;
-    if (profileResult) {
-      for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"]) {
-        const map = toInfluenceMap(getSection(profileResult, groupKey));
-        const val = map.get(pk);
-        if (val !== undefined && val !== null) return val;
-      }
+    for (const groupKey of ["followed_by", "following", "muted_by", "reported_by", "muting", "reporting"] as const) {
+      const val = sectionInfluenceMaps[groupKey].get(pk);
+      if (val !== undefined && val !== null) return val;
     }
     return -1;
-  }, [profileResult]);
+  }, [sectionInfluenceMaps]);
 
   const getNameForPk = useCallback((pk: string): string => {
-    const profile = expandProfileCache.current.get(pk);
+    const profile = expandProfileCache.get(pk);
     return (profile?.display_name || profile?.name || "").toLowerCase();
   }, []);
 
-  const getTierKey = (score: number): string => {
-    if (score >= 0.50) return "high";
-    if (score >= 0.20) return "trusted";
-    if (score >= 0.07) return "neutral";
-    if (score >= getVerifiedThreshold()) return "low";
-    return "unverified";
-  };
-
   const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
-    const section = getSection(profileResult, sectionKey);
-    if (!section || !Array.isArray(section)) return null;
-    const map = toInfluenceMap(section);
-    if (map.size === 0) return null;
-    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-    map.forEach((inf) => {
-      if (inf === null || inf === undefined) {
-        counts.unverified++;
-      } else {
-        counts[getTierKey(inf)]++;
-      }
-    });
+    // Prefer server-side tier counts (full relationship); fall back to the
+    // loaded-subset influence map until the section's stats arrive.
+    let counts: Record<string, number> | null = null;
+    const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
+    if (serverStats) {
+      counts = { ...serverStats.tier_counts };
+    } else {
+      const section = getSection(profileResult, sectionKey);
+      if (!section || !Array.isArray(section)) return null;
+      const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[sectionKey];
+      if (!map || map.size === 0) return null;
+      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+      map.forEach((inf: number | null) => {
+        if (inf === null || inf === undefined) {
+          counts!.unverified++;
+        } else {
+          counts![getTierKey(inf)]++;
+        }
+      });
+    }
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
       { tier: "trusted", label: "Trusted", color: "text-sky-500" },
@@ -846,83 +1557,43 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [profileResult, trustPreset]);
+    return tierDefs.filter(t => counts![t.tier] > 0).map(t => ({ tier: t.label, count: counts![t.tier], color: t.color }));
+  }, [profileResult, sectionInfluenceMaps, trustPreset, sectionStats]);
 
-  const getSortedFilteredPubkeys = useCallback((key: string, pubkeys: string[]): string[] => {
-    const filter = sectionFilter[key] || "all";
-    const sort = sectionSort[key] || "trust-desc";
-    const search = (sectionSearch[key] || "").toLowerCase().trim();
-    const reportTypeFilter = reportTypeFilterState[key] || "all";
-
-    let filtered = pubkeys;
-    if (filter !== "all") {
-      filtered = pubkeys.filter(pk => {
-        const score = getTrustForPk(pk);
-        if (score < 0) return filter === "unverified";
-        if (filter === "verified") return score >= getVerifiedThreshold();
-        return getTierKey(score) === filter;
-      });
+  const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
+    // Seed expandTrustCache from already-known influence values so we never
+    // need a per-pubkey apiClient.getUserByPubkey() call for these.
+    const seed = (pk: string, val: number | null | undefined) => {
+      if (val === undefined) return;
+      if (!expandTrustCache.has(pk)) expandTrustCache.set(pk, val);
+    };
+    if (key === "mutual" || key === "shared_followers" || key === "shared_following") {
+      for (const pk of pubkeys) {
+        const fromFollowedBy = sectionInfluenceMaps.followed_by.get(pk);
+        if (fromFollowedBy !== undefined) { seed(pk, fromFollowedBy); continue; }
+        const fromFollowing = sectionInfluenceMaps.following.get(pk);
+        if (fromFollowing !== undefined) { seed(pk, fromFollowing); continue; }
+        seed(pk, null);
+      }
+      return;
     }
-
-    if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
-      filtered = filtered.filter(pk => {
-        const report = getReportForPubkey(key, pk);
-        if (reportTypeFilter === "unavailable") return !report;
-        return report?.reportType === reportTypeFilter;
-      });
-    }
-
-    if (search) {
-      filtered = filtered.filter(pk => {
-        const profile = expandProfileCache.current.get(pk);
-        const name = (profile?.display_name || profile?.name || "").toLowerCase();
-        const nip05 = (profile?.nip05 || "").toLowerCase();
-        if (name.includes(search) || nip05.includes(search)) return true;
-        if (search.startsWith("npub")) {
-          const npub = nip19.npubEncode(pk).toLowerCase();
-          return npub.includes(search);
-        }
-        return false;
-      });
-    }
-
-    const sorted = [...filtered];
-    if (sort === "trust-desc" || sort === "trust-asc") {
-      sorted.sort((a, b) => {
-        const sa = getTrustForPk(a);
-        const sb = getTrustForPk(b);
-        return sort === "trust-desc" ? sb - sa : sa - sb;
-      });
-    } else {
-      sorted.sort((a, b) => {
-        const na = getNameForPk(a);
-        const nb = getNameForPk(b);
-        if (!na && !nb) return 0;
-        if (!na) return 1;
-        if (!nb) return -1;
-        return sort === "name-asc" ? na.localeCompare(nb) : nb.localeCompare(na);
-      });
-    }
-    return sorted;
-  }, [sectionFilter, sectionSort, sectionSearch, reportTypeFilterState, getTrustForPk, getNameForPk, getReportForPubkey, trustPreset]);
+    const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[key];
+    if (!map) return;
+    map.forEach((inf, pk) => seed(pk, inf));
+  }, [sectionInfluenceMaps]);
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = { ...prev, [key]: !prev[key] };
       if (!prev[key]) {
+        hasExpandedRef.current = true;
         setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
         const pubkeys = key === "mutual" ? mutualPubkeys
           : key === "shared_followers" ? sharedFollowerPubkeys
           : key === "shared_following" ? sharedFollowingPubkeys
           : toPubkeys(getSection(profileResult, key));
         if (pubkeys.length > 0) {
-          const influenceMap = toInfluenceMap(getSection(profileResult, key));
-          influenceMap.forEach((inf, pk) => {
-            if (!expandTrustCache.current.has(pk)) {
-              expandTrustCache.current.set(pk, inf);
-            }
-          });
+          seedTrustForSection(key, pubkeys);
           fetchSectionProfiles(key, pubkeys);
         }
         if (["reported_by", "reporting", "muted_by", "muting"].includes(key)) {
@@ -943,61 +1614,6 @@ export default function ProfilePage() {
     });
   };
 
-  useEffect(() => {
-    Object.keys(expandedSections).forEach(key => {
-      if (!expandedSections[key]) return;
-      const rawPubkeys = key === "mutual" ? mutualPubkeys
-        : key === "shared_followers" ? sharedFollowerPubkeys
-        : key === "shared_following" ? sharedFollowingPubkeys
-        : toPubkeys(getSection(profileResult, key));
-      if (rawPubkeys.length === 0) return;
-      const processed = getSortedFilteredPubkeys(key, rawPubkeys);
-      const visCount = sectionVisibleCount[key] || 10;
-      const visible = processed.slice(0, visCount);
-      const needsFetch = visible.some(pk => !expandProfileCache.current.has(pk) || !expandTrustCache.current.has(pk));
-      if (needsFetch) {
-        fetchSectionProfiles(key, visible, 0, visCount);
-      }
-    });
-  }, [sectionSort, sectionFilter, sectionSearch]);
-
-  const getGroupsForPubkey = (pk: string): { key: string; label: string; colors: string }[] => {
-    const groupDefs: { key: string; label: string; colors: string }[] = [
-      { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
-      { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
-      { key: "mutual", label: "Mutual", colors: "bg-teal-50 text-teal-500 border-teal-100" },
-      { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
-      { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
-      { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
-      { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
-      { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
-      { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
-    ];
-    if (!profileResult) return [];
-    return groupDefs.filter(g => {
-      if (g.key === "mutual") {
-        const fb = toPubkeys(getSection(profileResult, "followed_by"));
-        const fg = toPubkeys(getSection(profileResult, "following"));
-        return fb.includes(pk) && fg.includes(pk);
-      }
-      if (g.key === "shared_followers") return sharedFollowerPubkeys.includes(pk);
-      if (g.key === "shared_following") return sharedFollowingPubkeys.includes(pk);
-      return toPubkeys(getSection(profileResult, g.key)).includes(pk);
-    });
-  };
-
-  const sectionBorderColors: Record<string, string> = {
-    followed_by: "border-blue-300",
-    following: "border-blue-300",
-    mutual: "border-teal-300",
-    shared_followers: "border-indigo-300",
-    shared_following: "border-indigo-300",
-    muted_by: "border-amber-300",
-    reported_by: "border-red-300",
-    muting: "border-amber-200",
-    reporting: "border-slate-300",
-  };
-
   const renderTierBadges = (sectionKey: string) => {
     const breakdown = getTierBreakdown(sectionKey);
     if (!breakdown || breakdown.length === 0) return null;
@@ -1013,306 +1629,107 @@ export default function ProfilePage() {
     );
   };
 
-  const navigateToProfile = (pk: string) => {
+  const navigateToProfile = useCallback((pk: string) => {
     const targetNpub = nip19.npubEncode(pk);
-    navigate(`/profile/${targetNpub}${fromGroup ? `?fromGroup=${fromGroup}` : ""}`);
+    const params = new URLSearchParams();
+    if (fromGroup) params.set("fromGroup", fromGroup);
+    if (fromAdmin) {
+      params.set("from", "admin");
+      if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
+    }
+    if (fromSearch) params.set("fromSearch", "1");
+    const qs = params.toString();
+    navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
+  }, [navigate, fromGroup, fromAdmin, fromSearch]);
+
+  const handleSetSort = useCallback((k: string, v: SortMode) => {
+    setSectionSort(prev => ({ ...prev, [k]: v }));
+  }, []);
+  const handleSetFilter = useCallback((k: string, v: FilterMode) => {
+    setSectionFilter(prev => ({ ...prev, [k]: v }));
+  }, []);
+  const handleSetSearch = useCallback((k: string, v: string) => {
+    setSectionSearch(prev => ({ ...prev, [k]: v }));
+  }, []);
+  const handleSetReportTypeFilter = useCallback((k: string, v: ReportTypeFilter) => {
+    setReportTypeFilterState(prev => ({ ...prev, [k]: v }));
+  }, []);
+  const handleSetVisibleCount = useCallback((k: string, n: number) => {
+    setSectionVisibleCount(prev => ({ ...prev, [k]: n }));
+  }, []);
+  const handleToggleFilterDropdown = useCallback((k: string, open: boolean) => {
+    setFilterDropdownOpen(prev => ({ ...prev, [k]: open }));
+  }, []);
+  const handleToggleReportTypeDropdown = useCallback((k: string, open: boolean) => {
+    setReportTypeDropdownOpen(prev => ({ ...prev, [k]: open }));
+  }, []);
+  const handleEnsureVisibleFetched = useCallback((k: string, visiblePubkeys: string[]) => {
+    fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
+  }, [fetchSectionProfiles]);
+
+  // Map section key → infinite query (for cursor-paginated fetchNextPage).
+  const sectionQueries: Record<string, {
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
+    fetchNextPage: () => void;
+  }> = {
+    followed_by: followedByQuery,
+    following: followingQuery,
+    muted_by: mutedByQuery,
+    muting: mutingQuery,
+    reported_by: reportedByQuery,
+    reporting: reportingQuery,
   };
 
-  const sortOptions: { value: SortMode; label: string }[] = [
-    { value: "trust-desc", label: "Trust \u2193" },
-    { value: "trust-asc", label: "Trust \u2191" },
-    { value: "name-asc", label: "A\u2013Z" },
-    { value: "name-desc", label: "Z\u2013A" },
-  ];
-
-  const filterOptions: { value: FilterMode; label: string; color: string }[] = [
-    { value: "all", label: "All", color: "bg-slate-100 text-slate-600" },
-    { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
-    { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
-    { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
-    { value: "neutral", label: "Neutral", color: "bg-indigo-50 text-indigo-500" },
-    { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
-    { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
-  ];
+  const handleShowMore = useCallback((k: string, processed: string[], currentVisible: number) => {
+    setSectionVisibleCount(prev => ({ ...prev, [k]: currentVisible + 10 }));
+    fetchSectionProfiles(k, processed, currentVisible, 10);
+    if (k === "muted_by") {
+      const nextBatch = processed.slice(currentVisible, currentVisible + 10);
+      if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
+    }
+    // If we're approaching the end of what's loaded server-side, fetch the
+    // next page. The connection query will append items; profileResult
+    // re-composes; the panel will see the larger list on the next render.
+    const q = sectionQueries[k];
+    if (q && q.hasNextPage && !q.isFetchingNextPage) {
+      if (currentVisible + 10 >= processed.length - 30) {
+        q.fetchNextPage();
+      }
+    }
+  }, [fetchSectionProfiles, fetchSectionMetadata, sectionQueries]);
 
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {
     const isExpanded = expandedSections[key];
     if (!isExpanded || pubkeys.length === 0) return null;
-
-    const processed = getSortedFilteredPubkeys(key, pubkeys);
-    const activeFilter = sectionFilter[key] || "all";
-    const activeSort = sectionSort[key] || "trust-desc";
-    const activeSearch = sectionSearch[key] || "";
-    const activeReportTypeFilter = reportTypeFilterState[key] || "all";
-    const isReportFilterSection = key === "reported_by" || key === "reporting";
-    const isReportTypeFilterOpen = reportTypeDropdownOpen[key] || false;
-    const isFiltered = activeFilter !== "all" || activeSearch.trim().length > 0 || activeReportTypeFilter !== "all";
-
-    const visibleCount = sectionVisibleCount[key] || 10;
-    const visiblePubkeys = processed.slice(0, visibleCount);
-    const borderColor = sectionBorderColors[key] || "border-slate-300";
-    const isFilterOpen = filterDropdownOpen[key] || false;
-
     return (
-      <div className="border-t border-slate-100 bg-slate-50/50">
-        <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-gradient-to-r from-white/80 via-indigo-50/20 to-white/80 backdrop-blur-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 mr-1">
-              <ArrowUpDown className="h-3 w-3 text-slate-400" />
-              <div className="flex rounded-md overflow-hidden border border-slate-200">
-                {sortOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    onClick={(e) => { e.stopPropagation(); setSectionSort(prev => ({ ...prev, [key]: opt.value })); }}
-                    className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${activeSort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
-                    data-testid={`sort-${opt.value}-${key}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative">
-              <button
-                onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${activeFilter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                data-testid={`filter-toggle-${key}`}
-              >
-                <Filter className="h-3 w-3" />
-                {activeFilter !== "all" ? filterOptions.find(f => f.value === activeFilter)?.label : "Filter"}
-                <ChevronDown className="h-2.5 w-2.5" />
-              </button>
-              {isFilterOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setFilterDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
-                    {filterOptions.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSectionFilter(prev => ({ ...prev, [key]: opt.value }));
-                          setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-                          setFilterDropdownOpen(prev => ({ ...prev, [key]: false }));
-                        }}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeFilter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
-                        data-testid={`filter-${opt.value}-${key}`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {isReportFilterSection && (
-              <div className="relative">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setReportTypeDropdownOpen(prev => ({ ...prev, [key]: !prev[key] })); }}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${activeReportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                  data-testid={`report-type-filter-toggle-${key}`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-current opacity-50" />
-                  {activeReportTypeFilter !== "all" ? activeReportTypeFilter : "Type"}
-                  <ChevronDown className="h-2.5 w-2.5" />
-                </button>
-                {isReportTypeFilterOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setReportTypeDropdownOpen(prev => ({ ...prev, [key]: false })); }} />
-                    <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
-                      {([
-                        { value: "all" as ReportTypeFilter, label: "All Types", dotColor: "bg-slate-300" },
-                        { value: "spam" as ReportTypeFilter, label: "Spam", dotColor: "bg-amber-500" },
-                        { value: "impersonation" as ReportTypeFilter, label: "Impersonation", dotColor: "bg-red-500" },
-                        { value: "nudity" as ReportTypeFilter, label: "Nudity", dotColor: "bg-pink-500" },
-                        { value: "illegal" as ReportTypeFilter, label: "Illegal", dotColor: "bg-red-700" },
-                        { value: "profanity" as ReportTypeFilter, label: "Profanity", dotColor: "bg-orange-500" },
-                        { value: "other" as ReportTypeFilter, label: "Other", dotColor: "bg-slate-400" },
-                        { value: "unavailable" as ReportTypeFilter, label: "Unavailable", dotColor: "bg-slate-300" },
-                      ]).map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReportTypeFilterState(prev => ({ ...prev, [key]: opt.value }));
-                            setSectionVisibleCount(vc => ({ ...vc, [key]: 10 }));
-                            setReportTypeDropdownOpen(prev => ({ ...prev, [key]: false }));
-                          }}
-                          className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${activeReportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 hover:bg-slate-50"}`}
-                          data-testid={`report-type-filter-${opt.value}-${key}`}
-                        >
-                          <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {reportMetadataLoading[key] && (
-              <span className="flex items-center gap-1 text-[10px] text-indigo-400 ml-auto">
-                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                <span>fetching relay data</span>
-              </span>
-            )}
-            {isFiltered && (
-              <span className={`text-[10px] text-slate-400 ${reportMetadataLoading[key] ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
-                {processed.length} of {pubkeys.length}
-              </span>
-            )}
-          </div>
-          <div className="relative">
-            <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={activeSearch}
-              onChange={(e) => { setSectionSearch(prev => ({ ...prev, [key]: e.target.value })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
-              onClick={(e) => e.stopPropagation()}
-              placeholder="Search by name or npub..."
-              className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
-              data-testid={`search-input-${key}`}
-            />
-            {activeSearch && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setSectionSearch(prev => ({ ...prev, [key]: "" })); setSectionVisibleCount(vc => ({ ...vc, [key]: 10 })); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                data-testid={`search-clear-${key}`}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className={`border-l-2 ${borderColor} ml-4`}>
-          {visiblePubkeys.map(pk => {
-            const profile = expandProfileCache.current.get(pk);
-            const trustScore = expandTrustCache.current.get(pk);
-            const displayName = profile?.display_name || profile?.name || nip19.npubEncode(pk).slice(0, 12) + "...";
-            const overlappingGroups = getGroupsForPubkey(pk).filter(g => g.key !== key);
-
-            const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
-            const circ = 2 * Math.PI * 18;
-            const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-            const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
-
-            if (profile === undefined) {
-              return (
-                <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
-                  <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-2 w-16 bg-slate-100 rounded animate-pulse" />
-                  </div>
-                </div>
-              );
-            }
-
-            const isReportSection = key === "reported_by" || key === "reporting";
-            const isMuteSection = key === "muted_by" || key === "muting";
-            const reportMeta = isReportSection ? getReportForPubkey(key, pk) : undefined;
-            const muteMeta = isMuteSection ? muteMetadataCache.current.get(pk) : undefined;
-            const metaLoading = reportMetadataLoading[key];
-
-            return (
-              <div
-                key={pk}
-                className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 cursor-pointer transition-colors"
-                onClick={() => navigateToProfile(pk)}
-                data-testid={`expand-profile-${pk.slice(0,8)}`}
-              >
-                <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
-                  {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
-                  <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
-                    {displayName.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
-                  {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
-                  {isReportSection && reportMeta && (
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${reportTypeBadgeColors[reportMeta.reportType] || reportTypeBadgeColors.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
-                        {reportMeta.reportType}
-                      </Badge>
-                      <span className="text-[10px] text-slate-400" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
-                      {reportMeta.reason && (
-                        <span className="text-[10px] text-slate-400 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
-                      )}
-                    </div>
-                  )}
-                  {isReportSection && !reportMeta && metaLoading && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <div className="h-2 w-10 bg-slate-100 rounded animate-pulse" />
-                      <div className="h-2 w-8 bg-slate-100 rounded animate-pulse" />
-                    </div>
-                  )}
-                  {isReportSection && !reportMeta && !metaLoading && (
-                    <span className="text-[10px] text-slate-300 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
-                  )}
-                </div>
-                {overlappingGroups.length > 0 && (
-                  <div className="flex gap-1 flex-wrap">
-                    {overlappingGroups.map(g => (
-                      <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
-                    ))}
-                  </div>
-                )}
-                {trustScore !== undefined && trustScore !== null && (
-                  <div className="w-6 h-6 relative shrink-0">
-                    <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
-                      <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100" />
-                      <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
-                        className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700">{trustPct}</span>
-                  </div>
-                )}
-                {trustScore === undefined && (
-                  <Loader2 className="h-3 w-3 text-indigo-300 animate-spin shrink-0" />
-                )}
-              </div>
-            );
-          })}
-          {processed.length > visibleCount && (
-            <div className="px-3 py-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const newCount = (sectionVisibleCount[key] || 10) + 10;
-                  setSectionVisibleCount(vc => ({ ...vc, [key]: newCount }));
-                  fetchSectionProfiles(key, processed, visibleCount, 10);
-                  if (key === "muted_by") {
-                    const nextBatch = processed.slice(visibleCount, visibleCount + 10);
-                    if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
-                  }
-                }}
-                className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
-                data-testid={`button-show-more-${key}`}
-              >
-                Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining)</span>
-              </button>
-            </div>
-          )}
-          {processed.length === 0 && isFiltered && (
-            <div className="px-4 py-6 text-center">
-              <p className="text-xs text-slate-400">No users match this filter</p>
-              <button
-                onClick={(e) => { e.stopPropagation(); setSectionFilter(prev => ({ ...prev, [key]: "all" })); setReportTypeFilterState(prev => ({ ...prev, [key]: "all" })); }}
-                className="text-xs text-[#3730a3] font-medium mt-1.5 hover:underline"
-                data-testid={`filter-clear-${key}`}
-              >
-                Clear filter
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      <ExpandedPanel
+        sectionKey={key}
+        pubkeys={pubkeys}
+        filter={sectionFilter[key] || "all"}
+        sort={sectionSort[key] || "trust-desc"}
+        search={sectionSearch[key] || ""}
+        reportTypeFilter={reportTypeFilterState[key] || "all"}
+        visibleCount={sectionVisibleCount[key] || 10}
+        filterDropdownOpen={filterDropdownOpen[key] || false}
+        reportTypeDropdownOpen={reportTypeDropdownOpen[key] || false}
+        reportMetaLoading={!!reportMetadataLoading[key]}
+        sectionInfluenceMaps={sectionInfluenceMaps}
+        groupsByPubkey={groupsByPubkey}
+        getReportForPubkey={getReportForPubkey}
+        formatRelativeTime={formatRelativeTime}
+        navigateToProfile={navigateToProfile}
+        onSetSort={handleSetSort}
+        onSetFilter={handleSetFilter}
+        onSetSearch={handleSetSearch}
+        onSetReportTypeFilter={handleSetReportTypeFilter}
+        onSetVisibleCount={handleSetVisibleCount}
+        onToggleFilterDropdown={handleToggleFilterDropdown}
+        onToggleReportTypeDropdown={handleToggleReportTypeDropdown}
+        onShowMore={handleShowMore}
+        onEnsureVisibleFetched={handleEnsureVisibleFetched}
+        renderToken={forceRender}
+      />
     );
   };
 
@@ -1497,40 +1914,57 @@ export default function ProfilePage() {
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
-          {fromAdmin ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate(`/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`)}
-              data-testid="button-back-to-admin"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Admin
-            </Button>
-          ) : fromGroup ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate(`/network?group=${fromGroup}`)}
-              data-testid="button-back-to-network"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Network
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate("/search")}
-              data-testid="button-back-to-search"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Search
-            </Button>
-          )}
+          {(() => {
+            const cameFromInternal = !!fromGroup || !!fromAdmin || fromSearch;
+            const goBack = (fallback: string) => {
+              if (cameFromInternal && typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+              } else {
+                navigate(fallback);
+              }
+            };
+            if (fromAdmin) {
+              const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => goBack(fallback)}
+                  data-testid="button-back-to-admin"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Admin
+                </Button>
+              );
+            }
+            if (fromGroup) {
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => goBack(`/network?group=${fromGroup}`)}
+                  data-testid="button-back-to-network"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Network
+                </Button>
+              );
+            }
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                onClick={() => goBack("/search")}
+                data-testid="button-back-to-search"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Search
+              </Button>
+            );
+          })()}
         </div>
 
         {isLoading && (
@@ -2058,10 +2492,11 @@ export default function ProfilePage() {
                 })()}
 
                 {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
-                  const mutedByCount = Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0);
-                  const reportedByCount = Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0);
-                  const mutingCount = Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0);
-                  const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
+                  const _ovCounts = profileOverviewQuery.data?.counts;
+                  const mutedByCount = _ovCounts?.muted_by ?? (Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0));
+                  const reportedByCount = _ovCounts?.reported_by ?? (Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0));
+                  const mutingCount = _ovCounts?.muting ?? (Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0));
+                  const reportingCount = _ovCounts?.reporting ?? (Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0));
                   const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
                   const totalNegativeSignals = mutedByCount + reportedByCount;
                   const vMuted = verifiedCounts.mutedBy;
@@ -2081,8 +2516,8 @@ export default function ProfilePage() {
                         {profileResult.followed_by !== undefined && (() => {
                           const fbValue = profileResult.followed_by;
                           const fbArray = Array.isArray(fbValue) ? fbValue : null;
-                          const fbCount = fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0);
-                          const fbExpandable = !!fbArray && fbCount > 0;
+                          const fbCount = _ovCounts?.followed_by ?? (fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0));
+                          const fbExpandable = fbCount > 0;
                           return (
                           <div>
                             <div
@@ -2119,8 +2554,8 @@ export default function ProfilePage() {
                         {profileResult.following !== undefined && (() => {
                           const fgValue = profileResult.following;
                           const fgArray = Array.isArray(fgValue) ? fgValue : null;
-                          const fgCount = fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0);
-                          const fgExpandable = !!fgArray && fgCount > 0;
+                          const fgCount = _ovCounts?.following ?? (fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0));
+                          const fgExpandable = fgCount > 0;
                           return (
                           <div>
                             <div
@@ -2271,7 +2706,7 @@ export default function ProfilePage() {
                         )}
                         {profileResult.muted_by !== undefined && (() => {
                           const mbIsArray = Array.isArray(profileResult.muted_by);
-                          const mbExpandable = mbIsArray && mutedByCount > 0;
+                          const mbExpandable = mutedByCount > 0;
                           return (
                           <div>
                             <div
@@ -2308,7 +2743,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.reported_by !== undefined && (() => {
                           const rbIsArray = Array.isArray(profileResult.reported_by);
-                          const rbExpandable = rbIsArray && reportedByCount > 0;
+                          const rbExpandable = reportedByCount > 0;
                           return (
                           <div>
                             <div
@@ -2345,7 +2780,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.muting !== undefined && (() => {
                           const mtIsArray = Array.isArray(profileResult.muting);
-                          const mtExpandable = mtIsArray && mutingCount > 0;
+                          const mtExpandable = mutingCount > 0;
                           return (
                           <div>
                             <div
@@ -2376,7 +2811,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.reporting !== undefined && (() => {
                           const rpIsArray = Array.isArray(profileResult.reporting);
-                          const rpExpandable = rpIsArray && reportingCount > 0;
+                          const rpExpandable = reportingCount > 0;
                           return (
                           <div>
                             <div

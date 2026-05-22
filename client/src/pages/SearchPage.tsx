@@ -43,7 +43,16 @@ import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import {
+  apiClient,
+  isAuthRedirecting,
+  getVespaWeights,
+  setVespaWeights,
+  resetVespaWeights,
+  DEFAULT_VESPA_WEIGHTS,
+  VESPA_WEIGHT_KEYS,
+  type VespaWeights,
+} from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
@@ -52,8 +61,27 @@ import { MobileMenu } from "@/components/MobileMenu";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 type SearchPov = "nosfabrica" | "mywot";
+type SearchBackend = "meilisearch" | "vespa";
 
-const MEILI_API = "https://brainstorm.world/api/search/profiles/meili";
+const SEARCH_BACKEND_STORAGE_KEY = "brainstorm_search_backend";
+
+function loadSearchBackend(): SearchBackend {
+  try {
+    const v = localStorage.getItem(SEARCH_BACKEND_STORAGE_KEY);
+    if (v === "vespa" || v === "meilisearch") return v;
+  } catch {
+    // ignore
+  }
+  return "meilisearch";
+}
+
+function saveSearchBackend(backend: SearchBackend): void {
+  try {
+    localStorage.setItem(SEARCH_BACKEND_STORAGE_KEY, backend);
+  } catch {
+    // ignore
+  }
+}
 
 interface SearchResult {
   pubkey: string;
@@ -71,85 +99,83 @@ interface SearchResult {
   wotFollowers?: number | null;
 }
 
-interface MeiliResponse {
-  success: boolean;
-  hits: MeiliHit[];
-  estimatedTotalHits?: number;
-  processingTimeMs?: number;
-  povSuffix?: string;
-  nip05Result?: { pubkey: string; npub: string } | null;
-}
+function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult | null {
+  const pubkey = typeof hit.pubkey === "string" ? hit.pubkey : null;
+  if (!pubkey) return null;
 
-interface MeiliHit {
-  pubkey: string;
-  npub: string;
-  name?: string;
-  display_name?: string;
-  displayName?: string;
-  picture?: string;
-  about?: string;
-  nip05?: string;
-  website?: string;
-  lud16?: string;
-  banner?: string;
-  created_at?: number;
-  wot_rank?: number;
-  wot_followers?: number;
-}
+  let npub: string;
+  try {
+    npub = nip19.npubEncode(pubkey);
+  } catch {
+    return null;
+  }
 
-function meiliHitToResult(hit: MeiliHit): SearchResult {
+  // Rank field comes from two possible sources:
+  //   - Meilisearch (`/search/byText`): dynamic `rank_<taPubkey>` key,
+  //     e.g. `rank_be7bf5de...`: 96.
+  //   - Vespa (`/search`): `quality_score`, e.g. 97.
+  // Map either into `wotRank` so the result card renders unchanged.
+  let wotRank: number | null = null;
+  if (typeof hit.quality_score === "number") {
+    wotRank = hit.quality_score as number;
+  } else {
+    for (const key of Object.keys(hit)) {
+      if (key.startsWith("rank_") && typeof hit[key] === "number") {
+        wotRank = hit[key] as number;
+        break;
+      }
+    }
+  }
+
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+
   return {
-    pubkey: hit.pubkey,
-    npub: hit.npub,
-    name: hit.name,
-    displayName: hit.display_name || hit.displayName,
-    picture: hit.picture,
-    about: hit.about,
-    nip05: hit.nip05,
-    website: hit.website,
-    lud16: hit.lud16,
-    banner: hit.banner,
-    createdAt: hit.created_at,
-    wotRank: hit.wot_rank ?? null,
-    wotFollowers: hit.wot_followers ?? null,
+    pubkey,
+    npub,
+    name: str(hit.name),
+    displayName: str(hit.display_name) || str(hit.displayName),
+    picture: str(hit.picture),
+    about: str(hit.about),
+    nip05: str(hit.nip05),
+    website: str(hit.website),
+    lud16: str(hit.lud16),
+    banner: str(hit.banner),
+    createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
+    wotRank,
+    wotFollowers: null,
   };
 }
 
-async function searchMeili(
+async function searchByText(
   query: string,
-  pov: SearchPov,
-  userPubkey?: string,
-  limit = 30,
-  offset = 0,
+  backend: SearchBackend = "meilisearch",
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
-  const params = new URLSearchParams({
-    q: query,
-    limit: String(limit),
-    offset: String(offset),
-    wotPov: pov === "nosfabrica" ? "house" : "user",
-  });
-
-  if (pov === "mywot" && userPubkey) {
-    params.set("userPubkey", userPubkey);
+  const start = performance.now();
+  let hits: Array<Record<string, unknown>> = [];
+  let total = 0;
+  if (backend === "vespa") {
+    const data = await apiClient.searchByTextVespa(query);
+    hits = data?.results || [];
+    total = data?.numResults || hits.length;
+  } else {
+    const data = await apiClient.searchByText(query, true);
+    hits = data?.data?.results || [];
+    total = data?.data?.numResults || hits.length;
   }
-
-  const resp = await fetch(`${MEILI_API}?${params.toString()}`, {
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Search failed: ${resp.status}`);
+  const results: SearchResult[] = [];
+  const seen = new Set<string>();
+  for (const h of hits) {
+    const mapped = byTextResultToSearchResult(h);
+    if (!mapped) continue;
+    if (seen.has(mapped.pubkey)) continue;
+    seen.add(mapped.pubkey);
+    results.push(mapped);
   }
-
-  const data: MeiliResponse = await resp.json();
-  if (!data.success) {
-    throw new Error("Search service unavailable");
-  }
-
   return {
-    results: (data.hits || []).map(meiliHitToResult),
-    total: data.estimatedTotalHits || 0,
-    timeMs: data.processingTimeMs || 0,
+    results,
+    total: total || results.length,
+    timeMs: Math.round(performance.now() - start),
   };
 }
 
@@ -168,7 +194,9 @@ export default function SearchPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
+  });
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -181,6 +209,57 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
   const [pov, setPov] = useState<SearchPov>("nosfabrica");
+  const [searchBackend, setSearchBackend] = useState<SearchBackend>(() => loadSearchBackend());
+  const [lastSearchBackend, setLastSearchBackend] = useState<SearchBackend>(searchBackend);
+  const [vespaWeights, setVespaWeightsState] = useState<VespaWeights>(() => getVespaWeights());
+  const [vespaWeightDrafts, setVespaWeightDrafts] = useState<Record<keyof VespaWeights, string>>(() => {
+    const w = getVespaWeights();
+    return VESPA_WEIGHT_KEYS.reduce((acc, k) => {
+      acc[k] = String(w[k]);
+      return acc;
+    }, {} as Record<keyof VespaWeights, string>);
+  });
+  const [showVespaWeights, setShowVespaWeights] = useState(false);
+  const handleWeightDraftChange = useCallback((key: keyof VespaWeights, raw: string) => {
+    setVespaWeightDrafts((prev) => ({ ...prev, [key]: raw }));
+  }, []);
+  const commitWeightDraft = useCallback((key: keyof VespaWeights) => {
+    setVespaWeightsState((prev) => {
+      const raw = vespaWeightDrafts[key];
+      const parsed = raw === "" || raw === "." ? 0 : Number(raw);
+      const valid = Number.isFinite(parsed) && parsed >= 0;
+      const nextVal = valid ? parsed : prev[key];
+      const next: VespaWeights = { ...prev, [key]: nextVal };
+      setVespaWeights(next);
+      if (!valid || String(nextVal) !== raw) {
+        setVespaWeightDrafts((d) => ({ ...d, [key]: String(nextVal) }));
+      }
+      return next;
+    });
+  }, [vespaWeightDrafts]);
+  const handleResetVespaWeights = useCallback(() => {
+    const next = resetVespaWeights();
+    setVespaWeightsState(next);
+    setVespaWeightDrafts(
+      VESPA_WEIGHT_KEYS.reduce((acc, k) => {
+        acc[k] = String(next[k]);
+        return acc;
+      }, {} as Record<keyof VespaWeights, string>),
+    );
+  }, []);
+  const weightsAreDefault = useMemo(
+    () => VESPA_WEIGHT_KEYS.every((k) => vespaWeights[k] === DEFAULT_VESPA_WEIGHTS[k]),
+    [vespaWeights],
+  );
+  const VESPA_WEIGHT_LABELS: Record<keyof VespaWeights, string> = {
+    w_name: "Name Weight",
+    w_display_name: "Display Name Weight",
+    w_about: "About Weight",
+    w_name_gram: "Name (Partial) Weight",
+    w_display_name_gram: "Display Name (Partial) Weight",
+    w_pubkey_gram: "Pubkey (Partial) Weight",
+    w_quality: "TA Score Weight",
+  };
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -271,6 +350,8 @@ export default function SearchPage() {
       prefetchTimersRef.current.clear();
     };
   }, []);
+
+  const didInitFromUrlRef = useRef(false);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -372,19 +453,64 @@ export default function SearchPage() {
     const start = performance.now();
 
     try {
-      const { results: searchResults, timeMs } = await searchMeili(q, pov, user?.pubkey, 30);
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get("q") !== q) {
+        currentUrl.searchParams.set("q", q);
+        window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+      }
+    } catch {}
+
+    const backendForThisSearch = searchBackend;
+    try {
+      const { results: searchResults, timeMs } = await searchByText(q, backendForThisSearch);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));
-    } catch {
+      setLastSearchBackend(backendForThisSearch);
+    } catch (err) {
       if (searchAbortRef.current !== searchId) return;
       setResults([]);
+      setLastSearchBackend(backendForThisSearch);
+      const backendName = backendForThisSearch === "vespa" ? "Vespa" : "Meilisearch";
+      const message = err instanceof Error ? err.message : String(err ?? "");
+      toast({
+        title: `${backendName} search failed`,
+        description: message || "Please try again or switch backends.",
+        variant: "destructive",
+      });
     } finally {
       if (searchAbortRef.current === searchId) {
         setIsSearching(false);
       }
     }
-  }, [query, pov, user?.pubkey, navigate, resetFilters]);
+  }, [query, pov, searchBackend, user?.pubkey, navigate, resetFilters, toast]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const q = new URLSearchParams(window.location.search).get("q") || "";
+      setQuery(q);
+      didInitFromUrlRef.current = true;
+      if (q.trim()) {
+        handleSearch(q);
+      } else {
+        searchAbortRef.current++;
+        setResults([]);
+        setHasSearched(false);
+        setIsSearching(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [handleSearch]);
+
+  useEffect(() => {
+    if (!user || didInitFromUrlRef.current) return;
+    const q = new URLSearchParams(window.location.search).get("q") || "";
+    if (q.trim()) {
+      didInitFromUrlRef.current = true;
+      handleSearch(q);
+    }
+  }, [user, handleSearch]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -400,6 +526,24 @@ export default function SearchPage() {
       }
     }
   }, [pov, hasSearched, query, handleSearch]);
+
+  const prevBackendRef = useRef(searchBackend);
+  const handleBackendSwitch = useCallback((next: SearchBackend) => {
+    setSearchBackend((prev) => {
+      if (prev === next) return prev;
+      saveSearchBackend(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (prevBackendRef.current !== searchBackend) {
+      prevBackendRef.current = searchBackend;
+      if (hasSearched && query.trim()) {
+        handleSearch();
+      }
+    }
+  }, [searchBackend, hasSearched, query, handleSearch]);
 
   const handleLogout = () => {
     logout();
@@ -561,8 +705,9 @@ export default function SearchPage() {
                         {pov === "nosfabrica" && <Check className="h-3 w-3 text-indigo-400 ml-auto" />}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-emerald-50/40 focus:text-slate-800 ${pov === "mywot" ? "bg-emerald-50/40" : ""}`}
-                        onClick={() => handlePovSwitch("mywot")}
+                        disabled
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md opacity-60 cursor-not-allowed"
+                        title="Coming soon"
                         data-testid="pov-option-mywot"
                       >
                         <Avatar className="h-5 w-5 shrink-0">
@@ -570,7 +715,7 @@ export default function SearchPage() {
                           <AvatarFallback className="bg-slate-100 text-slate-500 font-medium text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
                         <span className="text-[13px] text-slate-700 truncate">{user.displayName || "My WoT"}</span>
-                        {pov === "mywot" && <Check className="h-3 w-3 text-emerald-400 ml-auto" />}
+                        <span className="text-[10px] text-slate-400 ml-auto whitespace-nowrap">Coming soon</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-0.5 bg-slate-100/60" />
                       <DropdownMenuItem
@@ -599,7 +744,7 @@ export default function SearchPage() {
                 <Input
                   ref={inputRef}
                   placeholder="Search by name or npub..."
-                  className="border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0"
+                  className={`border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0 ${isSearching ? "cursor-wait opacity-60" : ""}`}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -607,13 +752,26 @@ export default function SearchPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSearch();
                   }}
+                  disabled={isSearching}
+                  aria-busy={isSearching}
                   autoFocus={!hasSearched}
                   data-testid="input-search"
                 />
                 {query && (
                   <button
                     className="px-2 text-slate-300 hover:text-slate-500 transition-colors"
-                    onClick={() => { setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus(); }}
+                    onClick={() => {
+                      searchAbortRef.current++;
+                      setIsSearching(false);
+                      setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus();
+                      try {
+                        const url = new URL(window.location.href);
+                        if (url.searchParams.has("q")) {
+                          url.searchParams.delete("q");
+                          window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+                        }
+                      } catch {}
+                    }}
                     data-testid="button-clear-search"
                   >
                     <span className="text-lg">&times;</span>
@@ -628,15 +786,114 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              {hasSearched && (
-                <div className="flex items-center mt-2.5 px-1">
-                  {hasPovOption && (
-                    <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
-                      <Telescope className="h-3 w-3 text-slate-400" />
-                      <p className="text-[11px] text-slate-400">
-                        Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+              <div className="flex items-center justify-between gap-2 mt-2.5 px-1">
+                {hasSearched && hasPovOption ? (
+                  <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
+                    <Telescope className="h-3 w-3 text-slate-400" />
+                    <p className="text-[11px] text-slate-400">
+                      Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+                    </p>
+                  </div>
+                ) : <span />}
+                <div
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 p-0.5 text-[10px] sm:text-[11px] shrink-0"
+                  role="group"
+                  aria-label="Search backend"
+                  data-testid="group-search-backend"
+                >
+                  <span className="px-1.5 text-slate-400 hidden sm:inline">Engine:</span>
+                  <button
+                    onClick={() => handleBackendSwitch("meilisearch")}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
+                    aria-pressed={searchBackend === "meilisearch"}
+                    data-testid="button-backend-meilisearch"
+                  >
+                    Meilisearch
+                  </button>
+                  <button
+                    onClick={() => handleBackendSwitch("vespa")}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
+                    aria-pressed={searchBackend === "vespa"}
+                    data-testid="button-backend-vespa"
+                  >
+                    Vespa
+                  </button>
+                </div>
+              </div>
+              {searchBackend === "vespa" && (
+                <div
+                  className="mt-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5"
+                  data-testid="container-vespa-weights"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowVespaWeights((v) => !v)}
+                      className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                      aria-expanded={showVespaWeights}
+                      data-testid="button-toggle-vespa-weights"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      Ranking weights
+                      <ChevronDown
+                        className={`h-3 w-3 transition-transform ${showVespaWeights ? "rotate-180" : ""}`}
+                      />
+                      {!weightsAreDefault && (
+                        <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                      )}
+                    </button>
+                    {!weightsAreDefault && (
+                      <button
+                        type="button"
+                        onClick={handleResetVespaWeights}
+                        className="text-[10px] sm:text-[11px] text-slate-400 hover:text-slate-700 transition-colors"
+                        data-testid="button-reset-vespa-weights"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  {showVespaWeights && (
+                    <>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 leading-snug">
+                        Higher value = field counts more in the relevance score. Changes apply to your next search and are saved on this device.
                       </p>
-                    </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {VESPA_WEIGHT_KEYS.map((key) => (
+                          <label
+                            key={key}
+                            className="flex flex-col gap-1"
+                          >
+                            <span
+                              className="text-[10px] text-slate-500 truncate"
+                              title={key}
+                            >
+                              {VESPA_WEIGHT_LABELS[key]}
+                            </span>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.1"
+                              inputMode="decimal"
+                              value={vespaWeightDrafts[key]}
+                              onChange={(e) => handleWeightDraftChange(key, e.target.value)}
+                              onBlur={() => commitWeightDraft(key)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  commitWeightDraft(key);
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="h-8 text-xs px-2"
+                              data-testid={`input-vespa-${key.replace(/_/g, "-")}`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -678,7 +935,10 @@ export default function SearchPage() {
                   {hasActiveFilters
                     ? `Showing ${filteredResults.length} of ${results.length} result${results.length !== 1 ? "s" : ""}`
                     : `About ${results.length} result${results.length !== 1 ? "s" : ""}`
-                  } ({(searchTime / 1000).toFixed(2)} seconds)
+                  } ({(searchTime / 1000).toFixed(2)} seconds) via{" "}
+                  <span className="font-medium text-slate-500" data-testid="text-search-backend-label">
+                    {lastSearchBackend === "vespa" ? "Vespa" : "Meilisearch"}
+                  </span>
                 </p>
                 <button
                   className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${showFilters || hasActiveFilters ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent"}`}
@@ -777,7 +1037,7 @@ export default function SearchPage() {
                       onBlur={() => handlePrefetchLeave(result)}
                       onClick={() => {
                         seedAndPrefetchProfile(result);
-                        navigate(`/profile/${result.npub}`);
+                        navigate(`/profile/${result.npub}?fromSearch=1`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >

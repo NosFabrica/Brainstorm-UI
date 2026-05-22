@@ -1,0 +1,121 @@
+Parameters
+Cancel
+Name	Description
+text *
+string
+(query)
+megistus
+minLength: 1
+maxLength: 100
+onlyRanked
+boolean
+(query)
+If true, only return profiles that have a rank value.
+
+
+true
+Execute
+Clear
+Responses
+Curl
+
+curl -X 'GET' \
+  'https://brainstormserver-staging.nosfabrica.com/search/byText?text=megistus&onlyRanked=true' \
+  -H 'accept: application/json'
+Request URL
+https://brainstormserver-staging.nosfabrica.com/search/byText?text=megistus&onlyRanked=true
+Server response
+Code	Details
+200	
+Response body
+Download
+{
+  "code": 200,
+  "message": null,
+  "data": {
+    "query": "megistus",
+    "numResults": 2,
+    "results": [
+      {
+        "pubkey": "71ba2defb251db0660ef4c186490856b16e1a7eb840bef5d00f862b34ac7669f",
+        "name": "megistus",
+        "display_name": "megistus",
+        "about": "On a mission to transform technology into a force for good, advocating for user sovereignty and creative solutions for a more equitable digital world.\n\nuser-focused | data sovereignty | digital renaissance | fair access | tech liberation 🕊️\n\n📡 https://relayop.xyz\n———————————-\n❤️ Health over wealth\n- https://wellnessally.me\n- https://shs101.com\n- https://megistus.xyz/legacy-locker\n——————————————————\nTo infinity and beyond - Buzz Lightyear ♾️",
+        "picture": "https://m.primal.net/PpGD.jpg",
+        "banner": "https://m.primal.net/PpGC.png",
+        "nip05": "megistus@primal.net",
+        "lud06": "",
+        "lud16": "megistus@primal.net",
+        "website": "megistus.xyz",
+        "rank_be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a": 96
+      },
+      {
+        "pubkey": "badb31c105fe931a57466e793db51641b6e21e708b19d7d8b7a076b72c385d9c",
+        "name": "Magistus 📷",
+        "display_name": null,
+        "about": "People Photography aus Darmstadt, Deutschland https://lnk.bio/magistus #peoplephotography #darmstadt #portraitphotography mostly #nsfw",
+        "picture": "https://files.mastodon.online/accounts/avatars/108/203/136/312/418/651/original/2c7810602485816d.png",
+        "banner": "https://files.mastodon.online/accounts/headers/108/203/136/312/418/651/original/70aa6c8f16e3e10a.jpeg",
+        "nip05": "magistus@mastodon-online.mostr.pub",
+        "lud06": null,
+        "lud16": null,
+        "website": null,
+        "rank_be7bf5de068c1d842ed34a7c270507ec940f5ea51671cfd062a95e9d09420d0a": 3
+      }
+    ]
+  }
+}
+Response headers
+ connection: keep-alive 
+ content-length: 1652 
+ content-type: application/json 
+ date: Mon,18 May 2026 21:23:27 GMT 
+ server: nginx/1.24.0 (Ubuntu) 
+Responses
+Code	Description	Links
+200	
+Successful Response
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "code": 200,
+  "message": "string",
+  "data": {
+    "query": "string",
+    "numResults": 0,
+    "results": [
+      {
+        "additionalProp1": {}
+      }
+    ]
+  }
+}
+No links
+422	
+Validation Error
+
+Media type
+
+application/json
+Example Value
+Schema
+{
+  "detail": [
+    {
+      "loc": [
+        "string",
+        0
+      ],
+      "msg": "string",
+      "type": "string",
+      "input": "string",
+      "ctx": {}
+    }
+  ]
+}
+No links

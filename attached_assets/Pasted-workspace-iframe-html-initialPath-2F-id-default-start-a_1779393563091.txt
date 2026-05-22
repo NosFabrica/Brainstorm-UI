@@ -1,0 +1,36 @@
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2F&id=default-start-application:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://14ad9443-bb8e-463c-befc…:1  GET https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev&size=32 404 (Not Found)Understand this error
+faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://14ad9443-bb8e-463c-bef…:1  GET https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/&size=32 404 (Not Found)
+Image
+uY @ 0i8wy8tbht2ow.js:2
+e @ 0i8wy8tbht2ow.js:2
+(anonymous) @ 0i8wy8tbht2ow.js:2
+oI @ 0i8wy8tbht2ow.js:2
+o_ @ 0i8wy8tbht2ow.js:2
+r8 @ 0i8wy8tbht2ow.js:2
+(anonymous) @ 0i8wy8tbht2ow.js:2Understand this error
+faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://14ad9443-bb8e-463c-befc…:1  GET https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/&size=32 404 (Not Found)
+Image
+uY @ 0i8wy8tbht2ow.js:2
+e @ 0i8wy8tbht2ow.js:2
+(anonymous) @ 0i8wy8tbht2ow.js:2
+oI @ 0i8wy8tbht2ow.js:2
+o_ @ 0i8wy8tbht2ow.js:2
+r8 @ 0i8wy8tbht2ow.js:2
+(anonymous) @ 0i8wy8tbht2ow.js:2Understand this error
+WhatIsWotPage.tsx:37  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/generated_images/tell_trust_attestation_speech_bubbles.png?import net::ERR_ABORTED 404 (Not Found)Understand this error
+WhatIsWotPage.tsx:31  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/stock_images/red_brick_building_e_b5643b62.jpg?import net::ERR_ABORTED 404 (Not Found)Understand this error
+WhatIsWotPage.tsx:29  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/young_man_profession_46072db4_1770965705548.jpg?import net::ERR_ABORTED 404 (Not Found)Understand this error
+WhatIsWotPage.tsx:35  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/stock_images/upscale_fine_dining__0f9e2af1.jpg?import net::ERR_ABORTED 404 (Not Found)Understand this error
+WhatIsWotPage.tsx:38  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/generated_images/male_patient_portrait_headshot.png?import net::ERR_ABORTED 404 (Not Found)Understand this error
+SettingsPage.tsx:78  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/@fs/home/runner/workspace/attached_assets/download_1774042580188.png?import net::ERR_ABORTED 404 (Not Found)Understand this error
+SettingsPage.tsx:80  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/src/components/BrainstormAssistantCard.tsx net::ERR_ABORTED 404 (Not Found)Understand this error
+ProfilePage.tsx:86  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/src/services/profilePageCache.ts?t=1779393006905 net::ERR_ABORTED 404 (Not Found)Understand this error
+UserPanelPage.tsx:88  GET https://14ad9443-bb8e-463c-befc-a04c7f01d083-00-3ngb5a0fdrxb0.kirk.replit.dev/src/components/ImageUpload.tsx net::ERR_ABORTED 404 (Not Found)Understand this error
+AdminPage.tsx:43  GET 

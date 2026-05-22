@@ -1035,7 +1035,7 @@ export default function NetworkPage() {
 
   useEffect(() => {
     const query = searchFilter.trim();
-    if (query.length < 3) {
+    if (query.length < 2) {
       setSearchLoading(false);
       return;
     }
@@ -1662,13 +1662,26 @@ export default function NetworkPage() {
                       <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
                     )}
                     <Input
-                      placeholder="Search by name or npub..."
-                      className="relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9"
+                      placeholder={isLoading ? "Loading your network…" : "Search by name or npub..."}
+                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${(isLoading || searchLoading) ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => { setSearchFilter(e.target.value); setCurrentPage(1); }}
+                      disabled={isLoading || searchLoading}
+                      aria-busy={isLoading || searchLoading}
                       data-testid="input-network-search"
                     />
                   </div>
+                  {searchFilter.trim().length >= 2 && searchLoading && (
+                    <p
+                      className="mt-1 ml-1 text-[11px] text-indigo-500/80 flex items-center gap-1.5"
+                      role="status"
+                      aria-live="polite"
+                      data-testid="text-network-search-loading"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading profiles to search across this group…
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button

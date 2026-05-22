@@ -112,7 +112,7 @@ export function MobileMenu({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/60 z-50 lg:hidden backdrop-blur-sm"
+        className="fixed inset-0 bg-black/70 z-50 lg:hidden"
         onClick={onClose}
         data-testid="overlay-mobile-menu"
       />
@@ -120,10 +120,13 @@ export function MobileMenu({
         className="fixed top-0 left-0 bottom-0 w-[84%] max-w-sm z-50 lg:hidden shadow-xl flex flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-slate-950 via-slate-950 to-indigo-950"
         data-testid="panel-mobile-menu"
       >
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
-          <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/18 blur-[110px]" />
-        </div>
+        <div
+          className="absolute inset-0 pointer-events-none opacity-70"
+          style={{
+            backgroundImage:
+              "radial-gradient(420px 420px at 110% -10%, rgba(124,134,255,0.18), transparent 60%), radial-gradient(520px 520px at -10% 110%, rgba(51,50,134,0.18), transparent 60%)",
+          }}
+        />
 
         <div className="relative p-4 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
