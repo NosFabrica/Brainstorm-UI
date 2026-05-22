@@ -194,7 +194,9 @@ export default function SearchPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
+  });
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -349,6 +351,8 @@ export default function SearchPage() {
     };
   }, []);
 
+  const didInitFromUrlRef = useRef(false);
+
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
@@ -448,6 +452,14 @@ export default function SearchPage() {
     setHasSearched(true);
     const start = performance.now();
 
+    try {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get("q") !== q) {
+        currentUrl.searchParams.set("q", q);
+        window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+      }
+    } catch {}
+
     const backendForThisSearch = searchBackend;
     try {
       const { results: searchResults, timeMs } = await searchByText(q, backendForThisSearch);
@@ -472,6 +484,33 @@ export default function SearchPage() {
       }
     }
   }, [query, pov, searchBackend, user?.pubkey, navigate, resetFilters, toast]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const q = new URLSearchParams(window.location.search).get("q") || "";
+      setQuery(q);
+      didInitFromUrlRef.current = true;
+      if (q.trim()) {
+        handleSearch(q);
+      } else {
+        searchAbortRef.current++;
+        setResults([]);
+        setHasSearched(false);
+        setIsSearching(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [handleSearch]);
+
+  useEffect(() => {
+    if (!user || didInitFromUrlRef.current) return;
+    const q = new URLSearchParams(window.location.search).get("q") || "";
+    if (q.trim()) {
+      didInitFromUrlRef.current = true;
+      handleSearch(q);
+    }
+  }, [user, handleSearch]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -719,7 +758,16 @@ export default function SearchPage() {
                 {query && (
                   <button
                     className="px-2 text-slate-300 hover:text-slate-500 transition-colors"
-                    onClick={() => { setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus(); }}
+                    onClick={() => {
+                      setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus();
+                      try {
+                        const url = new URL(window.location.href);
+                        if (url.searchParams.has("q")) {
+                          url.searchParams.delete("q");
+                          window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+                        }
+                      } catch {}
+                    }}
                     data-testid="button-clear-search"
                   >
                     <span className="text-lg">&times;</span>

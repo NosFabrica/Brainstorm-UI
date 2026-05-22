@@ -1677,40 +1677,57 @@ export default function ProfilePage() {
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
-          {fromAdmin ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate(`/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`)}
-              data-testid="button-back-to-admin"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Admin
-            </Button>
-          ) : fromGroup ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate(`/network?group=${fromGroup}`)}
-              data-testid="button-back-to-network"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Network
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-              onClick={() => navigate("/search")}
-              data-testid="button-back-to-search"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Search
-            </Button>
-          )}
+          {(() => {
+            const cameFromInternal = !!fromGroup || !!fromAdmin;
+            const goBack = (fallback: string) => {
+              if (cameFromInternal && typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+              } else {
+                navigate(fallback);
+              }
+            };
+            if (fromAdmin) {
+              const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => goBack(fallback)}
+                  data-testid="button-back-to-admin"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Admin
+                </Button>
+              );
+            }
+            if (fromGroup) {
+              return (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  onClick={() => goBack(`/network?group=${fromGroup}`)}
+                  data-testid="button-back-to-network"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Network
+                </Button>
+              );
+            }
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                onClick={() => goBack("/search")}
+                data-testid="button-back-to-search"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Search
+              </Button>
+            );
+          })()}
         </div>
 
         {isLoading && (

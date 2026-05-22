@@ -1035,7 +1035,7 @@ export default function NetworkPage() {
 
   useEffect(() => {
     const query = searchFilter.trim();
-    if (query.length < 3) {
+    if (query.length < 2) {
       setSearchLoading(false);
       return;
     }
@@ -1669,6 +1669,17 @@ export default function NetworkPage() {
                       data-testid="input-network-search"
                     />
                   </div>
+                  {searchFilter.trim().length >= 2 && searchLoading && (
+                    <p
+                      className="mt-1 ml-1 text-[11px] text-indigo-500/80 flex items-center gap-1.5"
+                      role="status"
+                      aria-live="polite"
+                      data-testid="text-network-search-loading"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading profiles to search across this group…
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
