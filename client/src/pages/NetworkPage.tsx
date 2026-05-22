@@ -1662,10 +1662,12 @@ export default function NetworkPage() {
                       <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
                     )}
                     <Input
-                      placeholder="Search by name or npub..."
-                      className="relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9"
+                      placeholder={isLoading ? "Loading your network…" : "Search by name or npub..."}
+                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${(isLoading || searchLoading) ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => { setSearchFilter(e.target.value); setCurrentPage(1); }}
+                      disabled={isLoading || searchLoading}
+                      aria-busy={isLoading || searchLoading}
                       data-testid="input-network-search"
                     />
                   </div>
