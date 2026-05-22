@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-CONFIG_FILE="/app/dist/config.js"
+CONFIG_FILE="/usr/share/nginx/html/config.js"
 
 if [ -f "$CONFIG_FILE" ]; then
   for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN; do
@@ -12,4 +12,4 @@ if [ -f "$CONFIG_FILE" ]; then
   done
 fi
 
-exec serve -s dist -l 3000
+exec "$@"
