@@ -1429,8 +1429,16 @@ export default function ProfilePage() {
 
   const navigateToProfile = useCallback((pk: string) => {
     const targetNpub = nip19.npubEncode(pk);
-    navigate(`/profile/${targetNpub}${fromGroup ? `?fromGroup=${fromGroup}` : ""}`);
-  }, [navigate, fromGroup]);
+    const params = new URLSearchParams();
+    if (fromGroup) params.set("fromGroup", fromGroup);
+    if (fromAdmin) {
+      params.set("from", "admin");
+      if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
+    }
+    if (fromSearch) params.set("fromSearch", "1");
+    const qs = params.toString();
+    navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
+  }, [navigate, fromGroup, fromAdmin, fromSearch]);
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
     setSectionSort(prev => ({ ...prev, [k]: v }));
