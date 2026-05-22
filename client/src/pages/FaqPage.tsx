@@ -35,7 +35,7 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { HeaderPovChip } from "@/components/HeaderPovChip";
+import { PovBadge, PovMenuSection } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 
@@ -179,26 +179,29 @@ export default function FaqPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {user && isAdminPubkey(user?.pubkey) && <AdminBadge />}
-              {user && <HeaderPovChip user={user} scope="page-not-supported" />}
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                        {user.picture ? (
-                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                          {user.displayName?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative shrink-0">
+                        <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                          {user.picture ? (
+                            <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                          ) : null}
+                          <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                            {user.displayName?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <PovBadge user={user} />
+                      </div>
                       <div className="hidden md:flex flex-col items-start mr-2">
                         <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
                         <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
                       </div>
                     </div>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
+                  <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
+                    <PovMenuSection user={user} scope="page-not-supported" />
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>

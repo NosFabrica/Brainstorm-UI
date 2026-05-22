@@ -17,6 +17,7 @@ import FaqPage from "@/pages/FaqPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import { FEATURES } from "@/config/featureFlags";
+import { PovAutoDefault } from "@/components/PovBadge";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -54,6 +55,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <Toaster />
+        <PovAutoDefault />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>

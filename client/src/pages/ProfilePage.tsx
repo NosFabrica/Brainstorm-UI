@@ -73,7 +73,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { HeaderPovChip } from "@/components/HeaderPovChip";
+import { PovBadge, PovMenuSection } from "@/components/PovBadge";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1837,21 +1837,23 @@ export default function ProfilePage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdmin && <AdminBadge />}
-              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div
                     className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5"
                     data-testid="button-user-menu"
                   >
-                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                      {user.picture ? (
-                        <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                      ) : null}
-                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                        {user.displayName?.charAt(0) || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative shrink-0">
+                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
+                        {user.picture ? (
+                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                          {user.displayName?.charAt(0) || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <PovBadge user={user} />
+                    </div>
                     <div className="hidden md:flex flex-col items-start mr-2">
                       <span className="text-sm font-bold text-white leading-none mb-0.5">
                         {user.displayName || "Anon"}
