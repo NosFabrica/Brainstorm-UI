@@ -87,8 +87,19 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
   const num = (v: unknown): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
 
-  // Rank/followers may appear under a few field names depending on POV.
-  let wotRank: number | null = num(hit.wotRank) ?? num(hit.rank);
+  const wot = (hit.wot && typeof hit.wot === "object") ? (hit.wot as Record<string, unknown>) : null;
+
+  // Rank may appear under several field names depending on POV/endpoint shape.
+  let wotRank: number | null =
+    num(hit.wotRank) ??
+    num(hit.rank) ??
+    num(hit.wot_score) ??
+    num(hit.wotScore) ??
+    num(hit.score) ??
+    num(hit.grapeRank) ??
+    num(hit.grapeRankScore) ??
+    num(hit.influence) ??
+    (wot ? num(wot.rank) ?? num(wot.score) ?? num(wot.influence) : null);
   if (wotRank === null) {
     for (const key of Object.keys(hit)) {
       if (key.startsWith("rank_") && typeof hit[key] === "number") {
@@ -97,7 +108,12 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
       }
     }
   }
-  let wotFollowers: number | null = num(hit.wotFollowers) ?? num(hit.followers);
+  let wotFollowers: number | null =
+    num(hit.wotFollowers) ??
+    num(hit.followers) ??
+    num(hit.followerCount) ??
+    num(hit.followers_count) ??
+    (wot ? num(wot.followers) ?? num(wot.followerCount) : null);
   if (wotFollowers === null) {
     for (const key of Object.keys(hit)) {
       if (key.startsWith("followers_") && typeof hit[key] === "number") {
@@ -136,6 +152,12 @@ async function searchByText(
   const apiPov = pov === "mywot" ? "user" : "house";
   const data = await apiClient.searchProfilesLegacyMeili(query, apiPov, userPubkey, 50);
   const hits = data.hits;
+  // One-time debug: log the first hit's keys so we can verify which field
+  // carries the WoT rank in the live response. Safe to remove later.
+  if (hits.length > 0) {
+    // eslint-disable-next-line no-console
+    console.debug("[search] sample hit keys:", Object.keys(hits[0]), hits[0]);
+  }
   const total = data.estimatedTotalHits ?? hits.length;
   const results: SearchResult[] = [];
   const seen = new Set<string>();
@@ -848,6 +870,12 @@ export default function SearchPage() {
                               {getDisplayLabel(result)}
                             </span>
                           </div>
+                          {result.nip05 && (
+                            <p className="text-[10px] sm:text-[11px] text-indigo-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
+                              <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                              {result.nip05.replace(/^_@/, "")}
+                            </p>
+                          )}
                           {result.lud16 && (
                             <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
                               <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
