@@ -744,7 +744,7 @@ export default function SearchPage() {
                 <Input
                   ref={inputRef}
                   placeholder="Search by name or npub..."
-                  className="border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0"
+                  className={`border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0 ${isSearching ? "cursor-wait opacity-60" : ""}`}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -752,6 +752,8 @@ export default function SearchPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSearch();
                   }}
+                  disabled={isSearching}
+                  aria-busy={isSearching}
                   autoFocus={!hasSearched}
                   data-testid="input-search"
                 />
@@ -800,7 +802,8 @@ export default function SearchPage() {
                   <span className="px-1.5 text-slate-400 hidden sm:inline">Engine:</span>
                   <button
                     onClick={() => handleBackendSwitch("meilisearch")}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
                     aria-pressed={searchBackend === "meilisearch"}
                     data-testid="button-backend-meilisearch"
                   >
@@ -808,7 +811,8 @@ export default function SearchPage() {
                   </button>
                   <button
                     onClick={() => handleBackendSwitch("vespa")}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
                     aria-pressed={searchBackend === "vespa"}
                     data-testid="button-backend-vespa"
                   >
