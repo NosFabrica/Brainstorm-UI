@@ -194,7 +194,9 @@ export default function SearchPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
+  });
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -349,6 +351,8 @@ export default function SearchPage() {
     };
   }, []);
 
+  const didInitFromUrlRef = useRef(false);
+
   useEffect(() => {
     const u = getCurrentUser();
     if (!u) {
@@ -448,6 +452,14 @@ export default function SearchPage() {
     setHasSearched(true);
     const start = performance.now();
 
+    try {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.get("q") !== q) {
+        currentUrl.searchParams.set("q", q);
+        window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+      }
+    } catch {}
+
     const backendForThisSearch = searchBackend;
     try {
       const { results: searchResults, timeMs } = await searchByText(q, backendForThisSearch);
@@ -472,6 +484,33 @@ export default function SearchPage() {
       }
     }
   }, [query, pov, searchBackend, user?.pubkey, navigate, resetFilters, toast]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const q = new URLSearchParams(window.location.search).get("q") || "";
+      setQuery(q);
+      didInitFromUrlRef.current = true;
+      if (q.trim()) {
+        handleSearch(q);
+      } else {
+        searchAbortRef.current++;
+        setResults([]);
+        setHasSearched(false);
+        setIsSearching(false);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [handleSearch]);
+
+  useEffect(() => {
+    if (!user || didInitFromUrlRef.current) return;
+    const q = new URLSearchParams(window.location.search).get("q") || "";
+    if (q.trim()) {
+      didInitFromUrlRef.current = true;
+      handleSearch(q);
+    }
+  }, [user, handleSearch]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -705,7 +744,7 @@ export default function SearchPage() {
                 <Input
                   ref={inputRef}
                   placeholder="Search by name or npub..."
-                  className="border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0"
+                  className={`border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0 ${isSearching ? "cursor-wait opacity-60" : ""}`}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
@@ -713,13 +752,26 @@ export default function SearchPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleSearch();
                   }}
+                  disabled={isSearching}
+                  aria-busy={isSearching}
                   autoFocus={!hasSearched}
                   data-testid="input-search"
                 />
                 {query && (
                   <button
                     className="px-2 text-slate-300 hover:text-slate-500 transition-colors"
-                    onClick={() => { setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus(); }}
+                    onClick={() => {
+                      searchAbortRef.current++;
+                      setIsSearching(false);
+                      setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus();
+                      try {
+                        const url = new URL(window.location.href);
+                        if (url.searchParams.has("q")) {
+                          url.searchParams.delete("q");
+                          window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
+                        }
+                      } catch {}
+                    }}
                     data-testid="button-clear-search"
                   >
                     <span className="text-lg">&times;</span>
@@ -752,7 +804,8 @@ export default function SearchPage() {
                   <span className="px-1.5 text-slate-400 hidden sm:inline">Engine:</span>
                   <button
                     onClick={() => handleBackendSwitch("meilisearch")}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
                     aria-pressed={searchBackend === "meilisearch"}
                     data-testid="button-backend-meilisearch"
                   >
@@ -760,7 +813,8 @@ export default function SearchPage() {
                   </button>
                   <button
                     onClick={() => handleBackendSwitch("vespa")}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"}`}
+                    disabled={isSearching}
+                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
                     aria-pressed={searchBackend === "vespa"}
                     data-testid="button-backend-vespa"
                   >
@@ -983,7 +1037,7 @@ export default function SearchPage() {
                       onBlur={() => handlePrefetchLeave(result)}
                       onClick={() => {
                         seedAndPrefetchProfile(result);
-                        navigate(`/profile/${result.npub}`);
+                        navigate(`/profile/${result.npub}?fromSearch=1`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >
