@@ -1195,13 +1195,11 @@ export default function ProfilePage() {
   const fetchSectionProfiles = useCallback(async (key: string, pubkeys: string[], startIdx = 0, count = 10) => {
     const fetchId = ++fetchAbortRef.current;
     const toFetch = pubkeys.slice(startIdx, startIdx + count).filter(
-      pk => !expandProfileCache.has(pk) || !expandTrustCache.has(pk)
+      pk => !expandProfileCache.has(pk)
     );
     if (toFetch.length === 0) return;
-    const profilePubkeys = toFetch.filter(pk => !expandProfileCache.has(pk));
-    const trustPubkeys = toFetch.filter(pk => !expandTrustCache.has(pk));
     const missingProfiles: string[] = [];
-    for (const pk of profilePubkeys) {
+    for (const pk of toFetch) {
       const event = eventStore.getReplaceable(0, pk);
       if (event) {
         if (isValidProfile(event)) expandProfileCache.set(pk, getProfileContent(event));
@@ -1210,7 +1208,7 @@ export default function ProfilePage() {
       }
     }
     if (fetchAbortRef.current !== fetchId) return;
-    if (missingProfiles.length > 0 || trustPubkeys.length > 0) {
+    if (missingProfiles.length > 0) {
       bumpRerender();
     }
     await Promise.allSettled([
@@ -1218,11 +1216,6 @@ export default function ProfilePage() {
         expandProfileCache.set(pubkey, profile);
         bumpRerender();
       })] : []),
-      ...trustPubkeys.map(pk =>
-        apiClient.getUserOverview(pk)
-          .then(resp => expandTrustCache.set(pk, resp?.data?.influence ?? null))
-          .catch(() => expandTrustCache.set(pk, null))
-      ),
     ]);
     if (fetchAbortRef.current !== fetchId) return;
     bumpRerender();
