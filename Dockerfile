@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -15,11 +15,7 @@ ENV VITE_NIP85_RELAY_URL=$VITE_NIP85_RELAY_URL
 
 # Copy package.json first
 COPY package.json package-lock.json ./
-
-RUN npm install
-
-# Install serve globally
-RUN npm i -g serve
+RUN npm ci --no-audit --no-fund
 
 # Copy source
 COPY . .
@@ -27,6 +23,11 @@ COPY . .
 # Build Vite project
 RUN npm run build
 
+FROM nginx:1.31-alpine AS runtime
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
 EXPOSE 3000
 
-CMD ["serve", "-s", "dist", "-l", "3000"]
+CMD ["nginx", "-g", "daemon off;"]
