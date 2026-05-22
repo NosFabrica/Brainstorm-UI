@@ -48,7 +48,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -926,16 +926,225 @@ export default function ProfilePage() {
 
   const seed = useMemo<ProfileSeed | null>(() => (hexPubkey ? getProfileSeed(hexPubkey) : null), [hexPubkey]);
 
-  const profileQuery = useQuery<ProfileResultData | null>({
-    queryKey: ["profile", hexPubkey],
+  // Overview drives the header (influence + counts). Lists load lazily on expand.
+  const profileOverviewQuery = useQuery<{
+    pubkey: string;
+    influence: number | null;
+    counts: {
+      followed_by: number;
+      following: number;
+      muted_by: number;
+      muting: number;
+      reported_by: number;
+      reporting: number;
+    };
+  } | null>({
+    queryKey: ["profile-overview", hexPubkey],
     queryFn: async () => {
-      const res = await apiClient.getUserByPubkey(hexPubkey);
-      return (res?.data ?? null) as ProfileResultData | null;
+      const res = await apiClient.getUserOverview(hexPubkey);
+      return res?.data ?? null;
     },
     enabled: !!user && !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
+
+  // Per-section stats (total + verified + tier counts) for all 6 relationships.
+  // Fires in parallel with overview on profile open. Server runs 6 Cypher scans
+  // in parallel; first paint of badges depends on this landing.
+  type SectionStats = {
+    total: number;
+    verified: number;
+    tier_counts: {
+      high: number;
+      trusted: number;
+      neutral: number;
+      low: number;
+      unverified: number;
+    };
+  };
+  const profileStatsQuery = useQuery<{
+    followed_by: SectionStats;
+    following: SectionStats;
+    muted_by: SectionStats;
+    muting: SectionStats;
+    reported_by: SectionStats;
+    reporting: SectionStats;
+  } | null>({
+    queryKey: ["profile-stats", hexPubkey, trustPreset],
+    queryFn: async () => {
+      const res = await apiClient.getUserStats(hexPubkey, {
+        verified_threshold: getVerifiedThreshold(),
+        tier_high: 0.5,
+        tier_trusted: 0.2,
+        tier_neutral: 0.07,
+      });
+      return res?.data ?? null;
+    },
+    enabled: !!user && !!hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  // Per-section connection queries (cursor-paginated).
+  //  - followed_by + following: eager (drive mutual/shared computations).
+  //  - the other four: lazy, only fire when their section is expanded.
+  const SECTION_LIMIT = 200;
+  const useConnectionsQuery = (
+    kind:
+      | "followed_by"
+      | "following"
+      | "muted_by"
+      | "muting"
+      | "reported_by"
+      | "reporting",
+    eager: boolean = false,
+  ) =>
+    useInfiniteQuery<
+      { items: GraphEntry[]; next_cursor: string | null; stats: SectionStats | null },
+      Error,
+      { pages: { items: GraphEntry[]; next_cursor: string | null; stats: SectionStats | null }[]; pageParams: (string | undefined)[] },
+      readonly unknown[],
+      string | undefined
+    >({
+      queryKey: ["profile-conn", hexPubkey, kind, trustPreset],
+      queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+        const res = await apiClient.getUserConnections(hexPubkey, kind, {
+          limit: SECTION_LIMIT,
+          cursor: pageParam || undefined,
+          verified_threshold: getVerifiedThreshold(),
+        });
+        return {
+          items: (res?.data?.items ?? []) as GraphEntry[],
+          next_cursor: (res?.data?.next_cursor ?? null) as string | null,
+          stats: (res?.data?.stats ?? null) as SectionStats | null,
+        };
+      },
+      initialPageParam: undefined,
+      getNextPageParam: (lastPage: { next_cursor: string | null }) =>
+        lastPage?.next_cursor ?? undefined,
+      enabled:
+        !!user && !!hexPubkey && (eager || !!expandedSections[kind]),
+      staleTime: 5 * 60_000,
+      retry: false,
+    });
+
+  const followedByQuery = useConnectionsQuery("followed_by", true);
+  const followingQuery = useConnectionsQuery("following", true);
+  const mutedByQuery = useConnectionsQuery("muted_by");
+  const mutingQuery = useConnectionsQuery("muting");
+  const reportedByQuery = useConnectionsQuery("reported_by");
+  const reportingQuery = useConnectionsQuery("reporting");
+
+  // Flatten paginated items per section.
+  const flattenItems = (q: { data?: { pages?: { items: GraphEntry[] }[] } }) =>
+    q.data?.pages?.flatMap((p) => p.items) ?? null;
+
+  const followedByItems = flattenItems(followedByQuery);
+  const followingItems = flattenItems(followingQuery);
+  const mutedByItems = flattenItems(mutedByQuery);
+  const mutingItems = flattenItems(mutingQuery);
+  const reportedByItems = flattenItems(reportedByQuery);
+  const reportingItems = flattenItems(reportingQuery);
+
+  // Authoritative stats source: profileStatsQuery (covers all 6 sections from
+  // profile open). Per-section query also returns stats on its first page
+  // (used as fallback if /stats hasn't landed yet).
+  const sectionStats = useMemo<Record<string, SectionStats | null>>(
+    () => ({
+      followed_by:
+        profileStatsQuery.data?.followed_by ??
+        followedByQuery.data?.pages?.[0]?.stats ??
+        null,
+      following:
+        profileStatsQuery.data?.following ??
+        followingQuery.data?.pages?.[0]?.stats ??
+        null,
+      muted_by:
+        profileStatsQuery.data?.muted_by ??
+        mutedByQuery.data?.pages?.[0]?.stats ??
+        null,
+      muting:
+        profileStatsQuery.data?.muting ??
+        mutingQuery.data?.pages?.[0]?.stats ??
+        null,
+      reported_by:
+        profileStatsQuery.data?.reported_by ??
+        reportedByQuery.data?.pages?.[0]?.stats ??
+        null,
+      reporting:
+        profileStatsQuery.data?.reporting ??
+        reportingQuery.data?.pages?.[0]?.stats ??
+        null,
+    }),
+    [
+      profileStatsQuery.data,
+      followedByQuery.data,
+      followingQuery.data,
+      mutedByQuery.data,
+      mutingQuery.data,
+      reportedByQuery.data,
+      reportingQuery.data,
+    ],
+  );
+
+  // Seed expandTrustCache from any loaded section items so subsequent
+  // ExpandedPanel renders don't fire a per-pubkey getUserOverview() each.
+  useEffect(() => {
+    const seedFrom = (items: GraphEntry[] | null) => {
+      if (!items) return;
+      for (const it of items) {
+        if (typeof it === "string") continue;
+        if (!expandTrustCache.has(it.pubkey)) {
+          expandTrustCache.set(it.pubkey, it.influence ?? null);
+        }
+      }
+    };
+    seedFrom(followedByItems);
+    seedFrom(followingItems);
+    seedFrom(mutedByItems);
+    seedFrom(mutingItems);
+    seedFrom(reportedByItems);
+    seedFrom(reportingItems);
+  }, [
+    followedByItems,
+    followingItems,
+    mutedByItems,
+    mutingItems,
+    reportedByItems,
+    reportingItems,
+  ]);
+
+  // Composed ProfileResultData: counts as numbers (from overview) until each
+  // section's lazy query lands its array. UI already handles the number-or-array
+  // dual shape via Array.isArray() checks.
+  const profileQuery = {
+    data: useMemo<ProfileResultData | null>(() => {
+      const ov = profileOverviewQuery.data;
+      if (!ov) return null;
+      return {
+        influence: ov.influence ?? undefined,
+        followed_by: followedByItems ?? ov.counts.followed_by,
+        following: followingItems ?? ov.counts.following,
+        muted_by: mutedByItems ?? ov.counts.muted_by,
+        muting: mutingItems ?? ov.counts.muting,
+        reported_by: reportedByItems ?? ov.counts.reported_by,
+        reporting: reportingItems ?? ov.counts.reporting,
+      } as ProfileResultData;
+    }, [
+      profileOverviewQuery.data,
+      followedByItems,
+      followingItems,
+      mutedByItems,
+      mutingItems,
+      reportedByItems,
+      reportingItems,
+    ]),
+    isLoading: profileOverviewQuery.isLoading,
+    isError: profileOverviewQuery.isError,
+    isFetched: profileOverviewQuery.isFetched,
+    isSuccess: profileOverviewQuery.isSuccess,
+  };
 
   const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
@@ -1041,7 +1250,7 @@ export default function ProfilePage() {
         bumpRerender();
       })] : []),
       ...trustPubkeys.map(pk =>
-        apiClient.getUserByPubkey(pk)
+        apiClient.getUserOverview(pk)
           .then(resp => expandTrustCache.set(pk, resp?.data?.influence ?? null))
           .catch(() => expandTrustCache.set(pk, null))
       ),
@@ -1284,34 +1493,57 @@ export default function ProfilePage() {
 
   const verifiedCounts = useMemo(() => {
     if (!profileResult) return { followers: 0, followersTotal: 0, following: 0, followingTotal: 0, mutedBy: 0, mutedByTotal: 0, reportedBy: 0, reportedByTotal: 0 };
+    // Prefer server-side stats (accurate over the full relationship); fall back
+    // to overview total + the loaded-subset influence map only when the section
+    // hasn't been fetched yet.
     const threshold = getVerifiedThreshold();
-    const count = (map: Map<string, number | null>) => {
+    const countVerifiedFromMap = (map: Map<string, number | null>) => {
       let verified = 0;
       map.forEach((inf) => { if (inf !== null && inf >= threshold) verified++; });
-      return { verified, total: map.size };
+      return verified;
     };
-    const fb = count(sectionInfluenceMaps.followed_by);
-    const fg = count(sectionInfluenceMaps.following);
-    const mb = count(sectionInfluenceMaps.muted_by);
-    const rb = count(sectionInfluenceMaps.reported_by);
-    return { followers: fb.verified, followersTotal: fb.total, following: fg.verified, followingTotal: fg.total, mutedBy: mb.verified, mutedByTotal: mb.total, reportedBy: rb.verified, reportedByTotal: rb.total };
-  }, [profileResult, sectionInfluenceMaps, trustPreset]);
+    const ov = profileOverviewQuery.data?.counts;
+    const fbStats = sectionStats.followed_by;
+    const fgStats = sectionStats.following;
+    const mbStats = sectionStats.muted_by;
+    const rbStats = sectionStats.reported_by;
+    return {
+      followers: fbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.followed_by),
+      followersTotal: fbStats?.total ?? ov?.followed_by ?? sectionInfluenceMaps.followed_by.size,
+      following: fgStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.following),
+      followingTotal: fgStats?.total ?? ov?.following ?? sectionInfluenceMaps.following.size,
+      mutedBy: mbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.muted_by),
+      mutedByTotal: mbStats?.total ?? ov?.muted_by ?? sectionInfluenceMaps.muted_by.size,
+      reportedBy: rbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.reported_by),
+      reportedByTotal: rbStats?.total ?? ov?.reported_by ?? sectionInfluenceMaps.reported_by.size,
+    };
+  }, [profileResult, sectionInfluenceMaps, trustPreset, profileOverviewQuery.data, sectionStats]);
 
   const followerTierBreakdown = useMemo(() => {
-    if (!profileResult || !Array.isArray(profileResult.followed_by)) return null;
-    const map = sectionInfluenceMaps.followed_by;
-    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-    const verifiedMin = getVerifiedThreshold();
-    map.forEach((inf) => {
-      if (inf === null || inf === undefined) {
-        counts.unverified++;
-      } else if (inf >= 0.50) counts.high++;
-      else if (inf >= 0.20) counts.trusted++;
-      else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= verifiedMin) counts.low++;
-      else counts.unverified++;
-    });
-    const total = map.size;
+    if (!profileResult) return null;
+    // Prefer server-computed tier counts (full relationship); fall back to
+    // counting the loaded subset's influence map when stats aren't in yet.
+    const serverStats = sectionStats.followed_by;
+    let counts: Record<string, number>;
+    let total: number;
+    if (serverStats) {
+      counts = { ...serverStats.tier_counts };
+      total = serverStats.total;
+    } else {
+      if (!Array.isArray(profileResult.followed_by)) return null;
+      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+      const verifiedMin = getVerifiedThreshold();
+      sectionInfluenceMaps.followed_by.forEach((inf: number | null) => {
+        if (inf === null || inf === undefined) {
+          counts.unverified++;
+        } else if (inf >= 0.50) counts.high++;
+        else if (inf >= 0.20) counts.trusted++;
+        else if (inf >= 0.07) counts.neutral++;
+        else if (inf >= verifiedMin) counts.low++;
+        else counts.unverified++;
+      });
+      total = sectionInfluenceMaps.followed_by.size;
+    }
     if (total === 0) return null;
     return { counts, total };
   }, [profileResult, sectionInfluenceMaps, trustPreset]);
@@ -1332,18 +1564,26 @@ export default function ProfilePage() {
   }, []);
 
   const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
-    const section = getSection(profileResult, sectionKey);
-    if (!section || !Array.isArray(section)) return null;
-    const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[sectionKey];
-    if (!map || map.size === 0) return null;
-    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-    map.forEach((inf) => {
-      if (inf === null || inf === undefined) {
-        counts.unverified++;
-      } else {
-        counts[getTierKey(inf)]++;
-      }
-    });
+    // Prefer server-side tier counts (full relationship); fall back to the
+    // loaded-subset influence map until the section's stats arrive.
+    let counts: Record<string, number> | null = null;
+    const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
+    if (serverStats) {
+      counts = { ...serverStats.tier_counts };
+    } else {
+      const section = getSection(profileResult, sectionKey);
+      if (!section || !Array.isArray(section)) return null;
+      const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[sectionKey];
+      if (!map || map.size === 0) return null;
+      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+      map.forEach((inf: number | null) => {
+        if (inf === null || inf === undefined) {
+          counts!.unverified++;
+        } else {
+          counts![getTierKey(inf)]++;
+        }
+      });
+    }
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
       { tier: "trusted", label: "Trusted", color: "text-sky-500" },
@@ -1351,8 +1591,8 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [profileResult, sectionInfluenceMaps, trustPreset]);
+    return tierDefs.filter(t => counts![t.tier] > 0).map(t => ({ tier: t.label, count: counts![t.tier], color: t.color }));
+  }, [profileResult, sectionInfluenceMaps, trustPreset, sectionStats]);
 
   const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
     // Seed expandTrustCache from already-known influence values so we never
@@ -1453,6 +1693,20 @@ export default function ProfilePage() {
     fetchSectionProfiles(k, visiblePubkeys, 0, visiblePubkeys.length);
   }, [fetchSectionProfiles]);
 
+  // Map section key → infinite query (for cursor-paginated fetchNextPage).
+  const sectionQueries: Record<string, {
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
+    fetchNextPage: () => void;
+  }> = {
+    followed_by: followedByQuery,
+    following: followingQuery,
+    muted_by: mutedByQuery,
+    muting: mutingQuery,
+    reported_by: reportedByQuery,
+    reporting: reportingQuery,
+  };
+
   const handleShowMore = useCallback((k: string, processed: string[], currentVisible: number) => {
     setSectionVisibleCount(prev => ({ ...prev, [k]: currentVisible + 10 }));
     fetchSectionProfiles(k, processed, currentVisible, 10);
@@ -1460,7 +1714,16 @@ export default function ProfilePage() {
       const nextBatch = processed.slice(currentVisible, currentVisible + 10);
       if (nextBatch.length > 0) fetchSectionMetadata("muted_by", nextBatch);
     }
-  }, [fetchSectionProfiles, fetchSectionMetadata]);
+    // If we're approaching the end of what's loaded server-side, fetch the
+    // next page. The connection query will append items; profileResult
+    // re-composes; the panel will see the larger list on the next render.
+    const q = sectionQueries[k];
+    if (q && q.hasNextPage && !q.isFetchingNextPage) {
+      if (currentVisible + 10 >= processed.length - 30) {
+        q.fetchNextPage();
+      }
+    }
+  }, [fetchSectionProfiles, fetchSectionMetadata, sectionQueries]);
 
   const renderExpandedPanel = (key: string, pubkeys: string[]) => {
     const isExpanded = expandedSections[key];
@@ -2238,10 +2501,11 @@ export default function ProfilePage() {
                 })()}
 
                 {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
-                  const mutedByCount = Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0);
-                  const reportedByCount = Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0);
-                  const mutingCount = Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0);
-                  const reportingCount = Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0);
+                  const _ovCounts = profileOverviewQuery.data?.counts;
+                  const mutedByCount = _ovCounts?.muted_by ?? (Array.isArray(profileResult.muted_by) ? toPubkeys(profileResult.muted_by).length : (profileResult.muted_by || 0));
+                  const reportedByCount = _ovCounts?.reported_by ?? (Array.isArray(profileResult.reported_by) ? toPubkeys(profileResult.reported_by).length : (profileResult.reported_by || 0));
+                  const mutingCount = _ovCounts?.muting ?? (Array.isArray(profileResult.muting) ? toPubkeys(profileResult.muting).length : (profileResult.muting || 0));
+                  const reportingCount = _ovCounts?.reporting ?? (Array.isArray(profileResult.reporting) ? toPubkeys(profileResult.reporting).length : (profileResult.reporting || 0));
                   const hasRiskSignals = mutedByCount > 0 || reportedByCount > 0 || isProfileFlagged;
                   const totalNegativeSignals = mutedByCount + reportedByCount;
                   const vMuted = verifiedCounts.mutedBy;
@@ -2261,8 +2525,8 @@ export default function ProfilePage() {
                         {profileResult.followed_by !== undefined && (() => {
                           const fbValue = profileResult.followed_by;
                           const fbArray = Array.isArray(fbValue) ? fbValue : null;
-                          const fbCount = fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0);
-                          const fbExpandable = !!fbArray && fbCount > 0;
+                          const fbCount = _ovCounts?.followed_by ?? (fbArray ? toPubkeys(fbArray).length : ((fbValue as number) || 0));
+                          const fbExpandable = fbCount > 0;
                           return (
                           <div>
                             <div
@@ -2299,8 +2563,8 @@ export default function ProfilePage() {
                         {profileResult.following !== undefined && (() => {
                           const fgValue = profileResult.following;
                           const fgArray = Array.isArray(fgValue) ? fgValue : null;
-                          const fgCount = fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0);
-                          const fgExpandable = !!fgArray && fgCount > 0;
+                          const fgCount = _ovCounts?.following ?? (fgArray ? toPubkeys(fgArray).length : ((fgValue as number) || 0));
+                          const fgExpandable = fgCount > 0;
                           return (
                           <div>
                             <div
@@ -2451,7 +2715,7 @@ export default function ProfilePage() {
                         )}
                         {profileResult.muted_by !== undefined && (() => {
                           const mbIsArray = Array.isArray(profileResult.muted_by);
-                          const mbExpandable = mbIsArray && mutedByCount > 0;
+                          const mbExpandable = mutedByCount > 0;
                           return (
                           <div>
                             <div
@@ -2488,7 +2752,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.reported_by !== undefined && (() => {
                           const rbIsArray = Array.isArray(profileResult.reported_by);
-                          const rbExpandable = rbIsArray && reportedByCount > 0;
+                          const rbExpandable = reportedByCount > 0;
                           return (
                           <div>
                             <div
@@ -2525,7 +2789,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.muting !== undefined && (() => {
                           const mtIsArray = Array.isArray(profileResult.muting);
-                          const mtExpandable = mtIsArray && mutingCount > 0;
+                          const mtExpandable = mutingCount > 0;
                           return (
                           <div>
                             <div
@@ -2556,7 +2820,7 @@ export default function ProfilePage() {
                         })()}
                         {profileResult.reporting !== undefined && (() => {
                           const rpIsArray = Array.isArray(profileResult.reporting);
-                          const rpExpandable = rpIsArray && reportingCount > 0;
+                          const rpExpandable = reportingCount > 0;
                           return (
                           <div>
                             <div

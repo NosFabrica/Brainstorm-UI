@@ -301,6 +301,75 @@ export const apiClient = {
     return await response.json();
   },
 
+  async getUserOverview(pubkey: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/${pubkey}/overview`,
+      {
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user overview (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async getUserStats(
+    pubkey: string,
+    opts?: {
+      verified_threshold?: number;
+      tier_high?: number;
+      tier_trusted?: number;
+      tier_neutral?: number;
+    },
+  ) {
+    const params = new URLSearchParams();
+    if (opts?.verified_threshold != null)
+      params.set("verified_threshold", String(opts.verified_threshold));
+    if (opts?.tier_high != null)
+      params.set("tier_high", String(opts.tier_high));
+    if (opts?.tier_trusted != null)
+      params.set("tier_trusted", String(opts.tier_trusted));
+    if (opts?.tier_neutral != null)
+      params.set("tier_neutral", String(opts.tier_neutral));
+    const qs = params.toString();
+    const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch user stats (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  async getUserConnections(
+    pubkey: string,
+    kind:
+      | "followed_by"
+      | "following"
+      | "muted_by"
+      | "muting"
+      | "reported_by"
+      | "reporting",
+    opts?: { limit?: number; cursor?: string; verified_threshold?: number },
+  ) {
+    const params = new URLSearchParams();
+    params.set("kind", kind);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    if (opts?.cursor) params.set("cursor", opts.cursor);
+    if (opts?.verified_threshold != null)
+      params.set("verified_threshold", String(opts.verified_threshold));
+    const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
+    const response = await authenticatedFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${kind} (${response.status})`);
+    }
+    return await response.json();
+  },
+
   async triggerGrapeRank() {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/graperank`,
