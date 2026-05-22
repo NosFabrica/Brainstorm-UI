@@ -6,6 +6,7 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -2421,6 +2422,7 @@ export default function AdminPage() {
                 <Shield className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Admin</span>
               </div>
+              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-admin-profile-menu">

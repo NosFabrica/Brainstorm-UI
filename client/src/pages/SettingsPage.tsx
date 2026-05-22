@@ -62,6 +62,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 
 export default function SettingsPage() {
@@ -380,6 +381,7 @@ export default function SettingsPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdminPubkey(user?.pubkey) && <AdminBadge />}
+              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-settings-profile-menu">

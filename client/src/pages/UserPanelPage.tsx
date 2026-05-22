@@ -13,6 +13,7 @@ import {
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -635,6 +636,7 @@ export default function UserPanelPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdminPubkey(user?.pubkey) && <AdminBadge />}
+              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-agentsuite-profile-menu">

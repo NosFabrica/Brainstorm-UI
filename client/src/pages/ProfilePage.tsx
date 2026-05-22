@@ -73,6 +73,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -1836,6 +1837,7 @@ export default function ProfilePage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdmin && <AdminBadge />}
+              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div

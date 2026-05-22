@@ -11,9 +11,14 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Shield,
+  Check,
+  Telescope,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
+import { useActivePov } from "@/hooks/useActivePov";
+import { useHasMywot } from "@/hooks/useHasMywot";
+import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 interface MobileMenuProps {
   open: boolean;
@@ -105,9 +110,13 @@ export function MobileMenu({
   onLogout,
   isAdmin = false,
 }: MobileMenuProps) {
+  const [pov, setPov] = useActivePov();
+  const { hasMywot } = useHasMywot();
+
   if (!open) return null;
 
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." : "";
+  const effectivePov = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
 
   return (
     <>
@@ -152,6 +161,62 @@ export function MobileMenu({
         <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
           {user && (
             <>
+              <div className="space-y-1.5">
+                <p className="px-3 pb-1 text-[10px] font-semibold text-indigo-300/60 uppercase tracking-[0.22em] flex items-center gap-1.5" data-testid="text-mobile-menu-section-pov">
+                  <Telescope className="h-3 w-3" /> Trust Perspective
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPov("nosfabrica")}
+                  className={
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors border " +
+                    (effectivePov === "nosfabrica"
+                      ? "bg-white/10 border-white/10 text-white"
+                      : "bg-transparent border-transparent text-slate-200/90 hover:bg-white/10 hover:border-white/10")
+                  }
+                  data-testid="mobile-pov-option-nosfabrica"
+                >
+                  <Avatar className="h-7 w-7 border border-indigo-300/40">
+                    <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+                  </Avatar>
+                  <div className="flex-1 text-left">
+                    <p className="text-[13px] font-medium leading-tight">NosFabrica</p>
+                    <p className="text-[10px] text-slate-400/80 leading-tight mt-0.5">House view</p>
+                  </div>
+                  {effectivePov === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-300" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { if (hasMywot) setPov("mywot"); }}
+                  disabled={!hasMywot}
+                  className={
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors border " +
+                    (!hasMywot
+                      ? "opacity-50 cursor-not-allowed bg-transparent border-transparent text-slate-300/80"
+                      : effectivePov === "mywot"
+                        ? "bg-white/10 border-white/10 text-white"
+                        : "bg-transparent border-transparent text-slate-200/90 hover:bg-white/10 hover:border-white/10")
+                  }
+                  data-testid="mobile-pov-option-mywot"
+                >
+                  <Avatar className="h-7 w-7 border border-emerald-300/40">
+                    {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                    <AvatarFallback className="bg-emerald-500/20 text-emerald-200 text-[10px] font-bold">
+                      {user.displayName?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-[13px] font-medium leading-tight truncate">{user.displayName || "My WoT"}</p>
+                    <p className="text-[10px] text-slate-400/80 leading-tight mt-0.5">
+                      {hasMywot ? "Your personalized view" : "Calculate to enable"}
+                    </p>
+                  </div>
+                  {effectivePov === "mywot" && <Check className="h-3.5 w-3.5 text-emerald-300" />}
+                </button>
+              </div>
+
+              <div className="my-3 mx-3 border-t border-white/[0.06]" />
+
               <div className="space-y-1.5">
                 <p className="px-3 pb-1 text-[10px] font-semibold text-indigo-300/60 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav">Navigation</p>
                 {primaryNav.map((item) => (

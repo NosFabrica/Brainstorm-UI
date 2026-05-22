@@ -58,6 +58,7 @@ import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphH
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -1350,6 +1351,7 @@ export default function NetworkPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAdminPubkey(user?.pubkey) && <AdminBadge />}
+              <HeaderPovChip user={user} scope="page-not-supported" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div

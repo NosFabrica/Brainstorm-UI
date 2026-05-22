@@ -80,6 +80,7 @@ import {
   setAssistantDismissed as setAssistantDismissedStorage,
 } from "@/lib/assistantStorage";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -796,6 +797,7 @@ export default function DashboardPage() {
 
               <div className="flex items-center gap-2 sm:gap-4">
                 {isAdminPubkey(user?.pubkey) && <AdminBadge />}
+                <HeaderPovChip user={user} scope="page-not-supported" />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">

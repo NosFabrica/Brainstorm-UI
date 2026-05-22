@@ -35,6 +35,7 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
+import { HeaderPovChip } from "@/components/HeaderPovChip";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 
@@ -178,6 +179,7 @@ export default function FaqPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {user && isAdminPubkey(user?.pubkey) && <AdminBadge />}
+              {user && <HeaderPovChip user={user} scope="page-not-supported" />}
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
