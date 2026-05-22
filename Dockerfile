@@ -5,14 +5,6 @@ WORKDIR /app
 # Install build tools
 RUN apk add --no-cache python3 make g++ bash
 
-# VITE env vars
-
-ARG VITE_API_URL
-ARG VITE_NIP85_RELAY_URL
-
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_NIP85_RELAY_URL=$VITE_NIP85_RELAY_URL
-
 # Copy package.json first
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -28,6 +20,11 @@ FROM nginx:1.31-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+# Runtime config substitution entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]

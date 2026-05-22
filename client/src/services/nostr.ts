@@ -1,7 +1,8 @@
 import { nip19, finalizeEvent, getPublicKey } from "nostr-tools";
 import { RelayPool } from "applesauce-relay";
+import { env } from "@/lib/runtimeEnv";
 
-const RAW_NIP85_RELAY_URL = (import.meta.env.VITE_NIP85_RELAY_URL as string | undefined) ?? "";
+const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
 
 if (!NIP85_RELAY_URL) {
