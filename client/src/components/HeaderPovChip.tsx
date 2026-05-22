@@ -1,4 +1,6 @@
-import { ChevronDown, Check, Telescope, AlertCircle } from "lucide-react";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+import { ChevronDown, Check, Telescope, AlertCircle, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -8,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
+import { useActivePov, hasStoredPov, type ActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
@@ -32,6 +34,16 @@ const POV_LABEL: Record<ActivePov, string> = {
 export function HeaderPovChip({ user, scope = "global" }: HeaderPovChipProps) {
   const [pov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
+  const [, navigate] = useLocation();
+
+  // Login default: if the user has never picked a perspective and they
+  // already have their own trust graph calculated, default to "My WoT"
+  // rather than the house view. Otherwise fall back to NosFabrica.
+  useEffect(() => {
+    if (!hasStoredPov() && hasMywot) {
+      setPov("mywot");
+    }
+  }, [hasMywot, setPov]);
 
   // Defensive fallback: if user stored "mywot" but no longer has a trust
   // anchor (e.g. calc not done on this account), display NosFabrica instead.
@@ -147,6 +159,19 @@ export function HeaderPovChip({ user, scope = "global" }: HeaderPovChipProps) {
                 ? "Personalized scores using your own trust graph."
                 : "Calculate your trust network in Settings to enable."}
             </p>
+            {!hasMywot && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate("/settings");
+                }}
+                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
+                data-testid="link-calculate-yours"
+              >
+                Calculate yours <ArrowRight className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </DropdownMenuItem>
         {scope === "page-not-supported" && (

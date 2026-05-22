@@ -605,77 +605,9 @@ export default function SearchPage() {
 
             <div className={`relative ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.8s_both]" : ""}`} data-testid="container-search-input">
               <div className="relative flex items-center bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-[0_1px_6px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)] focus-within:shadow-[0_2px_12px_rgba(99,102,241,0.1)] focus-within:border-indigo-200 transition-all duration-300">
-                {hasPovOption ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="pl-3.5 pr-1 flex items-center gap-1 shrink-0 group/pov focus:outline-none"
-                        data-testid="button-pov-switcher"
-                      >
-                        <div className="relative">
-                          <Avatar className={`h-7 w-7 border transition-all duration-300 ${pov === "nosfabrica" ? "border-indigo-200 ring-1 ring-indigo-100/60" : "border-emerald-200 ring-1 ring-emerald-100/60"}`}>
-                            {pov === "nosfabrica" ? (
-                              <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
-                            ) : (
-                              <>
-                                {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                                <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[10px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                              </>
-                            )}
-                          </Avatar>
-                          <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${pov === "nosfabrica" ? "bg-indigo-400" : "bg-emerald-400"}`} />
-                        </div>
-                        <ChevronDown className="h-3 w-3 text-slate-400 group-hover/pov:text-slate-600 transition-colors" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="min-w-[200px] bg-white border-slate-200/60 shadow-md shadow-slate-100/50 p-1 rounded-lg" data-testid="dropdown-pov">
-                      <DropdownMenuItem
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-indigo-50/40 focus:text-slate-800 ${pov === "nosfabrica" ? "bg-indigo-50/40" : ""}`}
-                        onClick={() => handlePovSwitch("nosfabrica")}
-                        data-testid="pov-option-nosfabrica"
-                      >
-                        <Avatar className="h-5 w-5 shrink-0">
-                          <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
-                        </Avatar>
-                        <span className="text-[13px] text-slate-700">NosFabrica</span>
-                        {pov === "nosfabrica" && <Check className="h-3 w-3 text-indigo-400 ml-auto" />}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-emerald-50/40 focus:text-slate-800 ${pov === "mywot" ? "bg-emerald-50/40" : ""}`}
-                        onClick={() => handlePovSwitch("mywot")}
-                        data-testid="pov-option-mywot"
-                      >
-                        <Avatar className="h-5 w-5 shrink-0">
-                          {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                          <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-[13px] text-slate-700 truncate">{user.displayName || "My WoT"}</span>
-                        {pov === "mywot" && <Check className="h-3 w-3 text-emerald-500 ml-auto" />}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-0.5 bg-slate-100/60" />
-                      <DropdownMenuItem
-                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer focus:bg-slate-50/60 focus:text-slate-500 text-slate-400"
-                        onClick={() => navigate("/personalization")}
-                        data-testid="link-learn-more"
-                      >
-                        <Telescope className="h-3 w-3" />
-                        <span className="text-xs">Learn more</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="pl-4 text-slate-400">
-                    <SearchIcon className="h-5 w-5" />
-                  </div>
-                )}
-                {hasPovOption && (
-                  <div className="w-px h-6 bg-slate-200/60 mx-1 shrink-0" />
-                )}
-                {hasPovOption && (
-                  <div className="pl-1 text-slate-400">
-                    <SearchIcon className="h-5 w-5" />
-                  </div>
-                )}
+                <div className="pl-4 text-slate-400">
+                  <SearchIcon className="h-5 w-5" />
+                </div>
                 <Input
                   ref={inputRef}
                   placeholder="Search by name or npub..."

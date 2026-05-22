@@ -18,6 +18,10 @@ export function getActivePov(): ActivePov {
   return readStored() ?? "nosfabrica";
 }
 
+export function hasStoredPov(): boolean {
+  return readStored() !== null;
+}
+
 export function setActivePov(pov: ActivePov): void {
   try {
     localStorage.setItem(STORAGE_KEY, pov);
