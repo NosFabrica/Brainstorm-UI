@@ -1001,9 +1001,9 @@ export default function ProfilePage() {
     eager: boolean = false,
   ) =>
     useInfiniteQuery<
-      { items: GraphEntry[]; next_cursor: string | null; stats: SectionStats | null },
+      { items: GraphEntry[]; next_cursor: string | null },
       Error,
-      { pages: { items: GraphEntry[]; next_cursor: string | null; stats: SectionStats | null }[]; pageParams: (string | undefined)[] },
+      { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
       readonly unknown[],
       string | undefined
     >({
@@ -1012,12 +1012,10 @@ export default function ProfilePage() {
         const res = await apiClient.getUserConnections(hexPubkey, kind, {
           limit: SECTION_LIMIT,
           cursor: pageParam || undefined,
-          verified_threshold: getVerifiedThreshold(),
         });
         return {
           items: (res?.data?.items ?? []) as GraphEntry[],
           next_cursor: (res?.data?.next_cursor ?? null) as string | null,
-          stats: (res?.data?.stats ?? null) as SectionStats | null,
         };
       },
       initialPageParam: undefined,
@@ -1030,7 +1028,7 @@ export default function ProfilePage() {
     });
 
   const followedByQuery = useConnectionsQuery("followed_by", true);
-  const followingQuery = useConnectionsQuery("following", true);
+  const followingQuery = useConnectionsQuery("following");
   const mutedByQuery = useConnectionsQuery("muted_by");
   const mutingQuery = useConnectionsQuery("muting");
   const reportedByQuery = useConnectionsQuery("reported_by");
@@ -1047,45 +1045,16 @@ export default function ProfilePage() {
   const reportedByItems = flattenItems(reportedByQuery);
   const reportingItems = flattenItems(reportingQuery);
 
-  // Authoritative stats source: profileStatsQuery (covers all 6 sections from
-  // profile open). Per-section query also returns stats on its first page
-  // (used as fallback if /stats hasn't landed yet).
   const sectionStats = useMemo<Record<string, SectionStats | null>>(
     () => ({
-      followed_by:
-        profileStatsQuery.data?.followed_by ??
-        followedByQuery.data?.pages?.[0]?.stats ??
-        null,
-      following:
-        profileStatsQuery.data?.following ??
-        followingQuery.data?.pages?.[0]?.stats ??
-        null,
-      muted_by:
-        profileStatsQuery.data?.muted_by ??
-        mutedByQuery.data?.pages?.[0]?.stats ??
-        null,
-      muting:
-        profileStatsQuery.data?.muting ??
-        mutingQuery.data?.pages?.[0]?.stats ??
-        null,
-      reported_by:
-        profileStatsQuery.data?.reported_by ??
-        reportedByQuery.data?.pages?.[0]?.stats ??
-        null,
-      reporting:
-        profileStatsQuery.data?.reporting ??
-        reportingQuery.data?.pages?.[0]?.stats ??
-        null,
+      followed_by: profileStatsQuery.data?.followed_by ?? null,
+      following: profileStatsQuery.data?.following ?? null,
+      muted_by: profileStatsQuery.data?.muted_by ?? null,
+      muting: profileStatsQuery.data?.muting ?? null,
+      reported_by: profileStatsQuery.data?.reported_by ?? null,
+      reporting: profileStatsQuery.data?.reporting ?? null,
     }),
-    [
-      profileStatsQuery.data,
-      followedByQuery.data,
-      followingQuery.data,
-      mutedByQuery.data,
-      mutingQuery.data,
-      reportedByQuery.data,
-      reportingQuery.data,
-    ],
+    [profileStatsQuery.data],
   );
 
   // Seed expandTrustCache from any loaded section items so subsequent

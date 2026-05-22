@@ -352,14 +352,12 @@ export const apiClient = {
       | "muting"
       | "reported_by"
       | "reporting",
-    opts?: { limit?: number; cursor?: string; verified_threshold?: number },
+    opts?: { limit?: number; cursor?: string },
   ) {
     const params = new URLSearchParams();
     params.set("kind", kind);
     if (opts?.limit != null) params.set("limit", String(opts.limit));
     if (opts?.cursor) params.set("cursor", opts.cursor);
-    if (opts?.verified_threshold != null)
-      params.set("verified_threshold", String(opts.verified_threshold));
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
     const response = await authenticatedFetch(url, {
       signal: AbortSignal.timeout(30000),
