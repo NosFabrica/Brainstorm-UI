@@ -23,83 +23,12 @@ function getBrainstormApi(): string {
   return API_BASE_URL;
 }
 
-const VESPA_SEARCH_URL =
-  (import.meta.env.VITE_VESPA_SEARCH_URL as string | undefined) ??
-  "https://vespa-staging.nosfabrica.com/search";
-
-export type VespaWeights = {
-  w_name: number;
-  w_display_name: number;
-  w_about: number;
-  w_name_gram: number;
-  w_display_name_gram: number;
-  w_pubkey_gram: number;
-  w_quality: number;
-};
-
-export const DEFAULT_VESPA_WEIGHTS: VespaWeights = {
-  w_name: 3,
-  w_display_name: 0,
-  w_about: 1,
-  w_name_gram: 0.5,
-  w_display_name_gram: 0,
-  w_pubkey_gram: 0.1,
-  w_quality: 1,
-};
-
-export const VESPA_WEIGHT_KEYS: Array<keyof VespaWeights> = [
-  "w_name",
-  "w_display_name",
-  "w_about",
-  "w_name_gram",
-  "w_display_name_gram",
-  "w_pubkey_gram",
-  "w_quality",
-];
-
-const VESPA_WEIGHTS_STORAGE_KEY = "brainstorm_vespa_weights";
-const VESPA_WEIGHT_MAX = 1000;
-
-function sanitizeWeights(input: unknown): VespaWeights {
-  const out: VespaWeights = { ...DEFAULT_VESPA_WEIGHTS };
-  if (!input || typeof input !== "object") return out;
-  const obj = input as Record<string, unknown>;
-  for (const k of VESPA_WEIGHT_KEYS) {
-    const v = obj[k];
-    if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
-      out[k] = Math.min(v, VESPA_WEIGHT_MAX);
-    }
-  }
-  return out;
-}
-
-export function getVespaWeights(): VespaWeights {
-  try {
-    const raw = localStorage.getItem(VESPA_WEIGHTS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_VESPA_WEIGHTS };
-    return sanitizeWeights(JSON.parse(raw));
-  } catch {
-    return { ...DEFAULT_VESPA_WEIGHTS };
-  }
-}
-
-export function setVespaWeights(weights: VespaWeights): VespaWeights {
-  const clean = sanitizeWeights(weights);
-  try {
-    localStorage.setItem(VESPA_WEIGHTS_STORAGE_KEY, JSON.stringify(clean));
-  } catch {
-    // ignore
-  }
-  return clean;
-}
-
-export function resetVespaWeights(): VespaWeights {
-  try {
-    localStorage.removeItem(VESPA_WEIGHTS_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
-  return { ...DEFAULT_VESPA_WEIGHTS };
+// One-time cleanup of stale Vespa preferences from prior versions.
+try {
+  localStorage.removeItem("brainstorm_vespa_weights");
+  localStorage.removeItem("brainstorm_search_backend");
+} catch {
+  // ignore
 }
 
 let isReauthenticating = false;
@@ -440,42 +369,43 @@ export const apiClient = {
     return await response.json();
   },
 
-  async searchByTextVespa(
+  async searchProfilesLegacyMeili(
     text: string,
+    pov: "house" | "user" = "house",
+    userPubkey?: string,
+    limit: number = 50,
     timeoutMs: number = 15000,
   ): Promise<{
-    results: Array<Record<string, unknown>>;
-    numResults: number;
+    success: boolean;
+    hits: Array<Record<string, unknown>>;
+    estimatedTotalHits?: number;
   }> {
-    const response = await fetch(VESPA_SEARCH_URL, {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query_text: text, ...getVespaWeights() }),
-      signal: AbortSignal.timeout(timeoutMs),
+    const params = new URLSearchParams({
+      q: text,
+      limit: String(limit),
+      offset: "0",
+      wotPov: pov,
     });
+    if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
+    const response = await fetch(
+      `https://brainstorm.world/api/search/profiles/meili?${params.toString()}`,
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
     if (!response.ok) {
-      throw new Error(`Vespa search failed (${response.status})`);
+      throw new Error(`Search failed (${response.status})`);
     }
     const data = await response.json();
-    // Vespa response shapes vary — accept a top-level array, `results`,
-    // `hits`, or `root.children` to be defensive about the wire format.
-    let hits: Array<Record<string, unknown>> = [];
-    if (Array.isArray(data)) {
-      hits = data as Array<Record<string, unknown>>;
-    } else if (Array.isArray(data?.results)) {
-      hits = data.results;
-    } else if (Array.isArray(data?.hits)) {
-      hits = data.hits;
-    } else if (Array.isArray(data?.root?.children)) {
-      hits = data.root.children.map((c: Record<string, unknown>) => {
-        const fields = (c?.fields as Record<string, unknown> | undefined) ?? c;
-        return fields;
-      });
+    if (!data?.success) {
+      throw new Error("Search service unavailable");
     }
-    return { results: hits, numResults: hits.length };
+    return {
+      success: true,
+      hits: Array.isArray(data.hits) ? data.hits : [],
+      estimatedTotalHits:
+        typeof data.estimatedTotalHits === "number"
+          ? data.estimatedTotalHits
+          : undefined,
+    };
   },
 
   async getGrapeRankPreset(): Promise<{

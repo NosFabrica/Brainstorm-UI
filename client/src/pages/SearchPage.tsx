@@ -43,16 +43,7 @@ import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
-import {
-  apiClient,
-  isAuthRedirecting,
-  getVespaWeights,
-  setVespaWeights,
-  resetVespaWeights,
-  DEFAULT_VESPA_WEIGHTS,
-  VESPA_WEIGHT_KEYS,
-  type VespaWeights,
-} from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
@@ -61,27 +52,6 @@ import { MobileMenu } from "@/components/MobileMenu";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
 type SearchPov = "nosfabrica" | "mywot";
-type SearchBackend = "meilisearch" | "vespa";
-
-const SEARCH_BACKEND_STORAGE_KEY = "brainstorm_search_backend";
-
-function loadSearchBackend(): SearchBackend {
-  try {
-    const v = localStorage.getItem(SEARCH_BACKEND_STORAGE_KEY);
-    if (v === "vespa" || v === "meilisearch") return v;
-  } catch {
-    // ignore
-  }
-  return "meilisearch";
-}
-
-function saveSearchBackend(backend: SearchBackend): void {
-  try {
-    localStorage.setItem(SEARCH_BACKEND_STORAGE_KEY, backend);
-  } catch {
-    // ignore
-  }
-}
 
 interface SearchResult {
   pubkey: string;
@@ -99,29 +69,39 @@ interface SearchResult {
   wotFollowers?: number | null;
 }
 
-function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult | null {
+function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | null {
   const pubkey = typeof hit.pubkey === "string" ? hit.pubkey : null;
   if (!pubkey) return null;
 
   let npub: string;
-  try {
-    npub = nip19.npubEncode(pubkey);
-  } catch {
-    return null;
+  if (typeof hit.npub === "string" && hit.npub) {
+    npub = hit.npub as string;
+  } else {
+    try {
+      npub = nip19.npubEncode(pubkey);
+    } catch {
+      return null;
+    }
   }
 
-  // Rank field comes from two possible sources:
-  //   - Meilisearch (`/search/byText`): dynamic `rank_<taPubkey>` key,
-  //     e.g. `rank_be7bf5de...`: 96.
-  //   - Vespa (`/search`): `quality_score`, e.g. 97.
-  // Map either into `wotRank` so the result card renders unchanged.
-  let wotRank: number | null = null;
-  if (typeof hit.quality_score === "number") {
-    wotRank = hit.quality_score as number;
-  } else {
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+
+  // Rank/followers may appear under a few field names depending on POV.
+  let wotRank: number | null = num(hit.wotRank) ?? num(hit.rank);
+  if (wotRank === null) {
     for (const key of Object.keys(hit)) {
       if (key.startsWith("rank_") && typeof hit[key] === "number") {
         wotRank = hit[key] as number;
+        break;
+      }
+    }
+  }
+  let wotFollowers: number | null = num(hit.wotFollowers) ?? num(hit.followers);
+  if (wotFollowers === null) {
+    for (const key of Object.keys(hit)) {
+      if (key.startsWith("followers_") && typeof hit[key] === "number") {
+        wotFollowers = hit[key] as number;
         break;
       }
     }
@@ -143,30 +123,24 @@ function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult 
     banner: str(hit.banner),
     createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
     wotRank,
-    wotFollowers: null,
+    wotFollowers,
   };
 }
 
 async function searchByText(
   query: string,
-  backend: SearchBackend = "meilisearch",
+  pov: SearchPov,
+  userPubkey?: string,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
-  let hits: Array<Record<string, unknown>> = [];
-  let total = 0;
-  if (backend === "vespa") {
-    const data = await apiClient.searchByTextVespa(query);
-    hits = data?.results || [];
-    total = data?.numResults || hits.length;
-  } else {
-    const data = await apiClient.searchByText(query, true);
-    hits = data?.data?.results || [];
-    total = data?.data?.numResults || hits.length;
-  }
+  const apiPov = pov === "mywot" ? "user" : "house";
+  const data = await apiClient.searchProfilesLegacyMeili(query, apiPov, userPubkey, 50);
+  const hits = data.hits;
+  const total = data.estimatedTotalHits ?? hits.length;
   const results: SearchResult[] = [];
   const seen = new Set<string>();
   for (const h of hits) {
-    const mapped = byTextResultToSearchResult(h);
+    const mapped = meiliHitToSearchResult(h);
     if (!mapped) continue;
     if (seen.has(mapped.pubkey)) continue;
     seen.add(mapped.pubkey);
@@ -209,57 +183,6 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
   const [pov, setPov] = useState<SearchPov>("nosfabrica");
-  const [searchBackend, setSearchBackend] = useState<SearchBackend>(() => loadSearchBackend());
-  const [lastSearchBackend, setLastSearchBackend] = useState<SearchBackend>(searchBackend);
-  const [vespaWeights, setVespaWeightsState] = useState<VespaWeights>(() => getVespaWeights());
-  const [vespaWeightDrafts, setVespaWeightDrafts] = useState<Record<keyof VespaWeights, string>>(() => {
-    const w = getVespaWeights();
-    return VESPA_WEIGHT_KEYS.reduce((acc, k) => {
-      acc[k] = String(w[k]);
-      return acc;
-    }, {} as Record<keyof VespaWeights, string>);
-  });
-  const [showVespaWeights, setShowVespaWeights] = useState(false);
-  const handleWeightDraftChange = useCallback((key: keyof VespaWeights, raw: string) => {
-    setVespaWeightDrafts((prev) => ({ ...prev, [key]: raw }));
-  }, []);
-  const commitWeightDraft = useCallback((key: keyof VespaWeights) => {
-    setVespaWeightsState((prev) => {
-      const raw = vespaWeightDrafts[key];
-      const parsed = raw === "" || raw === "." ? 0 : Number(raw);
-      const valid = Number.isFinite(parsed) && parsed >= 0;
-      const nextVal = valid ? parsed : prev[key];
-      const next: VespaWeights = { ...prev, [key]: nextVal };
-      setVespaWeights(next);
-      if (!valid || String(nextVal) !== raw) {
-        setVespaWeightDrafts((d) => ({ ...d, [key]: String(nextVal) }));
-      }
-      return next;
-    });
-  }, [vespaWeightDrafts]);
-  const handleResetVespaWeights = useCallback(() => {
-    const next = resetVespaWeights();
-    setVespaWeightsState(next);
-    setVespaWeightDrafts(
-      VESPA_WEIGHT_KEYS.reduce((acc, k) => {
-        acc[k] = String(next[k]);
-        return acc;
-      }, {} as Record<keyof VespaWeights, string>),
-    );
-  }, []);
-  const weightsAreDefault = useMemo(
-    () => VESPA_WEIGHT_KEYS.every((k) => vespaWeights[k] === DEFAULT_VESPA_WEIGHTS[k]),
-    [vespaWeights],
-  );
-  const VESPA_WEIGHT_LABELS: Record<keyof VespaWeights, string> = {
-    w_name: "Name Weight",
-    w_display_name: "Display Name Weight",
-    w_about: "About Weight",
-    w_name_gram: "Name (Partial) Weight",
-    w_display_name_gram: "Display Name (Partial) Weight",
-    w_pubkey_gram: "Pubkey (Partial) Weight",
-    w_quality: "TA Score Weight",
-  };
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -460,22 +383,18 @@ export default function SearchPage() {
       }
     } catch {}
 
-    const backendForThisSearch = searchBackend;
     try {
-      const { results: searchResults, timeMs } = await searchByText(q, backendForThisSearch);
+      const { results: searchResults, timeMs } = await searchByText(q, pov, user?.pubkey);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));
-      setLastSearchBackend(backendForThisSearch);
     } catch (err) {
       if (searchAbortRef.current !== searchId) return;
       setResults([]);
-      setLastSearchBackend(backendForThisSearch);
-      const backendName = backendForThisSearch === "vespa" ? "Vespa" : "Meilisearch";
       const message = err instanceof Error ? err.message : String(err ?? "");
       toast({
-        title: `${backendName} search failed`,
-        description: message || "Please try again or switch backends.",
+        title: "Search failed",
+        description: message || "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -483,7 +402,7 @@ export default function SearchPage() {
         setIsSearching(false);
       }
     }
-  }, [query, pov, searchBackend, user?.pubkey, navigate, resetFilters, toast]);
+  }, [query, pov, user?.pubkey, navigate, resetFilters, toast]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -526,24 +445,6 @@ export default function SearchPage() {
       }
     }
   }, [pov, hasSearched, query, handleSearch]);
-
-  const prevBackendRef = useRef(searchBackend);
-  const handleBackendSwitch = useCallback((next: SearchBackend) => {
-    setSearchBackend((prev) => {
-      if (prev === next) return prev;
-      saveSearchBackend(next);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    if (prevBackendRef.current !== searchBackend) {
-      prevBackendRef.current = searchBackend;
-      if (hasSearched && query.trim()) {
-        handleSearch();
-      }
-    }
-  }, [searchBackend, hasSearched, query, handleSearch]);
 
   const handleLogout = () => {
     logout();
@@ -705,17 +606,16 @@ export default function SearchPage() {
                         {pov === "nosfabrica" && <Check className="h-3 w-3 text-indigo-400 ml-auto" />}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        disabled
-                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md opacity-60 cursor-not-allowed"
-                        title="Coming soon"
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors focus:bg-emerald-50/40 focus:text-slate-800 ${pov === "mywot" ? "bg-emerald-50/40" : ""}`}
+                        onClick={() => handlePovSwitch("mywot")}
                         data-testid="pov-option-mywot"
                       >
                         <Avatar className="h-5 w-5 shrink-0">
                           {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                          <AvatarFallback className="bg-slate-100 text-slate-500 font-medium text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
+                          <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-[8px]">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                         </Avatar>
                         <span className="text-[13px] text-slate-700 truncate">{user.displayName || "My WoT"}</span>
-                        <span className="text-[10px] text-slate-400 ml-auto whitespace-nowrap">Coming soon</span>
+                        {pov === "mywot" && <Check className="h-3 w-3 text-emerald-500 ml-auto" />}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-0.5 bg-slate-100/60" />
                       <DropdownMenuItem
@@ -786,115 +686,12 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              <div className="flex items-center justify-between gap-2 mt-2.5 px-1">
-                {hasSearched && hasPovOption ? (
-                  <div className="flex items-center gap-1.5" data-testid="text-pov-indicator">
-                    <Telescope className="h-3 w-3 text-slate-400" />
-                    <p className="text-[11px] text-slate-400">
-                      Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
-                    </p>
-                  </div>
-                ) : <span />}
-                <div
-                  className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 p-0.5 text-[10px] sm:text-[11px] shrink-0"
-                  role="group"
-                  aria-label="Search backend"
-                  data-testid="group-search-backend"
-                >
-                  <span className="px-1.5 text-slate-400 hidden sm:inline">Engine:</span>
-                  <button
-                    onClick={() => handleBackendSwitch("meilisearch")}
-                    disabled={isSearching}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "meilisearch" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
-                    aria-pressed={searchBackend === "meilisearch"}
-                    data-testid="button-backend-meilisearch"
-                  >
-                    Meilisearch
-                  </button>
-                  <button
-                    onClick={() => handleBackendSwitch("vespa")}
-                    disabled={isSearching}
-                    className={`px-2 py-0.5 rounded-full font-medium transition-colors ${searchBackend === "vespa" ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-700"} ${isSearching ? "cursor-wait opacity-60" : ""}`}
-                    aria-pressed={searchBackend === "vespa"}
-                    data-testid="button-backend-vespa"
-                  >
-                    Vespa
-                  </button>
-                </div>
-              </div>
-              {searchBackend === "vespa" && (
-                <div
-                  className="mt-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5"
-                  data-testid="container-vespa-weights"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowVespaWeights((v) => !v)}
-                      className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
-                      aria-expanded={showVespaWeights}
-                      data-testid="button-toggle-vespa-weights"
-                    >
-                      <SlidersHorizontal className="h-3 w-3" />
-                      Ranking weights
-                      <ChevronDown
-                        className={`h-3 w-3 transition-transform ${showVespaWeights ? "rotate-180" : ""}`}
-                      />
-                      {!weightsAreDefault && (
-                        <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                      )}
-                    </button>
-                    {!weightsAreDefault && (
-                      <button
-                        type="button"
-                        onClick={handleResetVespaWeights}
-                        className="text-[10px] sm:text-[11px] text-slate-400 hover:text-slate-700 transition-colors"
-                        data-testid="button-reset-vespa-weights"
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  {showVespaWeights && (
-                    <>
-                      <p className="text-[10px] sm:text-[11px] text-slate-400 mb-2 leading-snug">
-                        Higher value = field counts more in the relevance score. Changes apply to your next search and are saved on this device.
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {VESPA_WEIGHT_KEYS.map((key) => (
-                          <label
-                            key={key}
-                            className="flex flex-col gap-1"
-                          >
-                            <span
-                              className="text-[10px] text-slate-500 truncate"
-                              title={key}
-                            >
-                              {VESPA_WEIGHT_LABELS[key]}
-                            </span>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.1"
-                              inputMode="decimal"
-                              value={vespaWeightDrafts[key]}
-                              onChange={(e) => handleWeightDraftChange(key, e.target.value)}
-                              onBlur={() => commitWeightDraft(key)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  commitWeightDraft(key);
-                                  (e.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className="h-8 text-xs px-2"
-                              data-testid={`input-vespa-${key.replace(/_/g, "-")}`}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    </>
-                  )}
+              {hasSearched && hasPovOption && (
+                <div className="flex items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator">
+                  <Telescope className="h-3 w-3 text-slate-400" />
+                  <p className="text-[11px] text-slate-400">
+                    Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
+                  </p>
                 </div>
               )}
             </div>
@@ -935,10 +732,7 @@ export default function SearchPage() {
                   {hasActiveFilters
                     ? `Showing ${filteredResults.length} of ${results.length} result${results.length !== 1 ? "s" : ""}`
                     : `About ${results.length} result${results.length !== 1 ? "s" : ""}`
-                  } ({(searchTime / 1000).toFixed(2)} seconds) via{" "}
-                  <span className="font-medium text-slate-500" data-testid="text-search-backend-label">
-                    {lastSearchBackend === "vespa" ? "Vespa" : "Meilisearch"}
-                  </span>
+                  } ({(searchTime / 1000).toFixed(2)} seconds)
                 </p>
                 <button
                   className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${showFilters || hasActiveFilters ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent"}`}

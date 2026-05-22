@@ -980,23 +980,17 @@ export interface NostrSearchResult {
 }
 
 /**
- * Search profiles via the Brainstorm backend `/search/byText` endpoint.
- * Replaces the legacy Meilisearch endpoint. The `limit`/`userPubkey`/`pov`
- * options are accepted for backward compatibility but currently unused
- * because the new endpoint does not yet support pagination or per-user POV.
- * The result list is sliced client-side to `limit` after deduplication.
+ * Search profiles via the legacy Brainstorm Meilisearch endpoint.
+ * Supports per-user WoT perspective ("house" vs "user").
  */
 export async function searchProfilesMeili(
   query: string,
   options: { limit?: number; timeoutMs?: number; userPubkey?: string; pov?: "house" | "user" } = {}
 ): Promise<NostrSearchResult[]> {
-  const { limit = 10, timeoutMs = 8000 } = options;
+  const { limit = 10, timeoutMs = 8000, userPubkey, pov = "house" } = options;
   const { apiClient } = await import("./api");
-  // Admin onboarding search needs to surface unranked profiles too
-  // (legacy Meili endpoint didn't gate on rank). Frontend Search page
-  // calls apiClient.searchByText() directly with onlyRanked=true.
-  const data = await apiClient.searchByText(query, false, timeoutMs);
-  const hits = Array.isArray(data?.data?.results) ? data.data.results : [];
+  const data = await apiClient.searchProfilesLegacyMeili(query, pov, userPubkey, limit, timeoutMs);
+  const hits = data.hits;
   const seen = new Set<string>();
   const out: NostrSearchResult[] = [];
   for (const h of hits) {
@@ -1004,7 +998,11 @@ export async function searchProfilesMeili(
     if (!pubkey || seen.has(pubkey)) continue;
     seen.add(pubkey);
     let npub: string;
-    try { npub = nip19.npubEncode(pubkey); } catch { continue; }
+    if (typeof h?.npub === "string" && h.npub) {
+      npub = h.npub as string;
+    } else {
+      try { npub = nip19.npubEncode(pubkey); } catch { continue; }
+    }
     const str = (v: unknown): string | undefined =>
       typeof v === "string" && v.length > 0 ? v : undefined;
     out.push({
