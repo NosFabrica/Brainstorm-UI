@@ -1031,7 +1031,7 @@ export default function SearchPage() {
                       onBlur={() => handlePrefetchLeave(result)}
                       onClick={() => {
                         seedAndPrefetchProfile(result);
-                        navigate(`/profile/${result.npub}`);
+                        navigate(`/profile/${result.npub}?fromSearch=1`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >

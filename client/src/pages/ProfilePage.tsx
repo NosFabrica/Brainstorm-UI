@@ -854,6 +854,7 @@ export default function ProfilePage() {
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
+  const [fromSearch, setFromSearch] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -912,6 +913,7 @@ export default function ProfilePage() {
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     if (adminFrom === "admin") setFromAdmin(adminPubkey || "1");
+    if (urlParams.get("fromSearch") === "1") setFromSearch(true);
   }, [navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
@@ -1678,7 +1680,7 @@ export default function ProfilePage() {
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
           {(() => {
-            const cameFromInternal = !!fromGroup || !!fromAdmin;
+            const cameFromInternal = !!fromGroup || !!fromAdmin || fromSearch;
             const goBack = (fallback: string) => {
               if (cameFromInternal && typeof window !== "undefined" && window.history.length > 1) {
                 window.history.back();
