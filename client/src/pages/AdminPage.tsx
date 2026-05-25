@@ -6,7 +6,7 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { PovBadge } from "@/components/PovBadge";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -2439,7 +2439,6 @@ export default function AdminPage() {
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <PovMenuSection user={user} scope="page-not-supported" />
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anon"}</p>

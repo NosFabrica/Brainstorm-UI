@@ -73,7 +73,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { PovBadge } from "@/components/PovBadge";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -1998,7 +1998,6 @@ export default function ProfilePage() {
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <PovMenuSection user={user} scope="page-not-supported" />
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>

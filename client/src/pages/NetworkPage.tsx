@@ -58,7 +58,7 @@ import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphH
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { PovBadge } from "@/components/PovBadge";
 import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";

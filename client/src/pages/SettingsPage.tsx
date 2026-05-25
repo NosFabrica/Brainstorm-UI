@@ -62,7 +62,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
 import { MobileMenu } from "@/components/MobileMenu";
-import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { PovBadge } from "@/components/PovBadge";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 
 export default function SettingsPage() {
@@ -398,7 +398,6 @@ export default function SettingsPage() {
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20" data-testid="menu-settings-profile">
-                  <PovMenuSection user={user} scope="page-not-supported" />
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900" data-testid="text-settings-menu-name">{user.displayName || "Anon"}</p>

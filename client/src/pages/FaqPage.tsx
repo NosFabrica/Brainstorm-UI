@@ -35,7 +35,7 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
-import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { PovBadge } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 
@@ -205,7 +205,6 @@ export default function FaqPage() {
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
-                    <PovMenuSection user={user} scope="page-not-supported" />
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
