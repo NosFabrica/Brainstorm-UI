@@ -79,7 +79,7 @@ import {
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
 } from "@/lib/assistantStorage";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -199,7 +199,6 @@ export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
@@ -763,7 +762,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4 sm:gap-6">
                 <div className="lg:hidden">
-                  <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
+                  <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
                     <Menu className="h-5 w-5" />
                   </Button>
                 </div>
@@ -853,17 +852,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </nav>
-
-        <MobileMenu
-          open={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-          currentPath={location}
-          navigate={navigate}
-          calcDone={isCalculationComplete}
-          user={user}
-          onLogout={handleLogout}
-          isAdmin={isAdminPubkey(user?.pubkey)}
-        />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
 

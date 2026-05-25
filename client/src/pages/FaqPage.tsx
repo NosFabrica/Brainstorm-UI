@@ -34,7 +34,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -104,7 +104,6 @@ const devFaqs = [
 export default function FaqPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const { toast } = useToast();
 
@@ -147,7 +146,7 @@ export default function FaqPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 sm:gap-6">
               <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
+                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </div>
@@ -252,16 +251,6 @@ export default function FaqPage() {
           </div>
         </div>
       </nav>
-
-      <MobileMenu
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        currentPath={location}
-        navigate={navigate}
-        user={user}
-        onLogout={handleLogout}
-        isAdmin={isAdminPubkey(user?.pubkey)}
-      />
 
       <main className="flex-1 relative z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">

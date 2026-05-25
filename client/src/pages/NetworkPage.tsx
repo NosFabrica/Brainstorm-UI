@@ -57,7 +57,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -764,7 +764,6 @@ function sortByTrustScore(
 export default function NetworkPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1288,7 +1287,7 @@ export default function NetworkPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setMobileMenuOpen(true)}
+                  onClick={openMobileMenu}
                   className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
                   data-testid="button-mobile-menu"
                 >
@@ -1418,17 +1417,6 @@ export default function NetworkPage() {
           </div>
         </div>
       </nav>
-
-      <MobileMenu
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        currentPath={location}
-        navigate={navigate}
-        calcDone={calcDone}
-        user={user}
-        onLogout={handleLogout}
-        isAdmin={isAdminPubkey(user?.pubkey)}
-      />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="space-y-8 animate-fade-up">

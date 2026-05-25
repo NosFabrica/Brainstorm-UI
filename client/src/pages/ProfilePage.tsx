@@ -77,7 +77,7 @@ import {
 } from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -911,7 +911,6 @@ export default function ProfilePage() {
   const npubParam = params?.npub || "";
 
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -1988,7 +1987,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setMobileMenuOpen(true)}
+                  onClick={openMobileMenu}
                   className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
                   data-testid="button-mobile-menu"
                 >
@@ -2121,17 +2120,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </nav>
-
-      <MobileMenu
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        currentPath={location}
-        navigate={navigate}
-        calcDone={calcDone}
-        user={user}
-        onLogout={handleLogout}
-        isAdmin={isAdmin}
-      />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">

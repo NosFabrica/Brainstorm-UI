@@ -18,6 +18,7 @@ import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
+import { MobileMenuHost } from "@/components/MobileMenuHost";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -56,6 +57,7 @@ function App() {
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <Toaster />
         <PovAutoDefault />
+        <MobileMenuHost />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>

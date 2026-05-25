@@ -61,14 +61,13 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 
 export default function SettingsPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
@@ -298,7 +297,7 @@ export default function SettingsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setMobileMenuOpen(true)}
+                  onClick={openMobileMenu}
                   className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
                   data-testid="button-open-mobile-menu"
                 >
@@ -437,17 +436,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </nav>
-
-      <MobileMenu
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        currentPath={location}
-        navigate={navigate}
-        calcDone={calcDone}
-        user={user}
-        onLogout={handleLogout}
-        isAdmin={isAdminPubkey(user?.pubkey)}
-      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <div className="space-y-6 animate-fade-up" data-testid="container-settings">

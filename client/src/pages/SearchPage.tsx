@@ -48,7 +48,7 @@ import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -205,7 +205,6 @@ function truncateAbout(text: string, maxLen = 120): string {
 export default function SearchPage() {
   const [location, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toast } = useToast();
 
   const [query, setQuery] = useState(() => {
@@ -520,7 +519,7 @@ export default function SearchPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-6">
               <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
+                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </div>
@@ -599,7 +598,6 @@ export default function SearchPage() {
         </div>
       </nav>
 
-      <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} currentPath={location} navigate={navigate} calcDone={calcDone} user={user} onLogout={handleLogout} isAdmin={isAdminPubkey(user?.pubkey)} />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
         <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "flex-1 flex flex-col justify-center -mt-12 sm:-mt-16"}`}>

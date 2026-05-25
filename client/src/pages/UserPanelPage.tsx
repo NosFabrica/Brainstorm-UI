@@ -12,7 +12,7 @@ import {
   USER_CHANGED_EVENT,
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
-import { MobileMenu } from "@/components/MobileMenu";
+import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,7 +196,6 @@ export default function UserPanelPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [agentState, setAgentState] = useState<AgentState>(getDefaultAgentState);
   const [agentNameInput, setAgentNameInput] = useState(() => getDefaultAgentState().name);
   const [agentDescInput, setAgentDescInput] = useState(() => getDefaultAgentState().description);
@@ -598,7 +597,7 @@ export default function UserPanelPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-4 sm:gap-6 min-w-0">
               <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(true)} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-open-mobile-menu">
+                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-open-mobile-menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </div>
@@ -685,7 +684,6 @@ export default function UserPanelPage() {
         </div>
       </nav>
 
-      <MobileMenu open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} currentPath={location} navigate={navigate} calcDone={calcDone} user={user} onLogout={handleLogout} isAdmin={isAdminPubkey(user?.pubkey)} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <div className="space-y-6 animate-fade-up" data-testid="container-agentsuite">
