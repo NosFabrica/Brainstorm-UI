@@ -338,7 +338,26 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
 
   const renderDetailPanel = () => {
     if (!isExpanded) return null;
-    const isLoadingDetail = expandedLoading && !detail;
+    // Seed the panel from data already on the row (graphData arrays from the
+    // eager trust-score pass + the trust score itself) so counts and the
+    // Influence Score render INSTANTLY on expand, even before the per-user
+    // detail fetch lands. Once `detail` arrives it overrides the seed
+    // (full counts for followed_by/following/muting/reporting, plus precise
+    // influence). Keys not in the seed render an "—" placeholder instead of
+    // a misleading "0" until the fetch completes.
+    const seedDetail: any | null = (graphData || trustScore != null)
+      ? {
+          muted_by: graphData?.muted_by ?? [],
+          reported_by: graphData?.reported_by ?? [],
+          ...(trustScore != null ? { influence: trustScore } : {}),
+        }
+      : null;
+    const effectiveDetail: any | null = detail ?? seedDetail;
+    const seededKeys = new Set<string>(
+      seedDetail ? Object.keys(seedDetail) : [],
+    );
+    // We only show an inline refresh spinner; never a full-panel blocker.
+    const isRefreshing = expandedLoading && !detail;
     return (
       <div
         className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl rounded-2xl border border-[#7c86ff]/20 shadow-[0_8px_30px_-12px_rgba(124,134,255,0.15)] overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
@@ -404,16 +423,22 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
             </p>
           )}
 
-          {isLoadingDetail ? (
-            <div className="flex items-center justify-center py-6 gap-2" data-testid={`detail-loading-${pkShort}`}>
-              <BrainLogo size={18} className="animate-pulse text-indigo-400" />
-              <span className="text-xs text-slate-500">Loading details...</span>
-            </div>
-          ) : detail ? (
+          {effectiveDetail ? (
             <div>
+              {isRefreshing && (
+                <div
+                  className="flex items-center gap-1.5 mb-2 text-[10px] text-indigo-500/80"
+                  data-testid={`detail-refreshing-${pkShort}`}
+                >
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Refreshing details…</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" data-testid={`detail-metrics-${pkShort}`}>
                 {detailMetrics.map((m) => {
-                  const raw = detail[m.key];
+                  const raw = effectiveDetail[m.key];
+                  const hasData = raw !== undefined && raw !== null;
+                  const isPending = !hasData && !seededKeys.has(m.key) && isRefreshing;
                   const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                   const isVerifiable = m.key === "followed_by" || m.key === "following" || m.key === "muted_by" || m.key === "reported_by";
                   let verifiedCount = 0;
@@ -435,9 +460,13 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                         {metricIcons[m.key]?.(`h-4 w-4 ${m.iconColor}`)}
                       </div>
                       <div className="min-w-0">
-                        <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
-                          {isVerifiable && hasVerifiedData ? verifiedCount.toLocaleString() : count.toLocaleString()}
-                        </p>
+                        {isPending ? (
+                          <p className="text-sm font-bold font-mono tabular-nums text-slate-300">—</p>
+                        ) : (
+                          <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
+                            {isVerifiable && hasVerifiedData ? verifiedCount.toLocaleString() : count.toLocaleString()}
+                          </p>
+                        )}
                         <p className="text-[10px] text-slate-400 leading-tight truncate">
                           {isVerifiable && hasVerifiedData ? `Verified ${m.label}` : m.label}
                         </p>
@@ -450,7 +479,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 })}
               </div>
 
-              {detail.influence !== undefined && (
+              {effectiveDetail.influence !== undefined && (
                 <div className="flex items-center gap-3 rounded-xl bg-white/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3.5 py-2.5 mb-4" data-testid={`detail-influence-${pkShort}`}>
                   <div className="w-8 h-8 rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50 to-indigo-100/60 flex items-center justify-center shrink-0">
                     <BrainLogo size={16} className="text-indigo-500" />
@@ -459,10 +488,10 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                     <p className="text-[10px] text-slate-400 leading-tight">Influence Score</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((typeof detail.influence === "number" ? detail.influence : 0) * 100, 100)}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : 0) * 100, 100)}%` }} />
                       </div>
                       <span className="text-xs font-bold font-mono text-slate-700">
-                        {typeof detail.influence === "number" ? detail.influence.toFixed(3) : detail.influence}
+                        {typeof effectiveDetail.influence === "number" ? effectiveDetail.influence.toFixed(3) : effectiveDetail.influence}
                       </span>
                     </div>
                   </div>
@@ -768,12 +797,8 @@ function profileDetailQueryKey(pk: string) {
 }
 
 async function fetchProfileDetail(pk: string): Promise<any | null> {
-  try {
-    const res = await apiClient.getUserByPubkey(pk);
-    return res?.data ?? null;
-  } catch {
-    return null;
-  }
+  const res = await apiClient.getUserByPubkey(pk);
+  return res?.data ?? null;
 }
 
 function extractGraph(data: any): any | null {
@@ -792,7 +817,8 @@ function getProfileDetailFromCache(pk: string): any | undefined {
  */
 function isProfileDetailFresh(pk: string): boolean {
   const state = queryClient.getQueryState(profileDetailQueryKey(pk));
-  if (!state || state.data === undefined || state.data === null) return false;
+  if (!state || state.status === "error") return false;
+  if (state.data === undefined || state.data === null) return false;
   return state.dataUpdatedAt > Date.now() - PROFILE_DETAIL_STALE_MS;
 }
 
