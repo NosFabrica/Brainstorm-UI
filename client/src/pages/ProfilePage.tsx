@@ -32,6 +32,9 @@ import {
   Flag,
   MoreVertical,
   HelpCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
@@ -1841,45 +1844,44 @@ export default function ProfilePage() {
       );
     }
 
-    const diff = Math.abs(yourPct - nfPct);
-    const agreement = diff <= 5
-      ? { label: "Both perspectives agree", tone: "bg-emerald-50 border-emerald-200 text-emerald-700" }
-      : diff <= 15
-        ? { label: `Slight difference · ${diff} pts`, tone: "bg-slate-50 border-slate-200 text-slate-600" }
-        : { label: `Perspectives diverge · ${diff} pts`, tone: "bg-amber-50 border-amber-200 text-amber-700" };
+    // V3 — PrimaryWithChip: keep the user's score as the primary ring (same
+    // compact footprint as the original single ring so the description stays
+    // glued to the profile block), with NosFabrica surfaced as a small
+    // comparison chip below. Honest about the asymmetry — the page's data is
+    // always personalized today, NosFabrica is shown as comparative context.
+    const diff = nfPct - yourPct;
+    const diffAbs = Math.abs(diff);
+    const TrendIcon = diffAbs <= 5 ? Minus : diff > 0 ? TrendingUp : TrendingDown;
+    const trendColor = diffAbs <= 5
+      ? "text-slate-500"
+      : diff > 0
+        ? "text-indigo-600"
+        : "text-emerald-600";
+    const diffPrefix = diffAbs <= 5 ? "" : diff > 0 ? "+" : "−";
     return (
-      <div className="flex flex-col items-stretch gap-2 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 w-full max-w-[260px] sm:w-auto sm:min-w-[208px]" data-testid={`badge-trust-score${idSuffix}`}>
-        <div className="flex items-center gap-1 self-center">
+      <div className="flex flex-col items-center gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[120px]" data-testid={`badge-trust-score${idSuffix}`}>
+        <div className="flex items-center gap-1">
           <BrainLogo size={10} className="text-indigo-400" />
           <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
         </div>
-        <div className="flex items-start justify-around gap-2 sm:gap-3">
-          <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid={`meter-nosfabrica${idSuffix}`}>
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
-            </div>
-            <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
-              {renderRing(nfOffset, "stroke-indigo-500", "text-indigo-100")}
-              <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-            </div>
-            <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid={`meter-you${idSuffix}`}>
-            <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">You</span>
-            </div>
-            <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
-              {renderRing(yourOffset, "stroke-emerald-600", "text-emerald-100")}
-              <span className="text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
-            </div>
-            <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-          </div>
+        <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
+          {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
+          <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
         </div>
-        <span className={`text-[10px] leading-snug font-medium text-center rounded border px-1.5 py-1 whitespace-normal ${agreement.tone}`} data-testid={`text-agreement${idSuffix}`}>
-          {agreement.label}
-        </span>
+        <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
+        <div
+          className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
+          data-testid={`chip-nosfabrica-compare${idSuffix}`}
+          title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
+          <span className="text-indigo-500/80">NosFabrica</span>
+          <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
+          <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
+            <TrendIcon className="h-3 w-3" />
+            {diffPrefix}{diffAbs}
+          </span>
+        </div>
       </div>
     );
   };
