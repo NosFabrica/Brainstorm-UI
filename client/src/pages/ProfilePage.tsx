@@ -2576,6 +2576,7 @@ export default function ProfilePage() {
                   const mutualFollowersCount = sharedFollowerPubkeys.length;
                   const mutualFollowingCount = sharedFollowingPubkeys.length;
                   const isExpandable = sharedCount > 0;
+                  const capHit = followedByQuery.hasNextPage || followingQuery.hasNextPage;
                   const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
 
                   return (
@@ -2605,9 +2606,21 @@ export default function ProfilePage() {
                               <p className="text-xs text-indigo-600/70 mt-0.5">
                                 {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
                               </p>
+                              {capHit && (
+                                <p className="text-[11px] text-indigo-500/60 italic mt-1" data-testid="text-shared-connections-cap-notice">
+                                  Based on top 200 connections — full overlap may be larger
+                                </p>
+                              )}
                             </>
                           ) : (
-                            <p className="text-sm text-slate-400 font-medium">No shared connections</p>
+                            <>
+                              <p className="text-sm text-slate-400 font-medium">No shared connections</p>
+                              {capHit && (
+                                <p className="text-[11px] text-slate-400/70 italic mt-1" data-testid="text-shared-connections-cap-notice">
+                                  Based on top 200 connections — overlap may exist beyond this sample
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                         {isExpandable && (
