@@ -2424,7 +2424,15 @@ export default function ProfilePage() {
                         const yourPct = Math.round(yourScore * 100);
                         const nfRank = seed?.wotRankNosfabrica;
                         const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
-                        const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank as number)) : 0;
+                        // The Meili search endpoint returns `wot_rank` on a
+                        // 0..100 scale (the search card displays it raw),
+                        // whereas /user/{pubkey}/overview.influence is 0..1.
+                        // Tolerate both so the dual meter renders correctly
+                        // regardless of which source seeded the value.
+                        const nfRank01 = hasNf
+                          ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))
+                          : 0;
+                        const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
                         const nfPct = Math.round(nfScore * 100);
                         const nfTier = hasNf
                           ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
