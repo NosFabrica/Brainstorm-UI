@@ -352,7 +352,19 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
           ...(trustScore != null ? { influence: trustScore } : {}),
         }
       : null;
-    const effectiveDetail: any | null = detail ?? seedDetail;
+    // Field-level merge: overview supplies totals for every metric, but
+    // when the eager pass has already populated array seeds for
+    // muted_by/reported_by we keep those arrays so the verified-subset
+    // display (which requires per-pubkey influence maps) stays intact.
+    // Influence falls back to the row's trustScore if overview omits it.
+    const effectiveDetail: any | null = detail
+      ? {
+          ...detail,
+          ...(Array.isArray(graphData?.muted_by) ? { muted_by: graphData!.muted_by } : {}),
+          ...(Array.isArray(graphData?.reported_by) ? { reported_by: graphData!.reported_by } : {}),
+          ...(detail.influence == null && trustScore != null ? { influence: trustScore } : {}),
+        }
+      : seedDetail;
     const seededKeys = new Set<string>(
       seedDetail ? Object.keys(seedDetail) : [],
     );
@@ -619,6 +631,11 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                 </button>
               </div>
             </div>
+          ) : isRefreshing ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-xs text-indigo-500/80" data-testid={`detail-loading-${pkShort}`}>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Loading details…</span>
+            </div>
           ) : (
             <p className="text-xs text-slate-400 py-4 text-center" data-testid={`detail-error-${pkShort}`}>Unable to load details</p>
           )}
@@ -782,62 +799,61 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
 });
 
 /**
- * Per-user detail cache shared with SearchPage's `seedAndPrefetchProfile`
- * (and any other page that fetches via `apiClient.getUserByPubkey`). The
- * cache stores the raw `res.data` wrapper (matching the shape SearchPage
- * already writes), and `extractGraph` peels off the `graph` field where
- * the Network panel's metrics live. Hovering a row on Search and then
- * landing on Network — or vice versa — reuses the same cache entry per
- * pubkey instead of refetching.
+ * The Network row expander now uses the lightweight `/user/:pk/overview`
+ * endpoint (counts + influence only, 30s timeout) instead of the heavy
+ * `/user/:pk` endpoint (full follower/following/muter/reporter arrays,
+ * 60s timeout). The overview cache shares its key (`["profile-overview",
+ * hex]`) with the full Profile page, so hovering a row on Network and
+ * then opening the profile (or vice versa) reuses the same entry.
+ *
+ * The eager trust-score pass below still calls `/user/:pk` directly,
+ * because it needs the `muted_by` / `reported_by` arrays to drive the
+ * muter/reporter trust-score follow-up. That pass is out of scope here.
  */
-const PROFILE_DETAIL_STALE_MS = 5 * 60_000;
+const PROFILE_OVERVIEW_STALE_MS = 5 * 60_000;
 
-function profileDetailQueryKey(pk: string) {
-  return ["profile", pk.toLowerCase()] as const;
+type UserOverview = {
+  pubkey?: string;
+  influence: number | null;
+  counts: {
+    followed_by: number;
+    following: number;
+    muted_by: number;
+    muting: number;
+    reported_by: number;
+    reporting: number;
+  };
+};
+
+function profileOverviewQueryKey(pk: string) {
+  return ["profile-overview", pk.toLowerCase()] as const;
 }
 
-async function fetchProfileDetail(pk: string): Promise<any | null> {
-  const res = await apiClient.getUserByPubkey(pk);
+async function fetchProfileOverview(pk: string): Promise<UserOverview | null> {
+  const res = await apiClient.getUserOverview(pk);
   return res?.data ?? null;
-}
-
-function extractGraph(data: any): any | null {
-  if (!data) return null;
-  return data.graph ?? data;
-}
-
-function getProfileDetailFromCache(pk: string): any | undefined {
-  return queryClient.getQueryData(profileDetailQueryKey(pk));
 }
 
 /**
  * Fresh = present, non-null, and within staleTime. A cached `null` (from a
  * prior transient error) is NOT fresh, so expand/hover paths are allowed to
- * retry it instead of locking the panel into "Unable to load details" forever.
+ * retry it instead of locking the panel into a stale empty state.
  */
-function isProfileDetailFresh(pk: string): boolean {
-  const state = queryClient.getQueryState(profileDetailQueryKey(pk));
+function isProfileOverviewFresh(pk: string): boolean {
+  const state = queryClient.getQueryState(profileOverviewQueryKey(pk));
   if (!state || state.status === "error") return false;
   if (state.data === undefined || state.data === null) return false;
-  return state.dataUpdatedAt > Date.now() - PROFILE_DETAIL_STALE_MS;
+  return state.dataUpdatedAt > Date.now() - PROFILE_OVERVIEW_STALE_MS;
 }
 
-function prefetchProfileDetail(pk: string): void {
+function prefetchProfileOverview(pk: string): void {
   void queryClient
     .prefetchQuery({
-      queryKey: profileDetailQueryKey(pk),
-      queryFn: () => fetchProfileDetail(pk),
-      staleTime: PROFILE_DETAIL_STALE_MS,
+      queryKey: profileOverviewQueryKey(pk),
+      queryFn: () => fetchProfileOverview(pk),
+      staleTime: PROFILE_OVERVIEW_STALE_MS,
     })
     .catch(() => {});
-}
-
-function ensureProfileDetail(pk: string): Promise<any | null> {
-  return queryClient.ensureQueryData({
-    queryKey: profileDetailQueryKey(pk),
-    queryFn: () => fetchProfileDetail(pk),
-    staleTime: PROFILE_DETAIL_STALE_MS,
-  });
 }
 
 function sortByTrustScore(
@@ -936,10 +952,10 @@ export default function NetworkPage() {
   const handleRowPrefetchEnter = useCallback((pk: string) => {
     if (!supportsHoverRef.current) return;
     if (prefetchTimersRef.current.has(pk)) return;
-    if (isProfileDetailFresh(pk)) return;
+    if (isProfileOverviewFresh(pk)) return;
     const timer = window.setTimeout(() => {
       prefetchTimersRef.current.delete(pk);
-      prefetchProfileDetail(pk);
+      prefetchProfileOverview(pk);
     }, 150);
     prefetchTimersRef.current.set(pk, timer);
   }, []);
@@ -1024,12 +1040,15 @@ export default function NetworkPage() {
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
       const results = await Promise.allSettled(
-        batch.map(pk => ensureProfileDetail(pk))
+        batch.map(async (pk) => {
+          const res = await apiClient.getUserByPubkey(pk);
+          return res?.data ?? null;
+        })
       );
       results.forEach((res, idx) => {
         const pk = batch[idx];
         if (res.status === "fulfilled") {
-          const graph = extractGraph(res.value);
+          const graph = res.value?.graph ?? res.value;
           const influence = graph?.influence;
           trustCache.current.set(pk, typeof influence === "number" ? influence : null);
           graphDataCache.current.set(pk, {
@@ -1052,20 +1071,37 @@ export default function NetworkPage() {
   }, []);
 
   // Reactive subscription for the currently expanded row. Re-uses the same
-  // `["profile", hex]` cache key as Search/Profile prefetch paths, and emits
-  // `isFetching` / `data` updates so the panel paints stale data immediately
-  // (stale-while-revalidate) and refreshes when the background fetch lands.
-  const expandedDetailQuery = useQuery<any | null>({
-    queryKey: profileDetailQueryKey(expandedPubkey ?? ""),
-    queryFn: () => fetchProfileDetail(expandedPubkey!),
+  // `["profile-overview", hex]` cache key as the full Profile page, and
+  // emits `isFetching` / `data` updates so the panel paints stale data
+  // immediately (stale-while-revalidate) and refreshes when the background
+  // fetch lands.
+  const expandedDetailQuery = useQuery<UserOverview | null>({
+    queryKey: profileOverviewQueryKey(expandedPubkey ?? ""),
+    queryFn: () => fetchProfileOverview(expandedPubkey!),
     enabled: !!expandedPubkey,
-    staleTime: PROFILE_DETAIL_STALE_MS,
+    staleTime: PROFILE_OVERVIEW_STALE_MS,
     retry: false,
   });
-  const expandedDetailGraph = useMemo(
-    () => extractGraph(expandedDetailQuery.data),
-    [expandedDetailQuery.data],
-  );
+  // Adapt overview shape (`{influence, counts:{...}}`) to the flat shape the
+  // detail panel renders (`{followed_by, following, ..., influence}`). Counts
+  // come back as numbers, not arrays — the panel's metric tiles already
+  // accept either, so verified-subset display gracefully degrades to "total
+  // count only" until/unless an array seed (graphData from the eager pass)
+  // is also present.
+  const expandedDetailGraph = useMemo(() => {
+    const ov = expandedDetailQuery.data;
+    if (!ov) return null;
+    const c = ov.counts ?? ({} as UserOverview["counts"]);
+    return {
+      followed_by: c.followed_by ?? 0,
+      following: c.following ?? 0,
+      muted_by: c.muted_by ?? 0,
+      muting: c.muting ?? 0,
+      reported_by: c.reported_by ?? 0,
+      reporting: c.reporting ?? 0,
+      ...(ov.influence != null ? { influence: ov.influence } : {}),
+    };
+  }, [expandedDetailQuery.data]);
   const expandedIsLoading =
     !!expandedPubkey &&
     expandedDetailQuery.isFetching &&
