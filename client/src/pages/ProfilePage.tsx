@@ -1073,7 +1073,7 @@ export default function ProfilePage() {
     });
 
   const followedByQuery = useConnectionsQuery("followed_by", true);
-  const followingQuery = useConnectionsQuery("following");
+  const followingQuery = useConnectionsQuery("following", true);
   const mutedByQuery = useConnectionsQuery("muted_by");
   const mutingQuery = useConnectionsQuery("muting");
   const reportedByQuery = useConnectionsQuery("reported_by");
