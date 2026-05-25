@@ -857,8 +857,6 @@ export default function ProfilePage() {
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [fromSearch, setFromSearch] = useState(false);
-  const [urlPov, setUrlPov] = useState<ActivePov | null>(null);
-  const [povBannerDismissed, setPovBannerDismissed] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -920,20 +918,7 @@ export default function ProfilePage() {
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
     setFromSearch(urlParams.get("fromSearch") === "1");
-    const rawPov = urlParams.get("pov");
-    setUrlPov(rawPov === "nosfabrica" || rawPov === "mywot" ? rawPov : null);
-    setPovBannerDismissed(false);
   }, [location, npubParam]);
-
-  // Effective POV: URL `?pov=` wins (so a shared link is honored even after
-  // the recipient changed their own setting); fall back to the global POV.
-  // The Profile page always *renders* personalized ("mywot") scores because
-  // /user/{pubkey}/overview|stats|connections don't accept a POV parameter
-  // yet — so any effectivePov === "nosfabrica" is a mismatch we surface.
-  const [globalPov] = useActivePov();
-  const effectivePov: ActivePov = urlPov ?? globalPov;
-  const RENDERED_POV: ActivePov = "mywot";
-  const povMismatch = effectivePov !== RENDERED_POV;
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
@@ -2346,35 +2331,6 @@ export default function ProfilePage() {
                 </svg>
 
                 <div className="relative z-10">
-                {povMismatch && !povBannerDismissed && (
-                  <div
-                    className="mb-4 rounded-xl border border-amber-200/70 bg-amber-50/80 backdrop-blur-sm px-3 sm:px-4 py-2.5 flex items-start gap-3"
-                    data-testid="banner-pov-mismatch"
-                    role="status"
-                  >
-                    <ShieldAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0 text-[11px] sm:text-xs text-amber-900 leading-relaxed">
-                      You searched as <span className="font-semibold">NosFabrica</span>. The scores below are your <span className="font-semibold">personalized</span> view — per-profile NosFabrica scores aren't supported yet.{" "}
-                      <button
-                        type="button"
-                        onClick={() => navigate("/faq")}
-                        className="underline font-medium hover:text-amber-700"
-                        data-testid="link-pov-faq"
-                      >
-                        Why?
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPovBannerDismissed(true)}
-                      className="text-amber-600 hover:text-amber-800 shrink-0"
-                      aria-label="Dismiss"
-                      data-testid="button-dismiss-pov-banner"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
                 {(() => {
                   const mobileBadge = renderTrustBadge("-mobile");
                   if (!mobileBadge) return null;
