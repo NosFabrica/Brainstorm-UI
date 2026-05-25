@@ -68,8 +68,13 @@ interface SearchResult {
   lud16?: string;
   banner?: string;
   createdAt?: number;
+  /** Effective rank for the currently-selected POV (back-compat). */
   wotRank?: number | null;
   wotFollowers?: number | null;
+  /** NosFabrica ("house") perspective rank, 0..1, when the hit includes it. */
+  wotRankNosfabrica?: number | null;
+  /** Logged-in user's ("mywot") perspective rank, 0..1, when present. */
+  wotRankMywot?: number | null;
 }
 
 function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | null {
@@ -101,22 +106,28 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
   const TA_RANK_RE = /^wot_rank_[0-9a-f]{8}$/i;
   const TA_FOLLOWERS_RE = /^wot_followers_[0-9a-f]{8}$/i;
 
-  let wotRank: number | null =
+  // Capture each POV separately. `wot_rank` (no suffix) is the NosFabrica
+  // ("house") perspective; the suffixed `wot_rank_<8-hex>` is the logged-in
+  // user's perspective (mywot). We keep both so the Profile page can render
+  // them side-by-side in the dual-meter widget.
+  const wotRankNosfabrica: number | null =
     num(hit.wot_rank) ??
     num(hit.wotRank) ??
     num(hit.rank) ??
     (wot ? num(wot.rank) ?? num(wot.score) : null);
-  if (wotRank === null) {
-    for (const key of Object.keys(hit)) {
-      if (TA_RANK_RE.test(key)) {
-        const v = num(hit[key]);
-        if (v !== null) {
-          wotRank = v;
-          break;
-        }
+  let wotRankMywot: number | null = null;
+  for (const key of Object.keys(hit)) {
+    if (TA_RANK_RE.test(key)) {
+      const v = num(hit[key]);
+      if (v !== null) {
+        wotRankMywot = v;
+        break;
       }
     }
   }
+  // Back-compat: pick a single primary rank (prefer NosFabrica, fall back to
+  // mywot) so existing callers that only read `wotRank` still work.
+  const wotRank: number | null = wotRankNosfabrica ?? wotRankMywot;
   let wotFollowers: number | null =
     num(hit.wot_followers) ??
     num(hit.wotFollowers) ??
@@ -151,6 +162,8 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
     createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
     wotRank,
     wotFollowers,
+    wotRankNosfabrica,
+    wotRankMywot,
   };
 }
 
@@ -266,6 +279,9 @@ export default function SearchPage() {
       lud16: result.lud16,
       wotRank: result.wotRank ?? null,
       wotFollowers: result.wotFollowers ?? null,
+      wotRankNosfabrica: result.wotRankNosfabrica ?? null,
+      wotRankMywot: result.wotRankMywot ?? null,
+      povFromSearch: pov,
     };
     setProfileSeed(hex, seed);
     queryClient.prefetchQuery({
@@ -281,7 +297,7 @@ export default function SearchPage() {
       queryFn: async () => (await fetchProfile(hex)) ?? null,
       staleTime: 5 * 60_000,
     }).catch(() => {});
-  }, []);
+  }, [pov]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
@@ -378,7 +394,7 @@ export default function SearchPage() {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          navigate(`/profile/${q}`);
+          navigate(`/profile/${q}?pov=${pov}`);
           return;
         }
       } catch {}
@@ -386,7 +402,7 @@ export default function SearchPage() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      navigate(`/profile/${npub}`);
+      navigate(`/profile/${npub}?pov=${pov}`);
       return;
     }
 
@@ -397,7 +413,7 @@ export default function SearchPage() {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        navigate(`/profile/${npub}`);
+        navigate(`/profile/${npub}?pov=${pov}`);
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
@@ -801,7 +817,7 @@ export default function SearchPage() {
                       onBlur={() => handlePrefetchLeave(result)}
                       onClick={() => {
                         seedAndPrefetchProfile(result);
-                        navigate(`/profile/${result.npub}?fromSearch=1`);
+                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >

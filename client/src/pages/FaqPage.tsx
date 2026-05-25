@@ -41,6 +41,10 @@ import { Footer } from "@/components/Footer";
 
 const userFaqs = [
   {
+    question: "Why do scores look different between Search and a profile?",
+    answer: "Search lets you pick a perspective (NosFabrica's view, or your own personalized view). When you click a result, the Profile page currently always shows scores from your *personalized* view — even if you searched as NosFabrica — because the per-profile API endpoints don't accept a perspective parameter yet. When this happens we show an amber banner at the top of the profile, and when you arrived from a search we also show NosFabrica's score next to yours as a second small meter so you can compare. The underlying per-profile NosFabrica score is something we're working on with the Brainstorm backend.",
+  },
+  {
     question: "What does my trust score mean?",
     answer: "Your trust score reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
   },

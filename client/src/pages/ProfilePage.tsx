@@ -74,6 +74,7 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
 import { PovBadge, PovMenuSection } from "@/components/PovBadge";
+import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -856,6 +857,8 @@ export default function ProfilePage() {
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
   const [fromSearch, setFromSearch] = useState(false);
+  const [urlPov, setUrlPov] = useState<ActivePov | null>(null);
+  const [povBannerDismissed, setPovBannerDismissed] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -917,7 +920,20 @@ export default function ProfilePage() {
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
     setFromSearch(urlParams.get("fromSearch") === "1");
+    const rawPov = urlParams.get("pov");
+    setUrlPov(rawPov === "nosfabrica" || rawPov === "mywot" ? rawPov : null);
+    setPovBannerDismissed(false);
   }, [location, npubParam]);
+
+  // Effective POV: URL `?pov=` wins (so a shared link is honored even after
+  // the recipient changed their own setting); fall back to the global POV.
+  // The Profile page always *renders* personalized ("mywot") scores because
+  // /user/{pubkey}/overview|stats|connections don't accept a POV parameter
+  // yet — so any effectivePov === "nosfabrica" is a mismatch we surface.
+  const [globalPov] = useActivePov();
+  const effectivePov: ActivePov = urlPov ?? globalPov;
+  const RENDERED_POV: ActivePov = "mywot";
+  const povMismatch = effectivePov !== RENDERED_POV;
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
@@ -1864,7 +1880,8 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                  <PovMenuSection user={user} scope="page-not-supported" />
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
@@ -2197,6 +2214,35 @@ export default function ProfilePage() {
                 </svg>
 
                 <div className="relative z-10">
+                {povMismatch && !povBannerDismissed && (
+                  <div
+                    className="mb-4 rounded-xl border border-amber-200/70 bg-amber-50/80 backdrop-blur-sm px-3 sm:px-4 py-2.5 flex items-start gap-3"
+                    data-testid="banner-pov-mismatch"
+                    role="status"
+                  >
+                    <ShieldAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0 text-[11px] sm:text-xs text-amber-900 leading-relaxed">
+                      You searched as <span className="font-semibold">NosFabrica</span>. The scores below are your <span className="font-semibold">personalized</span> view — per-profile NosFabrica scores aren't supported yet.{" "}
+                      <button
+                        type="button"
+                        onClick={() => navigate("/faq")}
+                        className="underline font-medium hover:text-amber-700"
+                        data-testid="link-pov-faq"
+                      >
+                        Why?
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPovBannerDismissed(true)}
+                      className="text-amber-600 hover:text-amber-800 shrink-0"
+                      aria-label="Dismiss"
+                      data-testid="button-dismiss-pov-banner"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-start gap-3 sm:gap-4 mb-5">
                   {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
@@ -2344,27 +2390,96 @@ export default function ProfilePage() {
                         )}
                       </div>
                       {profileResult.influence !== undefined && profileTier && (() => {
-                        const rawScore = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-                        const score = Math.min(1, Math.max(0, rawScore));
-                        const pct = Math.round(score * 100);
+                        // Variant B — side-by-side dual meters when the search
+                        // hit seeded a NosFabrica-perspective score; gracefully
+                        // degrade to a single "You" meter otherwise. Tier color
+                        // is anchored to the personalized score (step 6) — the
+                        // mismatch banner above carries the perspective story.
+                        const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+                        const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
+                        const yourPct = Math.round(yourScore * 100);
+                        const nfRank = seed?.wotRankNosfabrica;
+                        const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
+                        const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank as number)) : 0;
+                        const nfPct = Math.round(nfScore * 100);
+                        const nfTier = hasNf
+                          ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
+                          : null;
                         const circumference = 2 * Math.PI * 18;
-                        const offset = circumference - (score * circumference);
+                        const yourOffset = circumference - (yourScore * circumference);
+                        const nfOffset = circumference - (nfScore * circumference);
+                        const renderRing = (
+                          offset: number,
+                          ringClass: string,
+                          trackClass: string,
+                        ) => (
+                          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className={trackClass} />
+                            <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
+                              className={ringClass} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
+                          </svg>
+                        );
+
+                        if (!hasNf) {
+                          return (
+                            <div className="flex flex-col items-center gap-0.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
+                              <div className="flex items-center gap-1">
+                                <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
+                                <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
+                                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+                              </div>
+                              <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center" data-testid="meter-you">
+                                {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
+                                <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
+                              </div>
+                              <span className={`text-[10px] sm:text-xs font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
+                            </div>
+                          );
+                        }
+
+                        // Dual meter (Variant B)
+                        const diff = Math.abs(yourPct - nfPct);
+                        const agreement = diff <= 5
+                          ? { label: "Both perspectives agree", tone: "bg-emerald-50 border-emerald-200 text-emerald-700" }
+                          : diff <= 15
+                            ? { label: `Slight difference · ${diff} pts`, tone: "bg-slate-50 border-slate-200 text-slate-600" }
+                            : { label: `Perspectives diverge · ${diff} pts`, tone: "bg-amber-50 border-amber-200 text-amber-700" };
                         return (
-                          <div className="flex flex-col items-center gap-0.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
-                            <div className="flex items-center gap-1">
+                          <div className="flex flex-col items-stretch gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
+                            <div className="flex items-center gap-1 self-center">
                               <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
                               <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
                               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
                             </div>
-                            <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
-                              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                                <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
-                                <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                                  className={profileTier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
-                              </svg>
-                              <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{pct}</span>
+                            <div className="flex items-start gap-2 sm:gap-3">
+                              {/* NosFabrica cell — indigo */}
+                              <div className="flex flex-col items-center gap-0.5 min-w-[44px]" data-testid="meter-nosfabrica">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
+                                </div>
+                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                                  {renderRing(nfOffset, "stroke-indigo-500", "text-indigo-100")}
+                                  <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid="text-score-nosfabrica">{nfPct}</span>
+                                </div>
+                                <span className={`text-[9px] sm:text-[10px] font-bold ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
+                              </div>
+                              {/* You cell — emerald */}
+                              <div className="flex flex-col items-center gap-0.5 min-w-[44px]" data-testid="meter-you">
+                                <div className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">You</span>
+                                </div>
+                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                                  {renderRing(yourOffset, "stroke-emerald-600", "text-emerald-100")}
+                                  <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid="text-score-you">{yourPct}</span>
+                                </div>
+                                <span className={`text-[9px] sm:text-[10px] font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
+                              </div>
                             </div>
-                            <span className={`text-[10px] sm:text-xs font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
+                            <span className={`text-[9px] leading-tight font-medium text-center rounded border px-1.5 py-0.5 ${agreement.tone}`} data-testid="text-agreement">
+                              {agreement.label}
+                            </span>
                           </div>
                         );
                       })()}

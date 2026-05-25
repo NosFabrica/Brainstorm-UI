@@ -1,3 +1,5 @@
+import type { ActivePov } from "@/hooks/useActivePov";
+
 export interface ProfileSeed {
   pubkey: string;
   npub: string;
@@ -9,8 +11,22 @@ export interface ProfileSeed {
   banner?: string;
   website?: string;
   lud16?: string;
+  /**
+   * @deprecated Prefer `wotRankNosfabrica` / `wotRankMywot`. Kept for
+   * back-compat with older callers that only stored one value.
+   */
   wotRank?: number | null;
   wotFollowers?: number | null;
+  /** NosFabrica ("house") perspective rank from the search hit, 0..1. */
+  wotRankNosfabrica?: number | null;
+  /** Logged-in user's ("mywot") perspective rank from the search hit, 0..1. */
+  wotRankMywot?: number | null;
+  /**
+   * Which perspective the user was viewing when they clicked the search hit.
+   * Used by the Profile page to know whether it can safely show a dual-score
+   * widget (it can iff at least one POV-specific rank is present).
+   */
+  povFromSearch?: ActivePov;
 }
 
 const seeds = new Map<string, ProfileSeed>();
