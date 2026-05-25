@@ -752,19 +752,37 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
   );
 });
 
-const NETWORK_DETAIL_STALE_MS = 5 * 60_000;
+/**
+ * Per-user detail cache shared with SearchPage's `seedAndPrefetchProfile`
+ * (and any other page that fetches via `apiClient.getUserByPubkey`). The
+ * cache stores the raw `res.data` wrapper (matching the shape SearchPage
+ * already writes), and `extractGraph` peels off the `graph` field where
+ * the Network panel's metrics live. Hovering a row on Search and then
+ * landing on Network — or vice versa — reuses the same cache entry per
+ * pubkey instead of refetching.
+ */
+const PROFILE_DETAIL_STALE_MS = 5 * 60_000;
 
-function networkDetailQueryKey(pk: string) {
-  return ["network-detail", pk.toLowerCase()] as const;
+function profileDetailQueryKey(pk: string) {
+  return ["profile", pk.toLowerCase()] as const;
 }
 
-async function fetchNetworkDetail(pk: string): Promise<any | null> {
-  const res = await apiClient.getUserByPubkey(pk);
-  return res?.data?.graph || res?.data || res || null;
+async function fetchProfileDetail(pk: string): Promise<any | null> {
+  try {
+    const res = await apiClient.getUserByPubkey(pk);
+    return res?.data ?? null;
+  } catch {
+    return null;
+  }
 }
 
-function getNetworkDetailFromCache(pk: string): any | undefined {
-  return queryClient.getQueryData(networkDetailQueryKey(pk));
+function extractGraph(data: any): any | null {
+  if (!data) return null;
+  return data.graph ?? data;
+}
+
+function getProfileDetailFromCache(pk: string): any | undefined {
+  return queryClient.getQueryData(profileDetailQueryKey(pk));
 }
 
 /**
@@ -772,27 +790,27 @@ function getNetworkDetailFromCache(pk: string): any | undefined {
  * prior transient error) is NOT fresh, so expand/hover paths are allowed to
  * retry it instead of locking the panel into "Unable to load details" forever.
  */
-function isNetworkDetailFresh(pk: string): boolean {
-  const state = queryClient.getQueryState(networkDetailQueryKey(pk));
+function isProfileDetailFresh(pk: string): boolean {
+  const state = queryClient.getQueryState(profileDetailQueryKey(pk));
   if (!state || state.data === undefined || state.data === null) return false;
-  return state.dataUpdatedAt > Date.now() - NETWORK_DETAIL_STALE_MS;
+  return state.dataUpdatedAt > Date.now() - PROFILE_DETAIL_STALE_MS;
 }
 
-function prefetchNetworkDetail(pk: string): void {
+function prefetchProfileDetail(pk: string): void {
   void queryClient
     .prefetchQuery({
-      queryKey: networkDetailQueryKey(pk),
-      queryFn: () => fetchNetworkDetail(pk),
-      staleTime: NETWORK_DETAIL_STALE_MS,
+      queryKey: profileDetailQueryKey(pk),
+      queryFn: () => fetchProfileDetail(pk),
+      staleTime: PROFILE_DETAIL_STALE_MS,
     })
     .catch(() => {});
 }
 
-function ensureNetworkDetail(pk: string): Promise<any | null> {
+function ensureProfileDetail(pk: string): Promise<any | null> {
   return queryClient.ensureQueryData({
-    queryKey: networkDetailQueryKey(pk),
-    queryFn: () => fetchNetworkDetail(pk),
-    staleTime: NETWORK_DETAIL_STALE_MS,
+    queryKey: profileDetailQueryKey(pk),
+    queryFn: () => fetchProfileDetail(pk),
+    staleTime: PROFILE_DETAIL_STALE_MS,
   });
 }
 
@@ -847,7 +865,6 @@ export default function NetworkPage() {
   const [verifiedOnly, setVerifiedOnly] = useState(true);
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
-  const [expandedLoading, setExpandedLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchAbortRef = useRef(0);
   const { toast } = useToast();
@@ -893,10 +910,10 @@ export default function NetworkPage() {
   const handleRowPrefetchEnter = useCallback((pk: string) => {
     if (!supportsHoverRef.current) return;
     if (prefetchTimersRef.current.has(pk)) return;
-    if (isNetworkDetailFresh(pk)) return;
+    if (isProfileDetailFresh(pk)) return;
     const timer = window.setTimeout(() => {
       prefetchTimersRef.current.delete(pk);
-      prefetchNetworkDetail(pk);
+      prefetchProfileDetail(pk);
     }, 150);
     prefetchTimersRef.current.set(pk, timer);
   }, []);
@@ -981,12 +998,12 @@ export default function NetworkPage() {
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
       const results = await Promise.allSettled(
-        batch.map(pk => ensureNetworkDetail(pk))
+        batch.map(pk => ensureProfileDetail(pk))
       );
       results.forEach((res, idx) => {
         const pk = batch[idx];
         if (res.status === "fulfilled") {
-          const graph = res.value;
+          const graph = extractGraph(res.value);
           const influence = graph?.influence;
           trustCache.current.set(pk, typeof influence === "number" ? influence : null);
           graphDataCache.current.set(pk, {
@@ -995,36 +1012,38 @@ export default function NetworkPage() {
           });
         } else {
           trustCache.current.set(pk, null);
-          queryClient.setQueryData(networkDetailQueryKey(pk), null);
         }
       });
       setTrustLoadedCount(prev => prev + batch.length);
     }
   }, []);
 
-  const toggleExpanded = useCallback(async (pk: string) => {
-    if (expandedPubkey === pk) {
-      setExpandedPubkey(null);
-      return;
-    }
-    setExpandedPubkey(pk);
-    // Fresh cache hit (eager trust-score fetch or hover prefetch within
-    // staleTime) → render is instant; no loader flip needed.
-    // Stale-but-present → render cached value immediately and refetch in the
-    // background (stale-while-revalidate). Missing/null → show loader and
-    // retry. `ensureNetworkDetail` itself respects staleTime, so it only
-    // hits the network when needed.
-    const fresh = isNetworkDetailFresh(pk);
-    const hasAnyCached = getNetworkDetailFromCache(pk) != null;
-    if (!fresh && !hasAnyCached) setExpandedLoading(true);
-    try {
-      await ensureNetworkDetail(pk);
-    } catch {
-      queryClient.setQueryData(networkDetailQueryKey(pk), null);
-    } finally {
-      if (!fresh && !hasAnyCached) setExpandedLoading(false);
-    }
-  }, [expandedPubkey]);
+  const toggleExpanded = useCallback((pk: string) => {
+    // The actual fetch is driven by `expandedDetailQuery` below — useQuery
+    // handles cached/stale/missing transitions and re-renders the panel
+    // reactively when data lands. We just flip the expanded pubkey here.
+    setExpandedPubkey((prev) => (prev === pk ? null : pk));
+  }, []);
+
+  // Reactive subscription for the currently expanded row. Re-uses the same
+  // `["profile", hex]` cache key as Search/Profile prefetch paths, and emits
+  // `isFetching` / `data` updates so the panel paints stale data immediately
+  // (stale-while-revalidate) and refreshes when the background fetch lands.
+  const expandedDetailQuery = useQuery<any | null>({
+    queryKey: profileDetailQueryKey(expandedPubkey ?? ""),
+    queryFn: () => fetchProfileDetail(expandedPubkey!),
+    enabled: !!expandedPubkey,
+    staleTime: PROFILE_DETAIL_STALE_MS,
+    retry: false,
+  });
+  const expandedDetailGraph = useMemo(
+    () => extractGraph(expandedDetailQuery.data),
+    [expandedDetailQuery.data],
+  );
+  const expandedIsLoading =
+    !!expandedPubkey &&
+    expandedDetailQuery.isFetching &&
+    expandedDetailQuery.data == null;
 
   const flaggedPubkeySet = useMemo(() => {
     if (!networkData) return new Set<string>();
@@ -1861,13 +1880,13 @@ export default function NetworkPage() {
                             profile={profileCache.current.get(pk)}
                             trustScore={trustCache.current.get(pk)}
                             graphData={graphDataCache.current.get(pk)}
-                            detail={expandedPubkey === pk ? getNetworkDetailFromCache(pk) : undefined}
+                            detail={expandedPubkey === pk ? expandedDetailGraph : undefined}
                             memberGroups={getPubkeyGroups(pk)}
                             viewMode={viewMode}
                             isExpanded={expandedPubkey === pk}
                             isCopied={copiedPubkey === pk}
                             isProfileLoaded={profileCache.current.has(pk)}
-                            expandedLoading={expandedLoading}
+                            expandedLoading={expandedPubkey === pk && expandedIsLoading}
                             activeGroup={activeGroup}
                             trustCacheRef={trustCache}
                             onToggleExpanded={toggleExpanded}
