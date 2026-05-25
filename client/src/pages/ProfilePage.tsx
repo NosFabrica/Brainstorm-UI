@@ -15,6 +15,8 @@ import {
   Settings as SettingsIcon,
   BookOpen,
   ArrowLeft,
+  ArrowRight,
+  ArrowLeftRight,
   ChevronDown,
   Search as SearchIcon,
   User,
@@ -365,6 +367,54 @@ type FilterMode = "all" | "verified" | "high" | "trusted" | "neutral" | "low" | 
 type ReportTypeFilter = "all" | "spam" | "impersonation" | "nudity" | "illegal" | "profanity" | "other" | "unavailable";
 
 interface GroupDef { key: string; label: string; colors: string }
+
+const CONNECTION_GROUP_KEYS = new Set([
+  "followed_by",
+  "following",
+  "mutual",
+  "shared_followers",
+  "shared_following",
+]);
+
+type OwnerLink = "mutual" | "follower" | "following";
+type YouLink = "mutual_with_you" | "follows_you" | "you_follow";
+
+function deriveConnectionClusters(groupKeys: Set<string>): { owner: OwnerLink | null; you: YouLink | null } {
+  const hasMutual = groupKeys.has("mutual");
+  const hasFollowedBy = groupKeys.has("followed_by");
+  const hasFollowing = groupKeys.has("following");
+  const owner: OwnerLink | null = hasMutual
+    ? "mutual"
+    : hasFollowedBy
+      ? "follower"
+      : hasFollowing
+        ? "following"
+        : null;
+
+  const hasSharedFollower = groupKeys.has("shared_followers");
+  const hasSharedFollowing = groupKeys.has("shared_following");
+  const you: YouLink | null = hasSharedFollower && hasSharedFollowing
+    ? "mutual_with_you"
+    : hasSharedFollower
+      ? "follows_you"
+      : hasSharedFollowing
+        ? "you_follow"
+        : null;
+
+  return { owner, you };
+}
+
+const OWNER_PILL_META: Record<OwnerLink, { label: string; Icon: typeof ArrowLeft }> = {
+  mutual: { label: "Mutual", Icon: ArrowLeftRight },
+  follower: { label: "Follower", Icon: ArrowLeft },
+  following: { label: "Following", Icon: ArrowRight },
+};
+
+const YOU_PILL_META: Record<YouLink, { label: string; Icon: typeof ArrowLeft }> = {
+  mutual_with_you: { label: "Mutual with you", Icon: ArrowLeftRight },
+  follows_you: { label: "Follows you", Icon: ArrowLeft },
+  you_follow: { label: "You follow", Icon: ArrowRight },
+};
 
 const GROUP_DEFS: GroupDef[] = [
   { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
@@ -772,13 +822,45 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                   <span className="text-[10px] text-slate-400" data-testid={`mute-time-${pk.slice(0,8)}`}>{formatRelativeTime(muteMeta.timestamp)}</span>
                 )}
               </div>
-              {overlappingGroups.length > 0 && (
-                <div className="flex gap-1 flex-wrap">
-                  {overlappingGroups.map(g => (
-                    <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
-                  ))}
-                </div>
-              )}
+              {(() => {
+                const overlapKeySet = new Set(overlappingGroups.map(g => g.key));
+                const { owner, you } = deriveConnectionClusters(overlapKeySet);
+                const nonConnectionGroups = overlappingGroups.filter(g => !CONNECTION_GROUP_KEYS.has(g.key));
+                if (!owner && !you && nonConnectionGroups.length === 0) return null;
+                return (
+                  <div className="flex gap-1 flex-wrap justify-end">
+                    {owner && (() => {
+                      const meta = OWNER_PILL_META[owner];
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-teal-50 text-teal-600 border-teal-200"
+                          data-testid={`pill-owner-${owner}-${pk.slice(0,8)}`}
+                        >
+                          <meta.Icon className="h-2.5 w-2.5" />
+                          {meta.label}
+                        </Badge>
+                      );
+                    })()}
+                    {you && (() => {
+                      const meta = YOU_PILL_META[you];
+                      return (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-indigo-50 text-indigo-600 border-indigo-200"
+                          data-testid={`pill-you-${you}-${pk.slice(0,8)}`}
+                        >
+                          <meta.Icon className="h-2.5 w-2.5" />
+                          {meta.label}
+                        </Badge>
+                      );
+                    })()}
+                    {nonConnectionGroups.map(g => (
+                      <Badge key={g.key} variant="outline" className={`text-[10px] px-1 py-0 no-default-hover-elevate no-default-active-elevate ${g.colors}`}>{g.label}</Badge>
+                    ))}
+                  </div>
+                );
+              })()}
               {trustScore !== undefined && trustScore !== null && (
                 <div className="w-6 h-6 relative shrink-0">
                   <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
