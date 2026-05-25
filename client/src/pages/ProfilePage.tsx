@@ -1859,7 +1859,7 @@ export default function ProfilePage() {
         : "text-emerald-600";
     const diffPrefix = diffAbs <= 5 ? "" : diff > 0 ? "+" : "−";
     return (
-      <div className="flex flex-col items-center gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[120px]" data-testid={`badge-trust-score${idSuffix}`}>
+      <div className="flex flex-col items-center gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[96px] sm:min-w-[120px]" data-testid={`badge-trust-score${idSuffix}`}>
         <div className="flex items-center gap-1">
           <BrainLogo size={10} className="text-indigo-400" />
           <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
@@ -2332,15 +2332,6 @@ export default function ProfilePage() {
                 </svg>
 
                 <div className="relative z-10">
-                {(() => {
-                  const mobileBadge = renderTrustBadge("-mobile");
-                  if (!mobileBadge) return null;
-                  return (
-                    <div className="sm:hidden mb-3 flex justify-start" data-testid="container-trust-badge-mobile">
-                      {mobileBadge}
-                    </div>
-                  );
-                })()}
                 <div className="flex items-start gap-3 sm:gap-4 mb-5">
                   {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
@@ -2487,7 +2478,7 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      <div className="hidden sm:contents">{renderTrustBadge()}</div>
+                      <div className="contents">{renderTrustBadge()}</div>
                     </div>
                   </div>
                 </div>
