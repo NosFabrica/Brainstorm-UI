@@ -50,6 +50,7 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
@@ -213,6 +214,8 @@ interface NetworkProfileCardProps {
   socialPending: boolean;
   socialListsLoading: boolean;
   isFlagged: boolean;
+  onPrefetchEnter?: (pk: string) => void;
+  onPrefetchLeave?: (pk: string) => void;
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
@@ -220,7 +223,7 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
   isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading,
-  isFlagged
+  isFlagged, onPrefetchEnter, onPrefetchLeave
 }: NetworkProfileCardProps) {
   const npub = nip19.npubEncode(pk);
   const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
@@ -620,6 +623,8 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
         <div
           className={`bg-white/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
           onClick={() => onToggleExpanded(pk)}
+          onMouseEnter={() => onPrefetchEnter?.(pk)}
+          onMouseLeave={() => onPrefetchLeave?.(pk)}
           data-testid={`card-profile-${pkShort}`}
         >
           <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
@@ -682,6 +687,8 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
       <div
         className={`bg-white/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
         onClick={() => onToggleExpanded(pk)}
+        onMouseEnter={() => onPrefetchEnter?.(pk)}
+        onMouseLeave={() => onPrefetchLeave?.(pk)}
         data-testid={`card-profile-${pkShort}`}
       >
         <div className="flex items-center gap-3">
@@ -744,6 +751,50 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
     </>
   );
 });
+
+const NETWORK_DETAIL_STALE_MS = 5 * 60_000;
+
+function networkDetailQueryKey(pk: string) {
+  return ["network-detail", pk.toLowerCase()] as const;
+}
+
+async function fetchNetworkDetail(pk: string): Promise<any | null> {
+  const res = await apiClient.getUserByPubkey(pk);
+  return res?.data?.graph || res?.data || res || null;
+}
+
+function getNetworkDetailFromCache(pk: string): any | undefined {
+  return queryClient.getQueryData(networkDetailQueryKey(pk));
+}
+
+/**
+ * Fresh = present, non-null, and within staleTime. A cached `null` (from a
+ * prior transient error) is NOT fresh, so expand/hover paths are allowed to
+ * retry it instead of locking the panel into "Unable to load details" forever.
+ */
+function isNetworkDetailFresh(pk: string): boolean {
+  const state = queryClient.getQueryState(networkDetailQueryKey(pk));
+  if (!state || state.data === undefined || state.data === null) return false;
+  return state.dataUpdatedAt > Date.now() - NETWORK_DETAIL_STALE_MS;
+}
+
+function prefetchNetworkDetail(pk: string): void {
+  void queryClient
+    .prefetchQuery({
+      queryKey: networkDetailQueryKey(pk),
+      queryFn: () => fetchNetworkDetail(pk),
+      staleTime: NETWORK_DETAIL_STALE_MS,
+    })
+    .catch(() => {});
+}
+
+function ensureNetworkDetail(pk: string): Promise<any | null> {
+  return queryClient.ensureQueryData({
+    queryKey: networkDetailQueryKey(pk),
+    queryFn: () => fetchNetworkDetail(pk),
+    staleTime: NETWORK_DETAIL_STALE_MS,
+  });
+}
 
 function sortByTrustScore(
   scoreMap: Map<string, number | null>,
@@ -822,8 +873,41 @@ export default function NetworkPage() {
   const profileCache = useRef<Map<string, any>>(new Map());
   const trustCache = useRef<Map<string, number | null>>(new Map());
   const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
-  const detailCache = useRef<Map<string, any>>(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
+  const prefetchTimersRef = useRef<Map<string, number>>(new Map());
+  const supportsHoverRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    try {
+      supportsHoverRef.current = window.matchMedia("(pointer: fine)").matches;
+    } catch {
+      supportsHoverRef.current = true;
+    }
+    const timers = prefetchTimersRef.current;
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
+
+  const handleRowPrefetchEnter = useCallback((pk: string) => {
+    if (!supportsHoverRef.current) return;
+    if (prefetchTimersRef.current.has(pk)) return;
+    if (isNetworkDetailFresh(pk)) return;
+    const timer = window.setTimeout(() => {
+      prefetchTimersRef.current.delete(pk);
+      prefetchNetworkDetail(pk);
+    }, 150);
+    prefetchTimersRef.current.set(pk, timer);
+  }, []);
+
+  const handleRowPrefetchLeave = useCallback((pk: string) => {
+    const t = prefetchTimersRef.current.get(pk);
+    if (t !== undefined) {
+      window.clearTimeout(t);
+      prefetchTimersRef.current.delete(pk);
+    }
+  }, []);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -897,19 +981,21 @@ export default function NetworkPage() {
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
       const results = await Promise.allSettled(
-        batch.map(pk => apiClient.getUserByPubkey(pk))
+        batch.map(pk => ensureNetworkDetail(pk))
       );
       results.forEach((res, idx) => {
+        const pk = batch[idx];
         if (res.status === "fulfilled") {
-          const graph = res.value?.data?.graph || res.value?.data || res.value;
+          const graph = res.value;
           const influence = graph?.influence;
-          trustCache.current.set(batch[idx], typeof influence === "number" ? influence : null);
-          graphDataCache.current.set(batch[idx], {
+          trustCache.current.set(pk, typeof influence === "number" ? influence : null);
+          graphDataCache.current.set(pk, {
             muted_by: toPubkeys(graph?.muted_by),
             reported_by: toPubkeys(graph?.reported_by),
           });
         } else {
-          trustCache.current.set(batch[idx], null);
+          trustCache.current.set(pk, null);
+          queryClient.setQueryData(networkDetailQueryKey(pk), null);
         }
       });
       setTrustLoadedCount(prev => prev + batch.length);
@@ -922,16 +1008,21 @@ export default function NetworkPage() {
       return;
     }
     setExpandedPubkey(pk);
-    if (detailCache.current.has(pk)) return;
-    setExpandedLoading(true);
+    // Fresh cache hit (eager trust-score fetch or hover prefetch within
+    // staleTime) → render is instant; no loader flip needed.
+    // Stale-but-present → render cached value immediately and refetch in the
+    // background (stale-while-revalidate). Missing/null → show loader and
+    // retry. `ensureNetworkDetail` itself respects staleTime, so it only
+    // hits the network when needed.
+    const fresh = isNetworkDetailFresh(pk);
+    const hasAnyCached = getNetworkDetailFromCache(pk) != null;
+    if (!fresh && !hasAnyCached) setExpandedLoading(true);
     try {
-      const res = await apiClient.getUserByPubkey(pk);
-      const graph = res?.data?.graph || res?.data || res;
-      detailCache.current.set(pk, graph);
+      await ensureNetworkDetail(pk);
     } catch {
-      detailCache.current.set(pk, null);
+      queryClient.setQueryData(networkDetailQueryKey(pk), null);
     } finally {
-      setExpandedLoading(false);
+      if (!fresh && !hasAnyCached) setExpandedLoading(false);
     }
   }, [expandedPubkey]);
 
@@ -1770,7 +1861,7 @@ export default function NetworkPage() {
                             profile={profileCache.current.get(pk)}
                             trustScore={trustCache.current.get(pk)}
                             graphData={graphDataCache.current.get(pk)}
-                            detail={expandedPubkey === pk ? detailCache.current.get(pk) : undefined}
+                            detail={expandedPubkey === pk ? getNetworkDetailFromCache(pk) : undefined}
                             memberGroups={getPubkeyGroups(pk)}
                             viewMode={viewMode}
                             isExpanded={expandedPubkey === pk}
@@ -1794,6 +1885,8 @@ export default function NetworkPage() {
                             socialPending={social.isAnyPending}
                             socialListsLoading={social.listsLoading}
                             isFlagged={groupPubkeySets?.flagged?.has(pk) ?? false}
+                            onPrefetchEnter={handleRowPrefetchEnter}
+                            onPrefetchLeave={handleRowPrefetchLeave}
                           />
                         </div>
                       ))}
