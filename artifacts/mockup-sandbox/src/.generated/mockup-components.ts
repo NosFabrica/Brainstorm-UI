@@ -3,5 +3,7 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/pov-score/DualMeters.tsx": () => import("../components/mockups/pov-score/DualMeters.tsx"),
   "./components/mockups/pov-score/PrimarySecondary.tsx": () => import("../components/mockups/pov-score/PrimarySecondary.tsx"),
-  "./components/mockups/pov-score/Tabbed.tsx": () => import("../components/mockups/pov-score/Tabbed.tsx")
+  "./components/mockups/pov-score/Tabbed.tsx": () => import("../components/mockups/pov-score/Tabbed.tsx"),
+  "./components/mockups/pov-search-switcher/ClickToToggle.tsx": () => import("../components/mockups/pov-search-switcher/ClickToToggle.tsx"),
+  "./components/mockups/pov-search-switcher/SegmentedPills.tsx": () => import("../components/mockups/pov-search-switcher/SegmentedPills.tsx")
 };
