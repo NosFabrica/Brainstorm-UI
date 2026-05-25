@@ -62,7 +62,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { getProfileSeed, clearProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
+import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
   expandProfileCache,
@@ -945,7 +945,31 @@ export default function ProfilePage() {
     }
   }, [user]);
 
-  const seed = useMemo<ProfileSeed | null>(() => (hexPubkey ? getProfileSeed(hexPubkey) : null), [hexPubkey]);
+  const seed = useMemo<ProfileSeed | null>(() => {
+    if (!hexPubkey) return null;
+    const inMem = getProfileSeed(hexPubkey);
+    if (inMem) return inMem;
+    // Refresh-surviving fallback: if the search-click set ?showNosfabricaResult=1,
+    // hydrate from sessionStorage once, then strip the flag from the URL so a
+    // second refresh doesn't re-trigger a now-empty read.
+    if (typeof window === "undefined") return null;
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("showNosfabricaResult") !== "1") return null;
+      const stored = consumeStoredSearchSeed(hexPubkey);
+      if (!stored) {
+        url.searchParams.delete("showNosfabricaResult");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+        return null;
+      }
+      setProfileSeed(hexPubkey, stored);
+      url.searchParams.delete("showNosfabricaResult");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      return stored;
+    } catch {
+      return null;
+    }
+  }, [hexPubkey]);
 
   // Overview drives the header (influence + counts). Lists load lazily on expand.
   const profileOverviewQuery = useQuery<{

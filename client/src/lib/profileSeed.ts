@@ -49,3 +49,47 @@ export function clearProfileSeed(hexPubkey: string): void {
   if (!hexPubkey) return;
   seeds.delete(normalize(hexPubkey));
 }
+
+const STORAGE_KEY_PREFIX = "brainstorm_search_seed:";
+
+function storageKey(hexPubkey: string): string {
+  return `${STORAGE_KEY_PREFIX}${normalize(hexPubkey)}`;
+}
+
+export function setStoredSearchSeed(hexPubkey: string, seed: ProfileSeed): void {
+  if (!hexPubkey) return;
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(storageKey(hexPubkey), JSON.stringify(seed));
+  } catch {
+    // sessionStorage may be unavailable (quota, privacy mode) — degrade silently.
+  }
+}
+
+export function consumeStoredSearchSeed(hexPubkey: string): ProfileSeed | null {
+  if (!hexPubkey) return null;
+  if (typeof window === "undefined" || !window.sessionStorage) return null;
+  const key = storageKey(hexPubkey);
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(key);
+    const parsed = JSON.parse(raw) as ProfileSeed;
+    if (!parsed || typeof parsed !== "object" || !parsed.pubkey) return null;
+    // Defensive: only accept the stored seed if its pubkey matches the request,
+    // so a stale/corrupted entry can never be hydrated under the wrong identity.
+    if (normalize(parsed.pubkey) !== normalize(hexPubkey)) return null;
+    return parsed;
+  } catch {
+    try { window.sessionStorage.removeItem(key); } catch {}
+    return null;
+  }
+}
+
+export function clearStoredSearchSeed(hexPubkey: string): void {
+  if (!hexPubkey) return;
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.removeItem(storageKey(hexPubkey));
+  } catch {}
+}

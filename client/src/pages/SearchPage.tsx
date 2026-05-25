@@ -45,7 +45,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
-import { setProfileSeed, type ProfileSeed } from "@/lib/profileSeed";
+import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { MobileMenu } from "@/components/MobileMenu";
@@ -817,7 +817,32 @@ export default function SearchPage() {
                       onBlur={() => handlePrefetchLeave(result)}
                       onClick={() => {
                         seedAndPrefetchProfile(result);
-                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}`);
+                        const hex = (result.pubkey || "").toLowerCase();
+                        const hasNosfabricaRank =
+                          typeof result.wotRankNosfabrica === "number" &&
+                          Number.isFinite(result.wotRankNosfabrica);
+                        const persistNosfabrica = pov === "nosfabrica" && hasNosfabricaRank && !!hex;
+                        if (persistNosfabrica) {
+                          setStoredSearchSeed(hex, {
+                            pubkey: hex,
+                            npub: result.npub,
+                            name: result.name,
+                            displayName: result.displayName,
+                            picture: result.picture,
+                            about: result.about,
+                            nip05: result.nip05,
+                            banner: result.banner,
+                            website: result.website,
+                            lud16: result.lud16,
+                            wotRank: result.wotRank ?? null,
+                            wotFollowers: result.wotFollowers ?? null,
+                            wotRankNosfabrica: result.wotRankNosfabrica ?? null,
+                            wotRankMywot: result.wotRankMywot ?? null,
+                            povFromSearch: pov,
+                          });
+                        }
+                        const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
+                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}${suffix}`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >
