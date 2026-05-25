@@ -675,9 +675,39 @@ export default function SearchPage() {
               {hasSearched && hasPovOption && (
                 <div className="flex items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator">
                   <Telescope className="h-3 w-3 text-slate-400" />
-                  <p className="text-[11px] text-slate-400">
-                    Viewing as <span className={`font-medium ${pov === "nosfabrica" ? "text-indigo-500" : "text-emerald-600"}`}>{pov === "nosfabrica" ? "NosFabrica" : user.displayName || "My WoT"}</span>
-                  </p>
+                  <span className="text-[11px] text-slate-400">Viewing as</span>
+                  <div className="inline-flex items-center rounded-full bg-slate-100 p-0.5 ml-0.5" role="tablist" aria-label="Trust perspective">
+                    <button
+                      type="button"
+                      onClick={() => handlePovSwitch("nosfabrica")}
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
+                        pov === "nosfabrica"
+                          ? "bg-white text-indigo-500 shadow-sm"
+                          : "text-slate-400 hover:text-slate-600"
+                      }`}
+                      aria-pressed={pov === "nosfabrica"}
+                      data-testid="pill-pov-nosfabrica"
+                    >
+                      NosFabrica
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => hasMywot && handlePovSwitch("mywot")}
+                      disabled={!hasMywot}
+                      title={hasMywot ? undefined : "Calculate your trust graph first"}
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
+                        pov === "mywot"
+                          ? "bg-white text-emerald-600 shadow-sm"
+                          : hasMywot
+                            ? "text-slate-400 hover:text-slate-600"
+                            : "text-slate-300 cursor-not-allowed"
+                      }`}
+                      aria-pressed={pov === "mywot"}
+                      data-testid="pill-pov-mywot"
+                    >
+                      {user.displayName || "My WoT"}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
