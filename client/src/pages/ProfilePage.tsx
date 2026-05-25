@@ -2282,7 +2282,7 @@ export default function ProfilePage() {
                     );
                   })()}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
@@ -2454,17 +2454,16 @@ export default function ProfilePage() {
 
                         if (!hasNf) {
                           return (
-                            <div className="flex flex-col items-center gap-0.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
+                            <div className="flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[88px]" data-testid="badge-trust-score">
                               <div className="flex items-center gap-1">
-                                <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
-                                <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
+                                <BrainLogo size={10} className="text-indigo-400" />
                                 <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
                               </div>
-                              <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center" data-testid="meter-you">
+                              <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid="meter-you">
                                 {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-                                <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
+                                <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
                               </div>
-                              <span className={`text-[10px] sm:text-xs font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
+                              <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
                             </div>
                           );
                         }
@@ -2477,39 +2476,38 @@ export default function ProfilePage() {
                             ? { label: `Slight difference · ${diff} pts`, tone: "bg-slate-50 border-slate-200 text-slate-600" }
                             : { label: `Perspectives diverge · ${diff} pts`, tone: "bg-amber-50 border-amber-200 text-amber-700" };
                         return (
-                          <div className="flex flex-col items-stretch gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0" data-testid="badge-trust-score">
+                          <div className="flex flex-col items-stretch gap-2 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 w-full max-w-[260px] sm:w-auto sm:min-w-[208px]" data-testid="badge-trust-score">
                             <div className="flex items-center gap-1 self-center">
-                              <BrainLogo size={8} className="text-indigo-400 sm:hidden" />
-                              <BrainLogo size={10} className="text-indigo-400 hidden sm:block" />
+                              <BrainLogo size={10} className="text-indigo-400" />
                               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
                             </div>
-                            <div className="flex items-start gap-2 sm:gap-3">
+                            <div className="flex items-start justify-around gap-2 sm:gap-3">
                               {/* NosFabrica cell — indigo */}
-                              <div className="flex flex-col items-center gap-0.5 min-w-[44px]" data-testid="meter-nosfabrica">
+                              <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid="meter-nosfabrica">
                                 <div className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                                  <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
                                 </div>
-                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                                <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
                                   {renderRing(nfOffset, "stroke-indigo-500", "text-indigo-100")}
-                                  <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid="text-score-nosfabrica">{nfPct}</span>
+                                  <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid="text-score-nosfabrica">{nfPct}</span>
                                 </div>
-                                <span className={`text-[9px] sm:text-[10px] font-bold ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
+                                <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
                               </div>
                               {/* You cell — emerald */}
-                              <div className="flex flex-col items-center gap-0.5 min-w-[44px]" data-testid="meter-you">
+                              <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid="meter-you">
                                 <div className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-600">You</span>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">You</span>
                                 </div>
-                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
+                                <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
                                   {renderRing(yourOffset, "stroke-emerald-600", "text-emerald-100")}
-                                  <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid="text-score-you">{yourPct}</span>
+                                  <span className="text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid="text-score-you">{yourPct}</span>
                                 </div>
-                                <span className={`text-[9px] sm:text-[10px] font-bold ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
+                                <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
                               </div>
                             </div>
-                            <span className={`text-[9px] leading-tight font-medium text-center rounded border px-1.5 py-0.5 ${agreement.tone}`} data-testid="text-agreement">
+                            <span className={`text-[10px] leading-snug font-medium text-center rounded border px-1.5 py-1 whitespace-normal ${agreement.tone}`} data-testid="text-agreement">
                               {agreement.label}
                             </span>
                           </div>
