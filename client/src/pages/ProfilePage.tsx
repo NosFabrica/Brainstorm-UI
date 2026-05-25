@@ -1791,6 +1791,95 @@ export default function ProfilePage() {
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
+  const renderTrustBadge = (idSuffix: string = "") => {
+    if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
+    const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
+    const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
+    const yourPct = Math.round(yourScore * 100);
+    const nfRank = seed?.wotRankNosfabrica;
+    const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
+    const nfRank01 = hasNf
+      ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))
+      : 0;
+    const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
+    const nfPct = Math.round(nfScore * 100);
+    const nfTier = hasNf
+      ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
+      : null;
+    const circumference = 2 * Math.PI * 18;
+    const yourOffset = circumference - (yourScore * circumference);
+    const nfOffset = circumference - (nfScore * circumference);
+    const renderRing = (
+      offset: number,
+      ringClass: string,
+      trackClass: string,
+    ) => (
+      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className={trackClass} />
+        <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
+          className={ringClass} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
+      </svg>
+    );
+
+    if (!hasNf) {
+      return (
+        <div className="flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[88px]" data-testid={`badge-trust-score${idSuffix}`}>
+          <div className="flex items-center gap-1">
+            <BrainLogo size={10} className="text-indigo-400" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+          </div>
+          <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
+            {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
+            <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
+          </div>
+          <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
+        </div>
+      );
+    }
+
+    const diff = Math.abs(yourPct - nfPct);
+    const agreement = diff <= 5
+      ? { label: "Both perspectives agree", tone: "bg-emerald-50 border-emerald-200 text-emerald-700" }
+      : diff <= 15
+        ? { label: `Slight difference · ${diff} pts`, tone: "bg-slate-50 border-slate-200 text-slate-600" }
+        : { label: `Perspectives diverge · ${diff} pts`, tone: "bg-amber-50 border-amber-200 text-amber-700" };
+    return (
+      <div className="flex flex-col items-stretch gap-2 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 w-full max-w-[260px] sm:w-auto sm:min-w-[208px]" data-testid={`badge-trust-score${idSuffix}`}>
+        <div className="flex items-center gap-1 self-center">
+          <BrainLogo size={10} className="text-indigo-400" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+        </div>
+        <div className="flex items-start justify-around gap-2 sm:gap-3">
+          <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid={`meter-nosfabrica${idSuffix}`}>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
+            </div>
+            <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
+              {renderRing(nfOffset, "stroke-indigo-500", "text-indigo-100")}
+              <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
+            </div>
+            <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
+          </div>
+          <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid={`meter-you${idSuffix}`}>
+            <div className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">You</span>
+            </div>
+            <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
+              {renderRing(yourOffset, "stroke-emerald-600", "text-emerald-100")}
+              <span className="text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
+            </div>
+            <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
+          </div>
+        </div>
+        <span className={`text-[10px] leading-snug font-medium text-center rounded border px-1.5 py-1 whitespace-normal ${agreement.tone}`} data-testid={`text-agreement${idSuffix}`}>
+          {agreement.label}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
@@ -2267,6 +2356,15 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
+                {(() => {
+                  const mobileBadge = renderTrustBadge("-mobile");
+                  if (!mobileBadge) return null;
+                  return (
+                    <div className="sm:hidden mb-3 flex justify-start" data-testid="container-trust-badge-mobile">
+                      {mobileBadge}
+                    </div>
+                  );
+                })()}
                 <div className="flex items-start gap-3 sm:gap-4 mb-5">
                   {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
@@ -2282,7 +2380,7 @@ export default function ProfilePage() {
                     );
                   })()}
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
@@ -2413,106 +2511,7 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      {profileResult.influence !== undefined && profileTier && (() => {
-                        // Variant B — side-by-side dual meters when the search
-                        // hit seeded a NosFabrica-perspective score; gracefully
-                        // degrade to a single "You" meter otherwise. Tier color
-                        // is anchored to the personalized score (step 6) — the
-                        // mismatch banner above carries the perspective story.
-                        const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-                        const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
-                        const yourPct = Math.round(yourScore * 100);
-                        const nfRank = seed?.wotRankNosfabrica;
-                        const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
-                        // The Meili search endpoint returns `wot_rank` on a
-                        // 0..100 scale (the search card displays it raw),
-                        // whereas /user/{pubkey}/overview.influence is 0..1.
-                        // Tolerate both so the dual meter renders correctly
-                        // regardless of which source seeded the value.
-                        const nfRank01 = hasNf
-                          ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))
-                          : 0;
-                        const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
-                        const nfPct = Math.round(nfScore * 100);
-                        const nfTier = hasNf
-                          ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
-                          : null;
-                        const circumference = 2 * Math.PI * 18;
-                        const yourOffset = circumference - (yourScore * circumference);
-                        const nfOffset = circumference - (nfScore * circumference);
-                        const renderRing = (
-                          offset: number,
-                          ringClass: string,
-                          trackClass: string,
-                        ) => (
-                          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className={trackClass} />
-                            <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                              className={ringClass} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
-                          </svg>
-                        );
-
-                        if (!hasNf) {
-                          return (
-                            <div className="flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[88px]" data-testid="badge-trust-score">
-                              <div className="flex items-center gap-1">
-                                <BrainLogo size={10} className="text-indigo-400" />
-                                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-                              </div>
-                              <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid="meter-you">
-                                {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-                                <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
-                              </div>
-                              <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
-                            </div>
-                          );
-                        }
-
-                        // Dual meter (Variant B)
-                        const diff = Math.abs(yourPct - nfPct);
-                        const agreement = diff <= 5
-                          ? { label: "Both perspectives agree", tone: "bg-emerald-50 border-emerald-200 text-emerald-700" }
-                          : diff <= 15
-                            ? { label: `Slight difference · ${diff} pts`, tone: "bg-slate-50 border-slate-200 text-slate-600" }
-                            : { label: `Perspectives diverge · ${diff} pts`, tone: "bg-amber-50 border-amber-200 text-amber-700" };
-                        return (
-                          <div className="flex flex-col items-stretch gap-2 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 w-full max-w-[260px] sm:w-auto sm:min-w-[208px]" data-testid="badge-trust-score">
-                            <div className="flex items-center gap-1 self-center">
-                              <BrainLogo size={10} className="text-indigo-400" />
-                              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-                            </div>
-                            <div className="flex items-start justify-around gap-2 sm:gap-3">
-                              {/* NosFabrica cell — indigo */}
-                              <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid="meter-nosfabrica">
-                                <div className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">NosFabrica</span>
-                                </div>
-                                <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
-                                  {renderRing(nfOffset, "stroke-indigo-500", "text-indigo-100")}
-                                  <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid="text-score-nosfabrica">{nfPct}</span>
-                                </div>
-                                <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${nfTier?.text ?? "text-slate-500"}`}>{nfTier?.name ?? "—"}</span>
-                              </div>
-                              {/* You cell — emerald */}
-                              <div className="flex flex-col items-center gap-1 min-w-0 flex-1 max-w-[120px]" data-testid="meter-you">
-                                <div className="flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">You</span>
-                                </div>
-                                <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center">
-                                  {renderRing(yourOffset, "stroke-emerald-600", "text-emerald-100")}
-                                  <span className="text-sm font-bold font-mono tabular-nums text-emerald-700" data-testid="text-score-you">{yourPct}</span>
-                                </div>
-                                <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight break-words ${profileTier.text}`} data-testid="text-trust-tier">{profileTier.name}</span>
-                              </div>
-                            </div>
-                            <span className={`text-[10px] leading-snug font-medium text-center rounded border px-1.5 py-1 whitespace-normal ${agreement.tone}`} data-testid="text-agreement">
-                              {agreement.label}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      <div className="hidden sm:contents">{renderTrustBadge()}</div>
                     </div>
                   </div>
                 </div>
