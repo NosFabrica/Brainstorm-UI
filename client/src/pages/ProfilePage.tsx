@@ -1787,6 +1787,22 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
+  // Fetch the NosFabrica ("house") perspective rank for the viewed profile on
+  // mount, so the dual-meter widget renders regardless of entry point (Search,
+  // Network, deep link, etc). The /user/{pubkey}/overview endpoint doesn't
+  // accept a `wotPov` parameter yet, so we lean on the Meili search endpoint
+  // (which does). Skipped when the search-click seed already supplied a value.
+  const nosfabricaRankQuery = useQuery<number | null>({
+    queryKey: ["profile-nosfabrica-rank", hexPubkey],
+    queryFn: async () => {
+      if (!hexPubkey || !displayNpub) return null;
+      return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
+    },
+    enabled: !!user && !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   if (!user || isAuthRedirecting()) return null;
 
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
@@ -1796,7 +1812,10 @@ export default function ProfilePage() {
     const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
     const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
     const yourPct = Math.round(yourScore * 100);
-    const nfRank = seed?.wotRankNosfabrica;
+    // Prefer the search-click seed (already in scope from the user's
+    // navigation), then fall back to the Meili lookup fetched on Profile mount
+    // so the dual meter renders for Network / deep-link entry points too.
+    const nfRank = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data ?? undefined;
     const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
     const nfRank01 = hasNf
       ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))

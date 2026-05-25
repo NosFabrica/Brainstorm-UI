@@ -408,6 +408,37 @@ export const apiClient = {
     };
   },
 
+  /**
+   * Look up a single profile's NosFabrica ("house") perspective `wot_rank`
+   * (returned 0..100 by Meili). Used by the Profile page to render the dual
+   * meter regardless of entry point (Search, Network, deep link), since the
+   * per-profile overview endpoint doesn't yet accept a `wotPov` parameter.
+   * Returns null if the pubkey isn't in the Meili index or if no rank field
+   * is present on the matching hit.
+   */
+  async lookupNosfabricaRank(
+    hexPubkey: string,
+    npub: string,
+    timeoutMs: number = 8000,
+  ): Promise<number | null> {
+    if (!hexPubkey || !npub) return null;
+    try {
+      // Query by npub — Meili indexes both hex pubkey and npub as searchable
+      // fields; npub is the more discriminating token.
+      const res = await this.searchProfilesLegacyMeili(npub, "house", undefined, 5, timeoutMs);
+      const targetHex = hexPubkey.toLowerCase();
+      const hit = res.hits.find(h => typeof h.pubkey === "string" && (h.pubkey as string).toLowerCase() === targetHex);
+      if (!hit) return null;
+      const raw =
+        (typeof hit.wot_rank === "number" && Number.isFinite(hit.wot_rank) ? (hit.wot_rank as number) : null) ??
+        (typeof (hit as Record<string, unknown>).wotRank === "number" && Number.isFinite((hit as Record<string, unknown>).wotRank as number) ? ((hit as Record<string, unknown>).wotRank as number) : null) ??
+        (typeof (hit as Record<string, unknown>).rank === "number" && Number.isFinite((hit as Record<string, unknown>).rank as number) ? ((hit as Record<string, unknown>).rank as number) : null);
+      return raw;
+    } catch {
+      return null;
+    }
+  },
+
   async getGrapeRankPreset(): Promise<{
     code?: number;
     message?: string;
