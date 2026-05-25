@@ -1667,13 +1667,24 @@ export default function NetworkPage() {
                     )}
                     <Input
                       placeholder={isLoading ? "Loading your network…" : "Search by name or npub..."}
-                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${(isLoading || searchLoading) ? "cursor-wait opacity-70" : ""}`}
+                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${(isLoading || searchLoading) ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => { setSearchFilter(e.target.value); setCurrentPage(1); }}
                       disabled={isLoading || searchLoading}
                       aria-busy={isLoading || searchLoading}
                       data-testid="input-network-search"
                     />
+                    {searchFilter && !isLoading && (
+                      <button
+                        type="button"
+                        onClick={() => { setSearchFilter(""); setCurrentPage(1); }}
+                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        aria-label="Clear search"
+                        data-testid="button-clear-network-search"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                   {searchFilter.trim().length >= 2 && searchLoading && (
                     <p
