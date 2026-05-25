@@ -191,6 +191,7 @@ interface NetworkProfileCardProps {
   trustScore: number | null | undefined;
   graphData: any | undefined;
   detail: any | undefined;
+  stats: Record<string, { verified: number; total: number }> | undefined;
   memberGroups: GroupKey[];
   viewMode: "grid" | "list";
   isExpanded: boolean;
@@ -219,7 +220,7 @@ interface NetworkProfileCardProps {
 }
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
-  pk, profile, trustScore, graphData, detail, memberGroups, viewMode, isExpanded, isCopied,
+  pk, profile, trustScore, graphData, detail, stats, memberGroups, viewMode, isExpanded, isCopied,
   isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
   isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading,
@@ -451,11 +452,21 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
                   const raw = effectiveDetail[m.key];
                   const hasData = raw !== undefined && raw !== null;
                   const isPending = !hasData && !seededKeys.has(m.key) && isRefreshing;
-                  const count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                   const isVerifiable = m.key === "followed_by" || m.key === "following" || m.key === "muted_by" || m.key === "reported_by";
+                  // Prefer server-side stats (accurate over the full set) for
+                  // verified-vs-total display. Fall back to per-pubkey
+                  // influence map derived from a seed array when stats
+                  // haven't landed yet — that path still works for
+                  // muted_by/reported_by from the eager trust-score pass.
+                  const serverStat = isVerifiable ? stats?.[m.key] : undefined;
+                  let count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
                   let verifiedCount = 0;
                   let hasVerifiedData = false;
-                  if (isVerifiable && Array.isArray(raw)) {
+                  if (serverStat) {
+                    count = serverStat.total;
+                    verifiedCount = serverStat.verified;
+                    hasVerifiedData = true;
+                  } else if (isVerifiable && Array.isArray(raw)) {
                     const infMap = toInfluenceMap(raw);
                     infMap.forEach((score) => {
                       if (typeof score === "number" && score >= getVerifiedThreshold()) verifiedCount++;
@@ -1106,6 +1117,48 @@ export default function NetworkPage() {
     !!expandedPubkey &&
     expandedDetailQuery.isFetching &&
     expandedDetailQuery.data == null;
+
+  // Parallel server-side stats query for the expanded row. Shares the
+  // `["profile-stats", hex, trustPreset]` cache key with the full Profile
+  // page so a click-through reuses the same entry. Gives us accurate
+  // Verified/Total counts for followed_by/following (and others) — the
+  // lighter overview endpoint only returns total counts.
+  type SectionStats = { total: number; verified: number };
+  type StatsResponse = {
+    followed_by: SectionStats;
+    following: SectionStats;
+    muted_by: SectionStats;
+    muting: SectionStats;
+    reported_by: SectionStats;
+    reporting: SectionStats;
+  };
+  const expandedStatsQuery = useQuery<StatsResponse | null>({
+    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset],
+    queryFn: async () => {
+      const res = await apiClient.getUserStats(expandedPubkey!, {
+        verified_threshold: getVerifiedThreshold(),
+        tier_high: 0.5,
+        tier_trusted: 0.2,
+        tier_neutral: 0.07,
+      });
+      return res?.data ?? null;
+    },
+    enabled: !!expandedPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const expandedStats = useMemo(() => {
+    const s = expandedStatsQuery.data;
+    if (!s) return undefined;
+    return {
+      followed_by: { verified: s.followed_by?.verified ?? 0, total: s.followed_by?.total ?? 0 },
+      following: { verified: s.following?.verified ?? 0, total: s.following?.total ?? 0 },
+      muted_by: { verified: s.muted_by?.verified ?? 0, total: s.muted_by?.total ?? 0 },
+      muting: { verified: s.muting?.verified ?? 0, total: s.muting?.total ?? 0 },
+      reported_by: { verified: s.reported_by?.verified ?? 0, total: s.reported_by?.total ?? 0 },
+      reporting: { verified: s.reporting?.verified ?? 0, total: s.reporting?.total ?? 0 },
+    } as Record<string, { verified: number; total: number }>;
+  }, [expandedStatsQuery.data]);
 
   const flaggedPubkeySet = useMemo(() => {
     if (!networkData) return new Set<string>();
@@ -1943,6 +1996,7 @@ export default function NetworkPage() {
                             trustScore={trustCache.current.get(pk)}
                             graphData={graphDataCache.current.get(pk)}
                             detail={expandedPubkey === pk ? expandedDetailGraph : undefined}
+                            stats={expandedPubkey === pk ? expandedStats : undefined}
                             memberGroups={getPubkeyGroups(pk)}
                             viewMode={viewMode}
                             isExpanded={expandedPubkey === pk}
