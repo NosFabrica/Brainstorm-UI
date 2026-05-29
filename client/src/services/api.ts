@@ -1,7 +1,8 @@
 import { extractAdminFlag } from "@/lib/jwt";
+import { env } from "@/lib/runtimeEnv";
 import { clearUserCache, signEventLocally, hasLocalSecretKey } from "./nostr";
 
-const RAW_API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const RAW_API_URL = env.VITE_API_URL;
 const API_BASE_URL = RAW_API_URL.replace(/\/+$/, "");
 
 if (!API_BASE_URL) {

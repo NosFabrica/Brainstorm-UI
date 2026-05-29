@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
 import { useLocation } from "wouter";
+import { env } from "@/lib/runtimeEnv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
@@ -3142,7 +3143,7 @@ export default function AdminPage() {
                 <div className="p-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {(() => {
-                      const baseUrl = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+                      const baseUrl = env.VITE_API_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
                       return [
                         { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },

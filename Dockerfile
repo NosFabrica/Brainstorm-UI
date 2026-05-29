@@ -5,14 +5,6 @@ WORKDIR /app
 # Install build tools
 RUN apk add --no-cache python3 make g++ bash
 
-# VITE env vars
-
-ARG VITE_API_URL
-ARG VITE_NIP85_RELAY_URL
-
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_NIP85_RELAY_URL=$VITE_NIP85_RELAY_URL
-
 # Copy package.json first
 COPY package.json package-lock.json ./
 
@@ -27,6 +19,10 @@ COPY . .
 # Build Vite project
 RUN npm run build
 
+# Runtime config substitution entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 3000
 
-CMD ["serve", "-s", "dist", "-l", "3000"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
