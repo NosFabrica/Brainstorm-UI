@@ -16,6 +16,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import FaqPage from "@/pages/FaqPage";
 import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
+import AboutPage from "@/pages/AboutPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
@@ -36,7 +37,7 @@ function ScrollToTop() {
 // Account-only pages are hidden from anonymous visitors: no preview, just a
 // clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
 // so users return after signing in). Public pages (/, /search, /profile/:npub,
-// /faq, /what-is-wot, /how-search-works, /personalization) render for everyone.
+// /faq, /what-is-wot, /how-search-works, /personalization, /about) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
   if (!getCurrentUser()) {
@@ -65,6 +66,7 @@ function Router() {
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/how-search-works" component={HowSearchWorksPage} />
         <Route path="/personalization" component={PersonalizationPage} />
+        <Route path="/about" component={AboutPage} />
         <Route path="/faq" component={FaqPage} />
         {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
         <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>

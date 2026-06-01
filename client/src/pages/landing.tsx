@@ -29,7 +29,7 @@ export default function Landing() {
       <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
         <button
           type="button"
-          onClick={() => setLocation("/what-is-wot")}
+          onClick={() => setLocation("/about")}
           className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-about"
         >
