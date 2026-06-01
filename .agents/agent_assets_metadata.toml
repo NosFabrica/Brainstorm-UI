@@ -24,6 +24,12 @@ uri = "file://attached_assets/generated_images/about_hero_poster.png"
 type = "image"
 title = "about hero real people"
 
+[[generated]]
+id = "TZvesNK9o_e0WvOC-m72w"
+uri = "file://attached_assets/generated_images/hsw_trusted_recommendation.png"
+type = "image"
+title = "trusted friend recommendation cafe"
+
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
 uri = "file://docs/brainstorm-assistant-profile-spec.md"
