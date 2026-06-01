@@ -200,7 +200,15 @@ export default function LoginPage() {
             <div className="relative grid md:grid-cols-2 gap-8 md:gap-12 p-8 sm:p-12">
               {/* Left column — identity */}
               <div className="flex flex-col">
-                <BrainIcon size={40} />
+                <div className="flex items-center gap-2" data-testid="brand-login">
+                  <BrainIcon size={40} />
+                  <span
+                    className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
+                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  >
+                    Brainstorm
+                  </span>
+                </div>
                 <h1
                   className="text-3xl sm:text-4xl font-normal text-slate-900 mt-6"
                   style={{ fontFamily: "var(--font-display)" }}
