@@ -120,7 +120,7 @@ export default function Landing() {
       } finally {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
-    }, 250);
+    }, 120);
   }, []);
 
   useEffect(() => {

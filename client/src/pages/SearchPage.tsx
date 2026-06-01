@@ -416,7 +416,7 @@ export default function SearchPage() {
       } finally {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
-    }, 250);
+    }, 120);
   }, [pov, user?.pubkey]);
 
   useEffect(() => {
