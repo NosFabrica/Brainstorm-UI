@@ -78,6 +78,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
+import { SignInButton } from "@/components/SignInButton";
 import { PovBadge } from "@/components/PovBadge";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -986,12 +987,10 @@ export default function ProfilePage() {
   }, [calcDoneNow]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
+    // Anonymous-friendly: full profiles are public (NosFabrica "house" POV).
+    // Capture the user when present so personalized sections + the account menu
+    // render, but never redirect anon visitors away.
+    setUser(getCurrentUser());
   }, [navigate]);
 
   useEffect(() => {
@@ -1058,7 +1057,7 @@ export default function ProfilePage() {
       const res = await apiClient.getUserOverview(hexPubkey);
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1095,7 +1094,7 @@ export default function ProfilePage() {
       });
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1136,7 +1135,7 @@ export default function ProfilePage() {
       getNextPageParam: (lastPage: { next_cursor: string | null }) =>
         lastPage?.next_cursor ?? undefined,
       enabled:
-        !!user && !!hexPubkey && (eager || !!expandedSections[kind]),
+        !!hexPubkey && (eager || !!expandedSections[kind]),
       staleTime: 5 * 60_000,
       retry: false,
     });
@@ -1232,7 +1231,7 @@ export default function ProfilePage() {
   const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
     queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1867,14 +1866,15 @@ export default function ProfilePage() {
       if (!hexPubkey || !displayNpub) return null;
       return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
     },
-    enabled: !!user && !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  if (!user || isAuthRedirecting()) return null;
+  if (isAuthRedirecting()) return null;
 
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
+  const isAnon = !user;
+  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
@@ -1983,21 +1983,23 @@ export default function ProfilePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 sm:gap-6">
-              <div className="lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={openMobileMenu}
-                  className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                  data-testid="button-mobile-menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
+              {!isAnon && (
+                <div className="lg:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openMobileMenu}
+                    className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                    data-testid="button-mobile-menu"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </div>
+              )}
               <button
                 type="button"
                 className="flex items-center gap-2"
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate(isAnon ? "/" : "/dashboard")}
                 data-testid="button-brand"
               >
                 <BrainLogo size={28} className="text-indigo-500" />
@@ -2010,16 +2012,18 @@ export default function ProfilePage() {
                 </h1>
               </button>
               <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  onClick={() => navigate("/dashboard")}
-                  data-testid="button-nav-dashboard"
-                >
-                  <Home className="h-4 w-4" />
-                  Dashboard
-                </Button>
+                {!isAnon && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
+                    onClick={() => navigate("/dashboard")}
+                    data-testid="button-nav-dashboard"
+                  >
+                    <Home className="h-4 w-4" />
+                    Dashboard
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2030,19 +2034,21 @@ export default function ProfilePage() {
                   <SearchIcon className="h-4 w-4" />
                   Search
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
-                  onClick={() => calcDone && navigate("/network")}
-                  disabled={!calcDone}
-                  title={!calcDone ? "Available after calculation completes" : undefined}
-                  data-testid="button-nav-network"
-                >
-                  <User className="h-4 w-4" />
-                  Network
-                </Button>
-                {FEATURES.agentSuite && (
+                {!isAnon && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
+                    onClick={() => calcDone && navigate("/network")}
+                    disabled={!calcDone}
+                    title={!calcDone ? "Available after calculation completes" : undefined}
+                    data-testid="button-nav-network"
+                  >
+                    <User className="h-4 w-4" />
+                    Network
+                  </Button>
+                )}
+                {!isAnon && FEATURES.agentSuite && (
                   <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
                     <AgentIcon className="h-4 w-4" />
                     <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
@@ -2052,6 +2058,10 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAnon ? (
+                <SignInButton variant="ghost" onSuccess={() => window.location.reload()} />
+              ) : (
+              <>
               {isAdmin && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2116,6 +2126,8 @@ export default function ProfilePage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </>
+              )}
             </div>
           </div>
         </div>
@@ -2447,7 +2459,19 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {hexPubkey && !social.isSelf(hexPubkey) && (
+                        {hexPubkey && isAnon && (
+                          <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions-anon">
+                            <SignInButton
+                              variant="primary"
+                              label="Sign in to follow"
+                              className="h-7 sm:h-8 !py-0 text-xs"
+                              onSuccess={() => window.location.reload()}
+                              data-testid="button-signin-to-follow"
+                            />
+                            <span className="text-xs text-slate-400 hidden sm:inline">to follow, mute or report</span>
+                          </div>
+                        )}
+                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
                           <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
                             {social.listsLoading ? (
                               <>

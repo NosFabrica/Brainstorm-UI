@@ -1,0 +1,1 @@
+- [Anon public data fetch](anon-public-data-fetch.md) — anon-viewable endpoints must use optionalAuthFetch, never authenticatedFetch (which wipes/redirects on 401); "signed in" = token OR nostr_user.

@@ -19,6 +19,8 @@ import UserPanelPage from "@/pages/UserPanelPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
+import { getCurrentUser } from "@/services/nostr";
+import type { ComponentType } from "react";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -28,6 +30,16 @@ function ScrollToTop() {
   return null;
 }
 
+// Account-only pages are hidden from anonymous visitors: no preview, just a
+// clean redirect to the search-first home. Public pages (/, /search,
+// /profile/:npub, /faq, /what-is-wot) render for everyone.
+function RequireAuth({ component: Component }: { component: ComponentType }) {
+  if (!getCurrentUser()) {
+    return <Redirect to="/" />;
+  }
+  return <Component />;
+}
+
 function Router() {
   return (
     <>
@@ -35,16 +47,16 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login">{() => <Redirect to="/" />}</Route>
-        <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/dashboard" component={DashboardPage} />
+        <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
+        <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchPage} />
         <Route path="/profile/:npub" component={ProfilePage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/network" component={NetworkPage} />
+        <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
+        <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/faq" component={FaqPage} />
-        {FEATURES.agentSuite && <Route path="/agentsuite" component={UserPanelPage} />}
-        <Route path="/admin" component={AdminPage} />
+        {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
+        <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>
         <Route component={NotFound} />
       </Switch>
     </>

@@ -50,6 +50,7 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
+import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
@@ -326,12 +327,9 @@ export default function SearchPage() {
   const didInitFromUrlRef = useRef(false);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
+    // Anonymous-friendly: search is public. Set the user when present so the
+    // header shows the account menu, but do NOT redirect anon visitors away.
+    setUser(getCurrentUser());
 
     const params = new URLSearchParams(window.location.search);
     const prefill = params.get("npub");
@@ -472,13 +470,16 @@ export default function SearchPage() {
   }, [handleSearch]);
 
   useEffect(() => {
-    if (!user || didInitFromUrlRef.current) return;
+    // Run the URL-seeded search for everyone, including anonymous visitors
+    // (search is public). Previously gated on `user`, which left anon `/search?q=`
+    // links showing the empty state.
+    if (didInitFromUrlRef.current) return;
     const q = new URLSearchParams(window.location.search).get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
       handleSearch(q);
     }
-  }, [user, handleSearch]);
+  }, [handleSearch]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -500,7 +501,9 @@ export default function SearchPage() {
     navigate("/");
   };
 
-  if (!user || isAuthRedirecting()) return null;
+  if (isAuthRedirecting()) return null;
+
+  const isAnon = !user;
 
   const showEmptyState = !hasSearched && results.length === 0 && !isSearching;
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
@@ -518,27 +521,33 @@ export default function SearchPage() {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-6">
-              <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
-              <button type="button" className="flex items-center gap-1.5 sm:gap-2" onClick={() => navigate("/dashboard")} data-testid="button-brand">
+              {!isAnon && (
+                <div className="lg:hidden">
+                  <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </div>
+              )}
+              <button type="button" className="flex items-center gap-1.5 sm:gap-2" onClick={() => navigate(isAnon ? "/" : "/dashboard")} data-testid="button-brand">
                 <BrainLogo size={24} className="text-indigo-500 sm:hidden" />
                 <BrainLogo size={28} className="text-indigo-500 hidden sm:block" />
                 <h1 className="text-base sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</h1>
               </button>
               <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
-                  <Home className="h-4 w-4" /> Dashboard
-                </Button>
+                {!isAnon && (
+                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
+                    <Home className="h-4 w-4" /> Dashboard
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-nav-search">
                   <SearchIcon className="h-4 w-4" /> Search
                 </Button>
-                <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
-                  <User className="h-4 w-4" /> Network
-                </Button>
-                {FEATURES.agentSuite && (
+                {!isAnon && (
+                  <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
+                    <User className="h-4 w-4" /> Network
+                  </Button>
+                )}
+                {!isAnon && FEATURES.agentSuite && (
                   <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
                     <AgentIcon className="h-4 w-4" />
                     <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
@@ -548,6 +557,10 @@ export default function SearchPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              {isAnon ? (
+                <SignInButton variant="ghost" onSuccess={() => window.location.reload()} />
+              ) : (
+              <>
               {isAdminPubkey(user?.pubkey) && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -593,6 +606,8 @@ export default function SearchPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </>
+              )}
             </div>
           </div>
         </div>
@@ -702,7 +717,7 @@ export default function SearchPage() {
                       aria-pressed={pov === "mywot"}
                       data-testid="pill-pov-mywot"
                     >
-                      {user.displayName || "My WoT"}
+                      {user?.displayName || "My WoT"}
                     </button>
                   </div>
                 </div>
