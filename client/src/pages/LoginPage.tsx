@@ -5,7 +5,6 @@ import {
   Loader2,
   ChevronDown,
   KeyRound,
-  Puzzle,
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
@@ -237,7 +236,25 @@ export default function LoginPage() {
                   data-testid="button-signin-extension"
                 >
                   <div className="h-10 w-10 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
-                    {loading ? <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" /> : <Puzzle className="h-5 w-5 text-indigo-600" />}
+                    {loading ? (
+                      <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" />
+                    ) : (
+                      <svg
+                        className="h-5 w-5 text-indigo-600"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeMiterlimit="10"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M11.6799 14.62L14.2399 12.06L11.6799 9.5" />
+                        <path d="M4 12.0596H14.17" />
+                        <path d="M12 4C16.42 4 20 7 20 12C20 17 16.42 20 12 20" />
+                      </svg>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{loading ? "Connecting…" : "Sign in with your extension"}</p>
