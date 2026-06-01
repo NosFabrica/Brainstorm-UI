@@ -28,8 +28,8 @@ const HERO_SLIDES = [
     sub: "It taps the instincts of people you trust, so the good stuff rises and the junk sinks.",
   },
   {
-    title: "Just the start",
-    sub: "Search today. Communities, music, and books are on the way.",
+    title: "More than search",
+    sub: "It starts with finding real people. Communities, music, and books are coming next.",
   },
 ];
 
