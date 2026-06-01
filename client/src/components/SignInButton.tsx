@@ -11,28 +11,22 @@ function SignInIcon({ className = "" }: { className?: string }) {
       aria-hidden="true"
     >
       <path
-        d="M11.6799 14.62L14.2399 12.06L11.6799 9.5"
+        d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108"
         stroke="currentColor"
         strokeWidth="1.5"
-        strokeMiterlimit="10"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinecap="square"
       />
       <path
-        d="M4 12.0596H14.17"
+        d="M2 11.1914H14.88"
         stroke="currentColor"
         strokeWidth="1.5"
-        strokeMiterlimit="10"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinecap="square"
       />
       <path
-        d="M12 4C16.42 4 20 7 20 12C20 17 16.42 20 12 20"
+        d="M12.65 7.83105L16 11.191L12.65 14.5411"
         stroke="currentColor"
         strokeWidth="1.5"
-        strokeMiterlimit="10"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinecap="square"
       />
     </svg>
   );
