@@ -115,7 +115,7 @@ export default function Landing() {
         </a>
         <button
           type="button"
-          onClick={() => setLocation("/what-is-wot")}
+          onClick={() => setLocation("/how-search-works")}
           className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-how-search-works"
         >
