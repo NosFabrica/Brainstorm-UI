@@ -27,9 +27,9 @@ const LANDING_POV = "nosfabrica" as const;
 // fallback (used as-is when the user prefers reduced motion).
 const PLACEHOLDER_EXAMPLES = [
   "Search by name, bio, website…",
-  'Try "fiatjaf"',
-  'Try "bitcoin developers"',
-  'Try a handle like "alice@nostr.com"',
+  'Try "Jack"',
+  'Try "Prague"',
+  'Try a handle like "odell@primal.net"',
   "Try an npub…",
 ];
 
