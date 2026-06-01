@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
-import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.png";
+import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
 
 type PipelineNode = {
   key: string;
