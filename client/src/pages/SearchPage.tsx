@@ -221,8 +221,16 @@ export default function SearchPage() {
   const [filterHasLightning, setFilterHasLightning] = useState(false);
   const [filterHasWebsite, setFilterHasWebsite] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
+  const suggestAbortRef = useRef(0);
+  const suggestTimerRef = useRef<number | undefined>(undefined);
+  const typedSinceSearchRef = useRef(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [storedPov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
   const pov: SearchPov = storedPov === "mywot" && !hasMywot ? "nosfabrica" : storedPov;
@@ -302,6 +310,36 @@ export default function SearchPage() {
       staleTime: 5 * 60_000,
     }).catch(() => {});
   }, [pov]);
+
+  const goToProfile = useCallback((result: SearchResult) => {
+    seedAndPrefetchProfile(result);
+    const hex = (result.pubkey || "").toLowerCase();
+    const hasNosfabricaRank =
+      typeof result.wotRankNosfabrica === "number" &&
+      Number.isFinite(result.wotRankNosfabrica);
+    const persistNosfabrica = pov === "nosfabrica" && hasNosfabricaRank && !!hex;
+    if (persistNosfabrica) {
+      setStoredSearchSeed(hex, {
+        pubkey: hex,
+        npub: result.npub,
+        name: result.name,
+        displayName: result.displayName,
+        picture: result.picture,
+        about: result.about,
+        nip05: result.nip05,
+        banner: result.banner,
+        website: result.website,
+        lud16: result.lud16,
+        wotRank: result.wotRank ?? null,
+        wotFollowers: result.wotFollowers ?? null,
+        wotRankNosfabrica: result.wotRankNosfabrica ?? null,
+        wotRankMywot: result.wotRankMywot ?? null,
+        povFromSearch: pov,
+      });
+    }
+    const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
+    navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}${suffix}`);
+  }, [seedAndPrefetchProfile, pov, navigate]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
@@ -389,6 +427,13 @@ export default function SearchPage() {
   const handleSearch = useCallback(async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    // Running a full search cancels any pending/in-flight suggestion request and
+    // closes the dropdown so it can't reopen on top of the results list.
+    window.clearTimeout(suggestTimerRef.current);
+    suggestAbortRef.current++;
+    typedSinceSearchRef.current = false;
+    setShowSuggestions(false);
+    setIsSuggesting(false);
     resetFilters();
 
     if (isLikelyNpub(q)) {
@@ -484,6 +529,60 @@ export default function SearchPage() {
       handleSearch(q);
     }
   }, [handleSearch]);
+
+  // Google-style live suggestions: fetch a few matches as the user types
+  // (debounced). Driven by the input's onChange (not a query-watching effect)
+  // so programmatic query changes (URL load, back button, POV re-search) never
+  // pop the dropdown on top of the full results list. Skip direct identifiers
+  // (npub / hex / NIP-05) since those navigate straight to a profile on Enter.
+  const scheduleSuggest = useCallback((value: string) => {
+    window.clearTimeout(suggestTimerRef.current);
+    // Invalidate any prior pending/in-flight suggestion request *immediately*
+    // (on every keystroke), so a slow earlier request can never resolve and
+    // overwrite the dropdown with stale results for an older query.
+    const reqId = ++suggestAbortRef.current;
+    const q = value.trim();
+    if (q.length < 2 || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
+      typedSinceSearchRef.current = false;
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setIsSuggesting(false);
+      return;
+    }
+    typedSinceSearchRef.current = true;
+    setIsSuggesting(true);
+    setShowSuggestions(true);
+    suggestTimerRef.current = window.setTimeout(async () => {
+      try {
+        const { results: suggestResults } = await searchByText(q, pov, user?.pubkey);
+        if (suggestAbortRef.current !== reqId) return;
+        setSuggestions(suggestResults.slice(0, 7));
+        setActiveSuggestion(-1);
+        setShowSuggestions(true);
+      } catch {
+        if (suggestAbortRef.current !== reqId) return;
+        setSuggestions([]);
+      } finally {
+        if (suggestAbortRef.current === reqId) setIsSuggesting(false);
+      }
+    }, 250);
+  }, [pov, user?.pubkey]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(suggestTimerRef.current);
+  }, []);
+
+  // Close the suggestions dropdown when clicking outside the search box.
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const onDown = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showSuggestions]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -643,25 +742,51 @@ export default function SearchPage() {
               </div>
             )}
 
-            <div className={`relative ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.8s_both]" : ""}`} data-testid="container-search-input">
+            <div ref={searchContainerRef} className={`relative ${firstVisit ? "animate-[staggerUp_0.7s_ease-out_0.8s_both]" : ""}`} data-testid="container-search-input">
               <div className="relative flex items-center bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-[0_1px_6px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.08)] focus-within:shadow-[0_2px_12px_rgba(99,102,241,0.1)] focus-within:border-indigo-200 transition-all duration-300">
                 <div className="pl-4 text-slate-400">
                   <SearchIcon className="h-5 w-5" />
                 </div>
                 <Input
                   ref={inputRef}
-                  placeholder="Search by name or npub..."
+                  placeholder="Search by name, bio, website..."
                   className={`border-0 shadow-none focus-visible:ring-0 h-11 sm:h-14 text-[13px] sm:text-base bg-transparent placeholder:text-slate-400/70 min-w-0 ${isSearching ? "cursor-wait opacity-60" : ""}`}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);
+                    scheduleSuggest(e.target.value);
+                  }}
+                  onFocus={() => {
+                    if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSearch();
+                    if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
+                      e.preventDefault();
+                      setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
+                    } else if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
+                      e.preventDefault();
+                      setActiveSuggestion((i) => Math.max(i - 1, -1));
+                    } else if (e.key === "Enter") {
+                      if (showSuggestions && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
+                        e.preventDefault();
+                        goToProfile(suggestions[activeSuggestion]);
+                      } else {
+                        setShowSuggestions(false);
+                        handleSearch();
+                      }
+                    } else if (e.key === "Escape") {
+                      setShowSuggestions(false);
+                      setActiveSuggestion(-1);
+                    }
                   }}
                   disabled={isSearching}
                   aria-busy={isSearching}
                   autoFocus={!hasSearched}
+                  role="combobox"
+                  aria-expanded={showSuggestions}
+                  aria-controls="search-suggestions"
+                  aria-autocomplete="list"
+                  aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `suggestion-opt-${activeSuggestion}` : undefined}
                   data-testid="input-search"
                 />
                 {query && (
@@ -669,7 +794,10 @@ export default function SearchPage() {
                     className="px-2 text-slate-300 hover:text-slate-500 transition-colors"
                     onClick={() => {
                       searchAbortRef.current++;
+                      suggestAbortRef.current++;
+                      window.clearTimeout(suggestTimerRef.current);
                       setIsSearching(false);
+                      setSuggestions([]); setShowSuggestions(false); setIsSuggesting(false);
                       setQuery(""); setResults([]); setHasSearched(false); inputRef.current?.focus();
                       try {
                         const url = new URL(window.location.href);
@@ -685,7 +813,7 @@ export default function SearchPage() {
                   </button>
                 )}
                 <Button
-                  onClick={() => handleSearch()}
+                  onClick={() => { setShowSuggestions(false); handleSearch(); }}
                   disabled={isSearching || !query.trim()}
                   className="h-8 sm:h-10 px-3 sm:px-6 mr-1 sm:mr-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm shrink-0 transition-all"
                   data-testid="button-search"
@@ -693,6 +821,75 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
+
+              {showSuggestions && (suggestions.length > 0 || isSuggesting) && (
+                <div
+                  id="search-suggestions"
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden animate-fade-up"
+                  data-testid="container-suggestions"
+                >
+                  {isSuggesting && suggestions.length === 0 ? (
+                    <div className="px-4 py-3 flex items-center gap-2 text-slate-400 text-xs" data-testid="suggestions-loading">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching...
+                    </div>
+                  ) : (
+                    <>
+                      {suggestions.map((s, i) => {
+                        const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
+                        return (
+                          <button
+                            key={s.pubkey}
+                            id={`suggestion-opt-${i}`}
+                            type="button"
+                            role="option"
+                            aria-selected={i === activeSuggestion}
+                            className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+                            onMouseEnter={() => { setActiveSuggestion(i); handlePrefetchEnter(s); }}
+                            onMouseLeave={() => handlePrefetchLeave(s)}
+                            onClick={() => goToProfile(s)}
+                            data-testid={`suggestion-${i}`}
+                          >
+                            <Avatar className="h-8 w-8 border border-slate-200/80 shrink-0">
+                              {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
+                              <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-xs">
+                                {(s.name || s.displayName || "?").charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-slate-900 truncate" data-testid={`suggestion-name-${i}`}>
+                                {getDisplayLabel(s)}
+                              </p>
+                              {handle && (
+                                <p className="text-[11px] text-indigo-600 truncate flex items-center gap-0.5">
+                                  <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                                  {handle}
+                                </p>
+                              )}
+                            </div>
+                            {s.wotRank != null && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0" data-testid={`suggestion-rank-${i}`}>
+                                <BrainLogo size={10} className="shrink-0" />
+                                {s.wotRank}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        className={`w-full flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
+                        onMouseEnter={() => setActiveSuggestion(-1)}
+                        onClick={() => { setShowSuggestions(false); handleSearch(); }}
+                        data-testid="suggestion-see-all"
+                      >
+                        <SearchIcon className="h-3.5 w-3.5 shrink-0" />
+                        See all results for "{query.trim()}"
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
               {hasSearched && isAnon && (
                 <div className="flex flex-wrap items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator-anon">
                   <Telescope className="h-3 w-3 text-slate-400" />
@@ -893,35 +1090,7 @@ export default function SearchPage() {
                       onMouseLeave={() => handlePrefetchLeave(result)}
                       onFocus={() => handlePrefetchEnter(result)}
                       onBlur={() => handlePrefetchLeave(result)}
-                      onClick={() => {
-                        seedAndPrefetchProfile(result);
-                        const hex = (result.pubkey || "").toLowerCase();
-                        const hasNosfabricaRank =
-                          typeof result.wotRankNosfabrica === "number" &&
-                          Number.isFinite(result.wotRankNosfabrica);
-                        const persistNosfabrica = pov === "nosfabrica" && hasNosfabricaRank && !!hex;
-                        if (persistNosfabrica) {
-                          setStoredSearchSeed(hex, {
-                            pubkey: hex,
-                            npub: result.npub,
-                            name: result.name,
-                            displayName: result.displayName,
-                            picture: result.picture,
-                            about: result.about,
-                            nip05: result.nip05,
-                            banner: result.banner,
-                            website: result.website,
-                            lud16: result.lud16,
-                            wotRank: result.wotRank ?? null,
-                            wotFollowers: result.wotFollowers ?? null,
-                            wotRankNosfabrica: result.wotRankNosfabrica ?? null,
-                            wotRankMywot: result.wotRankMywot ?? null,
-                            povFromSearch: pov,
-                          });
-                        }
-                        const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
-                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}${suffix}`);
-                      }}
+                      onClick={() => goToProfile(result)}
                       data-testid={`result-profile-${idx}`}
                     >
                       <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
