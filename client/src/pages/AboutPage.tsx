@@ -9,7 +9,7 @@ import {
   Pause,
   Users,
   Music,
-  BookOpen,
+  Store,
   ShieldCheck,
   Globe,
   Lock,
@@ -271,13 +271,13 @@ export default function AboutPage() {
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
           />
-          {/* Books */}
+          {/* Vendors */}
           <ComingSoonCard
-            icon={<BookOpen className="h-5 w-5 text-sky-600" />}
+            icon={<Store className="h-5 w-5 text-sky-600" />}
             tint="bg-sky-50"
-            title="Brainstorm Books"
-            desc="Your next read, picked by people whose taste you actually trust."
-            testId="card-family-books"
+            title="Brainstorm Vendors"
+            desc="Find sellers and services worth your money, vouched for by people you trust."
+            testId="card-family-vendors"
           />
         </div>
       </section>
