@@ -48,13 +48,8 @@ const EXTENSIONS: { name: string; format: string; description: string }[] = [
 
 const GITHUB_REPOS: { label: string; description: string; href: string }[] = [
   {
-    label: "Brainstorm Search",
-    description: "This website + relay",
-    href: "https://github.com/NosFabrica",
-  },
-  {
     label: "NosFabrica",
-    description: "Personalization service",
+    description: "Brainstorm website, relay & personalization service",
     href: "https://github.com/NosFabrica",
   },
 ];
@@ -289,8 +284,8 @@ export default function DevelopersPage() {
                   data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-slate-950 flex items-center justify-center shrink-0">
-                      <Github className="h-4.5 w-4.5 text-white" />
+                    <div className="h-9 w-9 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                      <Github className="h-4.5 w-4.5 text-[#333286]" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{repo.label}</p>
