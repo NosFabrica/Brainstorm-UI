@@ -23,20 +23,20 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden" data-testid="page-home">
-      <ComputingBackground variant="dark" />
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
+      <ComputingBackground variant="light" />
 
       <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
         <button
           type="button"
           onClick={() => setLocation("/what-is-wot")}
-          className="text-sm font-medium text-slate-400 hover:text-indigo-300 transition-colors"
+          className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-about"
         >
           About
         </button>
         <SignInButton
-          variant="ghost"
+          variant="primary"
           label="Sign in with nostr"
           data-testid="button-home-sign-in"
         />
@@ -48,32 +48,32 @@ export default function Landing() {
 
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-3 mb-3">
-              <BrainLogo size={48} className="text-indigo-400" />
+              <BrainLogo size={48} className="text-indigo-600" />
               <h1
                 className="text-4xl sm:text-6xl font-bold tracking-tight"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                 data-testid="text-home-title"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-200 to-violet-300">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800">
                   Brainstorm
                 </span>
               </h1>
             </div>
-            <p className="text-slate-400 text-sm sm:text-base" data-testid="text-home-subtitle">
+            <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
               Search across millions of nostr profiles
             </p>
           </div>
 
           <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/0 via-violet-500/20 to-indigo-500/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <div className="relative flex items-center gap-2 bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-full pl-5 pr-2 py-2 shadow-2xl shadow-indigo-500/10 focus-within:border-indigo-500/50 transition-colors">
-              <Search className="h-5 w-5 text-slate-500 shrink-0" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/0 via-indigo-400/15 to-indigo-500/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
+              <Search className="h-5 w-5 text-slate-400 shrink-0" />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by name, bio, NIP-05, website…"
-                className="flex-1 bg-transparent text-white placeholder:text-slate-500 text-base outline-none py-1.5 min-w-0"
+                className="flex-1 bg-transparent text-slate-900 placeholder:text-slate-400 text-base outline-none py-1.5 min-w-0"
                 autoFocus
                 data-testid="input-home-search"
               />
@@ -90,11 +90,11 @@ export default function Landing() {
 
           <p className="text-xs text-slate-500 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
             <span>Not Personalized</span>
-            <span className="text-slate-700">·</span>
+            <span className="text-slate-300">·</span>
             <button
               type="button"
               onClick={() => setLocation("/what-is-wot")}
-              className="text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+              className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
               data-testid="link-home-learn-more"
             >
               What is this?
@@ -107,7 +107,7 @@ export default function Landing() {
         <button
           type="button"
           onClick={() => setLocation("/faq?tab=developers")}
-          className="font-medium text-slate-500 hover:text-indigo-300 transition-colors"
+          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-developers"
         >
           Developers
@@ -115,7 +115,7 @@ export default function Landing() {
         <button
           type="button"
           onClick={() => setLocation("/what-is-wot")}
-          className="font-medium text-slate-500 hover:text-indigo-300 transition-colors"
+          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-how-search-works"
         >
           How search works

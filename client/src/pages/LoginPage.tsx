@@ -65,7 +65,7 @@ const DOT_POINTS = [
 
 function BrainIcon({ size = 36 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="text-indigo-300 drop-shadow-[0_0_10px_rgba(129,140,248,0.3)]">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="text-indigo-600">
       <g clipPath="url(#clip0_brain)">
         {BRAIN_SVG_PATHS.map((d, i) => (
           <path key={i} d={d} stroke="currentColor" strokeMiterlimit="10" />
@@ -148,12 +148,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col relative overflow-hidden font-sans" data-testid="page-login">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px]" />
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden font-sans" data-testid="page-login">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-100/50 via-[#F8FAFC] to-[#F8FAFC]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#6366f10a_1px,transparent_1px),linear-gradient(to_bottom,#6366f10a_1px,transparent_1px)] bg-[size:32px_32px]" />
 
-      <div className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-indigo-600/5 blur-3xl" style={{ animation: "glowPulse1 12s ease-in-out infinite" }} />
-      <div className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-violet-600/5 blur-3xl" style={{ animation: "glowPulse2 15s ease-in-out infinite 3s" }} />
+      <div className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-indigo-400/10 blur-3xl" style={{ animation: "glowPulse1 12s ease-in-out infinite" }} />
+      <div className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-violet-400/10 blur-3xl" style={{ animation: "glowPulse2 15s ease-in-out infinite 3s" }} />
 
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         {connectionPairs.map(([a, b], i) => (
@@ -180,7 +180,7 @@ export default function LoginPage() {
       {floatingNodes.map((node) => (
         <div
           key={node.id}
-          className="absolute rounded-full bg-indigo-400"
+          className="absolute rounded-full bg-indigo-300"
           style={{
             left: `${node.x}%`,
             top: `${node.y}%`,
@@ -193,22 +193,22 @@ export default function LoginPage() {
 
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-[900px] animate-fade-up">
-          <div className="relative bg-slate-900/60 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_60px_-12px_rgba(79,70,229,0.35)] overflow-hidden">
-            <div className="absolute -top-40 -left-40 w-80 h-80 bg-indigo-500/10 rounded-full blur-[60px] pointer-events-none" />
-            <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-violet-500/10 rounded-full blur-[60px] pointer-events-none" />
+          <div className="relative bg-white/90 backdrop-blur-2xl border border-slate-200 rounded-3xl shadow-[0_8px_40px_-12px_rgba(79,70,229,0.18)] overflow-hidden">
+            <div className="absolute -top-40 -left-40 w-80 h-80 bg-indigo-300/15 rounded-full blur-[60px] pointer-events-none" />
+            <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-violet-300/15 rounded-full blur-[60px] pointer-events-none" />
 
             <div className="relative grid md:grid-cols-2 gap-8 md:gap-12 p-8 sm:p-12">
               {/* Left column — identity */}
               <div className="flex flex-col">
                 <BrainIcon size={40} />
                 <h1
-                  className="text-3xl sm:text-4xl font-normal text-white mt-6"
+                  className="text-3xl sm:text-4xl font-normal text-slate-900 mt-6"
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-login-title"
                 >
                   Sign in
                 </h1>
-                <p className="text-slate-400 text-base mt-3" data-testid="text-login-subtitle">
+                <p className="text-slate-500 text-base mt-3" data-testid="text-login-subtitle">
                   Use your Nostr identity to continue to Brainstorm
                 </p>
               </div>
@@ -216,44 +216,44 @@ export default function LoginPage() {
               {/* Right column — actions */}
               <div className="flex flex-col">
                 {error && (
-                  <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 p-3 mb-4" data-testid="text-login-error">
-                    <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-red-300">{error}</p>
+                  <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 mb-4" data-testid="text-login-error">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                    <p className="text-sm text-red-600">{error}</p>
                   </div>
                 )}
 
                 <button
                   onClick={onLogin}
                   disabled={loading}
-                  className="group w-full text-left rounded-lg border border-indigo-500/40 bg-slate-950/40 hover:bg-slate-950/70 hover:border-indigo-400/70 transition-colors p-4 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="group w-full text-left rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors p-4 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-signin-extension"
                 >
-                  <div className="h-10 w-10 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                    {loading ? <Loader2 className="h-5 w-5 text-indigo-300 animate-spin" /> : <Puzzle className="h-5 w-5 text-indigo-300" />}
+                  <div className="h-10 w-10 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
+                    {loading ? <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" /> : <Puzzle className="h-5 w-5 text-indigo-600" />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">{loading ? "Connecting…" : "Sign in with your extension"}</p>
-                    <p className="text-xs text-slate-400 mt-0.5 truncate">nos2x, Alby & other NIP-07 signers</p>
+                    <p className="text-sm font-semibold text-slate-900">{loading ? "Connecting…" : "Sign in with your extension"}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">nos2x, Alby & other NIP-07 signers</p>
                   </div>
                 </button>
 
                 <button
                   type="button"
                   onClick={openNsec}
-                  className="self-start mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+                  className="self-start mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                   data-testid="link-use-nsec"
                 >
                   <KeyRound className="h-3.5 w-3.5" /> Use your private key (nsec)?
                 </button>
 
-                <div className="mt-8 text-sm text-slate-400 leading-relaxed">
+                <div className="mt-8 text-sm text-slate-500 leading-relaxed">
                   <p data-testid="text-anon-note">
                     Not your device? Keep your identity private — you can browse Brainstorm anonymously without signing in.
                   </p>
                   <button
                     type="button"
                     onClick={() => navigate("/what-is-wot")}
-                    className="mt-1 font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+                    className="mt-1 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     data-testid="link-learn-anon"
                   >
                     Learn about anonymous browsing
@@ -264,7 +264,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
-                    className="text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+                    className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     data-testid="link-create-identity"
                   >
                     Create a Nostr identity
@@ -286,15 +286,15 @@ export default function LoginPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 px-2 mt-6 text-xs text-slate-500">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 hover:text-slate-300 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-slate-700 transition-colors"
               data-testid="button-login-language"
             >
               English (United States) <ChevronDown className="h-3.5 w-3.5" />
             </button>
             <div className="flex items-center gap-5">
-              <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-300 transition-colors" data-testid="link-login-help">Help</button>
-              <button type="button" onClick={() => navigate("/what-is-wot")} className="hover:text-slate-300 transition-colors" data-testid="link-login-privacy">Privacy</button>
-              <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-300 transition-colors" data-testid="link-login-terms">Terms</button>
+              <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-700 transition-colors" data-testid="link-login-help">Help</button>
+              <button type="button" onClick={() => navigate("/what-is-wot")} className="hover:text-slate-700 transition-colors" data-testid="link-login-privacy">Privacy</button>
+              <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-700 transition-colors" data-testid="link-login-terms">Terms</button>
             </div>
           </div>
         </div>
