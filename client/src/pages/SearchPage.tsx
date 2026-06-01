@@ -622,8 +622,15 @@ export default function SearchPage() {
             {!hasSearched && (
               <div className="text-center mb-6 sm:mb-10" data-testid="section-search-hero">
                 <div className={`inline-flex flex-col items-center ${firstVisit ? "animate-[staggerUp_0.6s_ease-out_0.1s_both]" : "animate-fade-up"}`}>
-                  <BrainLogo size={36} className="text-indigo-600 mb-2 sm:hidden" />
-                  <BrainLogo size={44} className="text-indigo-600 mb-2 hidden sm:block" />
+                  <div className="relative flex items-center justify-center mb-2">
+                    <div
+                      aria-hidden="true"
+                      className="motion-safe:animate-blob-morph motion-reduce:hidden absolute -z-10 h-20 w-20 sm:h-28 sm:w-28 bg-gradient-to-br from-indigo-300/50 via-violet-300/40 to-indigo-200/30 blur-2xl"
+                      data-testid="shape-hero-blob"
+                    />
+                    <BrainLogo size={36} className="text-indigo-600 sm:hidden" />
+                    <BrainLogo size={44} className="text-indigo-600 hidden sm:block" />
+                  </div>
                   <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
                       Brainstorm
