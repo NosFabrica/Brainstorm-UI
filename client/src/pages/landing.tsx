@@ -22,6 +22,17 @@ import {
 // NosFabrica ("house") POV — logged-in users are redirected to /dashboard.
 const LANDING_POV = "nosfabrica" as const;
 
+// Example prompts the empty search box gently cycles through to teach
+// visitors what they can search for. The first entry is the static
+// fallback (used as-is when the user prefers reduced motion).
+const PLACEHOLDER_EXAMPLES = [
+  "Search by name, bio, website…",
+  'Try "fiatjaf"',
+  'Try "bitcoin developers"',
+  'Try a handle like "alice@nostr.com"',
+  "Try an npub…",
+];
+
 export default function Landing() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
@@ -29,8 +40,12 @@ export default function Landing() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const [phIndex, setPhIndex] = useState(0);
+  const [phVisible, setPhVisible] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const suggestAbortRef = useRef(0);
   const suggestTimerRef = useRef<number | undefined>(undefined);
+  const phFadeTimerRef = useRef<number | undefined>(undefined);
   const typedSinceSearchRef = useRef(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +55,39 @@ export default function Landing() {
       setLocation("/dashboard", { replace: true });
     }
   }, [setLocation]);
+
+  // Honor the OS "reduce motion" setting — those users see a single static
+  // placeholder with no cycling.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  // Gently cycle the empty box's placeholder through example prompts. Runs only
+  // while the field is empty and motion is allowed; a soft fade-out/in (300ms)
+  // bridges each swap. Pauses the moment the user types (query non-empty).
+  useEffect(() => {
+    if (prefersReducedMotion || query.length > 0) {
+      window.clearTimeout(phFadeTimerRef.current);
+      setPhVisible(true);
+      return;
+    }
+    setPhVisible(true);
+    const interval = window.setInterval(() => {
+      setPhVisible(false);
+      phFadeTimerRef.current = window.setTimeout(() => {
+        setPhIndex((i) => (i + 1) % PLACEHOLDER_EXAMPLES.length);
+        setPhVisible(true);
+      }, 300);
+    }, 3200);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(phFadeTimerRef.current);
+    };
+  }, [prefersReducedMotion, query]);
 
   // Live, debounced profile suggestions as the user types (Google-style).
   // Skips direct identifiers (npub / hex / NIP-05) since those resolve straight
@@ -214,6 +262,7 @@ export default function Landing() {
               <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/0 via-indigo-400/15 to-indigo-500/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 shrink-0" />
+                <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
                   type="text"
@@ -243,8 +292,9 @@ export default function Landing() {
                       setActiveSuggestion(-1);
                     }
                   }}
-                  placeholder="Search by name, bio, website…"
-                  className="flex-1 bg-transparent text-slate-900 placeholder:text-slate-400 text-base outline-none py-1.5 min-w-0"
+                  placeholder=""
+                  aria-label="Search profiles"
+                  className="w-full bg-transparent text-slate-900 text-base outline-none py-1.5 min-w-0"
                   autoFocus
                   role="combobox"
                   aria-expanded={showSuggestions}
@@ -253,6 +303,20 @@ export default function Landing() {
                   aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined}
                   data-testid="input-home-search"
                 />
+                {query.length === 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden"
+                  >
+                    <span
+                      className={`truncate text-slate-400 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
+                      data-testid="text-home-placeholder"
+                    >
+                      {prefersReducedMotion ? PLACEHOLDER_EXAMPLES[0] : PLACEHOLDER_EXAMPLES[phIndex]}
+                    </span>
+                  </span>
+                )}
+                </div>
                 {query.length > 0 && (
                   <button
                     type="button"
