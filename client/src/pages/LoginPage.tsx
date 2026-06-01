@@ -5,6 +5,7 @@ import {
   Loader2,
   ChevronDown,
   KeyRound,
+  ArrowRight,
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
@@ -191,18 +192,18 @@ export default function LoginPage() {
       ))}
 
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
-        <div className="w-full max-w-[900px] animate-fade-up">
+        <div className="w-full max-w-[460px] animate-fade-up">
           <div className="relative bg-white/90 backdrop-blur-2xl border border-slate-200 rounded-3xl shadow-[0_8px_40px_-12px_rgba(79,70,229,0.18)] overflow-hidden">
             <div className="absolute -top-40 -left-40 w-80 h-80 bg-indigo-300/15 rounded-full blur-[60px] pointer-events-none" />
             <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-violet-300/15 rounded-full blur-[60px] pointer-events-none" />
 
-            <div className="relative grid md:grid-cols-2 gap-8 md:gap-12 p-8 sm:p-12">
-              {/* Left column — identity */}
-              <div className="flex flex-col">
+            <div className="relative flex flex-col p-8 sm:p-10">
+              {/* Header — identity (centered, Google-style) */}
+              <div className="flex flex-col items-center text-center">
                 <div className="flex items-center gap-2" data-testid="brand-login">
-                  <BrainIcon size={40} />
+                  <BrainIcon size={36} />
                   <span
-                    className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
+                    className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
                     style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   >
                     Brainstorm
@@ -215,13 +216,13 @@ export default function LoginPage() {
                 >
                   Sign in
                 </h1>
-                <p className="text-slate-500 text-base mt-3" data-testid="text-login-subtitle">
+                <p className="text-slate-500 text-base mt-2" data-testid="text-login-subtitle">
                   Use your Nostr identity
                 </p>
               </div>
 
-              {/* Right column — actions */}
-              <div className="flex flex-col">
+              {/* Actions */}
+              <div className="flex flex-col mt-8">
                 {error && (
                   <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 mb-4" data-testid="text-login-error">
                     <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
@@ -232,7 +233,7 @@ export default function LoginPage() {
                 <button
                   onClick={onLogin}
                   disabled={loading}
-                  className="group w-full text-left rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors p-4 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="group w-full text-left rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors p-4 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-signin-extension"
                 >
                   <div className="h-10 w-10 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
@@ -256,36 +257,43 @@ export default function LoginPage() {
                       </svg>
                     )}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-900">{loading ? "Connecting…" : "Sign in with your extension"}</p>
                     <p className="text-xs text-slate-500 mt-0.5 truncate">Alby, Nos2x & other signers</p>
                   </div>
+                  <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
                 </button>
 
                 <button
                   type="button"
                   onClick={openNsec}
-                  className="self-start mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+                  className="self-center mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                   data-testid="link-use-nsec"
                 >
                   <KeyRound className="h-3.5 w-3.5" /> Use your private key?
                 </button>
 
-                <div className="mt-8 text-sm text-slate-500 leading-relaxed">
+                <div className="my-6 flex items-center gap-3" aria-hidden="true">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">or</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm text-slate-500 leading-relaxed text-center">
                   <p data-testid="text-anon-note">
                     Not your device? Keep your identity private — you can browse Brainstorm anonymously without signing in.
                   </p>
                   <button
                     type="button"
                     onClick={() => navigate("/what-is-wot")}
-                    className="mt-1 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+                    className="mt-1.5 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     data-testid="link-learn-anon"
                   >
                     Learn about anonymous browsing
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between mt-10">
+                <div className="flex items-center justify-between mt-8">
                   <button
                     type="button"
                     onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
