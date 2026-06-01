@@ -32,7 +32,7 @@ const HERO_SLIDES = [
   },
   {
     title: "More than search",
-    sub: "It starts with finding real people. Communities, music, and books are coming next.",
+    sub: "It starts with finding real people. Vendors, communities, and music are coming next.",
   },
 ];
 
