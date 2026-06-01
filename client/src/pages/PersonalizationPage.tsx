@@ -127,7 +127,7 @@ export default function PersonalizationPage() {
                     <li key={i} className="flex items-start gap-3" data-testid={`step-personalize-${i}`}>
                       <div className="relative flex items-center justify-center h-8 w-8 rounded-lg bg-[#7c86ff]/12 border border-[#7c86ff]/25 shrink-0">
                         <Icon className="h-4 w-4 text-[#333286]" />
-                        <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 w-4 rounded-full bg-[#3730a3] text-white text-[9px] font-bold">
+                        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center h-4 w-4 rounded-full bg-[#3730a3] text-white text-[9px] font-bold">
                           {i + 1}
                         </span>
                       </div>
