@@ -87,11 +87,11 @@ export default function AboutPage() {
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left: copy */}
           <div className="space-y-6 animate-fade-up order-2 lg:order-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit">
-              <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
                 About Brainstorm
-              </p>
+              </span>
+              <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
 
             <div className="min-h-[150px] sm:min-h-[190px]" key={slide} aria-live="polite">
@@ -100,7 +100,7 @@ export default function AboutPage() {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-about-title"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                <span className="text-[#333286] block pb-1">
                   {active.title}
                 </span>
               </h1>
@@ -186,13 +186,12 @@ export default function AboutPage() {
       {/* ============ MISSION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div
-          className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
+          className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
           data-testid="card-about-mission"
         >
-          <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
           <div className="p-6 sm:p-10 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
                 <Sparkles className="h-5 w-5 text-[#333286]" />
               </div>
               <h2
@@ -236,7 +235,7 @@ export default function AboutPage() {
           {/* Search — live */}
           <button
             onClick={() => navigate("/search")}
-            className="group text-left rounded-2xl bg-white/85 backdrop-blur-xl border border-[#7c86ff]/25 hover:border-[#7c86ff]/50 hover:shadow-[0_8px_28px_rgba(124,134,255,0.16)] transition-all p-5 sm:p-6 flex flex-col gap-3"
+            className="group text-left rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#7c86ff]/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
             data-testid="card-family-search"
           >
             <div className="flex items-center justify-between">
@@ -329,7 +328,7 @@ export default function AboutPage() {
       {/* ============ PARENT ATTRIBUTION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div
-          className="rounded-2xl bg-white/70 backdrop-blur-xl border border-[#7c86ff]/15 px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
+          className="rounded-2xl bg-white border border-slate-200 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
           data-testid="about-parent-attribution"
         >
           <p className="text-sm text-slate-500">
@@ -378,7 +377,7 @@ function ComingSoonCard({
 }) {
   return (
     <div
-      className="rounded-2xl bg-white/70 backdrop-blur-xl border border-slate-200/70 p-5 sm:p-6 flex flex-col gap-3"
+      className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col gap-3"
       data-testid={testId}
     >
       <div className="flex items-center justify-between">
@@ -422,10 +421,9 @@ function ThemeBand({
 }) {
   return (
     <div
-      className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
+      className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
       data-testid={testId}
     >
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
       <div className="grid md:grid-cols-2 md:items-stretch">
         {/* Image */}
         <div
@@ -451,10 +449,10 @@ function ThemeBand({
           }`}
         >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
               {icon}
             </div>
-            <p className="text-[10px] font-bold tracking-[0.15em] text-[#7c86ff] uppercase">{kicker}</p>
+            <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">{kicker}</p>
           </div>
           <h3
             className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"

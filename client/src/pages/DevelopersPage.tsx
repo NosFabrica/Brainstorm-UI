@@ -99,13 +99,12 @@ function SectionCard({
 }) {
   return (
     <section
-      className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
+      className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
       data-testid={testId}
     >
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
       <div className="p-6 sm:p-8 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
             {icon}
           </div>
           <h2
@@ -136,28 +135,28 @@ export default function DevelopersPage() {
 
   return (
     <InfoPageLayout testId="page-developers">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="space-y-8 animate-fade-up">
-          {/* Header */}
-          <div className="space-y-3" data-testid="section-dev-header">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit">
-              <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">For developers</p>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        <div className="space-y-10 animate-fade-up">
+          {/* Editorial hero */}
+          <header className="max-w-3xl" data-testid="section-dev-header">
+            <div className="flex items-center gap-2.5 mb-5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+                For developers
+              </span>
+              <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
             <h1
-              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-dev-title"
             >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                Add Brainstorm Search to Your Nostr Client
-              </span>
+              Add Brainstorm Search to <span className="text-[#333286]">your nostr client</span>.
             </h1>
-            <p className="text-slate-600 font-medium max-w-2xl" data-testid="text-dev-subtitle">
+            <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl" data-testid="text-dev-subtitle">
               This relay supports NIP-50 full-text profile search. Any nostr client can query it over a
               standard WebSocket connection.
             </p>
-          </div>
+          </header>
 
           {/* Relay URL */}
           <SectionCard
@@ -210,10 +209,10 @@ export default function DevelopersPage() {
             </p>
             <CodeBlock code={PERSONALIZED_SNIPPET} testId="personalized" />
 
-            <div className="overflow-x-auto rounded-xl border border-[#7c86ff]/20">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-left border-collapse" data-testid="table-extensions">
                 <thead>
-                  <tr className="bg-[#7c86ff]/8">
+                  <tr className="bg-slate-50">
                     <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">
                       Extension
                     </th>
@@ -229,7 +228,7 @@ export default function DevelopersPage() {
                   {EXTENSIONS.map((ext) => (
                     <tr
                       key={ext.name}
-                      className="border-t border-[#7c86ff]/12 align-top"
+                      className="border-t border-slate-100 align-top"
                       data-testid={`row-extension-${ext.name}`}
                     >
                       <td className="px-4 py-3">
@@ -280,7 +279,7 @@ export default function DevelopersPage() {
                   href={repo.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-3 rounded-xl bg-white/80 border border-[#7c86ff]/20 hover:border-[#7c86ff]/40 hover:shadow-[0_4px_20px_rgba(124,134,255,0.12)] transition-all px-4 py-3"
+                  className="group flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all px-4 py-3"
                   data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   <div className="flex items-center gap-3">
@@ -301,11 +300,11 @@ export default function DevelopersPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl bg-white/80 backdrop-blur-xl border border-[#7c86ff]/20 hover:border-[#7c86ff]/40 hover:shadow-[0_4px_20px_rgba(124,134,255,0.12)] transition-all p-5 sm:p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-xs font-bold tracking-wide text-[#7c86ff] uppercase mb-1">Keep reading</p>
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">Keep reading</p>
               <p className="text-base font-semibold text-slate-900">
                 Want the bigger picture on how trust ranking works?
               </p>
