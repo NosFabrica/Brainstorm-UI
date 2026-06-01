@@ -17,6 +17,9 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import heroVideo from "@assets/generated_videos/trust_constellation_hero.mp4";
 import heroPoster from "@assets/generated_videos/trust_constellation_hero_poster.jpg";
+import imgTrust from "@assets/generated_images/about_trust_signal.png";
+import imgEveryone from "@assets/generated_images/about_for_everyone.png";
+import imgYours from "@assets/generated_images/about_yours_identity.png";
 
 const HERO_SLIDES = [
   {
@@ -294,6 +297,8 @@ export default function AboutPage() {
           desc="Bots can shout all day. Brainstorm only listens to real human signals, so one trusted friend still beats a thousand spammers."
           ctaLabel="See how search works"
           onClick={() => navigate("/how-search-works")}
+          image={imgTrust}
+          imageAlt="A single person standing clearly amid fading digital noise"
           testId="band-trust"
         />
         <ThemeBand
@@ -303,6 +308,9 @@ export default function AboutPage() {
           desc="Just start searching. No account, no fuss. Sign in whenever you want results tuned to your own circle."
           ctaLabel="What is a web of trust?"
           onClick={() => navigate("/what-is-wot")}
+          image={imgEveryone}
+          imageAlt="People walking toward a bright open doorway of light"
+          reverse
           testId="band-everyone"
         />
         <ThemeBand
@@ -312,6 +320,8 @@ export default function AboutPage() {
           desc="Your profile and reputation belong to you, and follow you everywhere. No lock-in, nothing to manage. It just works."
           ctaLabel="How personalization works"
           onClick={() => navigate("/personalization")}
+          image={imgYours}
+          imageAlt="A person holding a glowing orb representing their personal identity"
           testId="band-freedom"
         />
       </section>
@@ -394,6 +404,9 @@ function ThemeBand({
   desc,
   ctaLabel,
   onClick,
+  image,
+  imageAlt,
+  reverse = false,
   testId,
 }: {
   icon: React.ReactNode;
@@ -402,6 +415,9 @@ function ThemeBand({
   desc: string;
   ctaLabel: string;
   onClick: () => void;
+  image: string;
+  imageAlt: string;
+  reverse?: boolean;
   testId: string;
 }) {
   return (
@@ -410,28 +426,52 @@ function ThemeBand({
       data-testid={testId}
     >
       <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="p-6 sm:p-10">
-        <div className="flex items-center gap-2.5 mb-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            {icon}
-          </div>
-          <p className="text-[10px] font-bold tracking-[0.15em] text-[#7c86ff] uppercase">{kicker}</p>
+      <div className="grid md:grid-cols-2 md:items-stretch">
+        {/* Image */}
+        <div
+          className={`relative min-h-[200px] sm:min-h-[260px] md:min-h-[300px] bg-slate-950 ${
+            reverse ? "md:order-2" : "md:order-1"
+          }`}
+        >
+          <img
+            src={image}
+            alt={imageAlt}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            data-testid={`${testId}-image`}
+          />
+          <div className="absolute inset-0 bg-gradient-to-tr from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
         </div>
-        <h3
-          className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight max-w-2xl"
-          style={{ fontFamily: "var(--font-display)" }}
+
+        {/* Copy */}
+        <div
+          className={`p-6 sm:p-10 flex flex-col justify-center ${
+            reverse ? "md:order-1" : "md:order-2"
+          }`}
         >
-          {title}
-        </h3>
-        <p className="mt-3 text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-2xl">{desc}</p>
-        <button
-          onClick={onClick}
-          className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-          data-testid={`${testId}-cta`}
-        >
-          {ctaLabel}
-          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-        </button>
+          <div className="flex items-center gap-2.5 mb-3">
+            <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+              {icon}
+            </div>
+            <p className="text-[10px] font-bold tracking-[0.15em] text-[#7c86ff] uppercase">{kicker}</p>
+          </div>
+          <h3
+            className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {title}
+          </h3>
+          <p className="mt-3 text-[15px] sm:text-base text-slate-600 leading-relaxed">{desc}</p>
+          <button
+            onClick={onClick}
+            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors self-start"
+            data-testid={`${testId}-cta`}
+          >
+            {ctaLabel}
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,22 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "QVB-ATdzDULlHb7Er78BM"
+uri = "file://attached_assets/generated_images/about_trust_signal.png"
+type = "image"
+title = "trust signal over noise"
+
+[[generated]]
+id = "5HVlzGiDzOb0LmzmpzefA"
+uri = "file://attached_assets/generated_images/about_for_everyone.png"
+type = "image"
+title = "open doorway for everyone"
+
+[[generated]]
+id = "4T3J0dKPaSutob2geeAjF"
+uri = "file://attached_assets/generated_images/about_yours_identity.png"
+type = "image"
+title = "personal identity orb"
 
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
