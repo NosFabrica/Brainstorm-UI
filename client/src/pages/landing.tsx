@@ -231,7 +231,7 @@ export default function Landing() {
         <SignInButton
           variant="primary"
           label="Sign in"
-          className="rounded-full sm:px-5"
+          className="!rounded-full sm:px-5"
           data-testid="button-home-sign-in"
         />
       </header>
