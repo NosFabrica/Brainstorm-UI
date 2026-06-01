@@ -152,7 +152,7 @@ export default function AboutPage() {
 
           {/* Right: cinematic video */}
           <div className="order-1 lg:order-2 animate-fade-up">
-            <div className="relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
+            <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
               <video
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full object-cover"
@@ -173,7 +173,7 @@ export default function AboutPage() {
                 onClick={togglePlaying}
                 aria-label={playing ? "Pause hero animation" : "Play hero animation"}
                 aria-pressed={playing}
-                className="absolute bottom-3 right-3 h-9 w-9 inline-flex items-center justify-center rounded-full bg-black/45 hover:bg-black/65 text-white backdrop-blur-sm border border-white/15 transition-colors"
+                className="absolute bottom-3 right-3 h-9 w-9 inline-flex items-center justify-center rounded-full bg-black/45 hover:bg-black/65 text-white backdrop-blur-sm border border-white/15 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-200"
                 data-testid="button-hero-playpause"
               >
                 {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
