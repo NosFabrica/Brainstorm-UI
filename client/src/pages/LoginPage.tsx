@@ -216,7 +216,7 @@ export default function LoginPage() {
                   Sign in
                 </h1>
                 <p className="text-slate-500 text-base mt-3" data-testid="text-login-subtitle">
-                  Use your Nostr identity to continue to Brainstorm
+                  Use your Nostr identity
                 </p>
               </div>
 
@@ -258,7 +258,7 @@ export default function LoginPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{loading ? "Connecting…" : "Sign in with your extension"}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">nos2x, Alby & other NIP-07 signers</p>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">Alby, Nos2x & other signers</p>
                   </div>
                 </button>
 
@@ -268,7 +268,7 @@ export default function LoginPage() {
                   className="self-start mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                   data-testid="link-use-nsec"
                 >
-                  <KeyRound className="h-3.5 w-3.5" /> Use your private key (nsec)?
+                  <KeyRound className="h-3.5 w-3.5" /> Use your private key?
                 </button>
 
                 <div className="mt-8 text-sm text-slate-500 leading-relaxed">
