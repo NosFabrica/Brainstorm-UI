@@ -14,6 +14,7 @@ import {
   Plus,
   Minus,
   Ban,
+  Users,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 
@@ -224,6 +225,38 @@ export default function HowSearchWorksPage() {
               results.
             </p>
           </header>
+
+          {/* Plain-language intro */}
+          <section
+            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] p-6 sm:p-8"
+            data-testid="section-hsw-plain"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
+                <Users className="h-4.5 w-4.5 text-[#333286]" />
+              </div>
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+                In plain English
+              </span>
+            </div>
+            <div className="space-y-4 max-w-2xl">
+              <p className="text-lg text-slate-700 leading-relaxed">
+                Imagine you've just moved to a new town and you need a good barber. You wouldn't trust a
+                random flyer stapled to a pole — you'd ask the friends you trust who they go to. Brainstorm
+                works the same way.
+              </p>
+              <p className="text-[15px] text-slate-600 leading-relaxed">
+                When you search, it quietly checks what the people you (and your wider community) already
+                trust have to say about each result. Real accounts that those people vouch for rise to the
+                top. Bots, scammers, and impersonators that no one trusts get pushed aside — no matter how
+                many of them there are.
+              </p>
+              <p className="text-[15px] text-slate-500 leading-relaxed">
+                That's the whole idea. Everything below is just a closer look at how it happens under the
+                hood.
+              </p>
+            </div>
+          </section>
 
           {/* Pipeline diagram */}
           <PipelineDiagram />
