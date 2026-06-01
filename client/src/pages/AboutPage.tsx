@@ -25,7 +25,7 @@ const HERO_SLIDES = [
   },
   {
     title: "Trust, built in",
-    sub: "It borrows the instincts of people you trust — so the good stuff rises and the junk sinks.",
+    sub: "It taps the instincts of people you trust, so the good stuff rises and the junk sinks.",
   },
   {
     title: "Just the start",
@@ -200,12 +200,12 @@ export default function AboutPage() {
               </h2>
             </div>
             <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
-              The web used to be people. Now it's people, bots, and AI all talking at once — and it's
+              The web used to be people. Now it's people, bots, and AI all talking at once, and it's
               getting harder to tell who's who.
             </p>
             <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
               Brainstorm is search built for that world. Instead of guessing, it reads who real people
-              actually trust — so the accounts that matter rise, and the noise quietly fades.
+              actually trust. The accounts that matter rise, and the noise quietly fades.
             </p>
           </div>
         </div>
@@ -224,8 +224,8 @@ export default function AboutPage() {
             The Brainstorm family
           </h2>
           <p className="mt-3 text-base text-slate-600 leading-relaxed">
-            One simple idea — real human trust — powering more of what you do online. Starting with
-            search.
+            One simple idea powers it all: real human trust. We're starting with search, with more on
+            the way.
           </p>
         </div>
 
@@ -248,7 +248,7 @@ export default function AboutPage() {
               Brainstorm Search
             </h3>
             <p className="text-sm text-slate-600 leading-relaxed flex-1">
-              Find real people across millions of profiles — by name, bio, or handle.
+              Find real people across millions of profiles. Search by name, bio, or handle.
             </p>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
               Open search <ArrowRight className="h-4 w-4" />
@@ -268,7 +268,7 @@ export default function AboutPage() {
             icon={<Music className="h-5 w-5 text-fuchsia-600" />}
             tint="bg-fuchsia-50"
             title="Brainstorm Music"
-            desc="Tunes worth a listen, picked by ears you trust — not the charts."
+            desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
           />
           {/* Books */}
@@ -291,7 +291,7 @@ export default function AboutPage() {
           icon={<ShieldCheck className="h-5 w-5 text-[#333286]" />}
           kicker="Trust over noise"
           title="The loudest voice doesn't win"
-          desc="Bots can shout all day. Brainstorm only listens to real human signals — so one trusted friend still beats a thousand spammers."
+          desc="Bots can shout all day. Brainstorm only listens to real human signals, so one trusted friend still beats a thousand spammers."
           ctaLabel="See how search works"
           onClick={() => navigate("/how-search-works")}
           testId="band-trust"
@@ -300,7 +300,7 @@ export default function AboutPage() {
           icon={<Globe className="h-5 w-5 text-[#333286]" />}
           kicker="For everyone"
           title="Jump in, no setup"
-          desc="Just start searching — no account, no fuss. Sign in whenever you want results tuned to your own circle."
+          desc="Just start searching. No account, no fuss. Sign in whenever you want results tuned to your own circle."
           ctaLabel="What is a web of trust?"
           onClick={() => navigate("/what-is-wot")}
           testId="band-everyone"
@@ -309,7 +309,7 @@ export default function AboutPage() {
           icon={<Lock className="h-5 w-5 text-[#333286]" />}
           kicker="Yours by design"
           title="Your account goes where you go"
-          desc="Your profile and reputation belong to you, and follow you everywhere. No lock-in, nothing to manage — it just works."
+          desc="Your profile and reputation belong to you, and follow you everywhere. No lock-in, nothing to manage. It just works."
           ctaLabel="How personalization works"
           onClick={() => navigate("/personalization")}
           testId="band-freedom"
