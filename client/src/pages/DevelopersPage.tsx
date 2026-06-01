@@ -73,19 +73,19 @@ function CodeBlock({ code, testId }: { code: string; testId: string }) {
   };
 
   return (
-    <div className="relative group/code rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shadow-sm">
+    <div className="relative group/code rounded-xl bg-slate-50 border border-slate-200 overflow-hidden shadow-sm">
       <button
         type="button"
         onClick={onCopy}
-        className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+        className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 shadow-sm transition-colors"
         data-testid={`button-copy-${testId}`}
         aria-label="Copy code"
       >
-        {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+        {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
         {copied ? "Copied" : "Copy"}
       </button>
       <pre className="overflow-x-auto p-4 pr-20 text-[13px] leading-relaxed" data-testid={`code-${testId}`}>
-        <code className="font-mono text-slate-200 whitespace-pre">{code}</code>
+        <code className="font-mono text-slate-800 whitespace-pre">{code}</code>
       </pre>
     </div>
   );
@@ -170,14 +170,14 @@ export default function DevelopersPage() {
             title="Relay URL"
             testId="card-dev-relay"
           >
-            <div className="flex items-center gap-2 rounded-xl bg-slate-950 border border-slate-800 px-4 py-3">
-              <code className="flex-1 font-mono text-[14px] text-emerald-300 break-all" data-testid="text-relay-url">
+            <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
+              <code className="flex-1 font-mono text-[14px] text-indigo-700 break-all" data-testid="text-relay-url">
                 {RELAY_URL}
               </code>
               <button
                 type="button"
                 onClick={copyRelay}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 shadow-sm transition-colors shrink-0"
                 data-testid="button-copy-relay"
               >
                 <Copy className="h-3.5 w-3.5" />
