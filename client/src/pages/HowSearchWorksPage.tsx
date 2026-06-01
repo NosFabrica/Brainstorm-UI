@@ -1,123 +1,419 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, ShieldCheck, ArrowRight, ExternalLink } from "lucide-react";
+import {
+  Search,
+  Database,
+  ListFilter,
+  ShieldCheck,
+  ArrowUpDown,
+  Sparkles,
+  ArrowRight,
+  ChevronRight,
+  ChevronDown,
+  ExternalLink,
+  Plus,
+  Minus,
+  Ban,
+} from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+
+type PipelineNode = {
+  key: string;
+  step: string;
+  label: string;
+  sub: string;
+  icon: typeof Search;
+};
+
+const PIPELINE: PipelineNode[] = [
+  { key: "query", step: "Input", label: "Query", sub: "You type a name", icon: Search },
+  { key: "index", step: "01", label: "Index", sub: "Vespa", icon: Database },
+  { key: "match", step: "02", label: "Retrieve", sub: "Match profiles", icon: ListFilter },
+  { key: "verify", step: "03", label: "Verify", sub: "GrapeRank", icon: ShieldCheck },
+  { key: "rank", step: "04", label: "Rank", sub: "Order by trust", icon: ArrowUpDown },
+  { key: "results", step: "Output", label: "Results", sub: "Real people", icon: Sparkles },
+];
+
+type Stage = {
+  num: string;
+  title: string;
+  body: React.ReactNode;
+  detail: string;
+  icon: typeof Search;
+};
+
+const STAGES: Stage[] = [
+  {
+    num: "01",
+    title: "Index",
+    icon: Database,
+    body: (
+      <>
+        Brainstorm continuously indexes millions of nostr profiles — and counting — so they can be searched
+        the instant you start typing.
+      </>
+    ),
+    detail: "Powered by Vespa · typo-tolerant full-text + hybrid (semantic) search",
+  },
+  {
+    num: "02",
+    title: "Retrieve & Match",
+    icon: ListFilter,
+    body: (
+      <>
+        Every query is matched against each profile's name, bio, NIP-05 identifier, and website to surface the
+        closest candidates.
+      </>
+    ),
+    detail: "Instant matching across name · bio · NIP-05 · website",
+  },
+  {
+    num: "03",
+    title: "Verify",
+    icon: ShieldCheck,
+    body: (
+      <>
+        Organic community signals — follows, mutes, and reports — separate legitimate accounts from spam,
+        bots, and impersonators before they ever reach your screen.
+      </>
+    ),
+    detail: "GrapeRank · 0–100 verification score",
+  },
+  {
+    num: "04",
+    title: "Rank",
+    icon: ArrowUpDown,
+    body: (
+      <>
+        Verified candidates are ordered by trust — either from the NosFabrica "house" point of view or your
+        own personalized Web of Trust.
+      </>
+    ),
+    detail: "House POV (default) or My POV (personalized)",
+  },
+];
+
+const METRICS: { value: string; label: string }[] = [
+  { value: "Millions", label: "Profiles indexed & growing" },
+  { value: "Hybrid", label: "Full-text + semantic search" },
+  { value: "0–100", label: "Community verification score" },
+  { value: "0 = ignored", label: "Unverified accounts carry no weight" },
+];
+
+const POWERED_BY: { name: string; note: string; href: string }[] = [
+  { name: "Vespa", note: "Search engine", href: "https://vespa.ai/" },
+  { name: "GrapeRank", note: "Trust scoring", href: "https://primal.net/straycat/graperank" },
+  { name: "Nostr", note: "Open protocol", href: "https://nostr.com/" },
+];
+
+function PipelineDiagram() {
+  return (
+    <div
+      className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 sm:p-7"
+      data-testid="diagram-pipeline"
+    >
+      <div className="flex items-center gap-2 mb-5">
+        <span className="text-[10px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+          The pipeline
+        </span>
+        <div className="h-px flex-1 bg-slate-100" />
+      </div>
+      <div className="flex flex-col lg:flex-row lg:items-stretch">
+        {PIPELINE.map((node, i) => {
+          const Icon = node.icon;
+          const isEndpoint = node.step === "Input" || node.step === "Output";
+          return (
+            <div key={node.key} className="contents">
+              <div
+                className={`flex-1 rounded-xl border p-4 flex flex-col items-center text-center gap-2 ${
+                  isEndpoint ? "border-slate-200 bg-slate-50" : "border-[#7c86ff]/25 bg-[#7c86ff]/[0.04]"
+                }`}
+                data-testid={`node-pipeline-${node.key}`}
+              >
+                <div
+                  className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                    isEndpoint ? "bg-white border border-slate-200 text-slate-500" : "bg-white border border-[#7c86ff]/25 text-[#333286]"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <span className="text-[9px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                  {node.step}
+                </span>
+                <p className="text-sm font-bold text-slate-900 leading-none">{node.label}</p>
+                <p className="text-[11px] text-slate-500 leading-tight">{node.sub}</p>
+              </div>
+              {i < PIPELINE.length - 1 && (
+                <div className="flex items-center justify-center text-slate-300 py-1 lg:py-0 lg:px-1">
+                  <ChevronRight className="hidden lg:block h-5 w-5" />
+                  <ChevronDown className="lg:hidden h-4 w-4" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TrustSignal({
+  icon: Icon,
+  tone,
+  title,
+  effect,
+  fill,
+}: {
+  icon: typeof Plus;
+  tone: "up" | "down" | "off";
+  title: string;
+  effect: string;
+  fill: number;
+}) {
+  const toneStyles = {
+    up: { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", icon: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+    down: { chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", icon: "text-rose-600 bg-rose-50 border-rose-200" },
+    off: { chip: "bg-slate-100 text-slate-500 border-slate-200", bar: "bg-slate-300", icon: "text-slate-400 bg-slate-50 border-slate-200" },
+  }[tone];
+  return (
+    <div className="flex items-center gap-3" data-testid={`signal-${tone}`}>
+      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${toneStyles.icon}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <p className="text-sm font-semibold text-slate-800 truncate">{title}</p>
+          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${toneStyles.chip}`}>
+            {effect}
+          </span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+          <div className={`h-full rounded-full ${toneStyles.bar}`} style={{ width: `${fill}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function HowSearchWorksPage() {
   const [, navigate] = useLocation();
+  const [showMechanics, setShowMechanics] = useState(false);
 
   return (
     <InfoPageLayout testId="page-how-search-works">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="space-y-8 animate-fade-up">
-          {/* Header */}
-          <div className="space-y-3" data-testid="section-hsw-header">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit">
-              <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Under the hood</p>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        <div className="space-y-12 sm:space-y-16 animate-fade-up">
+          {/* Editorial hero */}
+          <header className="max-w-3xl" data-testid="section-hsw-header">
+            <div className="flex items-center gap-2.5 mb-5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+                Under the hood
+              </span>
+              <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
             <h1
-              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-hsw-title"
             >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                How Search Works
-              </span>
+              How Brainstorm finds the <span className="text-[#333286]">real people</span>.
             </h1>
-            <p className="text-slate-600 font-medium max-w-2xl" data-testid="text-hsw-subtitle">
-              How Brainstorm finds the right nostr profiles — and how it tells the legitimate ones apart from the noise.
+            <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl" data-testid="text-hsw-subtitle">
+              Search is only half the job. The harder part is telling legitimate nostr accounts apart from the
+              spam, bots, and impersonators. Here's the pipeline that does both — from query to verified
+              results.
             </p>
-          </div>
+          </header>
 
-          {/* Search */}
+          {/* Pipeline diagram */}
+          <PipelineDiagram />
+
+          {/* Metrics strip */}
           <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-hsw-search"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 bg-slate-200"
+            data-testid="section-hsw-metrics"
           >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <Search className="h-5 w-5 text-[#333286]" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                  Search
-                </h2>
-              </div>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                Brainstorm indexes millions of nostr profiles (and growing) and lets you search them by
-                name, bio, NIP-05, or website. Under the hood we are using{" "}
-                <a
-                  href="https://vespa.ai/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
-                  data-testid="link-vespa"
+            {METRICS.map((m) => (
+              <div key={m.label} className="bg-white p-5 sm:p-6" data-testid={`metric-${m.value}`}>
+                <p
+                  className="text-xl sm:text-2xl font-bold text-[#333286] tracking-tight"
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
-                  Vespa
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-                , a lightning-fast, open-source, and developer-friendly search engine designed to provide
-                instant, typo-tolerant full-text and hybrid (semantic) search.
-              </p>
+                  {m.value}
+                </p>
+                <p className="mt-1 text-xs sm:text-[13px] text-slate-500 leading-snug">{m.label}</p>
+              </div>
+            ))}
+          </section>
+
+          {/* Process stages */}
+          <section data-testid="section-hsw-stages">
+            <div className="flex items-center gap-2.5 mb-7">
+              <h2
+                className="text-2xl font-bold text-slate-900 tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                The four stages
+              </h2>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+              {STAGES.map((stage) => {
+                const Icon = stage.icon;
+                return (
+                  <div
+                    key={stage.num}
+                    className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-6 sm:p-8"
+                    data-testid={`stage-${stage.num}`}
+                  >
+                    <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-3 shrink-0 sm:w-20">
+                      <span
+                        className="text-3xl font-bold text-slate-200 tabular-nums leading-none"
+                        style={{ fontFamily: "var(--font-display)" }}
+                      >
+                        {stage.num}
+                      </span>
+                      <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
+                        <Icon className="h-5 w-5 text-[#333286]" />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">{stage.title}</h3>
+                      <p className="text-[15px] text-slate-600 leading-relaxed">{stage.body}</p>
+                      <p className="mt-3 inline-flex items-center text-[12px] font-mono text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1">
+                        {stage.detail}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
-          {/* Verification */}
+          {/* Trust-score visual */}
           <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-hsw-verification"
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8"
+            data-testid="section-hsw-trust"
           >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="h-5 w-5 text-[#333286]" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                  Verification
-                </h2>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-5 w-5 text-[#333286]" />
               </div>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                Brainstorm harnesses organic signals from your community to distinguish "legitimate" nostr
-                accounts from spam, impersonators, bots, and other bad actors seeking to weasel their way
-                onto the screen in front of your eyes.
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                How a trust score moves
+              </h2>
+            </div>
+            <p className="text-[15px] text-slate-600 leading-relaxed mb-6 max-w-2xl">
+              Every profile starts unverified at <span className="font-semibold text-slate-800">0</span> and can
+              climb to <span className="font-semibold text-slate-800">100</span>. Only signals from already-verified
+              accounts count — which is what makes the system resistant to manipulation.
+            </p>
+            <div className="space-y-5 max-w-2xl">
+              <TrustSignal icon={Plus} tone="up" title="A verified account follows them" effect="Score rises" fill={82} />
+              <TrustSignal icon={Minus} tone="down" title="A verified account mutes or reports them" effect="Score falls" fill={28} />
+              <TrustSignal icon={Ban} tone="off" title="An unverified account (score 0) acts" effect="Ignored" fill={4} />
+            </div>
+            <div className="mt-7 rounded-xl bg-[#333286] px-5 py-4" data-testid="callout-spambots">
+              <p className="text-[15px] text-white/95 leading-relaxed font-medium">
+                So it doesn't matter how many spambots are spun up — a thousand, a million. Without social proof
+                from verified accounts, every one of them carries zero weight.
               </p>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                Currently we rely upon follows, mutes, and reports, processed using a method called{" "}
-                <a
-                  href="https://primal.net/straycat/graperank"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
-                  data-testid="link-graperank"
-                >
-                  GrapeRank
-                  <ExternalLink className="h-3 w-3" />
-                </a>{" "}
-                to come up with a verification score between 0 and 100. When one profile (whose score is
-                above 0) follows another, that profile's score gets a bump up, leveling out at the max score
-                of 100. Mutes and reports push a score down. But have no fear: if an unverified account
-                follows, mutes, or reports someone, that follow, mute, or report is completely ignored by
-                virtue of having a verification score of 0.
-              </p>
-              <div className="rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-4 py-3">
-                <p className="text-[15px] text-slate-700 leading-relaxed font-medium">
-                  So it doesn't matter how many spambots are spun up. A thousand, a million. Without social
-                  proof, they will all be ignored.
+            </div>
+
+            {/* Dig deeper */}
+            <button
+              type="button"
+              onClick={() => setShowMechanics((v) => !v)}
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              data-testid="button-dig-deeper"
+              aria-expanded={showMechanics}
+              aria-controls="hsw-mechanics-panel"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${showMechanics ? "rotate-180" : ""}`} />
+              {showMechanics ? "Hide the details" : "Dig deeper into the mechanics"}
+            </button>
+            {showMechanics && (
+              <div id="hsw-mechanics-panel" className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3" data-testid="panel-mechanics">
+                <p className="text-[14px] text-slate-600 leading-relaxed">
+                  Brainstorm harnesses organic signals from your community to distinguish "legitimate" nostr
+                  accounts from spam, impersonators, bots, and other bad actors seeking to weasel their way onto
+                  the screen in front of your eyes. Currently we rely upon follows, mutes, and reports, processed
+                  using a method called{" "}
+                  <a
+                    href="https://primal.net/straycat/graperank"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    data-testid="link-graperank"
+                  >
+                    GrapeRank
+                    <ExternalLink className="h-3 w-3" />
+                  </a>{" "}
+                  to come up with a verification score between 0 and 100.
+                </p>
+                <p className="text-[14px] text-slate-600 leading-relaxed">
+                  When one profile (whose score is above 0) follows another, that profile's score gets a bump up,
+                  leveling out at the max score of 100. Mutes and reports push a score down. But have no fear: if
+                  an unverified account follows, mutes, or reports someone, that action is completely ignored by
+                  virtue of having a verification score of 0.
+                </p>
+                <p className="text-[14px] text-slate-600 leading-relaxed">
+                  Search itself is powered by{" "}
+                  <a
+                    href="https://vespa.ai/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    data-testid="link-vespa"
+                  >
+                    Vespa
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  , a lightning-fast, open-source search engine providing instant, typo-tolerant full-text and
+                  hybrid (semantic) search.
                 </p>
               </div>
+            )}
+          </section>
+
+          {/* Powered by */}
+          <section data-testid="section-hsw-powered">
+            <div className="flex items-center gap-2.5 mb-5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 uppercase">
+                Powered by
+              </span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {POWERED_BY.map((tech) => (
+                <a
+                  key={tech.name}
+                  href={tech.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all"
+                  data-testid={`powered-${tech.name.toLowerCase()}`}
+                >
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{tech.name}</p>
+                    <p className="text-xs text-slate-500">{tech.note}</p>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-[#7c86ff] shrink-0 transition-colors" />
+                </a>
+              ))}
             </div>
           </section>
 
           {/* Cross-link */}
           <button
             onClick={() => navigate("/personalization")}
-            className="group w-full text-left rounded-2xl bg-white/80 backdrop-blur-xl border border-[#7c86ff]/20 hover:border-[#7c86ff]/40 hover:shadow-[0_4px_20px_rgba(124,134,255,0.12)] transition-all p-5 sm:p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-personalization"
           >
             <div>
-              <p className="text-xs font-bold tracking-wide text-[#7c86ff] uppercase mb-1">Keep reading</p>
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+                Keep reading
+              </p>
               <p className="text-base font-semibold text-slate-900">
                 Curious how your point of view affects what you see?
               </p>
