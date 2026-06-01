@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { ArrowLeft, ChevronRight, ChevronDown, Users, Briefcase, Music, Compass, Heart } from 'lucide-react';
+import { getCurrentUser } from '@/services/nostr';
 import { BrainLogo } from '@/components/BrainLogo';
 import { motion, AnimatePresence } from 'framer-motion';
 import aliceAvatar from '@assets/generated_images/professional_woman_avatar_illustration.png';
@@ -560,7 +561,7 @@ export default function WhatIsWoT() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <motion.button
-                onClick={() => setLocation('/dashboard')}
+                onClick={() => setLocation(getCurrentUser() ? '/dashboard' : '/')}
                 className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 transition-colors text-sm"
                 whileHover={{ x: -4 }}
                 data-testid="button-back"
