@@ -52,6 +52,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { SignInButton } from "@/components/SignInButton";
+import { CleanBackground } from "@/components/CleanBackground";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import {
@@ -464,12 +465,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-search">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F010_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F010_1px,transparent_1px)] bg-[size:48px_48px]" />
-        <div className="absolute -top-[30%] left-[10%] w-[60%] h-[60%] rounded-full bg-indigo-100/20 blur-[160px]" />
-        <div className="absolute top-[20%] -right-[15%] w-[50%] h-[50%] rounded-full bg-violet-100/15 blur-[140px]" />
-        <div className="absolute -bottom-[20%] left-[30%] w-[40%] h-[40%] rounded-full bg-slate-200/20 blur-[120px]" />
-      </div>
+      <CleanBackground />
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4">

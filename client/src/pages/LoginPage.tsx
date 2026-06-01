@@ -9,20 +9,7 @@ import {
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
-
-const floatingNodes = Array.from({ length: 12 }, (_, i) => ({
-  id: i,
-  x: 10 + Math.random() * 80,
-  y: 10 + Math.random() * 80,
-  size: Math.random() * 3 + 2,
-  duration: Math.random() * 20 + 15,
-  delay: Math.random() * 5,
-}));
-
-const connectionPairs = [
-  [0, 3], [1, 4], [2, 5], [3, 6], [4, 7], [5, 8],
-  [6, 9], [7, 10], [8, 11], [0, 6], [2, 8], [4, 10],
-];
+import { CleanBackground } from "@/components/CleanBackground";
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -149,47 +136,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden font-sans" data-testid="page-login">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-100/50 via-[#F8FAFC] to-[#F8FAFC]" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#6366f10a_1px,transparent_1px),linear-gradient(to_bottom,#6366f10a_1px,transparent_1px)] bg-[size:32px_32px]" />
-
-      <div className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-indigo-400/10 blur-3xl" style={{ animation: "glowPulse1 12s ease-in-out infinite" }} />
-      <div className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-violet-400/10 blur-3xl" style={{ animation: "glowPulse2 15s ease-in-out infinite 3s" }} />
-
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {connectionPairs.map(([a, b], i) => (
-          <line
-            key={i}
-            x1={`${floatingNodes[a].x}%`}
-            y1={`${floatingNodes[a].y}%`}
-            x2={`${floatingNodes[b].x}%`}
-            y2={`${floatingNodes[b].y}%`}
-            stroke="url(#lineGradient)"
-            strokeWidth="0.5"
-            className="opacity-0"
-            style={{ animation: `lineFlash 8s ease-in-out infinite ${i * 0.8}s` }}
-          />
-        ))}
-        <defs>
-          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-      </svg>
-
-      {floatingNodes.map((node) => (
-        <div
-          key={node.id}
-          className="absolute rounded-full bg-indigo-300"
-          style={{
-            left: `${node.x}%`,
-            top: `${node.y}%`,
-            width: node.size + 2,
-            height: node.size + 2,
-            animation: `nodeFloat ${node.duration}s ease-in-out infinite ${node.delay}s`,
-          }}
-        />
-      ))}
+      <CleanBackground />
 
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-[460px] animate-fade-up">
@@ -332,25 +279,6 @@ export default function LoginPage() {
           </div>
         </div>
       </main>
-
-      <style>{`
-        @keyframes glowPulse1 {
-          0%, 100% { opacity: 0.3; transform: scale(1) translateX(0); }
-          50% { opacity: 0.6; transform: scale(1.2) translateX(20px); }
-        }
-        @keyframes glowPulse2 {
-          0%, 100% { opacity: 0.2; transform: scale(1) translateY(0); }
-          50% { opacity: 0.5; transform: scale(1.3) translateY(-15px); }
-        }
-        @keyframes lineFlash {
-          0%, 100% { opacity: 0; }
-          40%, 60% { opacity: 0.3; }
-        }
-        @keyframes nodeFloat {
-          0%, 100% { transform: translateY(0); opacity: 0.2; }
-          50% { transform: translateY(-40px); opacity: 0.7; }
-        }
-      `}</style>
 
       <LoginFailureModal
         open={failureOpen}
