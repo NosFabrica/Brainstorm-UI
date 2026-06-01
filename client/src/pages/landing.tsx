@@ -435,15 +435,14 @@ export default function Landing() {
       </main>
 
       <footer className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
-        <a
-          href="https://github.com/NosFabrica/"
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          onClick={() => setLocation("/developers")}
           className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
           data-testid="link-home-developers"
         >
           Developers
-        </a>
+        </button>
         <button
           type="button"
           onClick={() => setLocation("/how-search-works")}

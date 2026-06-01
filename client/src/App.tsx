@@ -17,6 +17,7 @@ import FaqPage from "@/pages/FaqPage";
 import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
+import DevelopersPage from "@/pages/DevelopersPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
@@ -67,6 +68,7 @@ function Router() {
         <Route path="/how-search-works" component={HowSearchWorksPage} />
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
+        <Route path="/developers" component={DevelopersPage} />
         <Route path="/faq" component={FaqPage} />
         {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
         <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>
