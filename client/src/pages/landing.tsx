@@ -47,10 +47,10 @@ export default function Landing() {
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-3 mb-3">
-              <BrainLogo size={48} className="text-indigo-600" />
+            <div className="flex items-center gap-2 mb-1.5">
+              <BrainLogo size={32} className="text-indigo-600" />
               <h1
-                className="text-4xl sm:text-6xl font-bold tracking-tight"
+                className="text-3xl sm:text-4xl font-bold tracking-tight"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                 data-testid="text-home-title"
               >
