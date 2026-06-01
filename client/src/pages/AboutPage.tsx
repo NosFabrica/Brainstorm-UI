@@ -1,176 +1,441 @@
 import { useLocation } from "wouter";
-import { Sparkles, Search, ShieldCheck, Network, ArrowRight, ExternalLink } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Sparkles,
+  Search,
+  ArrowRight,
+  ExternalLink,
+  Play,
+  Pause,
+  Users,
+  Music,
+  BookOpen,
+  ShieldCheck,
+  Globe,
+  Lock,
+} from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import heroVideo from "@assets/generated_videos/trust_constellation_hero.mp4";
+import heroPoster from "@assets/generated_videos/trust_constellation_hero_poster.jpg";
+
+const HERO_SLIDES = [
+  {
+    title: "Search you can trust",
+    sub: "Brainstorm is a search engine for people — built to surface the real ones and let the noise sink.",
+  },
+  {
+    title: "Built on your web of trust",
+    sub: "Real community signals decide who's credible. No platform, no opaque algorithm picking winners.",
+  },
+  {
+    title: "One brand, many worlds",
+    sub: "Search today. Communities, music, and books next — all powered by the same web of trust.",
+  },
+];
+
+const SLIDE_MS = 5500;
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export default function AboutPage() {
   const [, navigate] = useLocation();
+  const [slide, setSlide] = useState(0);
+  const [playing, setPlaying] = useState(() => !prefersReducedMotion());
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setPlaying(!mq.matches);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => {
+      setSlide((s) => (s + 1) % HERO_SLIDES.length);
+    }, SLIDE_MS);
+    return () => window.clearInterval(id);
+  }, [playing]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (playing) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [playing]);
+
+  const togglePlaying = useCallback(() => setPlaying((p) => !p), []);
+
+  const active = HERO_SLIDES[slide];
 
   return (
     <InfoPageLayout testId="page-about">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-        <div className="space-y-8 animate-fade-up">
-          {/* Header */}
-          <div className="space-y-3" data-testid="section-about-header">
+      {/* ============ HERO ============ */}
+      <section
+        className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 pt-8 sm:pt-14 pb-6"
+        data-testid="section-about-hero"
+      >
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          {/* Left: copy */}
+          <div className="space-y-6 animate-fade-up order-2 lg:order-1">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit">
               <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">About Brainstorm</p>
+              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">
+                About Brainstorm
+              </p>
             </div>
-            <h1
-              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-about-title"
-            >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                Clarity in a fragmented world
-              </span>
-            </h1>
-            <p className="text-slate-600 font-medium max-w-2xl" data-testid="text-about-subtitle">
-              Brainstorm is a search engine for people. It helps you find the right profiles across an
-              open social network — and tells the legitimate ones apart from the noise.
+
+            <div className="min-h-[150px] sm:min-h-[190px]" key={slide} aria-live="polite">
+              <h1
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
+                style={{ fontFamily: "var(--font-display)" }}
+                data-testid="text-about-title"
+              >
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                  {active.title}
+                </span>
+              </h1>
+              <p
+                className="mt-4 text-base sm:text-lg text-slate-600 font-medium max-w-xl leading-relaxed animate-fade-up"
+                data-testid="text-about-subtitle"
+              >
+                {active.sub}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate("/search")}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
+                data-testid="button-hero-search"
+              >
+                <Search className="h-4 w-4" />
+                Try Brainstorm
+              </button>
+              <button
+                onClick={() => navigate("/how-search-works")}
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white/80 border border-slate-200 hover:border-[#7c86ff]/40 hover:text-indigo-600 rounded-full transition-colors active:scale-[0.98]"
+                data-testid="button-hero-learn"
+              >
+                How it works
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Slide indicators */}
+            <div className="flex items-center gap-2 pt-1" data-testid="hero-indicators">
+              {HERO_SLIDES.map((s, i) => (
+                <button
+                  key={s.title}
+                  onClick={() => setSlide(i)}
+                  aria-label={`Show slide ${i + 1}`}
+                  aria-current={i === slide}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === slide
+                      ? "w-7 bg-indigo-600"
+                      : "w-1.5 bg-slate-300 hover:bg-slate-400"
+                  }`}
+                  data-testid={`hero-dot-${i}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Right: cinematic video */}
+          <div className="order-1 lg:order-2 animate-fade-up">
+            <div className="relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
+              <video
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full object-cover"
+                src={heroVideo}
+                poster={heroPoster}
+                autoPlay={playing}
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                data-testid="video-hero"
+              />
+              {/* gentle vignette + brand wash */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-3xl pointer-events-none" />
+
+              <button
+                onClick={togglePlaying}
+                aria-label={playing ? "Pause hero animation" : "Play hero animation"}
+                aria-pressed={playing}
+                className="absolute bottom-3 right-3 h-9 w-9 inline-flex items-center justify-center rounded-full bg-black/45 hover:bg-black/65 text-white backdrop-blur-sm border border-white/15 transition-colors"
+                data-testid="button-hero-playpause"
+              >
+                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ MISSION ============ */}
+      <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div
+          className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
+          data-testid="card-about-mission"
+        >
+          <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+          <div className="p-6 sm:p-10 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                <Sparkles className="h-5 w-5 text-[#333286]" />
+              </div>
+              <h2
+                className="text-2xl font-bold text-slate-900 tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Our mission
+              </h2>
+            </div>
+            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+              The open web is full of voices, but it's hard to know who to trust. Anyone can claim to
+              be anyone, and spam, bots, and impersonators crowd out the real people. Brainstorm
+              exists to cut through that — surfacing authentic profiles using the organic trust
+              signals that communities already create every day.
+            </p>
+            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+              We believe reputation should belong to people, not platforms. No single company decides
+              who is credible. Instead, your community vouches for itself, and Brainstorm reads those
+              signals to give you a clearer view of who's who.
             </p>
           </div>
-
-          {/* Mission */}
-          <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-about-mission"
-          >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <Sparkles className="h-5 w-5 text-[#333286]" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                  Our mission
-                </h2>
-              </div>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                The open web is full of voices, but it's hard to know who to trust. Anyone can claim to be
-                anyone, and spam, bots, and impersonators crowd out the real people. Brainstorm exists to
-                cut through that — surfacing authentic profiles using the organic trust signals that
-                communities already create every day.
-              </p>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                We believe reputation should belong to people, not platforms. No single company decides who
-                is credible. Instead, your community vouches for itself, and Brainstorm reads those signals
-                to give you a clearer view of who's who.
-              </p>
-            </div>
-          </section>
-
-          {/* What it does */}
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div
-              className="rounded-2xl bg-white/85 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.06)] p-5 sm:p-6 space-y-3"
-              data-testid="card-about-search"
-            >
-              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                <Search className="h-5 w-5 text-[#333286]" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
-                Search
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Find profiles across millions of accounts by name, bio, website, or handle — instant and
-                typo-tolerant.
-              </p>
-            </div>
-
-            <div
-              className="rounded-2xl bg-white/85 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.06)] p-5 sm:p-6 space-y-3"
-              data-testid="card-about-verify"
-            >
-              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                <ShieldCheck className="h-5 w-5 text-[#333286]" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
-                Verify
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Each profile gets a trust score from real community signals — follows, mutes, and reports —
-                so spam and impostors sink.
-              </p>
-            </div>
-
-            <div
-              className="rounded-2xl bg-white/85 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.06)] p-5 sm:p-6 space-y-3"
-              data-testid="card-about-personalize"
-            >
-              <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-                <Network className="h-5 w-5 text-[#333286]" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
-                Personalize
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Sign in to see results through your own Web of Trust — your network's perspective on who
-                matters.
-              </p>
-            </div>
-          </div>
-
-          {/* Who built it */}
-          <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-about-who"
-          >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                Who's behind it
-              </h2>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                Brainstorm is built by{" "}
-                <a
-                  href="https://nosfabrica.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
-                  data-testid="link-about-nosfabrica"
-                >
-                  NosFabrica
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-                , a team building open, user-owned infrastructure for trust and reputation. It runs on{" "}
-                <a
-                  href="https://nostr.how/en/what-is-nostr"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
-                  data-testid="link-about-nostr"
-                >
-                  Nostr
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-                , an open protocol where your identity and social graph belong to you — not to any single
-                app or company.
-              </p>
-              <div className="rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-4 py-3">
-                <p className="text-[15px] text-slate-700 leading-relaxed font-medium">
-                  Open by design: your reputation travels with you, and no platform can take it away.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Cross-link */}
-          <button
-            onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl bg-white/80 backdrop-blur-xl border border-[#7c86ff]/20 hover:border-[#7c86ff]/40 hover:shadow-[0_4px_20px_rgba(124,134,255,0.12)] transition-all p-5 sm:p-6 flex items-center justify-between gap-4"
-            data-testid="link-to-how-search-works"
-          >
-            <div>
-              <p className="text-xs font-bold tracking-wide text-[#7c86ff] uppercase mb-1">Keep reading</p>
-              <p className="text-base font-semibold text-slate-900">
-                Want the technical details?
-              </p>
-              <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
-            </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
-          </button>
         </div>
-      </div>
+      </section>
+
+      {/* ============ BRAINSTORM FAMILY ============ */}
+      <section
+        className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12"
+        data-testid="section-about-family"
+      >
+        <div className="max-w-2xl mb-8">
+          <h2
+            className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            The Brainstorm family
+          </h2>
+          <p className="mt-3 text-base text-slate-600 leading-relaxed">
+            One trust engine, a growing universe of ways to use it. We're starting with search — and
+            building out from there.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Search — live */}
+          <button
+            onClick={() => navigate("/search")}
+            className="group text-left rounded-2xl bg-white/85 backdrop-blur-xl border border-[#7c86ff]/25 hover:border-[#7c86ff]/50 hover:shadow-[0_8px_28px_rgba(124,134,255,0.16)] transition-all p-5 sm:p-6 flex flex-col gap-3"
+            data-testid="card-family-search"
+          >
+            <div className="flex items-center justify-between">
+              <div className="h-11 w-11 rounded-xl bg-indigo-600 shadow-[0_4px_14px_rgba(99,102,241,0.3)] flex items-center justify-center">
+                <Search className="h-5 w-5 text-white" />
+              </div>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-wide text-emerald-700 uppercase">
+                <span className="w-1 h-1 rounded-full bg-emerald-500" /> Live
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
+              Brainstorm Search
+            </h3>
+            <p className="text-sm text-slate-600 leading-relaxed flex-1">
+              Find the real people across millions of profiles — by name, bio, website, or handle.
+            </p>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
+              Open search <ArrowRight className="h-4 w-4" />
+            </span>
+          </button>
+
+          {/* Communities */}
+          <ComingSoonCard
+            icon={<Users className="h-5 w-5 text-violet-600" />}
+            tint="bg-violet-50"
+            title="Brainstorm Communities"
+            desc="Trusted spaces to gather, organized by the people you already vouch for."
+            testId="card-family-communities"
+          />
+          {/* Music */}
+          <ComingSoonCard
+            icon={<Music className="h-5 w-5 text-fuchsia-600" />}
+            tint="bg-fuchsia-50"
+            title="Brainstorm Music"
+            desc="Discover artists and sounds surfaced by your web of trust, not the charts."
+            testId="card-family-music"
+          />
+          {/* Books */}
+          <ComingSoonCard
+            icon={<BookOpen className="h-5 w-5 text-sky-600" />}
+            tint="bg-sky-50"
+            title="Brainstorm Books"
+            desc="Reading recommendations vetted by readers your community actually trusts."
+            testId="card-family-books"
+          />
+        </div>
+      </section>
+
+      {/* ============ THEMATIC BANDS ============ */}
+      <section
+        className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-4"
+        data-testid="section-about-themes"
+      >
+        <ThemeBand
+          icon={<ShieldCheck className="h-5 w-5 text-[#333286]" />}
+          kicker="Trust over noise"
+          title="Answers from people you trust — not anonymous strangers"
+          desc="Generic search and AI reward whoever games the system loudest. Brainstorm reads real signals — follows, mutes, reports — so legitimate voices rise and spam sinks, no matter how many bots show up."
+          ctaLabel="See how search works"
+          onClick={() => navigate("/how-search-works")}
+          testId="band-trust"
+        />
+        <ThemeBand
+          icon={<Globe className="h-5 w-5 text-[#333286]" />}
+          kicker="For everyone"
+          title="Built for 8 billion people"
+          desc="Anyone online deserves trustworthy results. Start searching instantly — no account required. When you want results shaped by your own network, sign in and make it personal."
+          ctaLabel="What is a web of trust?"
+          onClick={() => navigate("/what-is-wot")}
+          testId="band-everyone"
+        />
+        <ThemeBand
+          icon={<Lock className="h-5 w-5 text-[#333286]" />}
+          kicker="Yours by design"
+          title="Freedom tech, quietly under the hood"
+          desc="Your identity and reputation belong to you and travel with you — no platform can lock you in or take them away. You don't have to think about any of it; it just makes the experience better."
+          ctaLabel="How personalization works"
+          onClick={() => navigate("/personalization")}
+          testId="band-freedom"
+        />
+      </section>
+
+      {/* ============ PARENT ATTRIBUTION ============ */}
+      <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
+        <div
+          className="rounded-2xl bg-white/70 backdrop-blur-xl border border-[#7c86ff]/15 px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
+          data-testid="about-parent-attribution"
+        >
+          <p className="text-sm text-slate-500">
+            Brainstorm is a{" "}
+            <a
+              href="https://nosfabrica.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 hover:text-indigo-600 hover:underline transition-colors"
+              data-testid="link-about-nosfabrica"
+            >
+              NosFabrica
+              <ExternalLink className="h-3 w-3" />
+            </a>{" "}
+            company, building open infrastructure for trust on{" "}
+            <a
+              href="https://nostr.how/en/what-is-nostr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 hover:text-indigo-600 hover:underline transition-colors"
+              data-testid="link-about-nostr"
+            >
+              Nostr
+              <ExternalLink className="h-3 w-3" />
+            </a>
+            .
+          </p>
+        </div>
+      </section>
     </InfoPageLayout>
+  );
+}
+
+function ComingSoonCard({
+  icon,
+  tint,
+  title,
+  desc,
+  testId,
+}: {
+  icon: React.ReactNode;
+  tint: string;
+  title: string;
+  desc: string;
+  testId: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl bg-white/70 backdrop-blur-xl border border-slate-200/70 p-5 sm:p-6 flex flex-col gap-3"
+      data-testid={testId}
+    >
+      <div className="flex items-center justify-between">
+        <div className={`h-11 w-11 rounded-xl ${tint} border border-slate-100 flex items-center justify-center`}>
+          {icon}
+        </div>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
+          Coming soon
+        </span>
+      </div>
+      <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+        {title}
+      </h3>
+      <p className="text-sm text-slate-500 leading-relaxed flex-1">{desc}</p>
+    </div>
+  );
+}
+
+function ThemeBand({
+  icon,
+  kicker,
+  title,
+  desc,
+  ctaLabel,
+  onClick,
+  testId,
+}: {
+  icon: React.ReactNode;
+  kicker: string;
+  title: string;
+  desc: string;
+  ctaLabel: string;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
+      data-testid={testId}
+    >
+      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+      <div className="p-6 sm:p-10">
+        <div className="flex items-center gap-2.5 mb-3">
+          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+            {icon}
+          </div>
+          <p className="text-[10px] font-bold tracking-[0.15em] text-[#7c86ff] uppercase">{kicker}</p>
+        </div>
+        <h3
+          className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight max-w-2xl"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {title}
+        </h3>
+        <p className="mt-3 text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-2xl">{desc}</p>
+        <button
+          onClick={onClick}
+          className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+          data-testid={`${testId}-cta`}
+        >
+          {ctaLabel}
+          <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
+    </div>
   );
 }
