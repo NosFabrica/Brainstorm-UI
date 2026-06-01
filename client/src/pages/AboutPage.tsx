@@ -15,8 +15,8 @@ import {
   Lock,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
-import heroVideo from "@assets/generated_videos/trust_constellation_hero.mp4";
-import heroPoster from "@assets/generated_videos/trust_constellation_hero_poster.jpg";
+import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
+import heroPoster from "@assets/generated_images/about_hero_poster.png";
 import imgTrust from "@assets/generated_images/about_trust_signal.png";
 import imgEveryone from "@assets/generated_images/about_for_everyone.png";
 import imgYours from "@assets/generated_images/about_yours_identity.png";

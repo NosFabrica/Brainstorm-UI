@@ -4,19 +4,25 @@ uploads = []
 id = "QVB-ATdzDULlHb7Er78BM"
 uri = "file://attached_assets/generated_images/about_trust_signal.png"
 type = "image"
-title = "trust signal over noise"
+title = "trust over noise real person"
 
 [[generated]]
 id = "5HVlzGiDzOb0LmzmpzefA"
 uri = "file://attached_assets/generated_images/about_for_everyone.png"
 type = "image"
-title = "open doorway for everyone"
+title = "for everyone real people"
 
 [[generated]]
 id = "4T3J0dKPaSutob2geeAjF"
 uri = "file://attached_assets/generated_images/about_yours_identity.png"
 type = "image"
-title = "personal identity orb"
+title = "yours by design real person"
+
+[[generated]]
+id = "MJ_LVo1ziOla0SkuDsoWk"
+uri = "file://attached_assets/generated_images/about_hero_poster.png"
+type = "image"
+title = "about hero real people"
 
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
