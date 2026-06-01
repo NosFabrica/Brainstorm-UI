@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
-import { Search, ArrowRight, Loader2, Check } from "lucide-react";
+import { Search, ArrowRight, Loader2, Check, X } from "lucide-react";
 import { ComputingBackground } from "@/components/ComputingBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
@@ -253,6 +253,23 @@ export default function Landing() {
                   aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined}
                   data-testid="input-home-search"
                 />
+                {query.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      cancelSuggest();
+                      setSuggestions([]);
+                      setActiveSuggestion(-1);
+                      inputRef.current?.focus();
+                    }}
+                    aria-label="Clear search"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                    data-testid="button-home-clear"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   type="submit"
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shrink-0"
