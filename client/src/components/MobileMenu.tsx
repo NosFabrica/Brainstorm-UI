@@ -269,10 +269,7 @@ export function MobileMenu({
             <SignInButton
               variant="primary"
               className="w-full"
-              onSuccess={() => {
-                onClose();
-                window.location.reload();
-              }}
+              onSuccess={onClose}
               data-testid="button-mobile-sign-in"
             />
           </div>

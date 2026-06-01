@@ -2057,7 +2057,7 @@ export default function ProfilePage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAnon ? (
-                <SignInButton variant="ghost" onSuccess={() => window.location.reload()} />
+                <SignInButton variant="ghost" />
               ) : (
               <>
               {isAdmin && <AdminBadge />}
@@ -2463,7 +2463,6 @@ export default function ProfilePage() {
                               variant="primary"
                               label="Sign in to follow"
                               className="h-7 sm:h-8 !py-0 text-xs"
-                              onSuccess={() => window.location.reload()}
                               data-testid="button-signin-to-follow"
                             />
                             <span className="text-xs text-slate-400 hidden sm:inline">to follow, mute or report</span>

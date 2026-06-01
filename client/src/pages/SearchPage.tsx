@@ -557,7 +557,7 @@ export default function SearchPage() {
 
             <div className="flex items-center gap-2 sm:gap-4">
               {isAnon ? (
-                <SignInButton variant="ghost" onSuccess={() => window.location.reload()} />
+                <SignInButton variant="ghost" />
               ) : (
               <>
               {isAdminPubkey(user?.pubkey) && <AdminBadge />}
@@ -706,7 +706,6 @@ export default function SearchPage() {
                   <SignInButton
                     variant="link"
                     label="Sign in to unlock"
-                    onSuccess={() => window.location.reload()}
                     data-testid="link-pov-signin"
                   />
                 </div>

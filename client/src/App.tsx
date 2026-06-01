@@ -16,6 +16,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import FaqPage from "@/pages/FaqPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
+import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
@@ -46,7 +47,7 @@ function Router() {
       <ScrollToTop />
       <Switch>
         <Route path="/" component={Landing} />
-        <Route path="/login">{() => <Redirect to="/" />}</Route>
+        <Route path="/login" component={LoginPage} />
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchPage} />

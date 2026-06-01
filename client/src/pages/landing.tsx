@@ -38,7 +38,6 @@ export default function Landing() {
         <SignInButton
           variant="ghost"
           label="Sign in with nostr"
-          onSuccess={() => setLocation("/dashboard", { replace: true })}
           data-testid="button-home-sign-in"
         />
       </header>
