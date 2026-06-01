@@ -37,7 +37,7 @@ export default function Landing() {
         </button>
         <SignInButton
           variant="primary"
-          label="Sign in with nostr"
+          label="Sign in"
           data-testid="button-home-sign-in"
         />
       </header>
@@ -60,7 +60,7 @@ export default function Landing() {
               </h1>
             </div>
             <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
-              Search across millions of nostr profiles
+              Search across millions of profiles
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function Landing() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name, bio, NIP-05, website…"
+                placeholder="Search by name, bio, website…"
                 className="flex-1 bg-transparent text-slate-900 placeholder:text-slate-400 text-base outline-none py-1.5 min-w-0"
                 autoFocus
                 data-testid="input-home-search"
