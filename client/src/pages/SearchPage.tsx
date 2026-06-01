@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Radar,
   SlidersHorizontal,
+  Lock,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
@@ -521,13 +522,11 @@ export default function SearchPage() {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 sm:gap-6">
-              {!isAnon && (
-                <div className="lg:hidden">
-                  <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </div>
-              )}
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 h-8 w-8" data-testid="button-mobile-menu">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </div>
               <button type="button" className="flex items-center gap-1.5 sm:gap-2" onClick={() => navigate(isAnon ? "/" : "/dashboard")} data-testid="button-brand">
                 <BrainLogo size={24} className="text-indigo-500 sm:hidden" />
                 <BrainLogo size={28} className="text-indigo-500 hidden sm:block" />
@@ -684,7 +683,35 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              {hasSearched && hasPovOption && (
+              {hasSearched && isAnon && (
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator-anon">
+                  <Telescope className="h-3 w-3 text-slate-400" />
+                  <span className="text-[11px] text-slate-400">Viewing as</span>
+                  <div className="inline-flex items-center rounded-full bg-slate-100 p-0.5 ml-0.5" role="tablist" aria-label="Trust perspective">
+                    <span
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white text-indigo-500 shadow-sm"
+                      data-testid="pill-pov-nosfabrica-anon"
+                    >
+                      NosFabrica
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full text-slate-300 cursor-not-allowed"
+                      title="Sign in to unlock your personalized Web of Trust"
+                      data-testid="pill-pov-mywot-anon"
+                    >
+                      <Lock className="h-2.5 w-2.5" />
+                      My WoT
+                    </span>
+                  </div>
+                  <SignInButton
+                    variant="link"
+                    label="Sign in to unlock"
+                    onSuccess={() => window.location.reload()}
+                    data-testid="link-pov-signin"
+                  />
+                </div>
+              )}
+              {hasSearched && !isAnon && hasPovOption && (
                 <div className="flex items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator">
                   <Telescope className="h-3 w-3 text-slate-400" />
                   <span className="text-[11px] text-slate-400">Viewing as</span>

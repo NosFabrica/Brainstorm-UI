@@ -1983,19 +1983,17 @@ export default function ProfilePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 sm:gap-6">
-              {!isAnon && (
-                <div className="lg:hidden">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={openMobileMenu}
-                    className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                    data-testid="button-mobile-menu"
-                  >
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </div>
-              )}
+              <div className="lg:hidden">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={openMobileMenu}
+                  className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                  data-testid="button-mobile-menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </div>
               <button
                 type="button"
                 className="flex items-center gap-2"
