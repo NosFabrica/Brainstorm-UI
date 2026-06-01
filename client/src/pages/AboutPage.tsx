@@ -255,6 +255,14 @@ export default function AboutPage() {
             </span>
           </button>
 
+          {/* Vendors */}
+          <ComingSoonCard
+            icon={<Store className="h-5 w-5 text-sky-600" />}
+            tint="bg-sky-50"
+            title="Brainstorm Vendors"
+            desc="Find sellers and services worth your money, vouched for by people you trust."
+            testId="card-family-vendors"
+          />
           {/* Communities */}
           <ComingSoonCard
             icon={<Users className="h-5 w-5 text-violet-600" />}
@@ -270,14 +278,6 @@ export default function AboutPage() {
             title="Brainstorm Music"
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
-          />
-          {/* Vendors */}
-          <ComingSoonCard
-            icon={<Store className="h-5 w-5 text-sky-600" />}
-            tint="bg-sky-50"
-            title="Brainstorm Vendors"
-            desc="Find sellers and services worth your money, vouched for by people you trust."
-            testId="card-family-vendors"
           />
         </div>
       </section>
