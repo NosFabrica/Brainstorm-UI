@@ -40,6 +40,22 @@ export function isAuthRedirecting(): boolean {
   return isRedirectingToLogin;
 }
 
+/**
+ * True only when a real session token is present. Use this (not just the
+ * presence of `nostr_user`) to gate any call that goes through
+ * `authenticatedFetch` (e.g. getSelf), because that path wipes storage and
+ * hard-redirects to "/" on a 401. A stale `nostr_user` without a token must
+ * never trigger that redirect on public/anonymous pages.
+ */
+export function hasSessionToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return !!localStorage.getItem("brainstorm_session_token");
+  } catch {
+    return false;
+  }
+}
+
 function handleUnauthorized() {
   isRedirectingToLogin = true;
   localStorage.removeItem("brainstorm_session_token");

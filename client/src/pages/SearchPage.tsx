@@ -44,7 +44,7 @@ import { getCurrentUser, logout, fetchProfile, type NostrUser } from "@/services
 import { useToast } from "@/hooks/use-toast";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
 import { queryClient } from "@/lib/queryClient";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { Footer } from "@/components/Footer";
@@ -255,7 +255,10 @@ export default function SearchPage() {
   const { data: selfData } = useQuery({
     queryKey: ["/api/auth/self"],
     queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
+    // getSelf() goes through authenticatedFetch (wipes + redirects to "/" on
+    // 401). Search is a public page, so only run it with a real session token
+    // to avoid hijacking anonymous browsing when `nostr_user` is stale.
+    enabled: !!user && hasSessionToken(),
     staleTime: 60_000,
   });
 

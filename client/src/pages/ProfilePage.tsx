@@ -66,7 +66,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
@@ -1006,7 +1006,10 @@ export default function ProfilePage() {
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
   useEffect(() => {
-    if (user) {
+    // getSelf() goes through authenticatedFetch (wipes + redirects to "/" on
+    // 401). Profile is a public page, so only run it with a real session token
+    // to avoid hijacking anonymous browsing when `nostr_user` is stale.
+    if (user && hasSessionToken()) {
       apiClient.getSelf().then(res => {
         if (res?.data) setSelfData(res.data);
       }).catch(() => {});
