@@ -32,11 +32,17 @@ function ScrollToTop() {
 }
 
 // Account-only pages are hidden from anonymous visitors: no preview, just a
-// clean redirect to the search-first home. Public pages (/, /search,
-// /profile/:npub, /faq, /what-is-wot) render for everyone.
+// clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
+// so users return after signing in). Public pages (/, /search, /profile/:npub,
+// /faq, /what-is-wot) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
+  const [location] = useLocation();
   if (!getCurrentUser()) {
-    return <Redirect to="/" />;
+    const next =
+      location && location.startsWith("/") && location !== "/login"
+        ? `?next=${encodeURIComponent(location)}`
+        : "";
+    return <Redirect to={`/login${next}`} />;
   }
   return <Component />;
 }

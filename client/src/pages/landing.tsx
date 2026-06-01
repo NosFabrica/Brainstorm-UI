@@ -120,14 +120,6 @@ export default function Landing() {
         >
           How search works
         </button>
-        <button
-          type="button"
-          onClick={() => setLocation("/settings")}
-          className="font-medium text-slate-500 hover:text-indigo-300 transition-colors"
-          data-testid="link-home-settings"
-        >
-          Settings
-        </button>
       </footer>
     </div>
   );
