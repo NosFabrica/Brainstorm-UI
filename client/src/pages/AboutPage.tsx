@@ -20,16 +20,16 @@ import heroPoster from "@assets/generated_videos/trust_constellation_hero_poster
 
 const HERO_SLIDES = [
   {
-    title: "Search you can trust",
-    sub: "Brainstorm is a search engine for people — built to surface the real ones and let the noise sink.",
+    title: "Who's actually real?",
+    sub: "The internet is filling up with bots and AI. Brainstorm is search that finds the actual humans.",
   },
   {
-    title: "Built on your web of trust",
-    sub: "Real community signals decide who's credible. No platform, no opaque algorithm picking winners.",
+    title: "Trust, built in",
+    sub: "It borrows the instincts of people you trust — so the good stuff rises and the junk sinks.",
   },
   {
-    title: "One brand, many worlds",
-    sub: "Search today. Communities, music, and books next — all powered by the same web of trust.",
+    title: "Just the start",
+    sub: "Search today. Communities, music, and books are on the way.",
   },
 ];
 
@@ -196,19 +196,16 @@ export default function AboutPage() {
                 className="text-2xl font-bold text-slate-900 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                Our mission
+                Why Brainstorm
               </h2>
             </div>
             <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
-              The open web is full of voices, but it's hard to know who to trust. Anyone can claim to
-              be anyone, and spam, bots, and impersonators crowd out the real people. Brainstorm
-              exists to cut through that — surfacing authentic profiles using the organic trust
-              signals that communities already create every day.
+              The web used to be people. Now it's people, bots, and AI all talking at once — and it's
+              getting harder to tell who's who.
             </p>
             <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
-              We believe reputation should belong to people, not platforms. No single company decides
-              who is credible. Instead, your community vouches for itself, and Brainstorm reads those
-              signals to give you a clearer view of who's who.
+              Brainstorm is search built for that world. Instead of guessing, it reads who real people
+              actually trust — so the accounts that matter rise, and the noise quietly fades.
             </p>
           </div>
         </div>
@@ -227,8 +224,8 @@ export default function AboutPage() {
             The Brainstorm family
           </h2>
           <p className="mt-3 text-base text-slate-600 leading-relaxed">
-            One trust engine, a growing universe of ways to use it. We're starting with search — and
-            building out from there.
+            One simple idea — real human trust — powering more of what you do online. Starting with
+            search.
           </p>
         </div>
 
@@ -251,7 +248,7 @@ export default function AboutPage() {
               Brainstorm Search
             </h3>
             <p className="text-sm text-slate-600 leading-relaxed flex-1">
-              Find the real people across millions of profiles — by name, bio, website, or handle.
+              Find real people across millions of profiles — by name, bio, or handle.
             </p>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
               Open search <ArrowRight className="h-4 w-4" />
@@ -263,7 +260,7 @@ export default function AboutPage() {
             icon={<Users className="h-5 w-5 text-violet-600" />}
             tint="bg-violet-50"
             title="Brainstorm Communities"
-            desc="Trusted spaces to gather, organized by the people you already vouch for."
+            desc="Hang out in spaces full of people actually worth your time."
             testId="card-family-communities"
           />
           {/* Music */}
@@ -271,7 +268,7 @@ export default function AboutPage() {
             icon={<Music className="h-5 w-5 text-fuchsia-600" />}
             tint="bg-fuchsia-50"
             title="Brainstorm Music"
-            desc="Discover artists and sounds surfaced by your web of trust, not the charts."
+            desc="Tunes worth a listen, picked by ears you trust — not the charts."
             testId="card-family-music"
           />
           {/* Books */}
@@ -279,7 +276,7 @@ export default function AboutPage() {
             icon={<BookOpen className="h-5 w-5 text-sky-600" />}
             tint="bg-sky-50"
             title="Brainstorm Books"
-            desc="Reading recommendations vetted by readers your community actually trusts."
+            desc="Your next read, picked by people whose taste you actually trust."
             testId="card-family-books"
           />
         </div>
@@ -293,8 +290,8 @@ export default function AboutPage() {
         <ThemeBand
           icon={<ShieldCheck className="h-5 w-5 text-[#333286]" />}
           kicker="Trust over noise"
-          title="Answers from people you trust — not anonymous strangers"
-          desc="Generic search and AI reward whoever games the system loudest. Brainstorm reads real signals — follows, mutes, reports — so legitimate voices rise and spam sinks, no matter how many bots show up."
+          title="The loudest voice doesn't win"
+          desc="Bots can shout all day. Brainstorm only listens to real human signals — so one trusted friend still beats a thousand spammers."
           ctaLabel="See how search works"
           onClick={() => navigate("/how-search-works")}
           testId="band-trust"
@@ -302,8 +299,8 @@ export default function AboutPage() {
         <ThemeBand
           icon={<Globe className="h-5 w-5 text-[#333286]" />}
           kicker="For everyone"
-          title="Built for 8 billion people"
-          desc="Anyone online deserves trustworthy results. Start searching instantly — no account required. When you want results shaped by your own network, sign in and make it personal."
+          title="Jump in, no setup"
+          desc="Just start searching — no account, no fuss. Sign in whenever you want results tuned to your own circle."
           ctaLabel="What is a web of trust?"
           onClick={() => navigate("/what-is-wot")}
           testId="band-everyone"
@@ -311,8 +308,8 @@ export default function AboutPage() {
         <ThemeBand
           icon={<Lock className="h-5 w-5 text-[#333286]" />}
           kicker="Yours by design"
-          title="Freedom tech, quietly under the hood"
-          desc="Your identity and reputation belong to you and travel with you — no platform can lock you in or take them away. You don't have to think about any of it; it just makes the experience better."
+          title="Your account goes where you go"
+          desc="Your profile and reputation belong to you, and follow you everywhere. No lock-in, nothing to manage — it just works."
           ctaLabel="How personalization works"
           onClick={() => navigate("/personalization")}
           testId="band-freedom"
