@@ -258,7 +258,7 @@ export default function LoginPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate("/what-is-wot")}
+                    onClick={() => navigate("/personalization")}
                     className="mt-1.5 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     data-testid="link-learn-anon"
                   >
