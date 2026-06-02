@@ -156,7 +156,7 @@ export default function LoginPage() {
                     Brainstorm
                   </span>
                 </div>
-                <p className="text-slate-500 text-base mt-2.5" data-testid="text-login-subtitle">
+                <p className="text-slate-500 text-sm mt-2 text-center" data-testid="text-login-subtitle">
                   Use your Nostr identity
                 </p>
               </div>
