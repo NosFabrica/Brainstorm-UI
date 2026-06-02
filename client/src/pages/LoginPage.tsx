@@ -17,10 +17,10 @@ import avatarRoss from "@/assets/login-avatars/rossulbricht.webp";
 import avatarNatalie from "@/assets/login-avatars/natalie.webp";
 
 const COMMUNITY_AVATARS: { src: string; name: string }[] = [
-  { src: avatarJack, name: "jack" },
+  { src: avatarRoss, name: "Ross Ulbricht" },
   { src: avatarElizableu, name: "elizableu" },
   { src: avatarLynAlden, name: "Lyn Alden" },
-  { src: avatarRoss, name: "Ross Ulbricht" },
+  { src: avatarJack, name: "jack" },
   { src: avatarNatalie, name: "Natalie" },
 ];
 
