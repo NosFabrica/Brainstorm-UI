@@ -54,8 +54,6 @@ import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import { SignInButton } from "@/components/SignInButton";
 import { CleanBackground } from "@/components/CleanBackground";
-import { useActivePov } from "@/hooks/useActivePov";
-import { useHasMywot } from "@/hooks/useHasMywot";
 import {
   type SearchPov,
   type SearchResult,
@@ -104,14 +102,7 @@ export default function SearchPage() {
   const typedSinceSearchRef = useRef(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
-  const [storedPov, setPov] = useActivePov();
-  const { hasMywot } = useHasMywot();
-  const pov: SearchPov = storedPov === "mywot" && !hasMywot ? "nosfabrica" : storedPov;
-  useEffect(() => {
-    if (storedPov === "mywot" && !hasMywot) {
-      setPov("nosfabrica");
-    }
-  }, [storedPov, hasMywot, setPov]);
+  const [perspective, setPerspective] = useState<SearchPov>("nosfabrica");
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -133,18 +124,28 @@ export default function SearchPage() {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
 
-  const { data: selfData } = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    // getSelf() goes through authenticatedFetch (wipes + redirects to "/" on
-    // 401). Search is a public page, so only run it with a real session token
-    // to avoid hijacking anonymous browsing when `nostr_user` is stale.
+  const { data: isSearchObserver } = useQuery({
+    queryKey: ["/api/auth/isSearchObserver"],
+    queryFn: () => apiClient.getIsSearchObserver(),
+    // getIsSearchObserver() goes through authenticatedFetch (wipes + redirects
+    // to "/" on 401). Search is a public page, so only run it with a real
+    // session token to avoid hijacking anonymous browsing when `nostr_user`
+    // is stale.
     enabled: !!user && hasSessionToken(),
     staleTime: 60_000,
   });
 
-  const taPubkey = selfData?.data?.history?.ta_pubkey;
-  const hasPovOption = !!taPubkey;
+  // The user may only search from their own trust perspective when the backend
+  // marks them as a "search observer". Otherwise only NosFabrica's perspective
+  // is available.
+  const canUseOwn = isSearchObserver === true;
+  const pov: SearchPov =
+    perspective === "mywot" && !canUseOwn ? "nosfabrica" : perspective;
+  useEffect(() => {
+    if (perspective === "mywot" && !canUseOwn) {
+      setPerspective("nosfabrica");
+    }
+  }, [perspective, canUseOwn]);
 
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
@@ -486,7 +487,7 @@ export default function SearchPage() {
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
     if (newPov === pov) return;
-    setPov(newPov);
+    setPerspective(newPov);
   }, [pov]);
 
   useEffect(() => {
@@ -741,7 +742,7 @@ export default function SearchPage() {
                   />
                 </div>
               )}
-              {hasSearched && !isAnon && hasPovOption && (
+              {hasSearched && !isAnon && canUseOwn && (
                 <div className="flex items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator">
                   <Telescope className="h-3 w-3 text-slate-400" />
                   <span className="text-[11px] text-slate-400">Viewing as</span>
@@ -761,15 +762,11 @@ export default function SearchPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => hasMywot && handlePovSwitch("mywot")}
-                      disabled={!hasMywot}
-                      title={hasMywot ? undefined : "Calculate your trust graph first"}
+                      onClick={() => handlePovSwitch("mywot")}
                       className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
                         pov === "mywot"
                           ? "bg-white text-emerald-600 shadow-sm"
-                          : hasMywot
-                            ? "text-slate-400 hover:text-slate-600"
-                            : "text-slate-300 cursor-not-allowed"
+                          : "text-slate-400 hover:text-slate-600"
                       }`}
                       aria-pressed={pov === "mywot"}
                       data-testid="pill-pov-mywot"
