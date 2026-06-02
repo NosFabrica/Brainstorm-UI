@@ -25,12 +25,19 @@ import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 import type { NostrUser } from "@/services/nostr";
+import type { ReactNode } from "react";
 
 interface AppHeaderProps {
   user: NostrUser;
   onLogout: () => void;
   calcDone?: boolean;
   active?: AppKey;
+  /**
+   * Optional page-level controls (e.g. a Why/How mode toggle) rendered inline in
+   * the header's right cluster on desktop. Hidden on mobile (`lg:` breakpoint) so
+   * pages can surface the same control in a dedicated mobile row instead.
+   */
+  actions?: ReactNode;
   /**
    * Visual treatment. "dark" (default) is the sticky slate banner used by the
    * dense app pages. "light" is a transparent header for the airy search
@@ -44,7 +51,7 @@ interface AppHeaderProps {
  * per-page hand-rolled <nav> tab bars. Desktop navigation is driven by the
  * Google-style apps launcher (waffle); mobile uses the hamburger -> MobileMenu.
  */
-export function AppHeader({ user, onLogout, calcDone = false, active, variant = "dark" }: AppHeaderProps) {
+export function AppHeader({ user, onLogout, calcDone = false, active, variant = "dark", actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const isAdmin = isAdminPubkey(user?.pubkey);
@@ -107,6 +114,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
+            {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
             {isAdmin && <AdminBadge />}
             <div className="hidden lg:flex items-center">
               <AppsLauncher user={user} calcDone={calcDone} active={active} variant={variant} />
