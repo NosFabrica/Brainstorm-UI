@@ -50,11 +50,10 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
-import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
-import { useHasMywot } from "@/hooks/useHasMywot";
+import { type ActivePov } from "@/hooks/useActivePov";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
-type SearchPov = ActivePov;
+type SearchPerspective = "nosfabrica" | "own";
 
 interface SearchResult {
   pubkey: string;
@@ -77,7 +76,7 @@ interface SearchResult {
   wotRankMywot?: number | null;
 }
 
-function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | null {
+function byTextResultToSearchResult(hit: Record<string, unknown>): SearchResult | null {
   const pubkey = typeof hit.pubkey === "string" ? hit.pubkey : null;
   if (!pubkey) return null;
 
@@ -95,29 +94,18 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
   const num = (v: unknown): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
 
-  const wot = (hit.wot && typeof hit.wot === "object") ? (hit.wot as Record<string, unknown>) : null;
-
-  // Legacy Meili endpoint returns snake_case `wot_rank` / `wot_followers`
-  // (overall, house POV) plus per-TA variants `wot_rank_<taPubkey8>` /
-  // `wot_followers_<taPubkey8>` for the "user" (mywot) POV.
-  // Per-TA POV variants use the first 8 hex chars of the trust-anchor pubkey
-  // as the suffix (e.g. `wot_rank_78ed0837`). Match exactly to avoid colliding
-  // with similarly-prefixed but unrelated keys.
-  const TA_RANK_RE = /^wot_rank_[0-9a-f]{8}$/i;
-  const TA_FOLLOWERS_RE = /^wot_followers_[0-9a-f]{8}$/i;
-
-  // Capture each POV separately. `wot_rank` (no suffix) is the NosFabrica
-  // ("house") perspective; the suffixed `wot_rank_<8-hex>` is the logged-in
-  // user's perspective (mywot). We keep both so the Profile page can render
-  // them side-by-side in the dual-meter widget.
+  // The `/search/byText` endpoint exposes two possible rank sources:
+  //   - NosFabrica ("house") perspective (ownPubkey=false): `_quality_score`
+  //     (older builds: `quality_score`), 0..100.
+  //   - The logged-in user's own perspective (ownPubkey=true): a dynamic
+  //     per-trust-anchor key `rank_<taPubkey>` (e.g. `rank_be7bf5de...`), 0..100.
+  // Capture both so the Profile page's dual-meter widget can render them, and
+  // pick a single primary `wotRank` for the result card.
   const wotRankNosfabrica: number | null =
-    num(hit.wot_rank) ??
-    num(hit.wotRank) ??
-    num(hit.rank) ??
-    (wot ? num(wot.rank) ?? num(wot.score) : null);
+    num(hit._quality_score) ?? num(hit.quality_score);
   let wotRankMywot: number | null = null;
   for (const key of Object.keys(hit)) {
-    if (TA_RANK_RE.test(key)) {
+    if (/^rank_[0-9a-f]+$/i.test(key)) {
       const v = num(hit[key]);
       if (v !== null) {
         wotRankMywot = v;
@@ -125,25 +113,8 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
       }
     }
   }
-  // Back-compat: pick a single primary rank (prefer NosFabrica, fall back to
-  // mywot) so existing callers that only read `wotRank` still work.
-  const wotRank: number | null = wotRankNosfabrica ?? wotRankMywot;
-  let wotFollowers: number | null =
-    num(hit.wot_followers) ??
-    num(hit.wotFollowers) ??
-    num(hit.followers) ??
-    (wot ? num(wot.followers) : null);
-  if (wotFollowers === null) {
-    for (const key of Object.keys(hit)) {
-      if (TA_FOLLOWERS_RE.test(key)) {
-        const v = num(hit[key]);
-        if (v !== null) {
-          wotFollowers = v;
-          break;
-        }
-      }
-    }
-  }
+  // Prefer the user's own perspective when present, otherwise NosFabrica's.
+  const wotRank: number | null = wotRankMywot ?? wotRankNosfabrica;
 
   const str = (v: unknown): string | undefined =>
     typeof v === "string" && v.length > 0 ? v : undefined;
@@ -161,7 +132,7 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
     banner: str(hit.banner),
     createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
     wotRank,
-    wotFollowers,
+    wotFollowers: null,
     wotRankNosfabrica,
     wotRankMywot,
   };
@@ -169,18 +140,16 @@ function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | nu
 
 async function searchByText(
   query: string,
-  pov: SearchPov,
-  userPubkey?: string,
+  ownPubkey: boolean,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
-  const apiPov = pov === "mywot" ? "user" : "house";
-  const data = await apiClient.searchProfilesLegacyMeili(query, apiPov, userPubkey, 50);
-  const hits = data.hits;
-  const total = data.estimatedTotalHits ?? hits.length;
+  const data = await apiClient.searchByText(query, true, ownPubkey);
+  const hits = data?.data?.results ?? [];
+  const total = data?.data?.numResults ?? hits.length;
   const results: SearchResult[] = [];
   const seen = new Set<string>();
   for (const h of hits) {
-    const mapped = meiliHitToSearchResult(h);
+    const mapped = byTextResultToSearchResult(h);
     if (!mapped) continue;
     if (seen.has(mapped.pubkey)) continue;
     seen.add(mapped.pubkey);
@@ -221,14 +190,7 @@ export default function SearchPage() {
   const [showFilters, setShowFilters] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
-  const [storedPov, setPov] = useActivePov();
-  const { hasMywot } = useHasMywot();
-  const pov: SearchPov = storedPov === "mywot" && !hasMywot ? "nosfabrica" : storedPov;
-  useEffect(() => {
-    if (storedPov === "mywot" && !hasMywot) {
-      setPov("nosfabrica");
-    }
-  }, [storedPov, hasMywot, setPov]);
+  const [perspective, setPerspective] = useState<SearchPerspective>("nosfabrica");
   const [firstVisit] = useState(() => {
     if (sessionStorage.getItem("bs_visited")) return false;
     sessionStorage.setItem("bs_visited", "1");
@@ -250,15 +212,28 @@ export default function SearchPage() {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
 
-  const { data: selfData } = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
+  const { data: isSearchObserver } = useQuery({
+    queryKey: ["/api/auth/isSearchObserver"],
+    queryFn: () => apiClient.getIsSearchObserver(),
     enabled: !!user,
     staleTime: 60_000,
   });
 
-  const taPubkey = selfData?.data?.history?.ta_pubkey;
-  const hasPovOption = !!taPubkey;
+  // The user may only search from their own perspective when the backend marks
+  // them as a search observer. Otherwise only NosFabrica's perspective is shown.
+  const canUseOwnPerspective = isSearchObserver === true;
+  const effectivePerspective: SearchPerspective =
+    perspective === "own" && !canUseOwnPerspective ? "nosfabrica" : perspective;
+  const ownPubkey = effectivePerspective === "own";
+  // Map the search perspective onto the app-wide POV vocabulary so the Profile
+  // page (dual-meter widget + mismatch banner) keeps working off the URL/seed.
+  const navPov: ActivePov = ownPubkey ? "mywot" : "nosfabrica";
+
+  useEffect(() => {
+    if (perspective === "own" && !canUseOwnPerspective) {
+      setPerspective("nosfabrica");
+    }
+  }, [perspective, canUseOwnPerspective]);
 
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
@@ -280,7 +255,7 @@ export default function SearchPage() {
       wotFollowers: result.wotFollowers ?? null,
       wotRankNosfabrica: result.wotRankNosfabrica ?? null,
       wotRankMywot: result.wotRankMywot ?? null,
-      povFromSearch: pov,
+      povFromSearch: navPov,
     };
     setProfileSeed(hex, seed);
     queryClient.prefetchQuery({
@@ -296,7 +271,7 @@ export default function SearchPage() {
       queryFn: async () => (await fetchProfile(hex)) ?? null,
       staleTime: 5 * 60_000,
     }).catch(() => {});
-  }, [pov]);
+  }, [navPov]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
@@ -393,7 +368,7 @@ export default function SearchPage() {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          navigate(`/profile/${q}?pov=${pov}`);
+          navigate(`/profile/${q}?pov=${navPov}`);
           return;
         }
       } catch {}
@@ -401,7 +376,7 @@ export default function SearchPage() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      navigate(`/profile/${npub}?pov=${pov}`);
+      navigate(`/profile/${npub}?pov=${navPov}`);
       return;
     }
 
@@ -412,7 +387,7 @@ export default function SearchPage() {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        navigate(`/profile/${npub}?pov=${pov}`);
+        navigate(`/profile/${npub}?pov=${navPov}`);
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
@@ -433,7 +408,7 @@ export default function SearchPage() {
     } catch {}
 
     try {
-      const { results: searchResults, timeMs } = await searchByText(q, pov, user?.pubkey);
+      const { results: searchResults, timeMs } = await searchByText(q, ownPubkey);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));
@@ -451,7 +426,7 @@ export default function SearchPage() {
         setIsSearching(false);
       }
     }
-  }, [query, pov, user?.pubkey, navigate, resetFilters, toast]);
+  }, [query, ownPubkey, navPov, user?.pubkey, navigate, resetFilters, toast]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -480,20 +455,19 @@ export default function SearchPage() {
     }
   }, [user, handleSearch]);
 
-  const prevPovRef = useRef(pov);
-  const handlePovSwitch = useCallback((newPov: SearchPov) => {
-    if (newPov === pov) return;
-    setPov(newPov);
-  }, [pov]);
+  const prevPerspectiveRef = useRef(effectivePerspective);
+  const handlePerspectiveSwitch = useCallback((next: SearchPerspective) => {
+    setPerspective(next);
+  }, []);
 
   useEffect(() => {
-    if (prevPovRef.current !== pov) {
-      prevPovRef.current = pov;
+    if (prevPerspectiveRef.current !== effectivePerspective) {
+      prevPerspectiveRef.current = effectivePerspective;
       if (hasSearched && query.trim()) {
         handleSearch();
       }
     }
-  }, [pov, hasSearched, query, handleSearch]);
+  }, [effectivePerspective, hasSearched, query, handleSearch]);
 
   const handleLogout = () => {
     logout();
@@ -669,42 +643,52 @@ export default function SearchPage() {
                   {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><SearchIcon className="h-3.5 w-3.5 sm:hidden" /><span className="hidden sm:inline">Search</span></>}
                 </Button>
               </div>
-              {hasSearched && hasPovOption && (
-                <div className="flex items-center gap-1.5 mt-2.5 px-1" data-testid="text-pov-indicator">
+              {user && (
+                <div className="flex items-center gap-1.5 mt-2.5 px-1">
                   <Telescope className="h-3 w-3 text-slate-400" />
-                  <span className="text-[11px] text-slate-400">Viewing as</span>
-                  <div className="inline-flex items-center rounded-full bg-slate-100 p-0.5 ml-0.5" role="tablist" aria-label="Trust perspective">
-                    <button
-                      type="button"
-                      onClick={() => handlePovSwitch("nosfabrica")}
-                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
-                        pov === "nosfabrica"
-                          ? "bg-white text-indigo-500 shadow-sm"
-                          : "text-slate-400 hover:text-slate-600"
-                      }`}
-                      aria-pressed={pov === "nosfabrica"}
-                      data-testid="pill-pov-nosfabrica"
-                    >
-                      NosFabrica
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => hasMywot && handlePovSwitch("mywot")}
-                      disabled={!hasMywot}
-                      title={hasMywot ? undefined : "Calculate your trust graph first"}
-                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
-                        pov === "mywot"
-                          ? "bg-white text-emerald-600 shadow-sm"
-                          : hasMywot
-                            ? "text-slate-400 hover:text-slate-600"
-                            : "text-slate-300 cursor-not-allowed"
-                      }`}
-                      aria-pressed={pov === "mywot"}
-                      data-testid="pill-pov-mywot"
-                    >
-                      {user.displayName || "My WoT"}
-                    </button>
-                  </div>
+                  <span className="text-[11px] text-slate-400">Search from</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-slate-700"
+                        data-testid="button-search-perspective"
+                      >
+                        <span className={effectivePerspective === "own" ? "text-emerald-600" : "text-indigo-500"}>
+                          {effectivePerspective === "own"
+                            ? `${user.displayName || "Your"}'s perspective`
+                            : "Nosfabrica's perspective"}
+                        </span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-60 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                      <DropdownMenuLabel className="text-[11px] font-normal text-slate-400">
+                        Trust perspective
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-indigo-100" />
+                      <DropdownMenuItem
+                        className="cursor-pointer"
+                        onClick={() => handlePerspectiveSwitch("nosfabrica")}
+                        data-testid="item-perspective-nosfabrica"
+                      >
+                        <span className="flex-1 text-indigo-500 font-medium">Nosfabrica's perspective</span>
+                        {effectivePerspective === "nosfabrica" && <Check className="h-3.5 w-3.5 text-indigo-500" />}
+                      </DropdownMenuItem>
+                      {canUseOwnPerspective && (
+                        <DropdownMenuItem
+                          className="cursor-pointer"
+                          onClick={() => handlePerspectiveSwitch("own")}
+                          data-testid="item-perspective-own"
+                        >
+                          <span className="flex-1 text-emerald-600 font-medium">
+                            {user.displayName ? `${user.displayName}'s perspective` : "Your perspective"}
+                          </span>
+                          {effectivePerspective === "own" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               )}
             </div>
@@ -848,7 +832,7 @@ export default function SearchPage() {
                         const hasNosfabricaRank =
                           typeof result.wotRankNosfabrica === "number" &&
                           Number.isFinite(result.wotRankNosfabrica);
-                        const persistNosfabrica = pov === "nosfabrica" && hasNosfabricaRank && !!hex;
+                        const persistNosfabrica = effectivePerspective === "nosfabrica" && hasNosfabricaRank && !!hex;
                         if (persistNosfabrica) {
                           setStoredSearchSeed(hex, {
                             pubkey: hex,
@@ -865,11 +849,11 @@ export default function SearchPage() {
                             wotFollowers: result.wotFollowers ?? null,
                             wotRankNosfabrica: result.wotRankNosfabrica ?? null,
                             wotRankMywot: result.wotRankMywot ?? null,
-                            povFromSearch: pov,
+                            povFromSearch: navPov,
                           });
                         }
                         const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
-                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${pov}${suffix}`);
+                        navigate(`/profile/${result.npub}?fromSearch=1&pov=${navPov}${suffix}`);
                       }}
                       data-testid={`result-profile-${idx}`}
                     >

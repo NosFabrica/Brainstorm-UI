@@ -343,9 +343,33 @@ export const apiClient = {
     return await response.json();
   },
 
+  /**
+   * Check whether the logged-in user is allowed to search from their own
+   * trust perspective ("search observer"). Requires authentication.
+   * Returns the boolean `data` field from `/user/isSearchObserver`.
+   */
+  async getIsSearchObserver(timeoutMs: number = 15000): Promise<boolean> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/isSearchObserver`,
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to check search observer status (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data === true;
+  },
+
+  /**
+   * Free-text profile search via the Brainstorm backend `/search/byText`.
+   * When `ownPubkey` is true the search is run from the logged-in user's own
+   * trust perspective and the request is authenticated (session token sent);
+   * otherwise it runs from NosFabrica's perspective without authentication.
+   */
   async searchByText(
     text: string,
     onlyRanked: boolean = true,
+    ownPubkey: boolean = false,
     timeoutMs: number = 15000,
   ): Promise<{
     code: number;
@@ -359,11 +383,12 @@ export const apiClient = {
     const params = new URLSearchParams({
       text,
       onlyRanked: String(onlyRanked),
+      ownPubkey: String(ownPubkey),
     });
-    const response = await fetch(
-      `${getBrainstormApi()}/search/byText?${params.toString()}`,
-      { signal: AbortSignal.timeout(timeoutMs) },
-    );
+    const url = `${getBrainstormApi()}/search/byText?${params.toString()}`;
+    const response = ownPubkey
+      ? await authenticatedFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+      : await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
       throw new Error(`Search failed (${response.status})`);
     }
