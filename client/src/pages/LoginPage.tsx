@@ -9,8 +9,7 @@ import {
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
-import { CleanBackground } from "@/components/CleanBackground";
-import loginBackdrop from "@assets/generated_images/login_human_backdrop.webp";
+import loginSplitHero from "@assets/generated_images/login_split_hero.png";
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -51,9 +50,9 @@ const DOT_POINTS = [
   { cx: 22.4492, cy: 12.05, sw: 2 },
 ];
 
-function BrainIcon({ size = 36 }: { size?: number }) {
+function BrainIcon({ size = 36, className = "text-indigo-600" }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="text-indigo-600">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
       <g clipPath="url(#clip0_brain)">
         {BRAIN_SVG_PATHS.map((d, i) => (
           <path key={i} d={d} stroke="currentColor" strokeMiterlimit="10" />
@@ -136,153 +135,179 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden font-sans" data-testid="page-login">
-      <CleanBackground />
+    <div className="flex min-h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans overflow-hidden" data-testid="page-login">
+      {/* Left column — editorial value panel */}
+      <div className="hidden lg:flex w-[45%] flex-col relative bg-indigo-900 text-white overflow-hidden p-12 justify-between">
+        <div className="absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src={loginSplitHero}
+            alt=""
+            draggable={false}
+            className="w-full h-full object-cover opacity-40 mix-blend-overlay select-none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-indigo-950 via-indigo-900/60 to-transparent" />
+        </div>
 
-      {/* Subtle human backdrop — warm, real, and quietly elegant behind the card */}
-      <div
-        className="absolute inset-0 pointer-events-none overflow-hidden"
-        aria-hidden="true"
-        data-testid="bg-login-human"
-      >
-        <img
-          src={loginBackdrop}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          className="absolute inset-x-0 bottom-0 w-full h-[68%] object-cover object-top opacity-[0.22] select-none mix-blend-luminosity saturate-[1.15]"
-          style={{
-            WebkitMaskImage:
-              "radial-gradient(135% 100% at 50% 100%, black 28%, rgba(0,0,0,0.35) 62%, transparent 86%)",
-            maskImage:
-              "radial-gradient(135% 100% at 50% 100%, black 28%, rgba(0,0,0,0.35) 62%, transparent 86%)",
-          }}
-        />
-        {/* Indigo wash to tie the photo into the brand palette */}
-        <div className="absolute inset-0 bg-gradient-to-t from-indigo-500/10 via-transparent to-transparent" />
-        {/* Soften the sides so the photo never competes with the card */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#F8FAFC] via-transparent to-[#F8FAFC]" />
-        {/* Keep the top airy and the content grounded */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] via-transparent to-[#F8FAFC]/60" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-12" data-testid="brand-login">
+            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
+              <BrainIcon size={32} className="text-indigo-200" />
+            </div>
+            <span
+              className="text-2xl font-bold tracking-tight text-white"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Brainstorm
+            </span>
+          </div>
+        </div>
+
+        <div className="relative z-10 max-w-md">
+          <h1 className="text-4xl font-semibold mb-6 leading-tight text-white/90">
+            Trust is earned. <br />
+            <span className="text-white">Now it's visible.</span>
+          </h1>
+          <p className="text-lg text-indigo-200 leading-relaxed">
+            Brainstorm maps the relationships that matter. See who your friends trust,
+            build your reputation, and navigate the Nostr network with confidence.
+          </p>
+
+          <div className="mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
+            <div className="flex -space-x-3" aria-hidden="true">
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-400" />
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-500" />
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-600" />
+            </div>
+            <span>Join a growing community building the web of trust</span>
+          </div>
+        </div>
       </div>
 
-      <main className="flex-1 flex items-center justify-center p-4 relative z-10">
-        <div className="w-full max-w-[460px] animate-fade-up">
-          <div className="relative bg-white border border-slate-200 rounded-3xl shadow-[0_8px_40px_-12px_rgba(15,23,42,0.12)] overflow-hidden">
-            <div className="relative flex flex-col p-8 sm:p-10">
-              {/* Header — identity (centered, Google-style) */}
-              <div className="flex flex-col items-center text-center">
-                <div className="flex items-center justify-center gap-2" data-testid="brand-login">
-                  <BrainIcon size={30} />
-                  <span
-                    className="text-2xl sm:text-3xl font-bold tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
-                    Brainstorm
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col mt-8">
-                {error && (
-                  <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 mb-4" data-testid="text-login-error">
-                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    <p className="text-sm text-red-600">{error}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={onLogin}
-                  disabled={loading}
-                  className="group w-full text-left rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors p-4 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
-                  data-testid="button-signin-extension"
-                >
-                  <div className="h-10 w-10 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
-                    {loading ? (
-                      <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" />
-                    ) : (
-                      <svg
-                        className="h-5 w-5 text-indigo-600"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="square"
-                        aria-hidden="true"
-                      >
-                        <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
-                        <path d="M2 11.1914H14.88" />
-                        <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">{loading ? "Connecting…" : "Sign in with your extension"}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">Alby, Nos2x & other signers</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={openNsec}
-                  className="self-center mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                  data-testid="link-use-nsec"
-                >
-                  <KeyRound className="h-3.5 w-3.5" /> Use your private key?
-                </button>
-
-                <div className="my-6 flex items-center gap-3" aria-hidden="true">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">new to Brainstorm?</span>
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
-                  className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors active:scale-[0.99]"
-                  data-testid="link-create-identity"
-                >
-                  Create your account
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <p className="mt-2 text-center text-xs text-slate-400">
-                  Free, takes a minute — no email required
-                </p>
-
-                <div className="mt-6 rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm text-slate-500 leading-relaxed text-center">
-                  <p data-testid="text-anon-note">
-                    Not your device? Keep your identity private — you can browse Brainstorm anonymously without signing in.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/personalization")}
-                    className="mt-1.5 font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-                    data-testid="link-learn-anon"
-                  >
-                    Learn about anonymous browsing
-                  </button>
-                </div>
-              </div>
-            </div>
+      {/* Right column — sign-in focus */}
+      <main className="flex-1 flex flex-col p-8">
+        <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
+        <div className="w-full max-w-[420px] flex flex-col animate-fade-up">
+          {/* Mobile brand header (hidden on desktop) */}
+          <div className="flex lg:hidden items-center justify-center gap-2 mb-10">
+            <BrainIcon size={30} className="text-indigo-600" />
+            <span
+              className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 to-indigo-500"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Brainstorm
+            </span>
           </div>
 
-          {/* Footer */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-2 mt-6 text-xs text-slate-500">
+          <div className="mb-10 text-center lg:text-left">
+            <h2 className="text-2xl font-semibold mb-2">Welcome back</h2>
+            <p className="text-slate-500">Sign in to your Brainstorm account</p>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-3 mb-4" data-testid="text-login-error">
+              <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <button
+              onClick={onLogin}
+              disabled={loading}
+              className="group w-full text-left rounded-2xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm transition-all p-4 flex items-center gap-4 disabled:opacity-60 disabled:cursor-not-allowed"
+              data-testid="button-signin-extension"
+            >
+              <div className="h-12 w-12 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0 shadow-sm">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
+                ) : (
+                  <svg
+                    className="h-6 w-6 text-indigo-600"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="square"
+                    aria-hidden="true"
+                  >
+                    <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
+                    <path d="M2 11.1914H14.88" />
+                    <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
+                  </svg>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-semibold text-slate-900 group-hover:text-indigo-900 transition-colors">
+                  {loading ? "Connecting…" : "Sign in with your extension"}
+                </p>
+                <p className="text-sm text-slate-500 mt-0.5 truncate">Alby, Nos2x & other signers</p>
+              </div>
+              <ArrowRight className="h-5 w-5 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+            </button>
+
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 hover:text-slate-700 transition-colors"
-              data-testid="button-login-language"
+              onClick={openNsec}
+              className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors"
+              data-testid="link-use-nsec"
             >
-              English (United States) <ChevronDown className="h-3.5 w-3.5" />
+              <KeyRound className="h-4 w-4" /> Use your private key?
             </button>
-            <div className="flex items-center gap-5">
-              <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-700 transition-colors" data-testid="link-login-help">Help</button>
-              <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-700 transition-colors" data-testid="link-login-privacy">Privacy</button>
-              <button type="button" onClick={() => navigate("/terms")} className="hover:text-slate-700 transition-colors" data-testid="link-login-terms">Terms</button>
-            </div>
+          </div>
+
+          <div className="my-8 flex items-center gap-4" aria-hidden="true">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              New to Brainstorm?
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <div className="flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
+              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-all shadow-sm active:scale-[0.99]"
+              data-testid="link-create-identity"
+            >
+              Create your account
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+            <p className="text-xs text-slate-500 font-medium">
+              Free, takes a minute — no email required
+            </p>
+          </div>
+
+          <div className="mt-8 p-5 rounded-2xl bg-slate-50 border border-slate-100 text-sm text-slate-600 text-center leading-relaxed">
+            <p className="mb-2" data-testid="text-anon-note">
+              <span className="font-semibold text-slate-800">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/personalization")}
+              className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors inline-flex items-center gap-1"
+              data-testid="link-learn-anon"
+            >
+              Learn about anonymous browsing
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+        </div>
+
+        {/* Footer */}
+        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-slate-500">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 hover:text-slate-800 transition-colors px-2 py-1 rounded-md hover:bg-slate-100"
+            data-testid="button-login-language"
+          >
+            English (United States) <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <div className="flex items-center gap-6">
+            <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-800 transition-colors" data-testid="link-login-help">Help</button>
+            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-800 transition-colors" data-testid="link-login-privacy">Privacy</button>
+            <button type="button" onClick={() => navigate("/terms")} className="hover:text-slate-800 transition-colors" data-testid="link-login-terms">Terms</button>
           </div>
         </div>
       </main>
