@@ -55,7 +55,7 @@ export default function AboutPage() {
   const [, navigate] = useLocation();
   const [slide, setSlide] = useState(0);
   const [playing, setPlaying] = useState(() => !prefersReducedMotion());
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -72,15 +72,51 @@ export default function AboutPage() {
     return () => window.clearInterval(id);
   }, [playing]);
 
+  const prevSlideRef = useRef(slide);
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (playing) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
+    const prev = prevSlideRef.current;
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return;
+      if (i === slide) {
+        if (playing) {
+          v.play().catch(() => {});
+        } else {
+          v.pause();
+        }
+      } else {
+        v.pause();
+        // Don't rewind the outgoing slide yet — let it finish fading out so
+        // the crossfade stays smooth. Other inactive slides reset immediately.
+        if (i !== prev) {
+          try {
+            v.currentTime = 0;
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    });
+
+    // After the crossfade completes, rewind the outgoing slide too, unless we've
+    // navigated back to it in the meantime.
+    let timeout: number | undefined;
+    if (prev !== slide) {
+      const outgoing = videoRefs.current[prev];
+      timeout = window.setTimeout(() => {
+        if (outgoing && prevSlideRef.current !== prev) {
+          try {
+            outgoing.currentTime = 0;
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 700);
     }
-  }, [playing]);
+    prevSlideRef.current = slide;
+    return () => {
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, [slide, playing]);
 
   const togglePlaying = useCallback(() => setPlaying((p) => !p), []);
 
@@ -162,19 +198,25 @@ export default function AboutPage() {
           {/* Right: cinematic video */}
           <div className="order-1 lg:order-2 animate-fade-up">
             <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
-              <video
-                key={slide}
-                ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover"
-                src={active.video}
-                poster={active.poster}
-                autoPlay={playing}
-                muted
-                loop
-                playsInline
-                preload="metadata"
-                data-testid="video-hero"
-              />
+              {HERO_SLIDES.map((s, i) => (
+                <video
+                  key={s.title}
+                  ref={(el) => {
+                    videoRefs.current[i] = el;
+                  }}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-out ${
+                    i === slide ? "opacity-100" : "opacity-0"
+                  }`}
+                  src={s.video}
+                  poster={s.poster}
+                  muted
+                  loop
+                  playsInline
+                  preload={i === slide ? "auto" : "metadata"}
+                  aria-hidden={i !== slide}
+                  data-testid={i === slide ? "video-hero" : undefined}
+                />
+              ))}
               {/* gentle vignette + brand wash */}
               <div className="absolute inset-0 bg-gradient-to-tr from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
               <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-3xl pointer-events-none" />
