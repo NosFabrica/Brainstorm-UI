@@ -148,16 +148,26 @@ export default function PersonalizationPage() {
                 <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">My Point of View</h3>
                 <p className="text-[15px] text-slate-600 leading-relaxed">
                   Your personalized perspective. Uses trust scores derived from your extended community,
-                  calculated and made available to platforms like brainstorm.world by a service such as the one
-                  at{" "}
+                  calculated and made available to platforms like{" "}
                   <a
-                    href="https://brainstorm.nosfabrica.com"
+                    href="https://amethyst.social/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
-                    data-testid="link-brainstorm-nosfabrica"
+                    data-testid="link-amethyst"
                   >
-                    brainstorm.nosfabrica.com
+                    amethyst.social
+                    <ExternalLink className="h-3 w-3" />
+                  </a>{" "}
+                  by a service such as the one at{" "}
+                  <a
+                    href="https://brainstorm.world"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                    data-testid="link-brainstorm-world"
+                  >
+                    brainstorm.world
                     <ExternalLink className="h-3 w-3" />
                   </a>
                   . Or, if you prefer, you can be your own trust-scores service provider by running the
