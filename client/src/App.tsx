@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
-import SearchPage from "@/pages/SearchPage";
 import SettingsPage from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -37,9 +36,18 @@ function ScrollToTop() {
   return null;
 }
 
+// The search experience now lives on the home page (`/`). Old `/search` links
+// (and `/search?q=...` deep links) redirect to `/` preserving the query so they
+// keep working.
+function SearchRedirect() {
+  let search = "";
+  try { search = window.location.search || ""; } catch {}
+  return <Redirect to={`/${search}`} replace />;
+}
+
 // Account-only pages are hidden from anonymous visitors: no preview, just a
 // clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
-// so users return after signing in). Public pages (/, /search, /profile/:npub,
+// so users return after signing in). Public pages (/, /profile/:npub,
 // /faq, /what-is-wot, /how-search-works, /personalization, /about) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
@@ -62,7 +70,7 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
-        <Route path="/search" component={SearchPage} />
+        <Route path="/search" component={SearchRedirect} />
         <Route path="/profile/:npub" component={ProfilePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>

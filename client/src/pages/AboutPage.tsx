@@ -123,7 +123,7 @@ export default function AboutPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => navigate("/search")}
+                onClick={() => navigate("/")}
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
                 data-testid="button-hero-search"
               >
@@ -244,7 +244,7 @@ export default function AboutPage() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search — live */}
           <button
-            onClick={() => navigate("/search")}
+            onClick={() => navigate("/")}
             className="group text-left rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#7c86ff]/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
             data-testid="card-family-search"
           >

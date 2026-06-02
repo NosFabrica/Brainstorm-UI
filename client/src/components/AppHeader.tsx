@@ -41,7 +41,7 @@ interface AppHeaderProps {
   /**
    * Visual treatment. "dark" (default) is the sticky slate banner used by the
    * dense app pages. "light" is a transparent header for the airy search
-   * experience (home `/` and `/search`) so it matches the signed-out look.
+   * experience (search-first home `/`) so it matches the signed-out look.
    */
   variant?: "dark" | "light";
 }

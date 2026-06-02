@@ -2049,7 +2049,7 @@ export default function ProfilePage() {
                 variant="ghost"
                 size="sm"
                 className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-                onClick={() => goBack("/search")}
+                onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -2107,7 +2107,7 @@ export default function ProfilePage() {
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
-                      onClick={() => navigate("/search")}
+                      onClick={() => navigate("/")}
                       className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#3730a3] hover:bg-[#312e81] text-white"
                       data-testid="button-profile-new-search"
                     >
@@ -3069,7 +3069,7 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate("/search")}
+                    onClick={() => navigate("/")}
                     className="h-10 rounded-xl px-4 border-slate-200 bg-white"
                     data-testid="button-profile-new-search"
                   >
