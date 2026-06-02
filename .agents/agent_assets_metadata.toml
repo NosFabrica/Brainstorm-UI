@@ -54,6 +54,18 @@ uri = "file://attached_assets/generated_images/login_split_hero.png"
 type = "image"
 title = "hip mixed creative builders loft"
 
+[[generated]]
+id = "vuksBk6jGs1ZBv7kmsfFY"
+uri = "file://attached_assets/generated_images/login_hero_2.png"
+type = "image"
+title = "hip builders rooftop golden hour"
+
+[[generated]]
+id = "bAcUXB0jPAcubq56A2O9w"
+uri = "file://attached_assets/generated_images/login_hero_3.png"
+type = "image"
+title = "hip builders studio table daylight"
+
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
 uri = "file://docs/brainstorm-assistant-profile-spec.md"

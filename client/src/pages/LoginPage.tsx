@@ -9,12 +9,16 @@ import {
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
-import loginSplitHero from "@assets/generated_images/login_split_hero.png";
+import heroImage1 from "@/assets/login-hero/hero-1.webp";
+import heroImage2 from "@/assets/login-hero/hero-2.webp";
+import heroImage3 from "@/assets/login-hero/hero-3.webp";
 import avatarJack from "@/assets/login-avatars/jack.webp";
 import avatarElizableu from "@/assets/login-avatars/elizableu.webp";
 import avatarLynAlden from "@/assets/login-avatars/lynalden.webp";
 import avatarRoss from "@/assets/login-avatars/rossulbricht.webp";
 import avatarNatalie from "@/assets/login-avatars/natalie.webp";
+
+const HERO_IMAGES: string[] = [heroImage1, heroImage2, heroImage3];
 
 const COMMUNITY_AVATARS: { src: string; name: string }[] = [
   { src: avatarRoss, name: "Ross Ulbricht" },
@@ -103,6 +107,7 @@ export default function LoginPage() {
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
   const [failureMessage, setFailureMessage] = useState("");
+  const [heroIndex, setHeroIndex] = useState(0);
 
   const nextPath = getNextPath();
 
@@ -111,6 +116,24 @@ export default function LoginPage() {
       navigate(nextPath, { replace: true });
     }
   }, [navigate, nextPath]);
+
+  useEffect(() => {
+    if (HERO_IMAGES.length <= 1) return;
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (prefersReducedMotion) return;
+
+    HERO_IMAGES.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+
+    const interval = setInterval(() => {
+      setHeroIndex((i) => (i + 1) % HERO_IMAGES.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
 
   const onLogin = async () => {
     setError(null);
@@ -152,12 +175,19 @@ export default function LoginPage() {
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-indigo-900 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
-          <img
-            src={loginSplitHero}
-            alt=""
-            draggable={false}
-            className="w-full h-full object-cover opacity-40 mix-blend-overlay select-none"
-          />
+          {HERO_IMAGES.map((src, i) => (
+            <img
+              key={src}
+              src={src}
+              alt=""
+              draggable={false}
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              className={`absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay select-none transition-opacity duration-1000 ease-in-out ${
+                i === heroIndex ? "opacity-40" : "opacity-0"
+              }`}
+            />
+          ))}
           <div className="absolute inset-0 bg-gradient-to-t from-indigo-950 via-indigo-900/60 to-transparent" />
         </div>
 
