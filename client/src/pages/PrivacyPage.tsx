@@ -1,4 +1,4 @@
-import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { LegalDocLayout, type Section } from "@/components/LegalDocLayout";
 
 // Body content is rendered VERBATIM from the source copy
 // (attached_assets/Pasted-BRAINSTORM-PRIVACY-NOTICE-...txt): original wording,
@@ -10,39 +10,6 @@ const LAST_REVISED = "Last revised on April 16th, 2026";
 
 const CONTACT_EMAIL = "support@nosfabrica.com";
 const CONTACT_SUBJECT = "Privacy Inquiry";
-const CONTACT_HREF = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
-
-type Block =
-  | { type: "p"; text: string }
-  | { type: "address"; lines: string[] };
-
-interface Section {
-  id: string;
-  title: string;
-  blocks: Block[];
-}
-
-function renderText(text: string): Array<string | JSX.Element> | string {
-  const parts = text.split(CONTACT_EMAIL);
-  if (parts.length === 1) return text;
-  const nodes: Array<string | JSX.Element> = [];
-  parts.forEach((part, i) => {
-    if (i > 0) {
-      nodes.push(
-        <a
-          key={`email-${i}`}
-          href={CONTACT_HREF}
-          className="font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-2 break-words"
-          data-testid={`link-contact-email-${i}`}
-        >
-          {CONTACT_EMAIL}
-        </a>,
-      );
-    }
-    if (part) nodes.push(part);
-  });
-  return nodes;
-}
 
 const PREAMBLE: string[] = [
   "This privacy notice for NosFabrica, Inc. (“Company,” “we,” “us,” or “our”), describes how and why we might collect, store, use, and/or share (“process”) your information when you use our services (“Services”), including the Brainstorm web-of-trust scoring tool. By using our Services, or by accessing our website at brainstorm.nosfabrica.com or any website of ours that links to this privacy notice, you are accepting and consenting to this Privacy Policy.",
@@ -300,71 +267,16 @@ const SECTIONS: Section[] = [
 
 export default function PrivacyPage() {
   return (
-    <InfoPageLayout testId="page-privacy">
-      <article className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
-        <header className="mb-10">
-          <h1
-            className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
-            style={{ fontFamily: "var(--font-display)" }}
-            data-testid="text-privacy-title"
-          >
-            {TITLE}
-          </h1>
-          <p className="mt-3 text-sm text-slate-500" data-testid="text-privacy-revised">
-            {LAST_REVISED}
-          </p>
-          <div className="mt-6 space-y-4">
-            {PREAMBLE.map((text, i) => (
-              <p
-                key={i}
-                className="text-[15px] sm:text-base text-slate-700 leading-relaxed"
-              >
-                {renderText(text)}
-              </p>
-            ))}
-          </div>
-        </header>
-
-        <div className="space-y-10">
-          {SECTIONS.map((section) => (
-            <section key={section.id} data-testid={`section-privacy-${section.id}`}>
-              <h2
-                className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-4"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {section.title}
-              </h2>
-              <div className="space-y-4">
-                {section.blocks.map((block, i) => {
-                  if (block.type === "address") {
-                    return (
-                      <address
-                        key={i}
-                        className="not-italic text-[15px] sm:text-base text-slate-700 leading-relaxed"
-                        data-testid="text-contact-address"
-                      >
-                        {block.lines.map((line, j) => (
-                          <span key={j} className="block">
-                            {line}
-                          </span>
-                        ))}
-                      </address>
-                    );
-                  }
-                  return (
-                    <p
-                      key={i}
-                      className="text-[15px] sm:text-base text-slate-700 leading-relaxed"
-                    >
-                      {renderText(block.text)}
-                    </p>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
-      </article>
-    </InfoPageLayout>
+    <LegalDocLayout
+      testId="page-privacy"
+      docKind="privacy"
+      eyebrow="Privacy Notice"
+      title={TITLE}
+      lastRevised={LAST_REVISED}
+      preamble={PREAMBLE}
+      sections={SECTIONS}
+      contactEmail={CONTACT_EMAIL}
+      contactSubject={CONTACT_SUBJECT}
+    />
   );
 }
