@@ -12,6 +12,7 @@ export interface Section {
   id: string;
   title: string;
   blocks: Block[];
+  ordered?: boolean;
 }
 
 type DocKind = "privacy" | "terms";
@@ -310,33 +311,59 @@ export function LegalDocLayout({
                             <Link2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
-                        <div className="mt-4 space-y-4">
-                          {section.blocks.map((block, i) => {
-                            if (block.type === "address") {
-                              return (
-                                <address
-                                  key={i}
-                                  className="not-italic rounded-lg border border-slate-200/70 bg-white/60 px-4 py-3 text-[15px] leading-relaxed text-slate-700 sm:text-base"
-                                  data-testid="text-contact-address"
-                                >
-                                  {block.lines.map((line, j) => (
-                                    <span key={j} className="block">
-                                      {line}
-                                    </span>
-                                  ))}
-                                </address>
-                              );
-                            }
-                            return (
-                              <p
+                        {section.ordered ? (
+                          <ol className="mt-4 list-decimal list-outside space-y-4 pl-7 marker:font-semibold marker:text-indigo-500">
+                            {section.blocks.map((block, i) => (
+                              <li
                                 key={i}
-                                className="text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                className="pl-1.5 text-[15px] leading-relaxed text-slate-700 sm:text-base"
                               >
-                                {renderText(block.text)}
-                              </p>
-                            );
-                          })}
-                        </div>
+                                {block.type === "address" ? (
+                                  <address
+                                    className="not-italic block rounded-lg border border-slate-200/70 bg-white/60 px-4 py-3"
+                                    data-testid="text-contact-address"
+                                  >
+                                    {block.lines.map((line, j) => (
+                                      <span key={j} className="block">
+                                        {line}
+                                      </span>
+                                    ))}
+                                  </address>
+                                ) : (
+                                  renderText(block.text)
+                                )}
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <div className="mt-4 space-y-4">
+                            {section.blocks.map((block, i) => {
+                              if (block.type === "address") {
+                                return (
+                                  <address
+                                    key={i}
+                                    className="not-italic rounded-lg border border-slate-200/70 bg-white/60 px-4 py-3 text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                    data-testid="text-contact-address"
+                                  >
+                                    {block.lines.map((line, j) => (
+                                      <span key={j} className="block">
+                                        {line}
+                                      </span>
+                                    ))}
+                                  </address>
+                                );
+                              }
+                              return (
+                                <p
+                                  key={i}
+                                  className="text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                >
+                                  {renderText(block.text)}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        )}
                       </section>
                     );
                   })}

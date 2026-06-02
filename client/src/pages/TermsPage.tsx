@@ -190,6 +190,7 @@ const SECTIONS: Section[] = [
   {
     id: "general",
     title: "9. General",
+    ordered: true,
     blocks: [
       {
         type: "p",
