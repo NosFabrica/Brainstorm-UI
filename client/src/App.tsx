@@ -19,6 +19,7 @@ import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import DevelopersPage from "@/pages/DevelopersPage";
 import PrivacyPage from "@/pages/PrivacyPage";
+import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
@@ -71,6 +72,7 @@ function Router() {
         <Route path="/about" component={AboutPage} />
         <Route path="/developers" component={DevelopersPage} />
         <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/terms" component={TermsPage} />
         <Route path="/faq" component={FaqPage} />
         {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
         <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>
