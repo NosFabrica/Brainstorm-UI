@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import {
   Plug,
   Terminal,
-  Sparkles,
   Zap,
   Github,
   ExternalLink,
@@ -12,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { BrainLogo } from "@/components/BrainLogo";
 import { useToast } from "@/hooks/use-toast";
 
 const RELAY_URL = "wss://brainstorm.world/relay";
@@ -199,7 +199,7 @@ export default function DevelopersPage() {
 
           {/* Personalized Results */}
           <SectionCard
-            icon={<Sparkles className="h-5 w-5 text-[#333286]" />}
+            icon={<BrainLogo size={20} className="text-[#333286]" />}
             title="Personalized Results with WoT Extensions"
             testId="card-dev-personalized"
           >
