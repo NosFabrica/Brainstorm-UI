@@ -61,6 +61,10 @@ args = "Start application"
 task = "workflow.run"
 args = "legal-integrity"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "home-pov-toggle"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -77,6 +81,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx tsx scripts/legal-pages-integrity.test.ts"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "home-pov-toggle"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx tsx scripts/home-pov-toggle.test.ts"
 
 [workflows.workflow.metadata]
 isValidation = true
