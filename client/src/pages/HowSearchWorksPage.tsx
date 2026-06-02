@@ -6,7 +6,6 @@ import {
   ListFilter,
   ShieldCheck,
   ArrowUpDown,
-  Sparkles,
   ArrowRight,
   ChevronRight,
   ChevronDown,
@@ -17,14 +16,17 @@ import {
   Users,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { BrainLogo } from "@/components/BrainLogo";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
+
+const BrainLogoIcon = ({ className }: { className?: string }) => <BrainLogo className={className} />;
 
 type PipelineNode = {
   key: string;
   step: string;
   label: string;
   sub: string;
-  icon: typeof Search;
+  icon: React.ComponentType<{ className?: string }>;
 };
 
 const PIPELINE: PipelineNode[] = [
@@ -33,7 +35,7 @@ const PIPELINE: PipelineNode[] = [
   { key: "match", step: "02", label: "Retrieve", sub: "Match profiles", icon: ListFilter },
   { key: "verify", step: "03", label: "Verify", sub: "GrapeRank", icon: ShieldCheck },
   { key: "rank", step: "04", label: "Rank", sub: "Order by trust", icon: ArrowUpDown },
-  { key: "results", step: "Output", label: "Results", sub: "Real people", icon: Sparkles },
+  { key: "results", step: "Output", label: "Results", sub: "Real people", icon: BrainLogoIcon },
 ];
 
 type Stage = {

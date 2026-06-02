@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Sparkles,
   Search,
   ArrowRight,
   ExternalLink,
@@ -15,6 +14,7 @@ import {
   Lock,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
 import heroPoster from "@assets/generated_images/about_hero_poster.webp";
 import heroVideoTrust from "@assets/generated_videos/about_hero_trust_built_in.mp4";
@@ -203,7 +203,7 @@ export default function AboutPage() {
           <div className="p-6 sm:p-10 space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                <Sparkles className="h-5 w-5 text-[#333286]" />
+                <BrainLogo size={20} className="text-[#333286]" />
               </div>
               <h2
                 className="text-2xl font-bold text-slate-900 tracking-tight"
