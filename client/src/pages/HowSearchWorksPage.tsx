@@ -67,7 +67,7 @@ const STAGES: Stage[] = [
     icon: Database,
     body: (
       <>
-        Brainstorm continuously indexes millions of nostr profiles — and counting — so they can be searched
+        Brainstorm continuously indexes millions of profiles — and counting — so they can be searched
         the instant you start typing.
       </>
     ),
