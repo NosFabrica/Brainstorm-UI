@@ -1,1 +1,2 @@
 - [Anon public data fetch](anon-public-data-fetch.md) — anon-viewable endpoints must use optionalAuthFetch, never authenticatedFetch (which wipes/redirects on 401); "signed in" = token OR nostr_user.
+- [Testing pattern](testing-pattern.md) — no test runner; write standalone `scripts/*.ts` run via `npx tsx` + register as a `validation` step. ESM (no __dirname); parse .tsx via TS compiler API.
