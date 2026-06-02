@@ -1986,17 +1986,11 @@ export default function ProfilePage() {
         <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
           <button
             type="button"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2"
-            data-testid="link-profile-home"
+            onClick={() => navigate("/about")}
+            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-about"
           >
-            <BrainLogo size={26} className="text-indigo-600" />
-            <span
-              className="text-lg font-bold tracking-tight text-slate-900"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Brainstorm
-            </span>
+            About
           </button>
           <SignInButton
             variant="primary"
