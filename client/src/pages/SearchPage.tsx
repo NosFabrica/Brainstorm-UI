@@ -92,6 +92,10 @@ export default function SearchPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  useEffect(() => {
+    if (activeSuggestion < 0) return;
+    document.getElementById(`suggestion-opt-${activeSuggestion}`)?.scrollIntoView({ block: "nearest" });
+  }, [activeSuggestion]);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchAbortRef = useRef(0);
   const suggestAbortRef = useRef(0);
@@ -673,7 +677,7 @@ export default function SearchPage() {
                 <div
                   id="search-suggestions"
                   role="listbox"
-                  className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden animate-fade-up"
+                  className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] max-h-[min(28rem,calc(100vh-9rem))] overflow-y-auto overscroll-contain animate-fade-up"
                   data-testid="container-suggestions"
                 >
                   {isSuggesting && suggestions.length === 0 ? (
