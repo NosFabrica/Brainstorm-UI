@@ -253,7 +253,7 @@ export default function HowSearchWorksPage() {
                     <Users className="h-4.5 w-4.5 text-[#333286]" />
                   </div>
                   <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
-                    In plain English
+                    The simple version
                   </span>
                 </div>
                 <div className="space-y-4">
