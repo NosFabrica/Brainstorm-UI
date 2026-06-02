@@ -10,6 +10,19 @@ import {
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import loginSplitHero from "@assets/generated_images/login_split_hero.png";
+import avatarJack from "@/assets/login-avatars/jack.webp";
+import avatarElizableu from "@/assets/login-avatars/elizableu.webp";
+import avatarLynAlden from "@/assets/login-avatars/lynalden.webp";
+import avatarAinsley from "@/assets/login-avatars/ainsleycostello.webp";
+import avatarNatalie from "@/assets/login-avatars/natalie.webp";
+
+const COMMUNITY_AVATARS: { src: string; name: string }[] = [
+  { src: avatarJack, name: "jack" },
+  { src: avatarElizableu, name: "elizableu" },
+  { src: avatarLynAlden, name: "Lyn Alden" },
+  { src: avatarAinsley, name: "Ainsley Costello" },
+  { src: avatarNatalie, name: "Natalie" },
+];
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -173,12 +186,39 @@ export default function LoginPage() {
           </p>
 
           <div className="mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
-            <div className="flex -space-x-3" aria-hidden="true">
-              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-400" />
-              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-500" />
-              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-600" />
+            <div className="flex -space-x-3" role="img" aria-label="Community members on Brainstorm" data-testid="community-avatars">
+              {COMMUNITY_AVATARS.map((a) => {
+                const slug = a.name.toLowerCase().replace(/\s+/g, "-");
+                return (
+                  <span key={a.name} className="relative inline-block w-8 h-8">
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-full border-2 border-indigo-900 bg-indigo-700 flex items-center justify-center text-xs font-semibold text-white"
+                    >
+                      {a.name.charAt(0).toUpperCase()}
+                    </span>
+                    <img
+                      src={a.src}
+                      alt={a.name}
+                      title={a.name}
+                      width={32}
+                      height={32}
+                      loading="eager"
+                      decoding="async"
+                      className="absolute inset-0 w-8 h-8 rounded-full border-2 border-indigo-900 object-cover ring-1 ring-white/10"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                      data-testid={`img-community-avatar-${slug}`}
+                    />
+                  </span>
+                );
+              })}
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-500/80 flex items-center justify-center text-[11px] font-semibold text-white">
+                +9k
+              </div>
             </div>
-            <span>Join a growing community building the web of trust</span>
+            <span>Real people already building the web of trust</span>
           </div>
         </div>
       </div>
