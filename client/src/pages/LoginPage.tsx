@@ -183,7 +183,7 @@ export default function LoginPage() {
               draggable={false}
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
-              className={`absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay select-none transition-opacity duration-1000 ease-in-out ${
+              className={`absolute inset-0 w-full h-full object-cover mix-blend-overlay select-none transition-opacity duration-1000 ease-in-out ${
                 i === heroIndex ? "opacity-40" : "opacity-0"
               }`}
             />
