@@ -13,14 +13,14 @@ import loginSplitHero from "@assets/generated_images/login_split_hero.png";
 import avatarJack from "@/assets/login-avatars/jack.webp";
 import avatarElizableu from "@/assets/login-avatars/elizableu.webp";
 import avatarLynAlden from "@/assets/login-avatars/lynalden.webp";
-import avatarAinsley from "@/assets/login-avatars/ainsleycostello.webp";
+import avatarRoss from "@/assets/login-avatars/rossulbricht.webp";
 import avatarNatalie from "@/assets/login-avatars/natalie.webp";
 
 const COMMUNITY_AVATARS: { src: string; name: string }[] = [
   { src: avatarJack, name: "jack" },
   { src: avatarElizableu, name: "elizableu" },
   { src: avatarLynAlden, name: "Lyn Alden" },
-  { src: avatarAinsley, name: "Ainsley Costello" },
+  { src: avatarRoss, name: "Ross Ulbricht" },
   { src: avatarNatalie, name: "Natalie" },
 ];
 
@@ -214,9 +214,6 @@ export default function LoginPage() {
                   </span>
                 );
               })}
-              <div className="w-8 h-8 rounded-full border-2 border-indigo-900 bg-indigo-500/80 flex items-center justify-center text-[11px] font-semibold text-white">
-                +9k
-              </div>
             </div>
             <span>Real people already building the web of trust</span>
           </div>
