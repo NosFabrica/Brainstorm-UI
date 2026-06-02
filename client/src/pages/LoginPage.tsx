@@ -227,14 +227,14 @@ export default function LoginPage() {
             <button
               onClick={onLogin}
               disabled={loading}
-              className="group w-full text-left rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm transition-all px-6 py-3.5 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="group w-full inline-flex items-center justify-center gap-2.5 rounded-xl px-6 py-3.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 shadow-sm active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               data-testid="button-signin-extension"
             >
               {loading ? (
-                <Loader2 className="h-5 w-5 text-indigo-600 animate-spin shrink-0" />
+                <Loader2 className="h-5 w-5 animate-spin shrink-0" />
               ) : (
                 <svg
-                  className="h-5 w-5 text-indigo-600 shrink-0"
+                  className="h-5 w-5 shrink-0"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -247,10 +247,8 @@ export default function LoginPage() {
                   <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
                 </svg>
               )}
-              <span className="min-w-0 flex-1 text-sm font-semibold text-slate-900 group-hover:text-indigo-900 transition-colors">
-                {loading ? "Connecting…" : "Sign in with your extension"}
-              </span>
-              <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+              <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
+              <ArrowRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
             <button
@@ -275,7 +273,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
-              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-all shadow-sm active:scale-[0.99]"
+              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.99]"
               data-testid="link-create-identity"
             >
               Create your account
