@@ -30,6 +30,12 @@ uri = "file://attached_assets/generated_images/hsw_trusted_recommendation.png"
 type = "image"
 title = "trusted friend recommendation cafe"
 
+[[generated]]
+id = "PAt6Nv2MXbQ50nKw7PkWE"
+uri = "file://attached_assets/generated_images/login_human_backdrop.png"
+type = "image"
+title = "login human backdrop"
+
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
 uri = "file://docs/brainstorm-assistant-profile-spec.md"

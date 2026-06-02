@@ -10,6 +10,7 @@ import {
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CleanBackground } from "@/components/CleanBackground";
+import loginBackdrop from "@assets/generated_images/login_human_backdrop.webp";
 
 const BRAIN_SVG_PATHS = [
   "M13.75 10C14.3023 10 14.75 9.55228 14.75 9C14.75 8.44772 14.3023 8 13.75 8C13.1977 8 12.75 8.44772 12.75 9C12.75 9.55228 13.1977 10 13.75 10Z",
@@ -137,6 +138,33 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden font-sans" data-testid="page-login">
       <CleanBackground />
+
+      {/* Subtle human backdrop — warm, real, and quietly elegant behind the card */}
+      <div
+        className="absolute inset-0 pointer-events-none overflow-hidden"
+        aria-hidden="true"
+        data-testid="bg-login-human"
+      >
+        <img
+          src={loginBackdrop}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="absolute inset-x-0 bottom-0 w-full h-[68%] object-cover object-top opacity-[0.22] select-none mix-blend-luminosity saturate-[1.15]"
+          style={{
+            WebkitMaskImage:
+              "radial-gradient(135% 100% at 50% 100%, black 28%, rgba(0,0,0,0.35) 62%, transparent 86%)",
+            maskImage:
+              "radial-gradient(135% 100% at 50% 100%, black 28%, rgba(0,0,0,0.35) 62%, transparent 86%)",
+          }}
+        />
+        {/* Indigo wash to tie the photo into the brand palette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-indigo-500/10 via-transparent to-transparent" />
+        {/* Soften the sides so the photo never competes with the card */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#F8FAFC] via-transparent to-[#F8FAFC]" />
+        {/* Keep the top airy and the content grounded */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#F8FAFC] via-transparent to-[#F8FAFC]/60" />
+      </div>
 
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-[460px] animate-fade-up">
