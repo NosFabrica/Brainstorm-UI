@@ -227,34 +227,30 @@ export default function LoginPage() {
             <button
               onClick={onLogin}
               disabled={loading}
-              className="group w-full text-left rounded-2xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm transition-all p-4 flex items-center gap-4 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="group w-full text-left rounded-xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 hover:shadow-sm transition-all px-6 py-3.5 flex items-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
               data-testid="button-signin-extension"
             >
-              <div className="h-12 w-12 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0 shadow-sm">
-                {loading ? (
-                  <Loader2 className="h-6 w-6 text-indigo-600 animate-spin" />
-                ) : (
-                  <svg
-                    className="h-6 w-6 text-indigo-600"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="square"
-                    aria-hidden="true"
-                  >
-                    <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
-                    <path d="M2 11.1914H14.88" />
-                    <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
-                  </svg>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-base font-semibold text-slate-900 group-hover:text-indigo-900 transition-colors">
-                  {loading ? "Connecting…" : "Sign in with your extension"}
-                </p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+              {loading ? (
+                <Loader2 className="h-5 w-5 text-indigo-600 animate-spin shrink-0" />
+              ) : (
+                <svg
+                  className="h-5 w-5 text-indigo-600 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="square"
+                  aria-hidden="true"
+                >
+                  <path d="M8.90002 6.74084V1.6709H21.5V20.7008H8.90002L8.91003 15.7108" />
+                  <path d="M2 11.1914H14.88" />
+                  <path d="M12.65 7.83105L16 11.191L12.65 14.5411" />
+                </svg>
+              )}
+              <span className="min-w-0 flex-1 text-sm font-semibold text-slate-900 group-hover:text-indigo-900 transition-colors">
+                {loading ? "Connecting…" : "Sign in with your extension"}
+              </span>
+              <ArrowRight className="h-4 w-4 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
             </button>
 
             <button
