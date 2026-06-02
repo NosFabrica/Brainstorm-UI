@@ -471,6 +471,24 @@ export default function SearchPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-search">
       <CleanBackground />
 
+      {isAnon ? (
+        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-search-anon">
+          <button
+            type="button"
+            onClick={() => navigate("/about")}
+            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-search-about"
+          >
+            About
+          </button>
+          <SignInButton
+            variant="primary"
+            label="Sign in"
+            className="!rounded-full sm:px-5"
+            data-testid="button-search-sign-in"
+          />
+        </header>
+      ) : (
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-search">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4">
           <div className="flex items-center justify-between">
@@ -564,6 +582,7 @@ export default function SearchPage() {
           </div>
         </div>
       </nav>
+      )}
 
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
@@ -1039,6 +1058,7 @@ export default function SearchPage() {
         </div>
       </main>
 
+      {!isAnon && (
       <div className="w-full py-4 sm:py-5 mt-auto relative">
         <div className="absolute inset-x-0 top-0 h-px bg-slate-200/40" />
         <div className="max-w-xl mx-auto flex flex-wrap items-center justify-center gap-x-3 sm:gap-x-5 gap-y-1 px-3 sm:px-4" data-testid="section-search-features">
@@ -1051,8 +1071,33 @@ export default function SearchPage() {
           <span className="inline-flex items-center gap-1 text-[9px] sm:text-[11px] text-slate-400 font-medium tracking-wide"><Telescope className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-slate-300" />Open protocol</span>
         </div>
       </div>
+      )}
 
-      <Footer />
+      {isAnon ? (
+        <footer
+          className="relative z-10 mt-auto flex items-center justify-between px-4 sm:px-8 py-4 text-xs"
+          data-testid="footer-search-anon"
+        >
+          <button
+            type="button"
+            onClick={() => navigate("/developers")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-search-developers"
+          >
+            Developers
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/how-search-works")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-search-how-search-works"
+          >
+            How search works
+          </button>
+        </footer>
+      ) : (
+        <Footer />
+      )}
     </div>
   );
 }
