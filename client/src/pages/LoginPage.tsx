@@ -124,6 +124,11 @@ export default function LoginPage() {
     ).matches;
     if (prefersReducedMotion) return;
 
+    // The hero panel is only rendered on lg+ (hidden on mobile), so skip
+    // preloading images and running the rotation interval on small screens.
+    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+    if (!isDesktop) return;
+
     HERO_IMAGES.forEach((src) => {
       const img = new Image();
       img.src = src;
@@ -171,7 +176,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans overflow-hidden" data-testid="page-login">
+    <div className="flex min-h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans lg:overflow-hidden" data-testid="page-login">
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-indigo-900 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
@@ -255,11 +260,11 @@ export default function LoginPage() {
       </div>
 
       {/* Right column — sign-in focus */}
-      <main className="flex-1 flex flex-col p-8">
+      <main className="flex-1 flex flex-col px-5 py-8 sm:p-8">
         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
         <div className="w-full max-w-[420px] flex flex-col animate-fade-up">
           {/* Mobile brand header (hidden on desktop) */}
-          <div className="flex lg:hidden items-center justify-center gap-2 mb-10">
+          <div className="flex lg:hidden items-center justify-center gap-2 mb-8">
             <BrainIcon size={30} className="text-indigo-600" />
             <span
               className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 to-indigo-500"
@@ -368,6 +373,39 @@ export default function LoginPage() {
               Learn about anonymous browsing
               <ArrowRight className="w-3 h-3" />
             </button>
+          </div>
+
+          {/* Mobile social proof (hidden on desktop — desktop shows this in the left panel) */}
+          <div className="flex lg:hidden items-center justify-center gap-3 mt-8 text-xs font-medium text-slate-500">
+            <div className="flex -space-x-2.5" role="img" aria-label="Community members on Brainstorm">
+              {COMMUNITY_AVATARS.map((a) => {
+                const slug = a.name.toLowerCase().replace(/\s+/g, "-");
+                return (
+                  <span key={a.name} className="relative inline-block w-7 h-7">
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-full border-2 border-white bg-slate-300 flex items-center justify-center text-[10px] font-semibold text-slate-700"
+                    >
+                      {a.name.charAt(0).toUpperCase()}
+                    </span>
+                    <img
+                      src={a.src}
+                      alt={a.name}
+                      width={28}
+                      height={28}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 w-7 h-7 rounded-full border-2 border-white object-cover ring-1 ring-black/5"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                      data-testid={`img-community-avatar-mobile-${slug}`}
+                    />
+                  </span>
+                );
+              })}
+            </div>
+            <span>Real people already building the web of trust</span>
           </div>
         </div>
         </div>
