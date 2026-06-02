@@ -16,7 +16,7 @@ import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.web
 
 const steps = [
   { icon: Home, text: "Sign in with your key or extension." },
-  { icon: Calculator, text: "Calculate your personalized Trust Metrics at brainstorm.nosfabrica.com." },
+  { icon: Calculator, text: "Calculate your personalized Trust Metrics at brainstorm.world." },
   { icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters." },
   { icon: ToggleRight, text: 'Switch to "My Point of View" from the search page.' },
 ];
