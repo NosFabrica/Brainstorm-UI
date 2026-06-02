@@ -6,7 +6,6 @@ import {
   ChevronDown,
   KeyRound,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
@@ -141,18 +140,12 @@ export default function LoginPage() {
 
       <main className="flex-1 flex items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-[460px] animate-fade-up">
-          <div className="relative rounded-[26px] p-[1.5px] bg-gradient-to-r from-indigo-400/70 via-violet-400/70 to-indigo-400/70 animate-aurora shadow-[0_20px_60px_-18px_rgba(79,70,229,0.45)]">
-          <div className="relative bg-white/90 backdrop-blur-2xl rounded-3xl overflow-hidden">
-            <div className="absolute -top-40 -left-40 w-80 h-80 bg-indigo-300/20 rounded-full blur-[60px] pointer-events-none" />
-            <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-violet-300/20 rounded-full blur-[60px] pointer-events-none" />
-
+          <div className="relative bg-white border border-slate-200 rounded-3xl shadow-[0_8px_40px_-12px_rgba(15,23,42,0.12)] overflow-hidden">
             <div className="relative flex flex-col p-8 sm:p-10">
               {/* Header — identity (centered, Google-style) */}
               <div className="flex flex-col items-center text-center">
                 <div className="flex items-center justify-center gap-2" data-testid="brand-login">
-                  <span className="inline-flex animate-soft-pulse">
-                    <BrainIcon size={30} />
-                  </span>
+                  <BrainIcon size={30} />
                   <span
                     className="text-2xl sm:text-3xl font-bold tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
                     style={{ fontFamily: "'Space Grotesk', sans-serif" }}
@@ -224,10 +217,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
-                  className="animate-sheen group relative w-full overflow-hidden inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-[length:200%_auto] hover:bg-[position:right_center] shadow-lg shadow-indigo-500/30 transition-all duration-500 active:scale-[0.98]"
+                  className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors active:scale-[0.99]"
                   data-testid="link-create-identity"
                 >
-                  <Sparkles className="h-4 w-4" />
                   Create your account
                   <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
@@ -250,7 +242,6 @@ export default function LoginPage() {
                 </div>
               </div>
             </div>
-          </div>
           </div>
 
           {/* Footer */}
