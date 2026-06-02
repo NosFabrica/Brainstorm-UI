@@ -13,13 +13,27 @@ import {
   Plus,
   Minus,
   Ban,
-  Users,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { BrainLogo } from "@/components/BrainLogo";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
 
 const BrainLogoIcon = ({ className }: { className?: string }) => <BrainLogo className={className} />;
+
+const PuzzleToyIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+  >
+    <path d="M9.15 5.76C8.55 6.48 8.55 7.52 9.15 8.24C9.75 8.96 10.78 9.14 11.59 8.68C11.68 8.63 11.78 8.63 11.87 8.68C11.95 8.73 12 8.82 12 8.92V12H8.92C8.82 12 8.73 12.05 8.68 12.13C8.63 12.22 8.63 12.32 8.68 12.41C9.14 13.22 8.96 14.25 8.24 14.85C7.52 15.45 6.48 15.45 5.76 14.85C5.04 14.25 4.86 13.22 5.32 12.41C5.37 12.32 5.37 12.22 5.32 12.13C5.27 12.05 5.18 12 5.08 12H2V6.03C2 3.81 3.81 2 6.03 2H12V5.08C12 5.18 11.95 5.27 11.87 5.32C11.78 5.37 11.68 5.37 11.59 5.32C10.78 4.86 9.75 5.04 9.15 5.76Z" />
+    <path d="M22 12.0002V17.9702C22 20.1902 20.19 22.0002 17.97 22.0002H12V18.9202C12 18.8202 12.05 18.7302 12.13 18.6802C12.22 18.6302 12.32 18.6302 12.41 18.6802C13.22 19.1402 14.25 18.9602 14.85 18.2402C15.45 17.5202 15.45 16.4802 14.85 15.7602C14.25 15.0402 13.22 14.8602 12.41 15.3202C12.32 15.3702 12.22 15.3702 12.13 15.3202C12.05 15.2702 12 15.1802 12 15.0802V12.0002H15.08C15.18 12.0002 15.27 11.9502 15.32 11.8702C15.37 11.7802 15.37 11.6802 15.32 11.5902C14.86 10.7802 15.04 9.75025 15.76 9.15025C16.48 8.55025 17.51 8.55025 18.23 9.15025C18.95 9.75025 19.13 10.7802 18.67 11.5902C18.62 11.6802 18.62 11.7802 18.67 11.8702C18.72 11.9502 18.81 12.0002 18.91 12.0002H22Z" />
+    <path d="M18 3.5C19.38 3.5 20.5 4.62 20.5 6V18C20.5 19.38 19.38 20.5 18 20.5H6C4.62 20.5 3.5 19.38 3.5 18V6C3.5 4.62 4.62 3.5 6 3.5H18ZM18 2H6C3.79 2 2 3.79 2 6V18C2 20.21 3.79 22 6 22H18C20.21 22 22 20.21 22 18V6C22 3.79 20.21 2 18 2Z" />
+  </svg>
+);
 
 type PipelineNode = {
   key: string;
@@ -252,7 +266,7 @@ export default function HowSearchWorksPage() {
               <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
                 <div className="flex items-center gap-2.5 mb-4">
                   <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                    <Users className="h-4.5 w-4.5 text-[#333286]" />
+                    <PuzzleToyIcon className="h-4.5 w-4.5 text-[#333286]" />
                   </div>
                   <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
                     The simple version
