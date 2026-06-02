@@ -107,20 +107,24 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
               <DropdownMenuTrigger asChild>
                 <div
                   className={
-                    "flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full " +
+                    "group flex items-center gap-3 cursor-pointer transition-all p-1 rounded-full " +
                     (isLight ? "hover:bg-slate-900/5" : "hover:bg-white/5")
                   }
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md" data-testid="img-user-avatar">
-                      {user.picture ? (
-                        <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
-                      ) : null}
-                      <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                        {user.displayName?.charAt(0) || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-indigo-500 via-violet-500 to-fuchsia-500 shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-indigo-400 group-hover:via-violet-400 group-hover:to-fuchsia-400 group-hover:shadow-[0_0_16px_2px_rgba(139,92,246,0.55)]">
+                      <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC]" : "bg-slate-950")}>
+                        <Avatar className="h-9 w-9 shadow-sm" data-testid="img-user-avatar">
+                          {user.picture ? (
+                            <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
+                          ) : null}
+                          <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
+                            {user.displayName?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    </div>
                     <PovBadge user={user} />
                   </div>
                   <div className="hidden md:flex flex-col items-start mr-2" data-testid="text-user-meta">
