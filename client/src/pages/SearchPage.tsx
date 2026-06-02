@@ -103,6 +103,7 @@ export default function SearchPage() {
   const suggestTimerRef = useRef<number | undefined>(undefined);
   const typedSinceSearchRef = useRef(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
   const [storedPov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
   const pov: SearchPov = storedPov === "mywot" && !hasMywot ? "nosfabrica" : storedPov;
@@ -441,6 +442,30 @@ export default function SearchPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [showSuggestions]);
 
+  // Cap the suggestions dropdown to the space actually available below the input.
+  // The search box is vertically centered, so a fixed max-height would push the
+  // lower rows + the "See all" footer below the fold where they can't be reached.
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const recompute = () => {
+      const el = searchContainerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      // 8px gap (mt-2) below the input, 16px breathing room above the viewport edge.
+      // Never exceed the space available below the input — the page is overflow-hidden,
+      // so any height beyond this would clip the lower rows / sticky CTA off-screen.
+      const available = window.innerHeight - rect.bottom - 8 - 16;
+      setSuggestMaxH(Math.max(0, Math.floor(available)));
+    };
+    recompute();
+    window.addEventListener("resize", recompute);
+    window.addEventListener("scroll", recompute, true);
+    return () => {
+      window.removeEventListener("resize", recompute);
+      window.removeEventListener("scroll", recompute, true);
+    };
+  }, [showSuggestions, suggestions.length]);
+
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
     if (newPov === pov) return;
@@ -605,7 +630,8 @@ export default function SearchPage() {
                 <div
                   id="search-suggestions"
                   role="listbox"
-                  className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] max-h-[min(28rem,calc(100vh-9rem))] overflow-y-auto overscroll-contain animate-fade-up"
+                  className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden animate-fade-up"
+                  style={{ maxHeight: suggestMaxH ? `${suggestMaxH}px` : "min(28rem, calc(100vh - 9rem))" }}
                   data-testid="container-suggestions"
                 >
                   {isSuggesting && suggestions.length === 0 ? (
@@ -614,6 +640,7 @@ export default function SearchPage() {
                     </div>
                   ) : (
                     <>
+                      <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-suggestions">
                       {suggestions.map((s, i) => {
                         const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                         return (
@@ -655,9 +682,10 @@ export default function SearchPage() {
                           </button>
                         );
                       })}
+                      </div>
                       <button
                         type="button"
-                        className={`w-full flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
+                        className={`shrink-0 w-full flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
                         onMouseEnter={() => setActiveSuggestion(-1)}
                         onClick={() => { setShowSuggestions(false); handleSearch(); }}
                         data-testid="suggestion-see-all"
