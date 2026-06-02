@@ -453,13 +453,22 @@ export default function Landing() {
   // results reflect the currently selected POV.
   const prevPovRef = useRef(effectivePov);
   useEffect(() => {
-    if (prevPovRef.current !== effectivePov) {
-      prevPovRef.current = effectivePov;
-      if (hasSearched && query.trim()) {
-        handleSearch();
-      }
+    if (prevPovRef.current === effectivePov) return;
+    prevPovRef.current = effectivePov;
+    const q = query.trim();
+    if (!q) return;
+    // Re-run the full results list if a search has already been submitted.
+    if (hasSearched) {
+      handleSearch();
     }
-  }, [effectivePov, hasSearched, query, handleSearch]);
+    // Also refresh the live suggestion dropdown when the user is mid-type
+    // (typed but not yet submitted), so suggestions reflect the new
+    // perspective without requiring another keystroke. scheduleSuggest owns
+    // its own request-id race protection, so stale responses can't win.
+    if (typedSinceSearchRef.current && q.length >= 2) {
+      scheduleSuggest(query);
+    }
+  }, [effectivePov, hasSearched, query, handleSearch, scheduleSuggest]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
