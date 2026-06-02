@@ -30,10 +30,10 @@ const ANON_POV = "nosfabrica" as const;
 // fallback (used as-is when the user prefers reduced motion).
 const PLACEHOLDER_EXAMPLES = [
   "Search by name, bio, website…",
-  'Try "Jack"',
-  'Try "Prague"',
-  'Try a handle like "odell@primal.net"',
-  "Try a public key…",
+  'Search "Jack"',
+  'Search "Prague"',
+  'Search a handle like "odell@primal.net"',
+  "Search a public key…",
 ];
 
 export default function Landing() {
