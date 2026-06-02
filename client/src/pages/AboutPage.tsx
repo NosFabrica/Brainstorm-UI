@@ -6,13 +6,12 @@ import {
   ExternalLink,
   Play,
   Pause,
-  Users,
-  Music,
   Store,
   ShieldCheck,
   Globe,
   Lock,
 } from "lucide-react";
+import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
@@ -278,7 +277,7 @@ export default function AboutPage() {
           />
           {/* Communities */}
           <ComingSoonCard
-            icon={<Users className="h-5 w-5 text-violet-600" />}
+            icon={<CommunitiesIcon className="h-5 w-5 text-violet-600" />}
             tint="bg-violet-50"
             title="Brainstorm Communities"
             desc="Hang out in spaces full of people actually worth your time."
@@ -286,7 +285,7 @@ export default function AboutPage() {
           />
           {/* Music */}
           <ComingSoonCard
-            icon={<Music className="h-5 w-5 text-fuchsia-600" />}
+            icon={<MusicLibraryIcon className="h-5 w-5 text-fuchsia-600" />}
             tint="bg-fuchsia-50"
             title="Brainstorm Music"
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
