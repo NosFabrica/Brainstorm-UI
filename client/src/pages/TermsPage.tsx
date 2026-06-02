@@ -14,6 +14,10 @@ import { InfoPageLayout } from "@/components/InfoPageLayout";
 //  4. Date rendered "April 16, 2026" (source: "April 16th, 2026").
 const LAST_REVISED = "April 16, 2026";
 
+const CONTACT_EMAIL = "support@nosfabrica.com";
+const CONTACT_SUBJECT = "Terms of Use Inquiry";
+const CONTACT_HREF = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
+
 type Block =
   | { type: "p"; label?: string; text: string }
   | { type: "list"; style?: "disc" | "plain"; items: string[] };
@@ -22,6 +26,28 @@ interface Section {
   id: string;
   title: string;
   blocks: Block[];
+}
+
+function renderText(text: string): Array<string | JSX.Element> | string {
+  const parts = text.split(CONTACT_EMAIL);
+  if (parts.length === 1) return text;
+  const nodes: Array<string | JSX.Element> = [];
+  parts.forEach((part, i) => {
+    if (i > 0) {
+      nodes.push(
+        <a
+          key={`email-${i}`}
+          href={CONTACT_HREF}
+          className="font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-2 break-words"
+          data-testid={`link-contact-email-${i}`}
+        >
+          {CONTACT_EMAIL}
+        </a>,
+      );
+    }
+    if (part) nodes.push(part);
+  });
+  return nodes;
 }
 
 const SECTIONS: Section[] = [
@@ -402,7 +428,7 @@ export default function TermsPage() {
                       {block.label && (
                         <span className="font-semibold text-slate-800">{block.label} </span>
                       )}
-                      {block.text}
+                      {renderText(block.text)}
                     </p>
                   );
                 })}

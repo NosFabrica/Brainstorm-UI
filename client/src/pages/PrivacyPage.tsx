@@ -2,14 +2,41 @@ import { InfoPageLayout } from "@/components/InfoPageLayout";
 
 const LAST_REVISED = "April 16, 2026";
 
+const CONTACT_EMAIL = "support@nosfabrica.com";
+const CONTACT_SUBJECT = "Privacy Inquiry";
+const CONTACT_HREF = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(CONTACT_SUBJECT)}`;
+
 type Block =
   | { type: "p"; text: string }
-  | { type: "list"; items: string[] };
+  | { type: "list"; items: string[] }
+  | { type: "address"; lines: string[] };
 
 interface Section {
   id: string;
   title: string;
   blocks: Block[];
+}
+
+function renderText(text: string): Array<string | JSX.Element> | string {
+  const parts = text.split(CONTACT_EMAIL);
+  if (parts.length === 1) return text;
+  const nodes: Array<string | JSX.Element> = [];
+  parts.forEach((part, i) => {
+    if (i > 0) {
+      nodes.push(
+        <a
+          key={`email-${i}`}
+          href={CONTACT_HREF}
+          className="font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-2 break-words"
+          data-testid={`link-contact-email-${i}`}
+        >
+          {CONTACT_EMAIL}
+        </a>,
+      );
+    }
+    if (part) nodes.push(part);
+  });
+  return nodes;
 }
 
 const SECTIONS: Section[] = [
@@ -199,8 +226,8 @@ const SECTIONS: Section[] = [
         text: "If you have questions or comments about this notice, you can email us at support@nosfabrica.com or write to us at:",
       },
       {
-        type: "list",
-        items: [
+        type: "address",
+        lines: [
           "NosFabrica, Inc.",
           "1910 21st Ave S, Nashville, TN 37212",
           "United States",
@@ -243,15 +270,33 @@ export default function PrivacyPage() {
                 {section.title}
               </h2>
               <div className="space-y-4">
-                {section.blocks.map((block, i) =>
-                  block.type === "p" ? (
-                    <p
-                      key={i}
-                      className="text-[15px] sm:text-base text-slate-600 leading-relaxed"
-                    >
-                      {block.text}
-                    </p>
-                  ) : (
+                {section.blocks.map((block, i) => {
+                  if (block.type === "p") {
+                    return (
+                      <p
+                        key={i}
+                        className="text-[15px] sm:text-base text-slate-600 leading-relaxed"
+                      >
+                        {renderText(block.text)}
+                      </p>
+                    );
+                  }
+                  if (block.type === "address") {
+                    return (
+                      <address
+                        key={i}
+                        className="not-italic text-[15px] sm:text-base text-slate-600 leading-relaxed"
+                        data-testid="text-contact-address"
+                      >
+                        {block.lines.map((line, j) => (
+                          <span key={j} className="block">
+                            {line}
+                          </span>
+                        ))}
+                      </address>
+                    );
+                  }
+                  return (
                     <ul
                       key={i}
                       className="space-y-2 pl-5 list-disc marker:text-indigo-400"
@@ -265,8 +310,8 @@ export default function PrivacyPage() {
                         </li>
                       ))}
                     </ul>
-                  ),
-                )}
+                  );
+                })}
               </div>
             </section>
           ))}
