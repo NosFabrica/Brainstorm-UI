@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { Search, ArrowRight, Loader2, Check, X } from "lucide-react";
 import { ComputingBackground } from "@/components/ComputingBackground";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -46,6 +46,7 @@ export default function Landing() {
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
   const suggestAbortRef = useRef(0);
   const suggestTimerRef = useRef<number | undefined>(undefined);
   const phFadeTimerRef = useRef<number | undefined>(undefined);
@@ -240,6 +241,52 @@ export default function Landing() {
     setLocation(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
   };
 
+  // The suggestions dropdown is open whenever we have something to show.
+  // We lift the search box toward the top when it opens so the list has room,
+  // and cap the dropdown height to the space actually visible below the box.
+  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting);
+
+  useLayoutEffect(() => {
+    if (!dropdownOpen) return;
+    const recompute = () => {
+      const el = searchContainerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      // Prefer visualViewport so the mobile on-screen keyboard (which shrinks the
+      // visual viewport without changing window.innerHeight on iOS) is accounted for.
+      // getBoundingClientRect is in layout-viewport coords; subtract offsetTop to
+      // convert rect.bottom into visual-viewport coords. 8px = mt-2 gap, 16px = breathing room.
+      const vv = window.visualViewport;
+      const available = vv
+        ? vv.height - (rect.bottom - vv.offsetTop) - 8 - 16
+        : window.innerHeight - rect.bottom - 8 - 16;
+      setSuggestMaxH(Math.max(0, Math.floor(available)));
+    };
+    recompute();
+    // The box repositions (the "lift") when the dropdown opens. Re-measure each
+    // frame briefly so the cap tracks the box to its final resting position.
+    let raf = 0;
+    const loop = () => {
+      recompute();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    const stop = window.setTimeout(() => cancelAnimationFrame(raf), 650);
+    const vv = window.visualViewport;
+    window.addEventListener("resize", recompute);
+    window.addEventListener("scroll", recompute, true);
+    vv?.addEventListener("resize", recompute);
+    vv?.addEventListener("scroll", recompute);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(stop);
+      window.removeEventListener("resize", recompute);
+      window.removeEventListener("scroll", recompute, true);
+      vv?.removeEventListener("resize", recompute);
+      vv?.removeEventListener("scroll", recompute);
+    };
+  }, [dropdownOpen]);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
       <ComputingBackground variant="light" />
@@ -265,7 +312,7 @@ export default function Landing() {
         </header>
       )}
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 -mt-10 sm:-mt-16">
+      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen ? "justify-start pt-6 sm:pt-10" : "justify-center -mt-10 sm:-mt-16"}`}>
         <div className="w-full max-w-2xl mx-auto text-center" style={{ animation: "homeFadeUp 0.5s ease-out" }}>
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
@@ -375,11 +422,12 @@ export default function Landing() {
               </div>
             </form>
 
-            {showSuggestions && (suggestions.length > 0 || isSuggesting) && (
+            {dropdownOpen && (
               <div
                 id="home-search-suggestions"
                 role="listbox"
-                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] overflow-hidden text-left"
+                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-suggestions"
               >
                 {isSuggesting && suggestions.length === 0 ? (
@@ -388,6 +436,7 @@ export default function Landing() {
                   </div>
                 ) : (
                   <>
+                    <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                       return (
@@ -428,9 +477,10 @@ export default function Landing() {
                         </button>
                       );
                     })}
+                    </div>
                     <button
                       type="button"
-                      className={`w-full flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
+                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
                       onMouseEnter={() => setActiveSuggestion(-1)}
                       onClick={() => {
                         cancelSuggest();
