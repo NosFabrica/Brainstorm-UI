@@ -245,7 +245,7 @@ export default function Landing() {
       <ComputingBackground variant="light" />
 
       {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" />
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
       ) : (
         <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
           <button

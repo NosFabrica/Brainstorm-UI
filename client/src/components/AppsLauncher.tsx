@@ -39,11 +39,14 @@ interface AppsLauncherProps {
   calcDone?: boolean;
   active?: AppKey;
   className?: string;
+  /** Matches AppHeader: "dark" banner vs "light" transparent header. */
+  variant?: "dark" | "light";
 }
 
-export function AppsLauncher({ user, calcDone = false, active, className }: AppsLauncherProps) {
+export function AppsLauncher({ user, calcDone = false, active, className, variant = "dark" }: AppsLauncherProps) {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
+  const isLight = variant === "light";
 
   const tiles: AppTile[] = [
     { key: "home", label: "Search", path: "/", icon: Search },
@@ -73,7 +76,9 @@ export function AppsLauncher({ user, calcDone = false, active, className }: Apps
           variant="ghost"
           size="icon"
           className={
-            "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl " +
+            (isLight
+              ? "text-slate-500 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 rounded-xl "
+              : "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl ") +
             (className ?? "")
           }
           title="Apps"

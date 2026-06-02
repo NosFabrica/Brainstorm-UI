@@ -31,6 +31,12 @@ interface AppHeaderProps {
   onLogout: () => void;
   calcDone?: boolean;
   active?: AppKey;
+  /**
+   * Visual treatment. "dark" (default) is the sticky slate banner used by the
+   * dense app pages. "light" is a transparent header for the airy search
+   * experience (home `/` and `/search`) so it matches the signed-out look.
+   */
+  variant?: "dark" | "light";
 }
 
 /**
@@ -38,13 +44,21 @@ interface AppHeaderProps {
  * per-page hand-rolled <nav> tab bars. Desktop navigation is driven by the
  * Google-style apps launcher (waffle); mobile uses the hamburger -> MobileMenu.
  */
-export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeaderProps) {
+export function AppHeader({ user, onLogout, calcDone = false, active, variant = "dark" }: AppHeaderProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const isAdmin = isAdminPubkey(user?.pubkey);
+  const isLight = variant === "light";
 
   return (
-    <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-app-header">
+    <nav
+      className={
+        isLight
+          ? "relative z-20"
+          : "bg-slate-950 border-b border-white/10 sticky top-0 z-50"
+      }
+      data-testid="nav-app-header"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -53,7 +67,11 @@ export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeade
                 variant="ghost"
                 size="icon"
                 onClick={openMobileMenu}
-                className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                className={
+                  isLight
+                    ? "text-slate-500 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5"
+                    : "text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
+                }
                 data-testid="button-open-mobile-menu"
               >
                 <Menu className="h-5 w-5" />
@@ -68,7 +86,10 @@ export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeade
             >
               <BrainLogo size={28} className="text-indigo-500 shrink-0" />
               <span
-                className="text-lg sm:text-xl font-bold tracking-tight text-white"
+                className={
+                  "text-lg sm:text-xl font-bold tracking-tight " +
+                  (isLight ? "text-slate-900" : "text-white")
+                }
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-logo"
               >
@@ -77,7 +98,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeade
             </button>
 
             <div className="hidden lg:flex items-center pl-1">
-              <AppsLauncher user={user} calcDone={calcDone} active={active} />
+              <AppsLauncher user={user} calcDone={calcDone} active={active} variant={variant} />
             </div>
           </div>
 
@@ -86,7 +107,10 @@ export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeade
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div
-                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5"
+                  className={
+                    "flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full " +
+                    (isLight ? "hover:bg-slate-900/5" : "hover:bg-white/5")
+                  }
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
@@ -101,10 +125,22 @@ export function AppHeader({ user, onLogout, calcDone = false, active }: AppHeade
                     <PovBadge user={user} />
                   </div>
                   <div className="hidden md:flex flex-col items-start mr-2" data-testid="text-user-meta">
-                    <span className="text-sm font-bold text-white leading-none mb-0.5" data-testid="text-user-name">
+                    <span
+                      className={
+                        "text-sm font-bold leading-none mb-0.5 " +
+                        (isLight ? "text-slate-900" : "text-white")
+                      }
+                      data-testid="text-user-name"
+                    >
                       {user.displayName || "Anon"}
                     </span>
-                    <span className="text-[10px] text-indigo-300 font-mono leading-none" data-testid="text-user-npub">
+                    <span
+                      className={
+                        "text-[10px] font-mono leading-none " +
+                        (isLight ? "text-indigo-500" : "text-indigo-300")
+                      }
+                      data-testid="text-user-npub"
+                    >
                       {user.npub.slice(0, 8)}...
                     </span>
                   </div>

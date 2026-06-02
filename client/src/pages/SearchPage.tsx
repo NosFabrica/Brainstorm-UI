@@ -490,7 +490,7 @@ export default function SearchPage() {
           />
         </header>
       ) : (
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" />
+      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
       )}
 
 
