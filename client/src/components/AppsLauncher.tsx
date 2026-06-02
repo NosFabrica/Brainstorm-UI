@@ -117,10 +117,10 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
               >
                 <span
                   className={
-                    "h-10 w-10 rounded-xl flex items-center justify-center " +
+                    "h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] flex items-center justify-center " +
                     (tile.tone === "special"
-                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 border border-indigo-400/40 shadow-[0_4px_14px_rgba(99,102,241,0.35)]"
-                      : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] border border-indigo-500/10")
+                      ? "border border-indigo-500/30 animate-pulse-glow"
+                      : "border border-indigo-500/10")
                   }
                 >
                   <Icon
@@ -128,20 +128,11 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                       "h-5 w-5 " +
                       (tile.tone === "admin"
                         ? "text-amber-600"
-                        : tile.tone === "special"
-                          ? "text-white"
-                          : "text-indigo-600")
+                        : "text-indigo-600")
                     }
                   />
                 </span>
-                <span
-                  className={
-                    "text-[11px] leading-tight " +
-                    (tile.tone === "special"
-                      ? "font-semibold text-indigo-700"
-                      : "font-medium text-slate-700")
-                  }
-                >
+                <span className="text-[11px] font-medium text-slate-700 leading-tight">
                   {tile.label}
                 </span>
               </button>
