@@ -147,16 +147,16 @@ export default function LoginPage() {
             <div className="relative flex flex-col p-8 sm:p-10">
               {/* Header — identity (centered, Google-style) */}
               <div className="flex flex-col items-center text-center">
-                <div className="flex items-center gap-2.5" data-testid="brand-login">
-                  <BrainIcon size={44} />
+                <div className="flex items-center justify-center gap-2" data-testid="brand-login">
+                  <BrainIcon size={30} />
                   <span
-                    className="text-3xl sm:text-4xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
+                    className="text-2xl sm:text-3xl font-bold tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
                     style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                   >
                     Brainstorm
                   </span>
                 </div>
-                <p className="text-slate-500 text-base mt-3" data-testid="text-login-subtitle">
+                <p className="text-slate-500 text-base mt-2.5" data-testid="text-login-subtitle">
                   Use your Nostr identity
                 </p>
               </div>
