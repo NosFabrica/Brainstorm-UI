@@ -151,7 +151,7 @@ export default function LoginPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-12" data-testid="brand-login">
             <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <BrainIcon size={32} className="text-indigo-200" />
+              <BrainIcon size={32} className="text-white" />
             </div>
             <span
               className="text-2xl font-bold tracking-tight text-white"
