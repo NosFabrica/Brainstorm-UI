@@ -100,6 +100,10 @@ export default function SearchPage() {
   const suggestAbortRef = useRef(0);
   const suggestTimerRef = useRef<number | undefined>(undefined);
   const typedSinceSearchRef = useRef(false);
+  // True only when the highlighted suggestion was reached via keyboard arrows.
+  // Mouse hover sets the highlight for visuals/prefetch but leaves this false so
+  // pressing Enter still runs a full search instead of opening a hovered profile.
+  const kbdNavRef = useRef(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
   const [perspective, setPerspective] = useState<SearchPov>("nosfabrica");
@@ -401,6 +405,9 @@ export default function SearchPage() {
     // overwrite the dropdown with stale results for an older query.
     const reqId = ++suggestAbortRef.current;
     const q = value.trim();
+    // Any edit to the query invalidates a prior keyboard selection so Enter
+    // falls back to a full search until the user arrow-navigates again.
+    kbdNavRef.current = false;
     if (q.length < 2 || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
       typedSinceSearchRef.current = false;
       setSuggestions([]);
@@ -417,6 +424,7 @@ export default function SearchPage() {
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(suggestResults.slice(0, 7));
         setActiveSuggestion(-1);
+        kbdNavRef.current = false;
         setShowSuggestions(true);
       } catch {
         if (suggestAbortRef.current !== reqId) return;
@@ -584,12 +592,17 @@ export default function SearchPage() {
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
+                      kbdNavRef.current = true;
                       setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
                     } else if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
+                      kbdNavRef.current = true;
                       setActiveSuggestion((i) => Math.max(i - 1, -1));
                     } else if (e.key === "Enter") {
-                      if (showSuggestions && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
+                      // Only open a single profile when the user explicitly arrow-keyed
+                      // to a suggestion. Plain typing + Enter (even with the mouse
+                      // resting over the dropdown) always runs a full text search.
+                      if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
                         e.preventDefault();
                         goToProfile(suggestions[activeSuggestion]);
                       } else {
@@ -669,7 +682,7 @@ export default function SearchPage() {
                             role="option"
                             aria-selected={i === activeSuggestion}
                             className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50"}`}
-                            onMouseEnter={() => { setActiveSuggestion(i); handlePrefetchEnter(s); }}
+                            onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                             onMouseLeave={() => handlePrefetchLeave(s)}
                             onClick={() => goToProfile(s)}
                             data-testid={`suggestion-${i}`}
@@ -704,8 +717,9 @@ export default function SearchPage() {
                       <button
                         type="button"
                         className={`shrink-0 w-full flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
-                        onMouseEnter={() => setActiveSuggestion(-1)}
-                        onClick={() => { setShowSuggestions(false); handleSearch(); }}
+                        onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
+                        onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); handleSearch(query); }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
                         data-testid="suggestion-see-all"
                       >
                         <SearchIcon className="h-3.5 w-3.5 shrink-0" />
