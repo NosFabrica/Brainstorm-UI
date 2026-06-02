@@ -8,7 +8,6 @@ import {
   Search,
   Users,
   HelpCircle,
-  ArrowLeft,
   Shield,
   Copy,
 } from "lucide-react";
@@ -30,6 +29,7 @@ import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
 import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
+import { SignInButton } from "@/components/SignInButton";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { PovBadge } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
@@ -159,16 +159,7 @@ export function InfoPageLayout({ children, testId }: InfoPageLayoutProps) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                  onClick={() => navigate("/")}
-                  data-testid="button-back-home"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Button>
+                <SignInButton variant="ghost" data-testid="button-sign-in" />
               )}
             </div>
           </div>
