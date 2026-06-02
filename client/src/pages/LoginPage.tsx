@@ -253,7 +253,6 @@ export default function LoginPage() {
                 <p className="text-base font-semibold text-slate-900 group-hover:text-indigo-900 transition-colors">
                   {loading ? "Connecting…" : "Sign in with your extension"}
                 </p>
-                <p className="text-sm text-slate-500 mt-0.5 truncate">Alby, Nos2x & other signers</p>
               </div>
               <ArrowRight className="h-5 w-5 text-indigo-400 shrink-0 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
             </button>
