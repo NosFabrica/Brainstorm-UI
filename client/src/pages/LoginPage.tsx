@@ -153,9 +153,6 @@ export default function LoginPage() {
                     Brainstorm
                   </span>
                 </div>
-                <p className="text-slate-500 text-sm mt-2 text-center" data-testid="text-login-subtitle">
-                  Use your Nostr identity
-                </p>
               </div>
 
               {/* Actions */}
@@ -210,7 +207,7 @@ export default function LoginPage() {
 
                 <div className="my-6 flex items-center gap-3" aria-hidden="true">
                   <div className="h-px flex-1 bg-slate-200" />
-                  <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">new to nostr?</span>
+                  <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">new to Brainstorm?</span>
                   <div className="h-px flex-1 bg-slate-200" />
                 </div>
 
