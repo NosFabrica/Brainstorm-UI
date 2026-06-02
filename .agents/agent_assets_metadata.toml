@@ -48,6 +48,12 @@ uri = "file://artifacts/mockup-sandbox/public/images/immersive-hero-bg.png"
 type = "image"
 title = "Diverse people connecting and laughing"
 
+[[generated]]
+id = "wyb4Ev_q0ELi2Lb8-5-Cc"
+uri = "file://attached_assets/generated_images/login_split_hero.png"
+type = "image"
+title = "hip creative builders loft"
+
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
 uri = "file://docs/brainstorm-assistant-profile-spec.md"
