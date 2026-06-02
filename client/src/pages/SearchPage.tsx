@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -442,10 +442,15 @@ export default function SearchPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [showSuggestions]);
 
+  // Once the user starts typing (or has searched), lift the search box up out of the
+  // vertical-center position so the suggestions dropdown has the full lower viewport to
+  // grow into instead of being squeezed against the bottom edge.
+  const lifted = hasSearched || query.trim().length > 0;
+
   // Cap the suggestions dropdown to the space actually available below the input.
-  // The search box is vertically centered, so a fixed max-height would push the
-  // lower rows + the "See all" footer below the fold where they can't be reached.
-  useEffect(() => {
+  // The box can be centered (idle) or lifted (typing), so we measure live rather
+  // than assume a fixed offset.
+  useLayoutEffect(() => {
     if (!showSuggestions) return;
     const recompute = () => {
       const el = searchContainerRef.current;
@@ -458,13 +463,25 @@ export default function SearchPage() {
       setSuggestMaxH(Math.max(0, Math.floor(available)));
     };
     recompute();
+    // The input box animates upward (the "lift") when a query is present. Re-measure
+    // every frame for the duration of that transition so the cap tracks the box to
+    // its final resting position instead of locking to its mid-animation spot.
+    let raf = 0;
+    const loop = () => {
+      recompute();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    const stop = window.setTimeout(() => cancelAnimationFrame(raf), 650);
     window.addEventListener("resize", recompute);
     window.addEventListener("scroll", recompute, true);
     return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(stop);
       window.removeEventListener("resize", recompute);
       window.removeEventListener("scroll", recompute, true);
     };
-  }, [showSuggestions, suggestions.length]);
+  }, [showSuggestions, suggestions.length, lifted]);
 
   const prevPovRef = useRef(pov);
   const handlePovSwitch = useCallback((newPov: SearchPov) => {
@@ -520,7 +537,7 @@ export default function SearchPage() {
 
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
-        <div className={`transition-all duration-500 ${hasSearched ? "pt-6 sm:pt-8" : "flex-1 flex flex-col justify-center -mt-12 sm:-mt-16"}`}>
+        <div className={`transition-all duration-500 ${lifted ? "pt-6 sm:pt-10" : "flex-1 flex flex-col justify-center -mt-12 sm:-mt-16"}`}>
           <div className={`max-w-2xl mx-auto px-3 sm:px-6 w-full transition-all duration-500 ${hasSearched ? "mb-4 sm:mb-6" : "mb-0"}`}>
             {!hasSearched && (
               <div className="text-center mb-6 sm:mb-10" data-testid="section-search-hero">
@@ -631,7 +648,7 @@ export default function SearchPage() {
                   id="search-suggestions"
                   role="listbox"
                   className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden animate-fade-up"
-                  style={{ maxHeight: suggestMaxH ? `${suggestMaxH}px` : "min(28rem, calc(100vh - 9rem))" }}
+                  style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100vh - 9rem))" }}
                   data-testid="container-suggestions"
                 >
                   {isSuggesting && suggestions.length === 0 ? (
