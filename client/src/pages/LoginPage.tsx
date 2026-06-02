@@ -80,7 +80,7 @@ function getNextPath(): string {
     if (next && next.startsWith("/") && !next.startsWith("//") && next !== "/login")
       return next;
   } catch {}
-  return "/dashboard";
+  return "/";
 }
 
 export default function LoginPage() {

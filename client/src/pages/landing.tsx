@@ -1,13 +1,16 @@
 import { useLocation } from "wouter";
-import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { Search, ArrowRight, Loader2, Check, X } from "lucide-react";
 import { ComputingBackground } from "@/components/ComputingBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
+import { AppHeader } from "@/components/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getCurrentUser, fetchProfile } from "@/services/nostr";
+import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
+import { useActivePov } from "@/hooks/useActivePov";
+import { useHasMywot } from "@/hooks/useHasMywot";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
   searchByText,
@@ -18,9 +21,9 @@ import {
   type SearchResult,
 } from "@/lib/profileSearch";
 
-// Anonymous visitors land here, so the trust perspective is always the
-// NosFabrica ("house") POV — logged-in users are redirected to /dashboard.
-const LANDING_POV = "nosfabrica" as const;
+// Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
+// stay on this search-first home and search from their active trust perspective.
+const ANON_POV = "nosfabrica" as const;
 
 // Example prompts the empty search box gently cycles through to teach
 // visitors what they can search for. The first entry is the static
@@ -50,11 +53,33 @@ export default function Landing() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (getCurrentUser()) {
-      setLocation("/dashboard", { replace: true });
+  const [user, setUser] = useState<NostrUser | null>(() => getCurrentUser());
+  const [pov] = useActivePov();
+  const { hasMywot } = useHasMywot();
+
+  // Logged-in users stay on this search-first home and search from their active
+  // trust perspective; "My WoT" gracefully falls back to the house view when no
+  // personalized graph exists yet (and anonymous visitors always use house).
+  const effectivePov = useMemo(() => {
+    if (!user) return ANON_POV;
+    return pov === "mywot" && !hasMywot ? ANON_POV : pov;
+  }, [user, pov, hasMywot]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    setUser(null);
+  }, []);
+
+  // Gate the Network app tile until a trust graph has been calculated. We read
+  // the locally cached completion flag so the search-first home stays instant
+  // (no blocking API call just to render the launcher).
+  const calcDone = useMemo(() => {
+    try {
+      return localStorage.getItem("brainstorm_calc_completed") === "true";
+    } catch {
+      return false;
     }
-  }, [setLocation]);
+  }, [user]);
 
   // Honor the OS "reduce motion" setting — those users see a single static
   // placeholder with no cycling.
@@ -109,7 +134,7 @@ export default function Landing() {
     setShowSuggestions(true);
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
-        const { results } = await searchByText(q, LANDING_POV);
+        const { results } = await searchByText(q, effectivePov, user?.pubkey);
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(results.slice(0, 7));
         setActiveSuggestion(-1);
@@ -121,7 +146,7 @@ export default function Landing() {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
     }, 120);
-  }, []);
+  }, [effectivePov, user?.pubkey]);
 
   useEffect(() => {
     return () => window.clearTimeout(suggestTimerRef.current);
@@ -157,7 +182,7 @@ export default function Landing() {
         wotFollowers: result.wotFollowers ?? null,
         wotRankNosfabrica: result.wotRankNosfabrica ?? null,
         wotRankMywot: result.wotRankMywot ?? null,
-        povFromSearch: LANDING_POV,
+        povFromSearch: effectivePov,
       };
       setProfileSeed(hex, seed);
       queryClient.prefetchQuery({
@@ -193,12 +218,12 @@ export default function Landing() {
         wotFollowers: result.wotFollowers ?? null,
         wotRankNosfabrica: result.wotRankNosfabrica ?? null,
         wotRankMywot: result.wotRankMywot ?? null,
-        povFromSearch: LANDING_POV,
+        povFromSearch: effectivePov,
       });
     }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
-    setLocation(`/profile/${result.npub}?fromSearch=1&pov=${LANDING_POV}${suffix}`);
-  }, [setLocation]);
+    setLocation(`/profile/${result.npub}?fromSearch=1&pov=${effectivePov}${suffix}`);
+  }, [setLocation, effectivePov]);
 
   const cancelSuggest = useCallback(() => {
     window.clearTimeout(suggestTimerRef.current);
@@ -219,22 +244,26 @@ export default function Landing() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
       <ComputingBackground variant="light" />
 
-      <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
-        <button
-          type="button"
-          onClick={() => setLocation("/about")}
-          className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
-          data-testid="link-home-about"
-        >
-          About
-        </button>
-        <SignInButton
-          variant="primary"
-          label="Sign in"
-          className="!rounded-full sm:px-5"
-          data-testid="button-home-sign-in"
-        />
-      </header>
+      {user ? (
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" />
+      ) : (
+        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
+          <button
+            type="button"
+            onClick={() => setLocation("/about")}
+            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-home-about"
+          >
+            About
+          </button>
+          <SignInButton
+            variant="primary"
+            label="Sign in"
+            className="!rounded-full sm:px-5"
+            data-testid="button-home-sign-in"
+          />
+        </header>
+      )}
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 -mt-10 sm:-mt-16">
         <div className="w-full max-w-2xl mx-auto text-center" style={{ animation: "homeFadeUp 0.5s ease-out" }}>
@@ -420,7 +449,9 @@ export default function Landing() {
           </div>
 
           <p className="text-xs text-slate-500 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
-            <span>Not Personalized</span>
+            <span data-testid="text-home-pov-label">
+              {effectivePov === "mywot" ? "Personalized · My WoT" : "Not Personalized"}
+            </span>
             <span className="text-slate-300">·</span>
             <button
               type="button"

@@ -33,8 +33,8 @@ interface MobileMenuProps {
 }
 
 const primaryNav = [
+  { path: "/", label: "Search", icon: Search },
   { path: "/dashboard", label: "Dashboard", icon: Home },
-  { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
   ...(FEATURES.agentSuite
     ? [{ path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true }]
@@ -156,8 +156,8 @@ export function MobileMenu({
               <div className="space-y-1.5">
                 <p className="px-3 pb-1 text-[10px] font-semibold text-indigo-300/60 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav-public">Navigation</p>
                 <NavButton
-                  item={{ path: "/search", label: "Search", icon: Search }}
-                  active={currentPath === "/search"}
+                  item={{ path: "/", label: "Search", icon: Search }}
+                  active={currentPath === "/"}
                   onClose={onClose}
                   navigate={navigate}
                 />

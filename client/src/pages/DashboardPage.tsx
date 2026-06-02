@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -757,101 +758,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
-        <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4 sm:gap-6">
-                <div className="lg:hidden">
-                  <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <BrainLogo size={28} className="text-indigo-500" />
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
-                    Brainstorm
-                  </h1>
-                </div>
-                <div className="hidden lg:flex gap-1">
-                  <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
-                    <Home className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Button>
-                  <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${isCalculationComplete ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => isCalculationComplete && navigate("/network")} disabled={!isCalculationComplete} title={!isCalculationComplete ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
-                    <Users className="h-4 w-4" />
-                    Network
-                  </Button>
-                  {FEATURES.agentSuite && (
-                    <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                      <AgentIcon className="h-4 w-4" />
-                      <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 sm:gap-4">
-                {isAdminPubkey(user?.pubkey) && <AdminBadge />}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                      <div className="relative shrink-0">
-                        <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                          {user.picture ? (
-                            <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                          ) : null}
-                          <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                            {needsProfile && profileQuery.isFetching ? <BrainLogo size={18} className="animate-pulse text-indigo-400" /> : (user.displayName?.charAt(0) || "U")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <PovBadge user={user} />
-                      </div>
-                      <div className="hidden md:flex flex-col items-start mr-2">
-                        <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                        <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                      </div>
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                        <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
-                          <span>{user.npub.slice(0, 16)}...</span>
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-indigo-100" />
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
-                      <HelpCircle className="mr-2 h-4 w-4" />
-                      <span>FAQ</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
-                      <SettingsIcon className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </DropdownMenuItem>
-                    {isAdminPubkey(user?.pubkey) && (
-                      <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                        <Shield className="mr-2 h-4 w-4" />
-                        <span>Admin Dashboard</span>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator className="bg-indigo-100" />
-                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
 
