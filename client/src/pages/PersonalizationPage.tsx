@@ -15,7 +15,7 @@ import { InfoPageLayout } from "@/components/InfoPageLayout";
 import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.webp";
 
 const steps = [
-  { icon: Home, text: "Sign in with a nostr browser extension (NIP-07)." },
+  { icon: Home, text: "Sign in with your key or extension." },
   { icon: Calculator, text: "Calculate your personalized Trust Metrics at brainstorm.nosfabrica.com." },
   { icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters." },
   { icon: ToggleRight, text: 'Switch to "My Point of View" from the search page.' },
@@ -47,7 +47,7 @@ export default function PersonalizationPage() {
               className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl"
               data-testid="text-personalization-subtitle"
             >
-              By default, you see nostr through a trusted community curated by the house. Sign in, and you can
+              By default, you see the network through a trusted community curated by the house. Sign in, and you can
               see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you
               see.
             </p>
@@ -91,7 +91,7 @@ export default function PersonalizationPage() {
                   </p>
                   <p className="text-[15px] text-slate-600 leading-relaxed">
                     Think of it this way: you are, by default, 100 percent certain that you are not an
-                    impersonator or some other bad actor. Everyone else on nostr is presumed "unverified" until
+                    impersonator or some other bad actor. Everyone else on the network is presumed "unverified" until
                     your trusted community says otherwise.
                   </p>
                   <p className="text-[15px] text-slate-500 leading-relaxed">
@@ -129,7 +129,7 @@ export default function PersonalizationPage() {
                 <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">House Point of View</h3>
                 <p className="text-[15px] text-slate-600 leading-relaxed">
                   Uses trust scores selected by the operator of this instance — the "house." Available to
-                  everyone, with no nostr account and no sign-in required.
+                  everyone, with no account and no sign-in required.
                 </p>
               </div>
 
@@ -214,7 +214,7 @@ export default function PersonalizationPage() {
                 </div>
                 <p className="text-[15px] text-white/95 leading-relaxed font-medium pt-1">
                   Personalization is entirely optional. The house point of view works well for most searches —
-                  your personalized perspective simply lets you see the nostr world through your own trust
+                  your personalized perspective simply lets you see the world through your own trust
                   network.
                 </p>
               </div>
