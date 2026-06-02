@@ -258,8 +258,8 @@ export default function HowSearchWorksPage() {
                 </div>
                 <div className="space-y-4">
                   <p className="text-lg text-slate-700 leading-relaxed">
-                    Imagine you've just moved to a new town and you need a good barber. You wouldn't trust a
-                    random flyer stapled to a pole — you'd ask the friends you trust who they go to.
+                    Imagine you've just moved to a new town and you need a good coffee shop. You wouldn't trust a
+                    random flyer stapled to a pole — you'd ask the friends you trust where they go.
                     Brainstorm works the same way.
                   </p>
                   <p className="text-[15px] text-slate-600 leading-relaxed">
