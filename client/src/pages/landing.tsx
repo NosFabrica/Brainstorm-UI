@@ -27,7 +27,6 @@ import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
-import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import {
   searchByText,
   getDisplayLabel,
@@ -767,11 +766,11 @@ export default function Landing() {
               </button>
             </p>
           ) : (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2" data-testid="text-home-hint">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500" data-testid="text-home-hint">
               <div
                 role="group"
                 aria-label="Trust perspective"
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 p-0.5 shadow-sm backdrop-blur-sm"
+                className="inline-flex items-center gap-2"
                 data-testid="toggle-home-pov"
               >
                 <button
@@ -779,18 +778,16 @@ export default function Landing() {
                   onClick={() => setPov("nosfabrica")}
                   aria-pressed={effectivePov === "nosfabrica"}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+                    "rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700")
+                      ? "font-semibold text-indigo-600"
+                      : "font-medium text-slate-500 hover:text-slate-700")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  <span className="h-4 w-4 overflow-hidden rounded-full shrink-0 ring-1 ring-black/5">
-                    <img src={nosFabricaLogo} alt="" className="h-full w-full object-cover" />
-                  </span>
                   NosFabrica
                 </button>
+                <span className="text-slate-300" aria-hidden="true">·</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -800,23 +797,14 @@ export default function Landing() {
                   aria-pressed={effectivePov === "mywot"}
                   title={hasMywot ? undefined : "Calculate your trust network in Settings to enable"}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors " +
+                    "rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40 " +
                     (effectivePov === "mywot"
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700") +
+                      ? "font-semibold text-emerald-700"
+                      : "font-medium text-slate-500 hover:text-slate-700") +
                     (!hasMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  <span className="h-4 w-4 overflow-hidden rounded-full shrink-0 flex items-center justify-center bg-emerald-100 ring-1 ring-black/5">
-                    {user.picture ? (
-                      <img src={user.picture} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-[8px] font-bold text-emerald-700 leading-none">
-                        {user.displayName?.charAt(0) || "U"}
-                      </span>
-                    )}
-                  </span>
                   My results
                 </button>
               </div>
@@ -824,16 +812,17 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                  className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
                   data-testid="link-home-calculate-yours"
                 >
                   Calculate yours <ArrowRight className="h-3 w-3" />
                 </button>
               )}
+              <span className="text-slate-300" aria-hidden="true">·</span>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-xs text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
                 data-testid="link-home-learn-more"
               >
                 What is this?
