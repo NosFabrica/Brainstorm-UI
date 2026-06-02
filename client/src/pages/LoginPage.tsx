@@ -185,12 +185,15 @@ export default function LoginPage() {
             build your reputation, and navigate your network with confidence.
           </p>
 
-          <div className="mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
+          <div className="group mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
             <div className="flex -space-x-3" role="img" aria-label="Community members on Brainstorm" data-testid="community-avatars">
               {COMMUNITY_AVATARS.map((a) => {
                 const slug = a.name.toLowerCase().replace(/\s+/g, "-");
                 return (
-                  <span key={a.name} className="relative inline-block w-8 h-8">
+                  <span
+                    key={a.name}
+                    className="relative inline-block w-8 h-8 transition-transform duration-200 ease-out hover:-translate-y-1 hover:z-10"
+                  >
                     <span
                       aria-hidden="true"
                       className="absolute inset-0 rounded-full border-2 border-indigo-900 bg-indigo-700 flex items-center justify-center text-xs font-semibold text-white"
@@ -204,7 +207,7 @@ export default function LoginPage() {
                       height={32}
                       loading="eager"
                       decoding="async"
-                      className="absolute inset-0 w-8 h-8 rounded-full border-2 border-indigo-900 object-cover ring-1 ring-white/10"
+                      className="absolute inset-0 w-8 h-8 rounded-full border-2 border-indigo-900 object-cover opacity-90 ring-1 ring-white/10 saturate-[0.9] transition duration-200 group-hover:opacity-100 group-hover:saturate-100 hover:ring-2 hover:ring-white/40"
                       onError={(e) => {
                         e.currentTarget.style.display = "none";
                       }}
@@ -214,7 +217,9 @@ export default function LoginPage() {
                 );
               })}
             </div>
-            <span>Real people already building the web of trust</span>
+            <span className="transition-colors duration-200 group-hover:text-indigo-100">
+              Real people already building the web of trust
+            </span>
           </div>
         </div>
       </div>
