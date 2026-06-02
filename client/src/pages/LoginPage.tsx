@@ -200,7 +200,6 @@ export default function LoginPage() {
                     <img
                       src={a.src}
                       alt={a.name}
-                      title={a.name}
                       width={32}
                       height={32}
                       loading="eager"
