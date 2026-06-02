@@ -238,7 +238,7 @@ export default function LoginPage() {
                     className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
                     data-testid="link-create-identity"
                   >
-                    Create a Nostr identity
+                    Create account
                   </button>
                   <button
                     onClick={onLogin}
