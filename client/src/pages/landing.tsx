@@ -750,7 +750,7 @@ export default function Landing() {
             <span className="text-slate-300">·</span>
             <button
               type="button"
-              onClick={() => setLocation("/what-is-wot")}
+              onClick={() => setLocation("/personalization")}
               className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
               data-testid="link-home-learn-more"
             >
