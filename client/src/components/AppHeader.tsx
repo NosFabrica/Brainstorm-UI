@@ -87,10 +87,8 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
               <BrainLogo size={28} className="text-indigo-500 shrink-0" />
               <span
                 className={
-                  "text-lg sm:text-xl font-bold tracking-tight bg-clip-text text-transparent " +
-                  (isLight
-                    ? "bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800"
-                    : "bg-gradient-to-r from-indigo-300 via-indigo-100 to-indigo-300")
+                  "text-lg sm:text-xl font-bold tracking-tight " +
+                  (isLight ? "text-slate-900" : "text-white")
                 }
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-logo"
