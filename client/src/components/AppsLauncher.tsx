@@ -7,6 +7,9 @@ import {
   Search,
   Home,
   Users,
+  Star,
+  UsersRound,
+  Music,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
@@ -18,7 +21,10 @@ export type AppKey =
   | "settings"
   | "faq"
   | "agentsuite"
-  | "admin";
+  | "admin"
+  | "reviews"
+  | "communities"
+  | "music";
 
 interface AppTile {
   key: AppKey;
@@ -27,6 +33,7 @@ interface AppTile {
   icon: React.ComponentType<{ className?: string }>;
   disabled?: boolean;
   disabledTitle?: string;
+  comingSoon?: boolean;
   tone?: "default" | "special" | "admin";
 }
 
@@ -58,6 +65,9 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
       : []),
+    { key: "reviews", label: "Reviews", path: "/", icon: Star, comingSoon: true },
+    { key: "communities", label: "Communities", path: "/", icon: UsersRound, comingSoon: true },
+    { key: "music", label: "Music", path: "/", icon: Music, comingSoon: true },
   ];
 
   return (
@@ -95,46 +105,73 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
           {tiles.map((tile) => {
             const Icon = tile.icon;
             const isActive = active === tile.key;
+            const inactive = tile.disabled || tile.comingSoon;
             return (
               <button
                 key={tile.key}
                 type="button"
-                disabled={tile.disabled}
-                title={tile.disabled ? tile.disabledTitle : undefined}
+                disabled={inactive}
+                title={
+                  tile.comingSoon
+                    ? "Coming soon"
+                    : tile.disabled
+                      ? tile.disabledTitle
+                      : undefined
+                }
                 onClick={() => {
-                  if (tile.disabled) return;
+                  if (inactive) return;
                   setOpen(false);
                   navigate(tile.path);
                 }}
                 className={
-                  "flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center transition-colors " +
-                  (tile.disabled
-                    ? "opacity-40 cursor-not-allowed"
-                    : "cursor-pointer hover:bg-indigo-50 ") +
-                  (isActive && !tile.disabled ? "bg-indigo-50/70 " : "")
+                  "relative flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center transition-colors " +
+                  (tile.comingSoon
+                    ? "cursor-default "
+                    : tile.disabled
+                      ? "opacity-40 cursor-not-allowed "
+                      : "cursor-pointer hover:bg-indigo-50 ") +
+                  (isActive && !inactive ? "bg-indigo-50/70 " : "")
                 }
                 data-testid={`app-tile-${tile.key}`}
               >
                 <span
                   className={
-                    "h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] flex items-center justify-center " +
-                    (tile.tone === "special"
-                      ? "border border-indigo-500/30 animate-pulse-glow"
-                      : "border border-indigo-500/10")
+                    "h-10 w-10 rounded-xl flex items-center justify-center " +
+                    (tile.comingSoon
+                      ? "bg-slate-400/[0.07] border border-slate-300/40 "
+                      : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
+                        (tile.tone === "special"
+                          ? "border border-indigo-500/30 animate-pulse-glow"
+                          : "border border-indigo-500/10"))
                   }
                 >
                   <Icon
                     className={
                       "h-5 w-5 " +
-                      (tile.tone === "admin"
-                        ? "text-amber-600"
-                        : "text-indigo-600")
+                      (tile.comingSoon
+                        ? "text-slate-400"
+                        : tile.tone === "admin"
+                          ? "text-amber-600"
+                          : "text-indigo-600")
                     }
                   />
                 </span>
-                <span className="text-[11px] font-medium text-slate-700 leading-tight">
+                <span
+                  className={
+                    "text-[11px] font-medium leading-tight " +
+                    (tile.comingSoon ? "text-slate-400" : "text-slate-700")
+                  }
+                >
                   {tile.label}
                 </span>
+                {tile.comingSoon && (
+                  <span
+                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 leading-none"
+                    data-testid={`text-soon-${tile.key}`}
+                  >
+                    Soon
+                  </span>
+                )}
               </button>
             );
           })}
