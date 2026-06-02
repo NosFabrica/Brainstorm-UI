@@ -169,7 +169,7 @@ export default function LoginPage() {
           </h1>
           <p className="text-lg text-indigo-200 leading-relaxed">
             Brainstorm maps the relationships that matter. See who your friends trust,
-            build your reputation, and navigate the Nostr network with confidence.
+            build your reputation, and navigate your network with confidence.
           </p>
 
           <div className="mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
@@ -199,8 +199,21 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-10 text-center lg:text-left">
-            <h2 className="text-2xl font-semibold mb-2">Welcome back</h2>
-            <p className="text-slate-500">Sign in to your Brainstorm account</p>
+            <div className="flex items-center justify-center lg:justify-start gap-2.5 mb-4">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+                Welcome back
+              </span>
+              <div className="h-px w-12 bg-[#7c86ff]/40" />
+            </div>
+            <h2
+              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.1] mb-3"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Sign in to your <span className="text-[#333286]">Brainstorm</span> account
+            </h2>
+            <p className="text-base text-slate-500 leading-relaxed">
+              Pick up where you left off and keep building your web of trust.
+            </p>
           </div>
 
           {error && (
