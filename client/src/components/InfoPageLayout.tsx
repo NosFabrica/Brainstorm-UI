@@ -5,15 +5,17 @@ import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
+import { type AppKey } from "@/components/AppsLauncher";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 
 interface InfoPageLayoutProps {
   children: ReactNode;
   testId?: string;
+  active?: AppKey;
 }
 
-export function InfoPageLayout({ children, testId }: InfoPageLayoutProps) {
+export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps) {
   const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
 
@@ -41,7 +43,7 @@ export function InfoPageLayout({ children, testId }: InfoPageLayoutProps) {
       <PageBackground />
 
       {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active={active} />
       ) : (
         <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">

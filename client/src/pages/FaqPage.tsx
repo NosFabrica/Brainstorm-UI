@@ -1,44 +1,11 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
-import { AppHeader } from "@/components/AppHeader";
+import { useState } from "react";
 import {
-  Home,
-  LogOut,
-  Menu,
-  X,
-  Settings as SettingsIcon,
-  BookOpen,
-  Search,
-  Users,
   HelpCircle,
   ChevronDown,
-  ArrowLeft,
-  Shield,
-  Copy,
 } from "lucide-react";
-import { AgentIcon } from "@/components/AgentIcon";
-import { FEATURES } from "@/config/featureFlags";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "framer-motion";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
-import { useToast } from "@/hooks/use-toast";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { AdminBadge } from "@/components/AdminBadge";
-import { isAuthRedirecting } from "@/services/api";
 import { BrainLogo } from "@/components/BrainLogo";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
-import PageBackground from "@/components/PageBackground";
-import { Footer } from "@/components/Footer";
+import { InfoPageLayout } from "@/components/InfoPageLayout";
 
 const userFaqs = [
   {
@@ -103,28 +70,11 @@ const devFaqs = [
 ];
 
 export default function FaqPage() {
-  const [location, navigate] = useLocation();
-  const [user, setUser] = useState<NostrUser | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-  const { toast } = useToast();
 
   const searchParams = new URLSearchParams(window.location.search);
   const initialTab = searchParams.get("tab") === "developers" ? "developers" : "users";
   const [activeTab, setActiveTab] = useState<"users" | "developers">(initialTab);
-
-  useEffect(() => {
-    const u = getCurrentUser();
-    if (u) setUser(u);
-  }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
-
-  const calcDone =
-    typeof window !== "undefined" &&
-    window.localStorage.getItem("brainstorm_calc_completed") === "true";
 
   const handleTabChange = (tab: "users" | "developers") => {
     setActiveTab(tab);
@@ -140,41 +90,9 @@ export default function FaqPage() {
 
   const faqs = activeTab === "users" ? userFaqs : devFaqs;
 
-  if (isAuthRedirecting()) return null;
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-faq">
-      <PageBackground />
-
-      {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="faq" />
-      ) : (
-        <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-                <BrainLogo size={28} className="text-indigo-500" />
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
-                  Brainstorm
-                </h1>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/5"
-                onClick={() => navigate("/")}
-                data-testid="button-back-home"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-            </div>
-          </div>
-        </nav>
-      )}
-
-      <main className="flex-1 relative z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <InfoPageLayout testId="page-faq" active="faq">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="space-y-6 animate-fade-up">
             <div className="space-y-2" data-testid="section-faq-header">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="badge-faq">
@@ -337,9 +255,6 @@ export default function FaqPage() {
             </div>
           </div>
         </div>
-      </main>
-
-      <Footer />
-    </div>
+    </InfoPageLayout>
   );
 }
