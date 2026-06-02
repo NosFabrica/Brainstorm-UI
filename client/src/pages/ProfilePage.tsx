@@ -1982,6 +1982,30 @@ export default function ProfilePage() {
         <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]" style={{ animation: "profileBlobB 32s ease-in-out infinite 2s" }} />
       </div>
 
+      {isAnon ? (
+        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2"
+            data-testid="link-profile-home"
+          >
+            <BrainLogo size={26} className="text-indigo-600" />
+            <span
+              className="text-lg font-bold tracking-tight text-slate-900"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Brainstorm
+            </span>
+          </button>
+          <SignInButton
+            variant="primary"
+            label="Sign in"
+            className="!rounded-full sm:px-5"
+            data-testid="button-profile-sign-in"
+          />
+        </header>
+      ) : (
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-profile">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
@@ -2133,6 +2157,7 @@ export default function ProfilePage() {
           </div>
         </div>
       </nav>
+      )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
@@ -3318,7 +3343,31 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Footer />
+      {isAnon ? (
+        <footer
+          className="relative z-10 mt-auto flex items-center justify-between px-4 sm:px-8 py-4 text-xs"
+          data-testid="footer-profile-anon"
+        >
+          <button
+            type="button"
+            onClick={() => navigate("/developers")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-developers"
+          >
+            Developers
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/how-search-works")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-how-search-works"
+          >
+            How search works
+          </button>
+        </footer>
+      ) : (
+        <Footer />
+      )}
     </div>
   );
 }
