@@ -3,13 +3,13 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/connection-rows/Current.tsx": () => import("../components/mockups/connection-rows/Current.tsx"),
   "./components/mockups/connection-rows/OptionB.tsx": () => import("../components/mockups/connection-rows/OptionB.tsx"),
+  "./components/mockups/pov-search-switcher/ClickToToggle.tsx": () => import("../components/mockups/pov-search-switcher/ClickToToggle.tsx"),
+  "./components/mockups/pov-search-switcher/SegmentedPills.tsx": () => import("../components/mockups/pov-search-switcher/SegmentedPills.tsx"),
   "./components/mockups/pov-header-layout/FooterStrip.tsx": () => import("../components/mockups/pov-header-layout/FooterStrip.tsx"),
   "./components/mockups/pov-header-layout/HorizontalScale.tsx": () => import("../components/mockups/pov-header-layout/HorizontalScale.tsx"),
   "./components/mockups/pov-header-layout/PrimaryWithChip.tsx": () => import("../components/mockups/pov-header-layout/PrimaryWithChip.tsx"),
   "./components/mockups/pov-header-layout/SwitchableSingle.tsx": () => import("../components/mockups/pov-header-layout/SwitchableSingle.tsx"),
   "./components/mockups/pov-score/DualMeters.tsx": () => import("../components/mockups/pov-score/DualMeters.tsx"),
   "./components/mockups/pov-score/PrimarySecondary.tsx": () => import("../components/mockups/pov-score/PrimarySecondary.tsx"),
-  "./components/mockups/pov-score/Tabbed.tsx": () => import("../components/mockups/pov-score/Tabbed.tsx"),
-  "./components/mockups/pov-search-switcher/ClickToToggle.tsx": () => import("../components/mockups/pov-search-switcher/ClickToToggle.tsx"),
-  "./components/mockups/pov-search-switcher/SegmentedPills.tsx": () => import("../components/mockups/pov-search-switcher/SegmentedPills.tsx")
+  "./components/mockups/pov-score/Tabbed.tsx": () => import("../components/mockups/pov-score/Tabbed.tsx")
 };
