@@ -36,6 +36,18 @@ uri = "file://attached_assets/generated_images/login_human_backdrop.png"
 type = "image"
 title = "login human backdrop"
 
+[[generated]]
+id = "zzgs1JWxLcfBkohzeTYtb"
+uri = "file://artifacts/mockup-sandbox/public/images/split-narrative-hero.png"
+type = "image"
+title = "Warm human connection trust graph"
+
+[[generated]]
+id = "UyzAFWNdItIcJOs9q0Kzn"
+uri = "file://artifacts/mockup-sandbox/public/images/immersive-hero-bg.png"
+type = "image"
+title = "Diverse people connecting and laughing"
+
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
 uri = "file://docs/brainstorm-assistant-profile-spec.md"
