@@ -1,12 +1,24 @@
 import { useLocation } from "wouter";
-import { Eye, UserCheck, ArrowRight, ExternalLink, Home, Calculator, Settings as SettingsIcon, ToggleRight } from "lucide-react";
+import {
+  Eye,
+  UserCheck,
+  ArrowRight,
+  ExternalLink,
+  Home,
+  Calculator,
+  Settings as SettingsIcon,
+  ToggleRight,
+  Building2,
+  UserCircle,
+} from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.webp";
 
 const steps = [
-  { icon: Home, text: "Sign in with a nostr browser extension (NIP-07)" },
-  { icon: Calculator, text: "Calculate your personalized Trust Metrics at brainstorm.nosfabrica.com" },
-  { icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters" },
-  { icon: ToggleRight, text: 'Switch to "My Point of View" from the search page' },
+  { icon: Home, text: "Sign in with a nostr browser extension (NIP-07)." },
+  { icon: Calculator, text: "Calculate your personalized Trust Metrics at brainstorm.nosfabrica.com." },
+  { icon: SettingsIcon, text: "Visit Settings to sync your scores and configure your filters." },
+  { icon: ToggleRight, text: 'Switch to "My Point of View" from the search page.' },
 ];
 
 export default function PersonalizationPage() {
@@ -14,133 +26,195 @@ export default function PersonalizationPage() {
 
   return (
     <InfoPageLayout testId="page-personalization">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="space-y-8 animate-fade-up">
-          {/* Header */}
-          <div className="space-y-3" data-testid="section-personalization-header">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit">
-              <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-              <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Your perspective</p>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        <div className="space-y-12 sm:space-y-16 animate-fade-up">
+          {/* Editorial hero */}
+          <header className="max-w-3xl" data-testid="section-personalization-header">
+            <div className="flex items-center gap-2.5 mb-5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+                Your perspective
+              </span>
+              <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
             <h1
-              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-personalization-title"
             >
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                How Personalization Works
-              </span>
+              Every search has a <span className="text-[#333286]">point of view</span>.
             </h1>
-            <p className="text-slate-600 font-medium max-w-2xl" data-testid="text-personalization-subtitle">
-              Every search is filtered through a point of view. Here's how Brainstorm decides whose trust
-              shapes what you see.
+            <p
+              className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl"
+              data-testid="text-personalization-subtitle"
+            >
+              By default, you see nostr through a trusted community curated by the house. Sign in, and you can
+              see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you
+              see.
             </p>
-          </div>
+          </header>
 
-          {/* Two Points of View */}
+          {/* The big idea — tinted two-column */}
           <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-two-povs"
+            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] overflow-hidden"
+            data-testid="section-personalization-idea"
           >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8 space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <Eye className="h-5 w-5 text-[#333286]" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                  Two Points of View
-                </h2>
+            <div className="grid md:grid-cols-2 md:items-stretch">
+              {/* Image */}
+              <div className="relative min-h-[220px] sm:min-h-[280px] md:min-h-[340px] bg-slate-950 md:order-2">
+                <img
+                  src={ownPerspectiveImg}
+                  alt="A person walking through the city, viewing the world through their own perspective"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  data-testid="section-personalization-image"
+                />
+                <div className="absolute inset-0 bg-gradient-to-tl from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
               </div>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                Every search is filtered through a point of view. By default, every profile's verification
-                score starts out at 0, meaning "unverified", with the exception of the profile designated as
-                the reference (the point of view) profile, whose score is fixed at 100. Think of this as
-                meaning that you are, by default, 100 percent certain that you are not an impersonator or
-                some other bad actor! As for the rest of the nostr profiles out there, they are presumed
-                "unverified" until your trusted community says otherwise.
-              </p>
-              <p className="text-[15px] text-slate-600 leading-relaxed">We provide you with two options:</p>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="rounded-xl bg-white/70 border border-slate-200/80 p-5" data-testid="card-house-pov">
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 mb-3">
-                    <p className="text-[10px] font-bold tracking-wide text-indigo-700 uppercase">Default</p>
+              {/* Copy */}
+              <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
+                    <Eye className="h-[18px] w-[18px] text-[#333286]" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-1.5">House Point of View</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    Uses trust scores selected by the operator of this instance, the "house". Available to
-                    everyone, no need for a nostr account, no sign-in required.
-                  </p>
+                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+                    The big idea
+                  </span>
                 </div>
-
-                <div className="rounded-xl bg-white/70 border border-emerald-200/80 p-5" data-testid="card-my-pov">
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 mb-3">
-                    <p className="text-[10px] font-bold tracking-wide text-emerald-700 uppercase">Personalized</p>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 mb-1.5">My Point of View</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    Your personalized perspective. Uses trust scores derived from your extended community,
-                    calculated and made available to platforms like brainstorm.world by a service such as the
-                    one at{" "}
-                    <a
-                      href="https://brainstorm.nosfabrica.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
-                      data-testid="link-brainstorm-nosfabrica"
-                    >
-                      brainstorm.nosfabrica.com
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                    . Or if you prefer, you can be your own trust scores service provider by running the open
-                    source code.
+                <div className="space-y-4">
+                  <p className="text-lg text-slate-700 leading-relaxed">
+                    Every profile's verification score starts at{" "}
+                    <span className="font-semibold text-slate-900">0</span> — "unverified" — with one exception:
+                    the reference profile (the point of view), whose score is fixed at{" "}
+                    <span className="font-semibold text-slate-900">100</span>.
+                  </p>
+                  <p className="text-[15px] text-slate-600 leading-relaxed">
+                    Think of it this way: you are, by default, 100 percent certain that you are not an
+                    impersonator or some other bad actor. Everyone else on nostr is presumed "unverified" until
+                    your trusted community says otherwise.
+                  </p>
+                  <p className="text-[15px] text-slate-500 leading-relaxed">
+                    Which trusted community? That's the choice you get to make.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Getting Personalized */}
-          <section
-            className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden"
-            data-testid="card-getting-personalized"
-          >
-            <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-            <div className="p-6 sm:p-8 space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <UserCheck className="h-5 w-5 text-[#333286]" />
+          {/* Two points of view — comparison */}
+          <section data-testid="card-two-povs">
+            <div className="flex items-center gap-2.5 mb-7">
+              <h2
+                className="text-2xl font-bold text-slate-900 tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Two points of view
+              </h2>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div
+                className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-7"
+                data-testid="card-house-pov"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                    <Building2 className="h-5 w-5 text-[#333286]" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-[#7c86ff] uppercase">
+                    Default
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                  Getting Personalized
-                </h2>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">House Point of View</h3>
+                <p className="text-[15px] text-slate-600 leading-relaxed">
+                  Uses trust scores selected by the operator of this instance — the "house." Available to
+                  everyone, with no nostr account and no sign-in required.
+                </p>
               </div>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
-                To unlock your personalized point of view:
-              </p>
 
-              <ol className="space-y-3">
-                {steps.map((step, i) => {
-                  const Icon = step.icon;
-                  return (
-                    <li key={i} className="flex items-start gap-3" data-testid={`step-personalize-${i}`}>
-                      <div className="relative flex items-center justify-center h-8 w-8 rounded-lg bg-[#7c86ff]/12 border border-[#7c86ff]/25 shrink-0">
-                        <Icon className="h-4 w-4 text-[#333286]" />
-                        <span className="absolute -top-1.5 -left-1.5 flex items-center justify-center h-4 w-4 rounded-full bg-[#3730a3] text-white text-[9px] font-bold">
-                          {i + 1}
-                        </span>
+              <div
+                className="rounded-2xl border border-emerald-200 bg-white shadow-sm p-6 sm:p-7"
+                data-testid="card-my-pov"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                    <UserCircle className="h-5 w-5 text-emerald-700" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-emerald-600 uppercase">
+                    Personalized
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">My Point of View</h3>
+                <p className="text-[15px] text-slate-600 leading-relaxed">
+                  Your personalized perspective. Uses trust scores derived from your extended community,
+                  calculated and made available to platforms like brainstorm.world by a service such as the one
+                  at{" "}
+                  <a
+                    href="https://brainstorm.nosfabrica.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                    data-testid="link-brainstorm-nosfabrica"
+                  >
+                    brainstorm.nosfabrica.com
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  . Or, if you prefer, you can be your own trust-scores service provider by running the
+                  open-source code.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Getting personalized — numbered stages */}
+          <section data-testid="card-getting-personalized">
+            <div className="flex items-center gap-2.5 mb-7">
+              <h2
+                className="text-2xl font-bold text-slate-900 tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Getting personalized
+              </h2>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+              {steps.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-6 sm:p-8"
+                    data-testid={`step-personalize-${i}`}
+                  >
+                    <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-3 shrink-0 sm:w-20">
+                      <span
+                        className="text-3xl font-bold text-slate-200 tabular-nums leading-none"
+                        style={{ fontFamily: "var(--font-display)" }}
+                      >
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
+                        <Icon className="h-5 w-5 text-[#333286]" />
                       </div>
-                      <p className="text-[15px] text-slate-700 leading-relaxed pt-1">{step.text}</p>
-                    </li>
-                  );
-                })}
-              </ol>
+                    </div>
+                    <div className="min-w-0 flex items-center">
+                      <p className="text-[15px] text-slate-700 leading-relaxed">{step.text}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-              <div className="rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-4 py-3">
-                <p className="text-[15px] text-slate-700 leading-relaxed font-medium">
-                  Personalization is entirely optional. The house point of view works well for most searches.
-                  Your personalized perspective simply lets you see the nostr world through your own trust
+            {/* Optional note callout */}
+            <div className="mt-6 rounded-2xl bg-[#333286] px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                  <UserCheck className="h-4 w-4 text-white" />
+                </div>
+                <p className="text-[15px] text-white/95 leading-relaxed font-medium pt-1">
+                  Personalization is entirely optional. The house point of view works well for most searches —
+                  your personalized perspective simply lets you see the nostr world through your own trust
                   network.
                 </p>
               </div>
@@ -150,11 +224,13 @@ export default function PersonalizationPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl bg-white/80 backdrop-blur-xl border border-[#7c86ff]/20 hover:border-[#7c86ff]/40 hover:shadow-[0_4px_20px_rgba(124,134,255,0.12)] transition-all p-5 sm:p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-xs font-bold tracking-wide text-[#7c86ff] uppercase mb-1">Keep reading</p>
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+                Keep reading
+              </p>
               <p className="text-base font-semibold text-slate-900">
                 Curious how the underlying mechanics work?
               </p>
