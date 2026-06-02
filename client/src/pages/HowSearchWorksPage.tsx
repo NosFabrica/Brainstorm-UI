@@ -221,7 +221,7 @@ export default function HowSearchWorksPage() {
               How Brainstorm finds the <span className="text-[#333286]">real people</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl" data-testid="text-hsw-subtitle">
-              Search is only half the job. The harder part is telling legitimate nostr accounts apart from the
+              Search is only half the job. The harder part is telling legitimate accounts apart from the
               spam, bots, and impersonators. Here's the pipeline that does both — from query to verified
               results.
             </p>
