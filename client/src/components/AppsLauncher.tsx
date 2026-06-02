@@ -113,7 +113,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
       : []),
-    { key: "reviews", label: "Reviews", path: "/", icon: RankingIcon, comingSoon: true },
+    { key: "reviews", label: "Signal", path: "/", icon: RankingIcon, comingSoon: true },
     { key: "communities", label: "Communities", path: "/", icon: CategoriesShapeIcon, comingSoon: true },
     { key: "music", label: "Music", path: "/", icon: MusicLibraryIcon, comingSoon: true },
   ];
