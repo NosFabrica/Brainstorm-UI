@@ -271,7 +271,7 @@ export default function Landing() {
 
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-2 mb-1.5">
-              <BrainLogo size={32} className="text-indigo-600" />
+              <BrainLogo size={32} clickable className="text-indigo-600" />
               <h1
                 className="text-3xl sm:text-4xl font-bold tracking-tight"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}

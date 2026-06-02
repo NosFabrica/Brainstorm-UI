@@ -101,7 +101,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 onClick={() => navigate("/")}
                 data-testid="button-app-brand"
               >
-                <BrainLogo size={28} className="text-indigo-500 shrink-0" />
+                <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
                 <span
                   className="text-lg sm:text-xl font-bold tracking-tight text-white"
                   style={{ fontFamily: "var(--font-display)" }}

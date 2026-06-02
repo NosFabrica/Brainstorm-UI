@@ -88,7 +88,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
             onClick={() => setLocation('/')}
             data-testid="button-app-brand"
           >
-            <BrainLogo size={28} className="text-indigo-500 shrink-0" />
+            <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
             <span
               className="text-lg sm:text-xl font-bold tracking-tight text-white"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}

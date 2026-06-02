@@ -49,7 +49,7 @@ export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-                <BrainLogo size={28} className="text-indigo-500" />
+                <BrainLogo size={28} clickable className="text-indigo-500" />
                 <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
                   Brainstorm
                 </h1>

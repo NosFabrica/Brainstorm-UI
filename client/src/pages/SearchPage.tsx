@@ -506,8 +506,8 @@ export default function SearchPage() {
                       className="motion-safe:animate-blob-morph motion-reduce:hidden absolute -z-10 h-20 w-20 sm:h-28 sm:w-28 bg-gradient-to-br from-indigo-300/50 via-violet-300/40 to-indigo-200/30 blur-2xl"
                       data-testid="shape-hero-blob"
                     />
-                    <BrainLogo size={36} className="text-indigo-600 sm:hidden" />
-                    <BrainLogo size={44} className="text-indigo-600 hidden sm:block" />
+                    <BrainLogo size={36} clickable className="text-indigo-600 sm:hidden" />
+                    <BrainLogo size={44} clickable className="text-indigo-600 hidden sm:block" />
                   </div>
                   <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-search-title">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x">
