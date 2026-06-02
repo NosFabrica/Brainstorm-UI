@@ -78,24 +78,32 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
               </Button>
             </div>
 
-            <button
-              type="button"
-              className="flex items-center gap-2 min-w-0"
-              onClick={() => navigate("/")}
-              data-testid="button-app-brand"
-            >
-              <BrainLogo size={28} className="text-indigo-500 shrink-0" />
-              <span
-                className={
-                  "text-lg sm:text-xl font-bold tracking-tight " +
-                  (isLight ? "text-slate-900" : "text-white")
-                }
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-logo"
+            {isLight ? (
+              <button
+                type="button"
+                className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+                onClick={() => navigate("/about")}
+                data-testid="link-about"
               >
-                Brainstorm
-              </span>
-            </button>
+                About
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="flex items-center gap-2 min-w-0"
+                onClick={() => navigate("/")}
+                data-testid="button-app-brand"
+              >
+                <BrainLogo size={28} className="text-indigo-500 shrink-0" />
+                <span
+                  className="text-lg sm:text-xl font-bold tracking-tight text-white"
+                  style={{ fontFamily: "var(--font-display)" }}
+                  data-testid="text-logo"
+                >
+                  Brainstorm
+                </span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
