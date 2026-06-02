@@ -178,29 +178,25 @@ export default function PersonalizationPage() {
               </h2>
               <div className="h-px flex-1 bg-slate-100" />
             </div>
-            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               {steps.map((step, i) => {
                 const Icon = step.icon;
                 return (
                   <div
                     key={i}
-                    className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-6 sm:p-8"
+                    className="flex items-center gap-3.5 sm:gap-4 px-4 py-3.5 sm:px-5 sm:py-4 hover:bg-slate-50/60 transition-colors"
                     data-testid={`step-personalize-${i}`}
                   >
-                    <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-3 shrink-0 sm:w-20">
-                      <span
-                        className="text-3xl font-bold text-slate-200 tabular-nums leading-none"
-                        style={{ fontFamily: "var(--font-display)" }}
-                      >
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-[#333286]" />
-                      </div>
+                    <span
+                      className="text-sm font-bold text-slate-300 tabular-nums leading-none w-5 shrink-0"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <div className="h-9 w-9 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                      <Icon className="h-[18px] w-[18px] text-[#333286]" />
                     </div>
-                    <div className="min-w-0 flex items-center">
-                      <p className="text-[15px] text-slate-700 leading-relaxed">{step.text}</p>
-                    </div>
+                    <p className="min-w-0 text-[14px] sm:text-[15px] text-slate-700 leading-snug">{step.text}</p>
                   </div>
                 );
               })}
