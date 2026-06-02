@@ -96,14 +96,13 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 Brainstorm
               </span>
             </button>
-
-            <div className="hidden lg:flex items-center pl-1">
-              <AppsLauncher user={user} calcDone={calcDone} active={active} variant={variant} />
-            </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
             {isAdmin && <AdminBadge />}
+            <div className="hidden lg:flex items-center">
+              <AppsLauncher user={user} calcDone={calcDone} active={active} variant={variant} />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div
