@@ -17,6 +17,10 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
 import heroPoster from "@assets/generated_images/about_hero_poster.webp";
+import heroVideoTrust from "@assets/generated_videos/about_hero_trust_built_in.mp4";
+import heroPosterTrust from "@assets/generated_images/about_hero_trust_built_in_poster.png";
+import heroVideoMore from "@assets/generated_videos/about_hero_more_than_search.mp4";
+import heroPosterMore from "@assets/generated_images/about_hero_more_than_search_poster.png";
 import imgTrust from "@assets/generated_images/about_trust_signal.webp";
 import imgEveryone from "@assets/generated_images/about_for_everyone.webp";
 import imgYours from "@assets/generated_images/about_yours_identity.webp";
@@ -25,14 +29,20 @@ const HERO_SLIDES = [
   {
     title: "Who's actually real?",
     sub: "The internet is filling up with bots and AI. Brainstorm is search that finds the actual humans.",
+    video: heroVideo,
+    poster: heroPoster,
   },
   {
     title: "Trust, built in",
     sub: "It taps the instincts of people you trust, so the good stuff rises and the junk sinks.",
+    video: heroVideoTrust,
+    poster: heroPosterTrust,
   },
   {
     title: "More than search",
     sub: "It starts with finding real people. Vendors, communities, and music are coming next.",
+    video: heroVideoMore,
+    poster: heroPosterMore,
   },
 ];
 
@@ -154,10 +164,11 @@ export default function AboutPage() {
           <div className="order-1 lg:order-2 animate-fade-up">
             <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
               <video
+                key={slide}
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full object-cover"
-                src={heroVideo}
-                poster={heroPoster}
+                src={active.video}
+                poster={active.poster}
                 autoPlay={playing}
                 muted
                 loop
