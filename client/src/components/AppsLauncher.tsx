@@ -7,13 +7,9 @@ import {
   Search,
   Home,
   Users,
-  Settings as SettingsIcon,
-  HelpCircle,
-  Shield,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { isAdminPubkey } from "@/config/adminAccess";
 
 export type AppKey =
   | "home"
@@ -49,8 +45,8 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
   const isLight = variant === "light";
 
   const tiles: AppTile[] = [
-    { key: "home", label: "Search", path: "/", icon: Search },
     { key: "dashboard", label: "Dashboard", path: "/dashboard", icon: Home },
+    { key: "home", label: "Search", path: "/", icon: Search, tone: "special" },
     {
       key: "network",
       label: "Network",
@@ -59,13 +55,8 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       disabled: !calcDone,
       disabledTitle: "Available after calculation completes",
     },
-    { key: "settings", label: "Settings", path: "/settings", icon: SettingsIcon },
-    { key: "faq", label: "FAQ", path: "/faq", icon: HelpCircle },
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
-      : []),
-    ...(isAdminPubkey(user?.pubkey)
-      ? [{ key: "admin" as const, label: "Admin", path: "/admin", icon: Shield, tone: "admin" as const }]
       : []),
   ];
 
@@ -124,19 +115,33 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                 }
                 data-testid={`app-tile-${tile.key}`}
               >
-                <span className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] border border-indigo-500/10 flex items-center justify-center">
+                <span
+                  className={
+                    "h-10 w-10 rounded-xl flex items-center justify-center " +
+                    (tile.tone === "special"
+                      ? "bg-gradient-to-br from-indigo-500 to-violet-600 border border-indigo-400/40 shadow-[0_4px_14px_rgba(99,102,241,0.35)]"
+                      : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] border border-indigo-500/10")
+                  }
+                >
                   <Icon
                     className={
                       "h-5 w-5 " +
                       (tile.tone === "admin"
                         ? "text-amber-600"
                         : tile.tone === "special"
-                          ? "text-cyan-600"
+                          ? "text-white"
                           : "text-indigo-600")
                     }
                   />
                 </span>
-                <span className="text-[11px] font-medium text-slate-700 leading-tight">
+                <span
+                  className={
+                    "text-[11px] leading-tight " +
+                    (tile.tone === "special"
+                      ? "font-semibold text-indigo-700"
+                      : "font-medium text-slate-700")
+                  }
+                >
                   {tile.label}
                 </span>
               </button>
