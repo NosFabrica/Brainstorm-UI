@@ -252,7 +252,7 @@ export default function LoginPage() {
             </button>
             <div className="flex items-center gap-5">
               <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-700 transition-colors" data-testid="link-login-help">Help</button>
-              <button type="button" onClick={() => navigate("/what-is-wot")} className="hover:text-slate-700 transition-colors" data-testid="link-login-privacy">Privacy</button>
+              <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-700 transition-colors" data-testid="link-login-privacy">Privacy</button>
               <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-700 transition-colors" data-testid="link-login-terms">Terms</button>
             </div>
           </div>
