@@ -79,11 +79,11 @@ const STAGES: Stage[] = [
     icon: ListFilter,
     body: (
       <>
-        Every query is matched against each profile's name, bio, NIP-05 identifier, and website to surface the
+        Every query is matched against each profile's name, bio, identifier, and website to surface the
         closest candidates.
       </>
     ),
-    detail: "Instant matching across name · bio · NIP-05 · website",
+    detail: "Instant matching across name · bio · identifier · website",
   },
   {
     num: "03",
