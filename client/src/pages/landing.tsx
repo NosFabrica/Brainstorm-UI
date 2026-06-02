@@ -33,7 +33,7 @@ const PLACEHOLDER_EXAMPLES = [
   'Try "Jack"',
   'Try "Prague"',
   'Try a handle like "odell@primal.net"',
-  "Try an npub…",
+  "Try a public key…",
 ];
 
 export default function Landing() {
