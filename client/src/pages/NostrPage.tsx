@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import {
-  Mail,
+  Plane,
   Fingerprint,
   Unlock,
   Repeat,
@@ -117,7 +117,7 @@ export default function NostrPage() {
           >
             <div className="flex items-center gap-2.5 mb-5">
               <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                <Mail className="h-[18px] w-[18px] text-[#333286]" />
+                <Plane className="h-[18px] w-[18px] text-[#333286]" />
               </div>
               <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
                 The simple version
@@ -125,15 +125,14 @@ export default function NostrPage() {
             </div>
             <div className="space-y-4 max-w-2xl">
               <p className="text-lg text-slate-700 leading-relaxed">
-                Think about how email works. Your address is yours. You can write to anyone, and they can
-                write back — even if you use one provider and they use another. No single company owns
-                "email"; it's a shared standard everyone agrees on.
+                Think about your passport. It's yours, and it proves who you are at any border. You can fly
+                any airline to get where you're going — no single airline owns your identity or decides
+                whether you're allowed to travel.
               </p>
               <p className="text-[15px] text-slate-600 leading-relaxed">
                 Nostr brings that same idea to social apps. On most platforms today, your profile, your posts,
                 and your followers live inside one company's app — and they're stuck there. With Nostr, they
-                belong to you. You can take them to any app that speaks the same language, and everything
-                comes along.
+                belong to you, like a passport you carry from app to app — and everything comes along.
               </p>
               <p className="text-[15px] text-slate-500 leading-relaxed">
                 That's really all you need to know to get started. Everything below is for the curious.
