@@ -37,7 +37,7 @@ const BENEFITS: Benefit[] = [
     icon: Repeat,
     title: "Easy to switch apps",
     body:
-      "Don't like an app? Move to another one and keep your followers. Apps have to earn your attention rather than rely on you being stuck.",
+      "Don't like an app? Move to another one and keep your network and content. Apps have to earn your attention rather than rely on you being stuck.",
   },
 ];
 
