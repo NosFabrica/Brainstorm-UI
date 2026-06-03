@@ -1954,19 +1954,21 @@ export default function ProfilePage() {
           <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
         </div>
         <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        <div
-          className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-          data-testid={`chip-nosfabrica-compare${idSuffix}`}
-          title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
-          <span className="text-indigo-500/80">NosFabrica</span>
-          <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-          <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
-            <TrendIcon className="h-3 w-3" />
-            {diffPrefix}{diffAbs}
-          </span>
-        </div>
+        {!isAnon && (
+          <div
+            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
+            data-testid={`chip-nosfabrica-compare${idSuffix}`}
+            title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
+            <span className="text-indigo-500/80">NosFabrica</span>
+            <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
+            <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
+              <TrendIcon className="h-3 w-3" />
+              {diffPrefix}{diffAbs}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
