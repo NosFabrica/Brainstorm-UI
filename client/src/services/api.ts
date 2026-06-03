@@ -40,6 +40,22 @@ export function isAuthRedirecting(): boolean {
   return isRedirectingToLogin;
 }
 
+/**
+ * True only when a real session token is present. Use this (not just the
+ * presence of `nostr_user`) to gate any call that goes through
+ * `authenticatedFetch` (e.g. getSelf), because that path wipes storage and
+ * hard-redirects to "/" on a 401. A stale `nostr_user` without a token must
+ * never trigger that redirect on public/anonymous pages.
+ */
+export function hasSessionToken(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return !!localStorage.getItem("brainstorm_session_token");
+  } catch {
+    return false;
+  }
+}
+
 function handleUnauthorized() {
   isRedirectingToLogin = true;
   localStorage.removeItem("brainstorm_session_token");
@@ -176,6 +192,28 @@ async function authenticatedFetch(
   return response;
 }
 
+/**
+ * Fetch that attaches auth when a session exists, but degrades gracefully for
+ * anonymous visitors. Used for public, anon-viewable data (profile overview,
+ * stats, connections) so the NosFabrica "house" perspective can be served
+ * without a login. When a session is present we delegate to
+ * `authenticatedFetch` (with silent re-auth + redirect-on-expiry). When there
+ * is no session at all we do a plain fetch with NO redirect side effects, so
+ * anonymous browsing never wipes localStorage or bounces to the home page.
+ */
+async function optionalAuthFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const hasSession =
+    !!localStorage.getItem("brainstorm_session_token") ||
+    !!localStorage.getItem("nostr_user");
+  if (hasSession) {
+    return authenticatedFetch(url, options);
+  }
+  return fetch(url, options);
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
@@ -219,7 +257,7 @@ export const apiClient = {
   },
 
   async getUserByPubkey(pubkey: string) {
-    const response = await authenticatedFetch(
+    const response = await optionalAuthFetch(
       `${getBrainstormApi()}/user/${pubkey}`,
       {
         signal: AbortSignal.timeout(60000),
@@ -232,7 +270,7 @@ export const apiClient = {
   },
 
   async getUserOverview(pubkey: string) {
-    const response = await authenticatedFetch(
+    const response = await optionalAuthFetch(
       `${getBrainstormApi()}/user/${pubkey}/overview`,
       {
         signal: AbortSignal.timeout(30000),
@@ -264,7 +302,7 @@ export const apiClient = {
       params.set("tier_neutral", String(opts.tier_neutral));
     const qs = params.toString();
     const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
-    const response = await authenticatedFetch(url, {
+    const response = await optionalAuthFetch(url, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) {
@@ -289,7 +327,7 @@ export const apiClient = {
     if (opts?.limit != null) params.set("limit", String(opts.limit));
     if (opts?.cursor) params.set("cursor", opts.cursor);
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
-    const response = await authenticatedFetch(url, {
+    const response = await optionalAuthFetch(url, {
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) {

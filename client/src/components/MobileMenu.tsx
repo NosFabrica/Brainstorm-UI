@@ -8,11 +8,13 @@ import {
   Users,
   HelpCircle,
   BookOpen,
+  Bird,
   Settings as SettingsIcon,
   LogOut,
   Shield,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { SignInButton } from "@/components/SignInButton";
 import { FEATURES } from "@/config/featureFlags";
 
 interface MobileMenuProps {
@@ -32,8 +34,8 @@ interface MobileMenuProps {
 }
 
 const primaryNav = [
+  { path: "/", label: "Search", icon: Search },
   { path: "/dashboard", label: "Dashboard", icon: Home },
-  { path: "/search", label: "Search", icon: Search },
   { path: "/network", label: "Network", icon: Users },
   ...(FEATURES.agentSuite
     ? [{ path: "/agentsuite", label: "Agent Suite", icon: AgentIcon, special: true }]
@@ -43,6 +45,7 @@ const primaryNav = [
 const helpNav = [
   { path: "/faq", label: "FAQ", icon: HelpCircle },
   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
+  { path: "/nostr", label: "Built on Nostr", icon: Bird },
 ];
 
 function NavButton({
@@ -150,6 +153,22 @@ export function MobileMenu({
         </div>
 
         <div className="relative flex-1 flex flex-col overflow-y-auto py-4 px-3">
+          {!user && (
+            <>
+              <div className="space-y-1.5">
+                <p className="px-3 pb-1 text-[10px] font-semibold text-indigo-300/60 uppercase tracking-[0.22em]" data-testid="text-mobile-menu-section-nav-public">Navigation</p>
+                <NavButton
+                  item={{ path: "/", label: "Search", icon: Search }}
+                  active={currentPath === "/"}
+                  onClose={onClose}
+                  navigate={navigate}
+                />
+              </div>
+
+              <div className="my-3 mx-3 border-t border-white/[0.06]" />
+            </>
+          )}
+
           {user && (
             <>
               <div className="space-y-1.5">
@@ -241,6 +260,20 @@ export function MobileMenu({
               <LogOut className="h-4 w-4" />
               Sign Out
             </Button>
+          </div>
+        )}
+
+        {!user && (
+          <div className="relative p-4 border-t border-white/10 bg-white/[0.04]">
+            <p className="text-xs text-slate-300/70 mb-3 leading-relaxed" data-testid="text-mobile-menu-signin-hint">
+              Sign in with your Nostr extension to unlock your personalized Web of Trust and account tools.
+            </p>
+            <SignInButton
+              variant="primary"
+              className="w-full"
+              onSuccess={onClose}
+              data-testid="button-mobile-sign-in"
+            />
           </div>
         )}
       </div>
