@@ -130,7 +130,7 @@ export default function NostrPage() {
                 whether you're allowed to travel.
               </p>
               <p className="text-[15px] text-slate-600 leading-relaxed">
-                Nostr brings that same idea to social apps. On most platforms today, your profile, your posts,
+                Nostr brings that same idea to the internet. On most platforms today, your profile, your posts,
                 and your followers live inside one company's app — and they're stuck there. With Nostr, they
                 belong to you, like a passport you carry from app to app — and everything comes along.
               </p>
