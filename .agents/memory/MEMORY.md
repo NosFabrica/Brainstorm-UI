@@ -3,3 +3,4 @@
 - [Vite HMR stale after syntax error](vite-hmr-stale-build.md) — one bad mid-edit save breaks HMR; later edits silently don't reach the browser. Restart the workflow before concluding a fix failed.
 - [Two search dropdowns](dual-search-dropdowns.md) — `/` is landing.tsx, `/search` is SearchPage.tsx; they have separate live-suggestion dropdowns. Fix/verify the right one (test-id prefix tells you which).
 - [Home POV effectivePov](home-pov-effective.md) — landing.tsx derives effectivePov; mywot silently falls back to house when !hasMywot or logged-out. Search re-runs on POV change.
+- [Nostr profile HTTP fast-path](nostr-http-profile-fetch.md) — kind 0 fetched over CORS gateways (nostrhttp.com, api.nostr.band) raced vs relays; no backend exists; sandbox can't reach hosts.

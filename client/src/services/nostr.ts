@@ -599,7 +599,92 @@ export async function fetchProfileEvent(
   return undefined;
 }
 
-export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+// Resolve with the first promise that yields a truthy value. Unlike
+// Promise.race (first to *settle*) this skips sources that resolve to
+// undefined/null, only falling back to undefined once every source is done.
+function firstTruthy<T>(promises: Array<Promise<T | undefined>>): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    let remaining = promises.length;
+    if (remaining === 0) {
+      resolve(undefined);
+      return;
+    }
+    let settled = false;
+    for (const p of promises) {
+      p.then((value) => {
+        if (!settled && value) {
+          settled = true;
+          resolve(value);
+        }
+      })
+        .catch(() => {})
+        .finally(() => {
+          remaining -= 1;
+          if (remaining === 0 && !settled) resolve(undefined);
+        });
+    }
+  });
+}
+
+// Recursively scan an arbitrary JSON payload for a kind 0 profile event and
+// return its parsed content. Handles the differing envelopes used by the HTTP
+// sources: nostrhttp.com returns a bare array of events, while api.nostr.band
+// wraps the event under `profiles[].event`.
+function extractKind0Content(node: unknown, depth = 0): ProfileContent | undefined {
+  if (!node || typeof node !== "object" || depth > 6) return undefined;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = extractKind0Content(item, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.kind === 0 && typeof obj.content === "string") {
+    try {
+      const parsed = JSON.parse(obj.content) as ProfileContent;
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {}
+  }
+  for (const key of Object.keys(obj)) {
+    const found = extractKind0Content(obj[key], depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+async function fetchProfileFromUrl(url: string, timeoutMs: number): Promise<ProfileContent | undefined> {
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return undefined;
+    const json = await res.json();
+    return extractKind0Content(json);
+  } catch {
+    return undefined;
+  }
+}
+
+// HTTP fast-path for kind 0 profile metadata. Queries CORS-enabled HTTP
+// gateways in parallel so a slow/unavailable relay set never bottlenecks the
+// avatar. Returns the first source that yields a valid profile.
+export async function fetchProfileHttp(pubkey: string, timeoutMs = 6000): Promise<ProfileContent | undefined> {
+  let npub: string;
+  try {
+    npub = nip19.npubEncode(pubkey);
+  } catch {
+    return undefined;
+  }
+  const urls = [
+    `https://nostrhttp.com/${npub}`,
+    `https://api.nostr.band/v0/stats/profile/${npub}`,
+  ];
+  return firstTruthy(urls.map((u) => fetchProfileFromUrl(u, timeoutMs)));
+}
+
+async function fetchProfileFromRelays(pubkey: string, timeoutMs: number): Promise<ProfileContent | undefined> {
   const event = await fetchProfileEvent(pubkey, timeoutMs);
   if (!event) return undefined;
   if (isValidProfile(event as any)) {
@@ -611,6 +696,17 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
     } catch {}
   }
   return undefined;
+}
+
+export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+  // Race the HTTP fast-path against the relay query and take whichever returns
+  // a valid kind 0 profile first. The HTTP gateways are usually faster and
+  // avoid worst-case relay hangs; the relay query stays as the resilient
+  // fallback (and still warms the relay pool / event store).
+  return firstTruthy([
+    fetchProfileHttp(pubkey, Math.min(timeoutMs, 6000)),
+    fetchProfileFromRelays(pubkey, timeoutMs),
+  ]);
 }
 
 export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> {
