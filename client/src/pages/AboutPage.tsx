@@ -129,17 +129,17 @@ export default function AboutPage() {
         className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 pt-8 sm:pt-14 pb-6"
         data-testid="section-about-hero"
       >
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          {/* Left: copy */}
-          <div className="space-y-6 animate-fade-up order-2 lg:order-1">
-            <div className="flex items-center gap-2.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-center">
+          {/* Left: copy — `contents` on mobile lets each piece reorder around the video */}
+          <div className="contents lg:block lg:space-y-6 animate-fade-up lg:order-1">
+            <div className="flex items-center gap-2.5 order-1">
               <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
                 About Brainstorm
               </span>
               <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
 
-            <div className="min-h-[150px] sm:min-h-[190px]" key={slide} aria-live="polite">
+            <div className="min-h-[150px] sm:min-h-[190px] order-2" key={slide} aria-live="polite">
               <h1
                 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
                 style={{ fontFamily: "var(--font-display)" }}
@@ -157,7 +157,7 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 order-4">
               <button
                 onClick={() => navigate("/")}
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
@@ -177,7 +177,7 @@ export default function AboutPage() {
             </div>
 
             {/* Slide indicators */}
-            <div className="flex items-center gap-2 pt-1" data-testid="hero-indicators">
+            <div className="flex items-center gap-2 pt-1 order-5" data-testid="hero-indicators">
               {HERO_SLIDES.map((s, i) => (
                 <button
                   key={s.title}
@@ -195,8 +195,8 @@ export default function AboutPage() {
             </div>
           </div>
 
-          {/* Right: cinematic video */}
-          <div className="order-1 lg:order-2 animate-fade-up">
+          {/* Right: cinematic video — mobile order: between the slides copy and the CTAs */}
+          <div className="order-3 lg:order-2 animate-fade-up">
             <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
               {HERO_SLIDES.map((s, i) => (
                 <video
