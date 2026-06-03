@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -66,7 +67,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
@@ -78,6 +79,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
+import { SignInButton } from "@/components/SignInButton";
 import { PovBadge } from "@/components/PovBadge";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
@@ -986,12 +988,10 @@ export default function ProfilePage() {
   }, [calcDoneNow]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
+    // Anonymous-friendly: full profiles are public (NosFabrica "house" POV).
+    // Capture the user when present so personalized sections + the account menu
+    // render, but never redirect anon visitors away.
+    setUser(getCurrentUser());
   }, [navigate]);
 
   useEffect(() => {
@@ -1007,7 +1007,10 @@ export default function ProfilePage() {
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
   useEffect(() => {
-    if (user) {
+    // getSelf() goes through authenticatedFetch (wipes + redirects to "/" on
+    // 401). Profile is a public page, so only run it with a real session token
+    // to avoid hijacking anonymous browsing when `nostr_user` is stale.
+    if (user && hasSessionToken()) {
       apiClient.getSelf().then(res => {
         if (res?.data) setSelfData(res.data);
       }).catch(() => {});
@@ -1058,7 +1061,7 @@ export default function ProfilePage() {
       const res = await apiClient.getUserOverview(hexPubkey);
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1095,7 +1098,7 @@ export default function ProfilePage() {
       });
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1136,7 +1139,7 @@ export default function ProfilePage() {
       getNextPageParam: (lastPage: { next_cursor: string | null }) =>
         lastPage?.next_cursor ?? undefined,
       enabled:
-        !!user && !!hexPubkey && (eager || !!expandedSections[kind]),
+        !!hexPubkey && (eager || !!expandedSections[kind]),
       staleTime: 5 * 60_000,
       retry: false,
     });
@@ -1232,7 +1235,7 @@ export default function ProfilePage() {
   const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
     queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1867,14 +1870,15 @@ export default function ProfilePage() {
       if (!hexPubkey || !displayNpub) return null;
       return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
     },
-    enabled: !!user && !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  if (!user || isAuthRedirecting()) return null;
+  if (isAuthRedirecting()) return null;
 
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
+  const isAnon = !user;
+  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
@@ -1950,19 +1954,21 @@ export default function ProfilePage() {
           <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
         </div>
         <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        <div
-          className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-          data-testid={`chip-nosfabrica-compare${idSuffix}`}
-          title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
-          <span className="text-indigo-500/80">NosFabrica</span>
-          <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-          <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
-            <TrendIcon className="h-3 w-3" />
-            {diffPrefix}{diffAbs}
-          </span>
-        </div>
+        {!isAnon && (
+          <div
+            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
+            data-testid={`chip-nosfabrica-compare${idSuffix}`}
+            title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
+            <span className="text-indigo-500/80">NosFabrica</span>
+            <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
+            <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
+              <TrendIcon className="h-3 w-3" />
+              {diffPrefix}{diffAbs}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
@@ -1979,147 +1985,26 @@ export default function ProfilePage() {
         <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]" style={{ animation: "profileBlobB 32s ease-in-out infinite 2s" }} />
       </div>
 
-      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-profile">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 sm:gap-6">
-              <div className="lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={openMobileMenu}
-                  className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                  data-testid="button-mobile-menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
-              <button
-                type="button"
-                className="flex items-center gap-2"
-                onClick={() => navigate("/dashboard")}
-                data-testid="button-brand"
-              >
-                <BrainLogo size={28} className="text-indigo-500" />
-                <h1
-                  className="text-lg sm:text-xl font-bold tracking-tight text-white"
-                  style={{ fontFamily: "var(--font-display)" }}
-                  data-testid="text-logo"
-                >
-                  Brainstorm
-                </h1>
-              </button>
-              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  onClick={() => navigate("/dashboard")}
-                  data-testid="button-nav-dashboard"
-                >
-                  <Home className="h-4 w-4" />
-                  Dashboard
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  onClick={() => navigate("/search")}
-                  data-testid="button-nav-search"
-                >
-                  <SearchIcon className="h-4 w-4" />
-                  Search
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
-                  onClick={() => calcDone && navigate("/network")}
-                  disabled={!calcDone}
-                  title={!calcDone ? "Available after calculation completes" : undefined}
-                  data-testid="button-nav-network"
-                >
-                  <User className="h-4 w-4" />
-                  Network
-                </Button>
-                {FEATURES.agentSuite && (
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                    <AgentIcon className="h-4 w-4" />
-                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-4">
-              {isAdmin && <AdminBadge />}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div
-                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5"
-                    data-testid="button-user-menu"
-                  >
-                    <div className="relative shrink-0">
-                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                        {user.picture ? (
-                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                          {user.displayName?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <PovBadge user={user} />
-                    </div>
-                    <div className="hidden md:flex flex-col items-start mr-2">
-                      <span className="text-sm font-bold text-white leading-none mb-0.5">
-                        {user.displayName || "Anon"}
-                      </span>
-                      <span className="text-xs text-indigo-300 font-mono leading-none">
-                        {user.npub.slice(0, 8)}...
-                      </span>
-                    </div>
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
-                        <span>{user.npub.slice(0, 16)}...</span>
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    <span>FAQ</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                      <Shield className="mr-2 h-4 w-4" />
-                      <span>Admin Dashboard</span>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem
-                    className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
-                    onClick={handleLogout}
-                    data-testid="dropdown-logout"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sign out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </nav>
+      {isAnon ? (
+        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
+          <button
+            type="button"
+            onClick={() => navigate("/about")}
+            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-about"
+          >
+            About
+          </button>
+          <SignInButton
+            variant="primary"
+            label="Sign in"
+            className="!rounded-full sm:px-5"
+            data-testid="button-profile-sign-in"
+          />
+        </header>
+      ) : (
+      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+      )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
@@ -2166,7 +2051,7 @@ export default function ProfilePage() {
                 variant="ghost"
                 size="sm"
                 className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-                onClick={() => goBack("/search")}
+                onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -2224,7 +2109,7 @@ export default function ProfilePage() {
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
-                      onClick={() => navigate("/search")}
+                      onClick={() => navigate("/")}
                       className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#3730a3] hover:bg-[#312e81] text-white"
                       data-testid="button-profile-new-search"
                     >
@@ -2447,7 +2332,7 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {hexPubkey && !social.isSelf(hexPubkey) && (
+                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
                           <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
                             {social.listsLoading ? (
                               <>
@@ -3175,7 +3060,7 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate("/search")}
+                    onClick={() => navigate("/")}
                     className="h-10 rounded-xl px-4 border-slate-200 bg-white"
                     data-testid="button-profile-new-search"
                   >
@@ -3294,7 +3179,31 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Footer />
+      {isAnon ? (
+        <footer
+          className="relative z-10 mt-auto flex items-center justify-between px-4 sm:px-8 py-4 text-xs"
+          data-testid="footer-profile-anon"
+        >
+          <button
+            type="button"
+            onClick={() => navigate("/developers")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-developers"
+          >
+            Developers
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/how-search-works")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-how-search-works"
+          >
+            How search works
+          </button>
+        </footer>
+      ) : (
+        <Footer />
+      )}
     </div>
   );
 }

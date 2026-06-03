@@ -1,0 +1,5 @@
+- [Anon public data fetch](anon-public-data-fetch.md) — anon-viewable endpoints must use optionalAuthFetch, never authenticatedFetch (which wipes/redirects on 401); "signed in" = token OR nostr_user.
+- [Testing pattern](testing-pattern.md) — no test runner; write standalone `scripts/*.ts` run via `npx tsx` + register as a `validation` step. ESM (no __dirname); parse .tsx via TS compiler API.
+- [Vite HMR stale after syntax error](vite-hmr-stale-build.md) — one bad mid-edit save breaks HMR; later edits silently don't reach the browser. Restart the workflow before concluding a fix failed.
+- [Two search dropdowns](dual-search-dropdowns.md) — `/` is landing.tsx, `/search` is SearchPage.tsx; they have separate live-suggestion dropdowns. Fix/verify the right one (test-id prefix tells you which).
+- [Home POV effectivePov](home-pov-effective.md) — landing.tsx derives effectivePov; mywot silently falls back to house when !hasMywot or logged-out. Search re-runs on POV change.

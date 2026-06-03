@@ -108,6 +108,20 @@ export default {
           from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "blob-morph": {
+          "0%, 100%": {
+            borderRadius: "42% 58% 63% 37% / 41% 44% 56% 59%",
+            transform: "translateZ(0) rotate(0deg) scale(1)",
+          },
+          "33%": {
+            borderRadius: "67% 33% 47% 53% / 37% 62% 38% 63%",
+            transform: "translateZ(0) rotate(8deg) scale(1.05)",
+          },
+          "66%": {
+            borderRadius: "38% 62% 56% 44% / 62% 38% 62% 38%",
+            transform: "translateZ(0) rotate(-6deg) scale(0.97)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -115,6 +129,7 @@ export default {
         "gradient-x": "gradient-x 6s ease infinite",
         "float": "float 6s ease-in-out infinite",
         "fade-up": "fade-up 0.5s ease-out forwards",
+        "blob-morph": "blob-morph 14s ease-in-out infinite",
       },
     },
   },

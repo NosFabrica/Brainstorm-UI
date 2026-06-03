@@ -1,5 +1,70 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "QVB-ATdzDULlHb7Er78BM"
+uri = "file://attached_assets/generated_images/about_trust_signal.png"
+type = "image"
+title = "trust over noise real person"
+
+[[generated]]
+id = "5HVlzGiDzOb0LmzmpzefA"
+uri = "file://attached_assets/generated_images/about_for_everyone.png"
+type = "image"
+title = "for everyone real people"
+
+[[generated]]
+id = "4T3J0dKPaSutob2geeAjF"
+uri = "file://attached_assets/generated_images/about_yours_identity.png"
+type = "image"
+title = "yours by design real person"
+
+[[generated]]
+id = "MJ_LVo1ziOla0SkuDsoWk"
+uri = "file://attached_assets/generated_images/about_hero_poster.png"
+type = "image"
+title = "about hero real people"
+
+[[generated]]
+id = "TZvesNK9o_e0WvOC-m72w"
+uri = "file://attached_assets/generated_images/hsw_trusted_recommendation.png"
+type = "image"
+title = "trusted friend recommendation cafe"
+
+[[generated]]
+id = "PAt6Nv2MXbQ50nKw7PkWE"
+uri = "file://attached_assets/generated_images/login_human_backdrop.png"
+type = "image"
+title = "login human backdrop"
+
+[[generated]]
+id = "zzgs1JWxLcfBkohzeTYtb"
+uri = "file://artifacts/mockup-sandbox/public/images/split-narrative-hero.png"
+type = "image"
+title = "Warm human connection trust graph"
+
+[[generated]]
+id = "UyzAFWNdItIcJOs9q0Kzn"
+uri = "file://artifacts/mockup-sandbox/public/images/immersive-hero-bg.png"
+type = "image"
+title = "Diverse people connecting and laughing"
+
+[[generated]]
+id = "wyb4Ev_q0ELi2Lb8-5-Cc"
+uri = "file://attached_assets/generated_images/login_split_hero.png"
+type = "image"
+title = "hip mixed creative builders loft"
+
+[[generated]]
+id = "vuksBk6jGs1ZBv7kmsfFY"
+uri = "file://attached_assets/generated_images/login_hero_2.png"
+type = "image"
+title = "hip builders rooftop golden hour"
+
+[[generated]]
+id = "bAcUXB0jPAcubq56A2O9w"
+uri = "file://attached_assets/generated_images/login_hero_3.png"
+type = "image"
+title = "hip builders studio table daylight"
 
 [[outputs]]
 id = "47vyxo8ZwdaLtzpCILuY8"
