@@ -192,7 +192,7 @@ export default function LoginPage() {
               })}
             </div>
             <span className="transition-colors duration-200 group-hover:text-indigo-100">
-              Real people already building the web of trust
+              Real people already building their web of trust
             </span>
           </div>
         </div>
@@ -344,7 +344,7 @@ export default function LoginPage() {
                 );
               })}
             </div>
-            <span>Real people already building the web of trust</span>
+            <span>Real people already building their web of trust</span>
           </div>
         </div>
         </div>
