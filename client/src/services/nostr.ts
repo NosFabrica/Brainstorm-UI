@@ -656,7 +656,7 @@ export async function handleLogin(): Promise<NostrUser> {
   if (!extensionFound) {
     throw new LoginError(
       "NO_EXTENSION",
-      "No sign-in extension detected. You can use your secret key instead, or add a browser sign-in extension."
+      "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension."
     );
   }
 
@@ -669,19 +669,19 @@ export async function handleLogin(): Promise<NostrUser> {
     if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
       throw new LoginError(
         "PERMISSION_DENIED",
-        "Your extension denied the request. Unlock it and approve access, or use your secret key."
+        "Your extension denied the request. Unlock it and approve access, or use your key."
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your sign-in extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or use your secret key.`
+      `Your sign-in extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or use your key.`
     );
   }
 
   if (!pubkey || typeof pubkey !== "string") {
     throw new LoginError(
       "EXTENSION_FAILED",
-      "Your extension returned an invalid public key. Unlock it and try again, or use your secret key."
+      "Your extension returned an invalid public key. Unlock it and try again, or use your key."
     );
   }
 
@@ -712,19 +712,19 @@ export async function handleLogin(): Promise<NostrUser> {
     if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
       throw new LoginError(
         "SIGN_CANCELLED",
-        "Signing was cancelled. Approve the request in your extension, or use your secret key."
+        "Signing was cancelled. Approve the request in your extension, or use your key."
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your secret key.`
+      `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
     );
   }
 
   if (!signedEvent || !signedEvent.sig) {
     throw new LoginError(
       "EXTENSION_FAILED",
-      "Your extension couldn't complete sign-in. Try again, or use your secret key."
+      "Your extension couldn't complete sign-in. Try again, or use your key."
     );
   }
 
@@ -735,7 +735,7 @@ export async function handleLogin(): Promise<NostrUser> {
 export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   const trimmed = nsec.trim();
   if (!trimmed) {
-    throw new LoginError("INVALID_NSEC", "Please paste your secret key to continue.");
+    throw new LoginError("INVALID_NSEC", "Please paste your key to continue.");
   }
 
   let sk: Uint8Array;
@@ -748,7 +748,7 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   } catch {
     throw new LoginError(
       "INVALID_NSEC",
-      "That doesn't look like a valid secret key. Double-check it and try again."
+      "That doesn't look like a valid key. Double-check it and try again."
     );
   }
 
@@ -756,7 +756,7 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   try {
     pubkey = getPublicKey(sk);
   } catch {
-    throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that secret key.");
+    throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
 
   let challenge: string;

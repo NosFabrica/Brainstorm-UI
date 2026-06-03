@@ -100,7 +100,7 @@ export default function LoginPage() {
 
   const openNsec = () => {
     setFailureCode("NO_EXTENSION");
-    setFailureMessage("Paste your secret key to sign in.");
+    setFailureMessage("Paste your key to sign in.");
     setFailureOpen(true);
   };
 
@@ -272,7 +272,7 @@ export default function LoginPage() {
               className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors"
               data-testid="link-use-nsec"
             >
-              <KeyRound className="h-4 w-4" /> Use your secret key?
+              <KeyRound className="h-4 w-4" /> Use your key?
             </button>
           </div>
 

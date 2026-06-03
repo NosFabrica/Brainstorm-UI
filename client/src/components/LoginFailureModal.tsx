@@ -14,6 +14,7 @@ import {
   KeyRound,
   Loader2,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import { loginWithNsec, type LoginErrorCode } from "@/services/nostr";
 import {
@@ -43,7 +44,7 @@ const EXTENSIONS = [
     name: "nos2x",
     url: "https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp",
     description:
-      "A lightweight Chrome extension that signs you in securely so you never have to paste your secret key.",
+      "A lightweight Chrome extension that signs you in securely so you never have to paste your key.",
   },
 ];
 
@@ -75,10 +76,10 @@ export function LoginFailureModal({
   const isServerError = errorCode === "SERVER_ERROR";
 
   const subheadline = isNoExtension
-    ? "We couldn't find a sign-in extension in your browser. Add one and try again, or use your secret key to continue."
+    ? "We couldn't find a sign-in extension in your browser. Add one and try again, or use your key to continue."
     : isServerError
-    ? "We couldn't reach the sign-in server. Check your connection and try again, or use your secret key to continue."
-    : "We couldn't complete sign-in with your browser extension. Unlock it and try again, or use your secret key to continue.";
+    ? "We couldn't reach the sign-in server. Check your connection and try again, or use your key to continue."
+    : "We couldn't complete sign-in with your browser extension. Unlock it and try again, or use your key to continue.";
 
   const handleSecretKeyLogin = async () => {
     setSecretKeyError("");
@@ -90,7 +91,7 @@ export function LoginFailureModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Sign-in failed. Check your secret key and try again.";
+          : "Sign-in failed. Check your key and try again.";
       setSecretKeyError(msg);
     } finally {
       setSubmitting(false);
@@ -120,7 +121,7 @@ export function LoginFailureModal({
                   data-testid="text-login-failure-title"
                 >
                   {showSecretKeyForm
-                    ? "Sign in with your secret key"
+                    ? "Sign in with your key"
                     : "Sign-in couldn't complete"}
                 </DialogTitle>
                 <DialogDescription
@@ -128,7 +129,7 @@ export function LoginFailureModal({
                   data-testid="text-login-failure-subtitle"
                 >
                   {showSecretKeyForm
-                    ? "Paste your secret key to continue."
+                    ? "Paste your key to continue."
                     : subheadline}
                 </DialogDescription>
               </DialogHeader>
@@ -159,7 +160,7 @@ export function LoginFailureModal({
                       data-testid="button-show-nsec-form"
                     >
                       <KeyRound className="h-4 w-4" />
-                      Use your secret key
+                      Use your key
                       <ArrowRight className="h-4 w-4" />
                     </button>
                     <button
@@ -190,7 +191,7 @@ export function LoginFailureModal({
                       data-testid="button-show-nsec-form"
                     >
                       <KeyRound className="h-4 w-4 text-slate-500" />
-                      Use your secret key instead
+                      Use your key instead
                     </button>
                   </>
                 )}
@@ -241,12 +242,12 @@ export function LoginFailureModal({
               <>
                 <div className="px-5 sm:px-6 pt-1 pb-3 space-y-3">
                   <div
-                    className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700"
+                    className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600"
                     data-testid="warning-nsec-security"
                   >
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-500" />
                     <p className="text-[11px] leading-relaxed font-medium">
-                      This is your secret key — only paste it on sites you trust.
+                      Your key stays on your device — we never send or store it.
                     </p>
                   </div>
 
@@ -264,7 +265,7 @@ export function LoginFailureModal({
                           handleSecretKeyLogin();
                         }
                       }}
-                      placeholder="Paste your secret key"
+                      placeholder="Paste your key"
                       autoComplete="off"
                       spellCheck={false}
                       disabled={submitting}
@@ -277,7 +278,7 @@ export function LoginFailureModal({
                       onClick={() => setShowSecretKey((v) => !v)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
                       data-testid="button-toggle-nsec-visibility"
-                      aria-label={showSecretKey ? "Hide secret key" : "Show secret key"}
+                      aria-label={showSecretKey ? "Hide key" : "Show key"}
                     >
                       {showSecretKey ? (
                         <EyeOff className="h-4 w-4" />
