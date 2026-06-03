@@ -91,7 +91,7 @@ export default function LoginPage() {
         setFailureMessage(err.message);
         setFailureOpen(true);
       } else {
-        setError(err instanceof Error ? err.message : "Failed to connect to Nostr.");
+        setError(err instanceof Error ? err.message : "Couldn't complete sign-in. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
   const openNsec = () => {
     setFailureCode("NO_EXTENSION");
-    setFailureMessage("Paste your private key (nsec) to sign in.");
+    setFailureMessage("Paste your secret key to sign in.");
     setFailureOpen(true);
   };
 
@@ -272,7 +272,7 @@ export default function LoginPage() {
               className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors"
               data-testid="link-use-nsec"
             >
-              <KeyRound className="h-4 w-4" /> Use your private key?
+              <KeyRound className="h-4 w-4" /> Use your secret key?
             </button>
           </div>
 
