@@ -17,35 +17,6 @@ interface PovUser {
   pubkey?: string;
 }
 
-export function PovBadge({ user }: { user: PovUser | null }) {
-  const [pov] = useActivePov();
-  const { hasMywot } = useHasMywot();
-  const effective: ActivePov = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
-  const label = effective === "mywot" ? user?.displayName || "My WoT" : "Brainstorm";
-
-  return (
-    <span
-      className={
-        "pointer-events-none absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-slate-950 shadow-md flex items-center justify-center overflow-hidden " +
-        (effective === "nosfabrica" ? "bg-indigo-400" : "bg-emerald-400")
-      }
-      title={`Trust perspective: ${label}`}
-      data-testid="badge-pov-indicator"
-      aria-label={`Trust perspective: ${label}`}
-    >
-      {effective === "nosfabrica" ? (
-        <img src={nosFabricaLogo} alt="" className="h-full w-full object-cover" />
-      ) : user?.picture ? (
-        <img src={user.picture} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="text-[7px] font-bold text-emerald-900 leading-none">
-          {user?.displayName?.charAt(0) || "U"}
-        </span>
-      )}
-    </span>
-  );
-}
-
 interface PovMenuSectionProps {
   user: PovUser | null;
   /**

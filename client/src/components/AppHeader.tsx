@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
 import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -141,7 +140,6 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                         </Avatar>
                       </div>
                     </div>
-                    <PovBadge user={user} />
                   </div>
                   <div className="hidden md:flex flex-col items-start mr-2" data-testid="text-user-meta">
                     <span

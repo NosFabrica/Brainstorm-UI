@@ -13,7 +13,6 @@ import {
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -643,7 +642,6 @@ export default function UserPanelPage() {
                         {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
                         <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                       </Avatar>
-                      <PovBadge user={user} />
                     </div>
                     <div className="hidden md:flex flex-col items-start mr-2">
                       <span className="text-sm font-bold text-white leading-none mb-0.5" data-testid="text-agentsuite-profile-name">{user.displayName || "Anon"}</span>
