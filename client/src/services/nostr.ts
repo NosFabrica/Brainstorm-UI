@@ -209,7 +209,8 @@ export function getCurrentUser(): NostrUser | null {
 }
 
 function setCurrentUser(user: NostrUser | null) {
-  const prevPubkey = currentUser?.pubkey ?? null;
+  const prev = currentUser;
+  const prevPubkey = prev?.pubkey ?? null;
   currentUser = user;
   if (user) {
     localStorage.setItem("nostr_user", JSON.stringify(user));
@@ -217,7 +218,16 @@ function setCurrentUser(user: NostrUser | null) {
     localStorage.removeItem("nostr_user");
   }
   const nextPubkey = user?.pubkey ?? null;
-  if (prevPubkey !== nextPubkey) {
+  const pubkeyChanged = prevPubkey !== nextPubkey;
+  // Also notify listeners when the same user's profile metadata fills in
+  // (e.g. the avatar/name fetched right after login), so the header and
+  // mobile menu re-render instead of waiting for the next page render.
+  const profileChanged =
+    !!user &&
+    !!prev &&
+    prev.pubkey === user.pubkey &&
+    (prev.picture !== user.picture || prev.displayName !== user.displayName);
+  if (pubkeyChanged || profileChanged) {
     try {
       window.dispatchEvent(new CustomEvent("brainstorm-user-changed", {
         detail: { previous: prevPubkey, current: nextPubkey },
@@ -648,6 +658,19 @@ async function completeLogin(pubkey: string, signedEvent: Record<string, unknown
 
   const user: NostrUser = { pubkey, npub, isAdmin };
   setCurrentUser(user);
+
+  // Start fetching the user's profile metadata (kind 0) immediately at login
+  // instead of deferring it to the dashboard. This removes the dashboard-mount
+  // delay from the time-to-avatar. Fire-and-forget so login is never blocked on
+  // relay latency; when it resolves, updateCurrentUser dispatches a
+  // user-changed event that the header/menu listen to, so the avatar appears
+  // as soon as the metadata arrives.
+  void fetchProfile(pubkey)
+    .then((content) => {
+      if (content) updateCurrentUser(applyProfileToUser(content));
+    })
+    .catch(() => {});
+
   return user;
 }
 

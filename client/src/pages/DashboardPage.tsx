@@ -219,6 +219,11 @@ export default function DashboardPage() {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
       setAssistantDismissed(readAssistantDismissed());
+      // Keep the local user copy in sync with late-arriving profile metadata
+      // (e.g. the avatar/name fetched right after login) so the header updates
+      // reactively and the profile fallback query below stays suppressed.
+      const fresh = getCurrentUser();
+      if (fresh) setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
@@ -249,6 +254,14 @@ export default function DashboardPage() {
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
+      // The login-time profile fetch may have resolved after this query was
+      // already enabled (React Query won't cancel an in-flight query). If the
+      // metadata is already present, reuse it instead of re-hitting relays.
+      const fresh = getCurrentUser();
+      if (fresh && (fresh.picture || fresh.displayName)) {
+        setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
+        return fresh.profile ?? null;
+      }
       await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
