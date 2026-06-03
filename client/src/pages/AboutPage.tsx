@@ -395,18 +395,7 @@ export default function AboutPage() {
               NosFabrica
               <ExternalLink className="h-3 w-3" />
             </a>{" "}
-            company, building open infrastructure for trust on{" "}
-            <a
-              href="https://nostr.how/en/what-is-nostr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 hover:text-indigo-600 hover:underline transition-colors"
-              data-testid="link-about-nostr"
-            >
-              Nostr
-              <ExternalLink className="h-3 w-3" />
-            </a>
-            .
+            company, on a mission to make online trust real again.
           </p>
         </div>
       </section>
