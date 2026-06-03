@@ -21,7 +21,7 @@ export function PovBadge({ user }: { user: PovUser | null }) {
   const [pov] = useActivePov();
   const { hasMywot } = useHasMywot();
   const effective: ActivePov = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
-  const label = effective === "mywot" ? user?.displayName || "My WoT" : "NosFabrica";
+  const label = effective === "mywot" ? user?.displayName || "My WoT" : "Brainstorm";
 
   return (
     <span
@@ -82,15 +82,15 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         data-testid="menu-pov-option-nosfabrica"
       >
         <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-          <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+          <AvatarImage src={nosFabricaLogo} alt="Brainstorm" className="object-cover" />
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-slate-800">NosFabrica</span>
+            <span className="text-[13px] font-medium text-slate-800">Brainstorm</span>
             {effective === "nosfabrica" && <Check className="h-3 w-3 text-indigo-500" />}
           </div>
           <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
-            The "house" view from NosFabrica's curated trust graph.
+            The "house" view from Brainstorm's curated trust graph.
           </p>
         </div>
       </DropdownMenuItem>

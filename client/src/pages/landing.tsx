@@ -785,7 +785,7 @@ export default function Landing() {
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  NosFabrica
+                  Brainstorm
                 </button>
                 <span className="text-slate-300" aria-hidden="true">·</span>
                 <button
@@ -805,7 +805,7 @@ export default function Landing() {
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  My results
+                  {user.displayName || "My results"}
                 </button>
               </div>
               {!hasMywot && (
