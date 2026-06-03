@@ -2330,17 +2330,6 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {hexPubkey && isAnon && (
-                          <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions-anon">
-                            <SignInButton
-                              variant="primary"
-                              label="Sign in to follow"
-                              className="h-7 sm:h-8 !py-0 text-xs"
-                              data-testid="button-signin-to-follow"
-                            />
-                            <span className="text-xs text-slate-400 hidden sm:inline">to follow, mute or report</span>
-                          </div>
-                        )}
                         {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
                           <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
                             {social.listsLoading ? (
