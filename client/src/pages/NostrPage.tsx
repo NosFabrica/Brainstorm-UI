@@ -58,7 +58,7 @@ const CONCEPTS: Concept[] = [
     icon: Radio,
     term: "Relays",
     body:
-      "Your posts live on relays — simple servers that pass messages along. Anyone can run one, and your app talks to several at once, so there's no single place that holds everything (and no single place that can lose it). Feeling ambitious? You can run your own and pick exactly which relays get your posts and likes — like being your own host, on a corner of the network that's truly yours.",
+      "Your posts live on relays — simple servers that pass messages along. Anyone can run one, and your app talks to several at once, so there's no single place that holds everything (and no single place that can lose it). You can even run your own and choose exactly where your posts go — your content, your turf.",
   },
   {
     icon: FileSignature,
