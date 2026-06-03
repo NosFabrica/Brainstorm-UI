@@ -8,6 +8,7 @@ import {
   Users,
   HelpCircle,
   BookOpen,
+  Bird,
   Settings as SettingsIcon,
   LogOut,
   Shield,
@@ -44,6 +45,7 @@ const primaryNav = [
 const helpNav = [
   { path: "/faq", label: "FAQ", icon: HelpCircle },
   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
+  { path: "/nostr", label: "Built on Nostr", icon: Bird },
 ];
 
 function NavButton({

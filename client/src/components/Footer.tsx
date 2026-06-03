@@ -39,17 +39,16 @@ export function Footer() {
               
               <div className="w-px h-4 bg-slate-700/50" />
               
-              <motion.a 
-                href="https://nostr.how/en/what-is-nostr" 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <motion.button 
+                onClick={() => setLocation('/nostr')}
+                data-testid="link-built-on-nostr"
                 className="flex items-center gap-2 text-[10px] text-slate-500 group cursor-pointer"
                 whileHover={{ y: -8, scale: 1.15, zIndex: 50 }}
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
               >
                 <img src="/nostr-ostrich.gif" alt="Nostr" className="h-6 w-auto group-hover:h-8 transition-all duration-200" />
                 <span className="text-slate-400 group-hover:text-violet-400 group-hover:font-medium transition-all duration-200">Built on Nostr</span>
-              </motion.a>
+              </motion.button>
               
               <div className="w-px h-4 bg-slate-700/50" />
               
@@ -190,16 +189,15 @@ export function Footer() {
             
             <div className="w-px h-5 bg-slate-700/30" />
             
-            <motion.a 
-              href="https://nostr.how/en/what-is-nostr" 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <motion.button 
+              onClick={() => setLocation('/nostr')}
+              data-testid="link-built-on-nostr-mobile"
               className="flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity"
               whileTap={{ scale: 0.95 }}
             >
               <img src="/nostr-ostrich.gif" alt="Nostr" className="h-5 w-auto" />
               <span className="text-[10px] text-slate-400">Nostr</span>
-            </motion.a>
+            </motion.button>
             
             <div className="w-px h-5 bg-slate-700/30" />
             

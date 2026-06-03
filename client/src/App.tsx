@@ -17,6 +17,7 @@ import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import DevelopersPage from "@/pages/DevelopersPage";
+import NostrPage from "@/pages/NostrPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -48,7 +49,7 @@ function SearchRedirect() {
 // Account-only pages are hidden from anonymous visitors: no preview, just a
 // clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
 // so users return after signing in). Public pages (/, /profile/:npub,
-// /faq, /what-is-wot, /how-search-works, /personalization, /about) render for everyone.
+// /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
   if (!getCurrentUser()) {
@@ -79,6 +80,7 @@ function Router() {
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/developers" component={DevelopersPage} />
+        <Route path="/nostr" component={NostrPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
         <Route path="/faq" component={FaqPage} />
