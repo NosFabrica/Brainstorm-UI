@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import {
   HelpCircle,
   ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -70,6 +72,7 @@ const devFaqs = [
 ];
 
 export default function FaqPage() {
+  const [, navigate] = useLocation();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   const searchParams = new URLSearchParams(window.location.search);
@@ -253,6 +256,24 @@ export default function FaqPage() {
                 </AnimatePresence>
               </div>
             </div>
+
+            {/* Cross-link */}
+            <button
+              onClick={() => navigate("/nostr")}
+              className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+              data-testid="link-to-nostr"
+            >
+              <div>
+                <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+                  Keep reading
+                </p>
+                <p className="text-base font-semibold text-slate-900">
+                  Wondering what Nostr actually is?
+                </p>
+                <p className="text-sm text-slate-500 mt-0.5">See Built on Nostr</p>
+              </div>
+              <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            </button>
           </div>
         </div>
     </InfoPageLayout>
