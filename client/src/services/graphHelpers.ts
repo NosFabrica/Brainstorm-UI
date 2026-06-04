@@ -1,4 +1,4 @@
-export type GraphEntry = { pubkey: string; influence: number; trusted_reporters?: number } | string;
+export type GraphEntry = { pubkey: string; influence: number | null; trusted_reporters?: number | null } | string;
 
 export function toPubkeys(arr: GraphEntry[] | undefined | null): string[] {
   if (!Array.isArray(arr)) return [];

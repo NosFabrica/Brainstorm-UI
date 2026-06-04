@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { getVerifiedThreshold, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation, useRoute } from "wouter";
@@ -68,10 +68,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
+import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
   expandProfileCache,
+  expandProfileAttempted,
   expandTrustCache,
   reportMetadataCache,
   muteMetadataCache,
@@ -479,9 +481,9 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
 };
 
 function getTierKey(score: number): string {
-  if (score >= 0.50) return "high";
-  if (score >= 0.20) return "trusted";
-  if (score >= 0.07) return "neutral";
+  if (score >= TIER_THRESHOLDS.high) return "high";
+  if (score >= TIER_THRESHOLDS.medium_high) return "trusted";
+  if (score >= TIER_THRESHOLDS.medium) return "neutral";
   if (score >= getVerifiedThreshold()) return "low";
   return "unverified";
 }
@@ -515,16 +517,9 @@ function computeProcessedPubkeys(
   sectionInfluenceMaps: Record<string, Map<string, number | null>>,
   getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined,
 ): string[] {
-  const verifiedThreshold = getVerifiedThreshold();
+  // tier / verified filtering is applied server-side via /connections query
+  // params, so the items reaching us already match `filter`.
   let filtered = pubkeys;
-  if (filter !== "all") {
-    filtered = filtered.filter(pk => {
-      const score = getTrustForPkFromMaps(pk, sectionInfluenceMaps);
-      if (score < 0) return filter === "unverified";
-      if (filter === "verified") return score >= verifiedThreshold;
-      return getTierKey(score) === filter;
-    });
-  }
   if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
     filtered = filtered.filter(pk => {
       const report = getReportForPubkey(key, pk);
@@ -578,6 +573,7 @@ interface ExpandedPanelProps {
   search: string;
   reportTypeFilter: ReportTypeFilter;
   visibleCount: number;
+  sectionTotal?: number; // Server-truth total for this section/filter, if known.
   filterDropdownOpen: boolean;
   reportTypeDropdownOpen: boolean;
   reportMetaLoading: boolean;
@@ -601,6 +597,7 @@ interface ExpandedPanelProps {
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   const {
     sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
+    sectionTotal,
     filterDropdownOpen, reportTypeDropdownOpen, reportMetaLoading,
     sectionInfluenceMaps, groupsByPubkey, getReportForPubkey, formatRelativeTime,
     navigateToProfile, onSetSort, onSetFilter, onSetSearch, onSetReportTypeFilter,
@@ -766,7 +763,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
           const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
 
-          if (profile === undefined) {
+          if (profile === undefined && !expandProfileAttempted.has(pk)) {
             return (
               <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
                 <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
@@ -885,7 +882,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
-              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining)</span>
+              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
             </button>
           </div>
         )}
@@ -915,8 +912,6 @@ export default function ProfilePage() {
 
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
-
-  const [selfData, setSelfData] = useState<any>(null);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
@@ -962,7 +957,7 @@ export default function ProfilePage() {
   const social = useSocialActions(user?.pubkey);
 
   const { data: grapeRankData } = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -1005,16 +1000,17 @@ export default function ProfilePage() {
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
-  useEffect(() => {
-    // getSelf() goes through authenticatedFetch (wipes + redirects to "/" on
-    // 401). Profile is a public page, so only run it with a real session token
-    // to avoid hijacking anonymous browsing when `nostr_user` is stale.
-    if (user && hasSessionToken()) {
-      apiClient.getSelf().then(res => {
-        if (res?.data) setSelfData(res.data);
-      }).catch(() => {});
-    }
-  }, [user]);
+  // Self's own follower/following lists drive the mutual-followers/following
+  // banner. `useSelfConnections` calls `/user/{pk}/connections` via
+  // `optionalAuthFetch`, which on an existing-but-stale session triggers
+  // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
+  // session token — anon and stale-token visitors see the public overview
+  // without their browsing being hijacked.
+  const selfMutualsPubkey = hasSessionToken() ? user?.pubkey : undefined;
+  const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
+  const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
+  const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
+  const selfFollowingList = useMemo(() => flattenConnections(selfFollowingConn.data?.pages), [selfFollowingConn.data?.pages]);
 
   const seed = useMemo<ProfileSeed | null>(() => {
     if (!hexPubkey) return null;
@@ -1043,9 +1039,12 @@ export default function ProfilePage() {
   }, [hexPubkey]);
 
   // Overview drives the header (influence + counts). Lists load lazily on expand.
+  // `flagged_by_observer` reflects "is this user flagged from the JWT user's
+  // perspective" — used by isProfileFlagged below.
   const profileOverviewQuery = useQuery<{
     pubkey: string;
     influence: number | null;
+    flagged_by_observer: boolean;
     counts: {
       followed_by: number;
       following: number;
@@ -1055,9 +1054,11 @@ export default function ProfilePage() {
       reporting: number;
     };
   } | null>({
-    queryKey: ["profile-overview", hexPubkey],
+    queryKey: ["profile-overview", hexPubkey, trustPreset],
     queryFn: async () => {
-      const res = await apiClient.getUserOverview(hexPubkey);
+      const res = await apiClient.getUserOverview(hexPubkey, {
+        verified_threshold: getVerifiedThreshold(),
+      });
       return res?.data ?? null;
     },
     enabled: !!hexPubkey,
@@ -1073,10 +1074,11 @@ export default function ProfilePage() {
     verified: number;
     tier_counts: {
       high: number;
-      trusted: number;
-      neutral: number;
+      medium_high: number;
+      medium: number;
+      medium_low: number;
       low: number;
-      unverified: number;
+      low_and_reported_by_2_or_more_trusted_pubkeys: number;
     };
   };
   const profileStatsQuery = useQuery<{
@@ -1091,9 +1093,9 @@ export default function ProfilePage() {
     queryFn: async () => {
       const res = await apiClient.getUserStats(hexPubkey, {
         verified_threshold: getVerifiedThreshold(),
-        tier_high: 0.5,
-        tier_trusted: 0.2,
-        tier_neutral: 0.07,
+        tier_high: TIER_THRESHOLDS.high,
+        tier_medium_high: TIER_THRESHOLDS.medium_high,
+        tier_medium: TIER_THRESHOLDS.medium,
       });
       return res?.data ?? null;
     },
@@ -1106,6 +1108,49 @@ export default function ProfilePage() {
   //  - followed_by + following: eager (drive mutual/shared computations).
   //  - the other four: lazy, only fire when their section is expanded.
   const SECTION_LIMIT = 200;
+  // Map per-section SortMode → backend `order`. Name sorts stay client-side
+  // (no backend name index), and fall back to DESC for fetch purposes.
+  const orderFor = (kind: string): "asc" | "desc" =>
+    sectionSort[kind] === "trust-asc" ? "asc" : "desc";
+
+  // Map per-section FilterMode → backend `tier` + `min_influence`.
+  // "verified" is the union of high/trusted/neutral/low so it lives on
+  // min_influence; specific tiers go through `tier`.
+  // Map UI FilterMode keys → backend GR-style tier names.
+  const UI_TO_GR_TIER: Record<string, "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"> = {
+    high: "high",
+    trusted: "medium_high",
+    neutral: "medium",
+    low: "medium_low",
+    unverified: "low",
+  };
+  // Inverse map: collapse backend GR-style tier_counts onto the FE display
+  // keys used by TIER_DISPLAY_CONFIG (high/trusted/neutral/low/unverified)
+  // so existing breakdown UI keeps working unchanged.
+  const grTierCountsToUI = (tc: any): Record<string, number> => ({
+    high: tc?.high ?? 0,
+    trusted: tc?.medium_high ?? 0,
+    neutral: tc?.medium ?? 0,
+    low: tc?.medium_low ?? 0,
+    // ProfilePage's breakdown has no dedicated flagged slice, so fold flagged
+    // (low_and_reported_by_2_or_more_trusted_pubkeys) into unverified — same as
+    // the legacy bundled `tier_counts.unverified`, which counted all sub-vt
+    // users. Keeps the slices summing to `total`.
+    unverified:
+      (tc?.low ?? 0) + (tc?.low_and_reported_by_2_or_more_trusted_pubkeys ?? 0),
+  });
+  const filterFor = (
+    kind: string,
+  ): {
+    tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
+    min_influence?: number;
+  } => {
+    const f = sectionFilter[kind] || "all";
+    if (f === "all") return {};
+    if (f === "verified") return { min_influence: getVerifiedThreshold() };
+    return { tier: UI_TO_GR_TIER[f] };
+  };
+
   const useConnectionsQuery = (
     kind:
       | "followed_by"
@@ -1115,19 +1160,25 @@ export default function ProfilePage() {
       | "reported_by"
       | "reporting",
     eager: boolean = false,
-  ) =>
-    useInfiniteQuery<
+  ) => {
+    const order = orderFor(kind);
+    const { tier, min_influence } = filterFor(kind);
+    return useInfiniteQuery<
       { items: GraphEntry[]; next_cursor: string | null },
       Error,
       { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
       readonly unknown[],
       string | undefined
     >({
-      queryKey: ["profile-conn", hexPubkey, kind, trustPreset],
+      queryKey: ["profile-conn", hexPubkey, kind, trustPreset, order, tier ?? null, min_influence ?? null],
       queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
         const res = await apiClient.getUserConnections(hexPubkey, kind, {
           limit: SECTION_LIMIT,
           cursor: pageParam || undefined,
+          order,
+          tier,
+          min_influence,
+          verified_threshold: getVerifiedThreshold(),
         });
         return {
           items: (res?.data?.items ?? []) as GraphEntry[],
@@ -1142,6 +1193,7 @@ export default function ProfilePage() {
       staleTime: 5 * 60_000,
       retry: false,
     });
+  };
 
   const followedByQuery = useConnectionsQuery("followed_by", true);
   const followingQuery = useConnectionsQuery("following", true);
@@ -1334,6 +1386,10 @@ export default function ProfilePage() {
       })] : []),
     ]);
     if (fetchAbortRef.current !== fetchId) return;
+    // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
+    // a settled relay request). Mark them so rows with no resolvable kind-0
+    // profile fall back to the npub instead of a skeleton forever.
+    toFetch.forEach(pk => expandProfileAttempted.set(pk, true));
     bumpRerender();
     const nextStart = startIdx + count;
     if (nextStart < pubkeys.length) {
@@ -1437,33 +1493,23 @@ export default function ProfilePage() {
   }, [profileResult]);
 
   const sharedFollowerPubkeys = useMemo(() => {
-    if (!selfData || !profileResult) return [];
-    const selfGraph = selfData?.graph || selfData;
-    const selfFollowedBy = toPubkeys(selfGraph?.followed_by);
-    const selfFollowedBySet = new Set(selfFollowedBy);
+    if (!profileResult || selfFollowedByList.length === 0) return [];
+    const selfFollowedBySet = new Set(selfFollowedByList.map((e) => e.pubkey));
     const searchedFollowedBy = toPubkeys(getSection(profileResult, "followed_by"));
     return searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk));
-  }, [selfData, profileResult]);
+  }, [selfFollowedByList, profileResult]);
 
   const sharedFollowingPubkeys = useMemo(() => {
-    if (!selfData || !profileResult) return [];
-    const selfGraph = selfData?.graph || selfData;
-    const selfFollowing = toPubkeys(selfGraph?.following);
-    const selfFollowingSet = new Set(selfFollowing);
+    if (!profileResult || selfFollowingList.length === 0) return [];
+    const selfFollowingSet = new Set(selfFollowingList.map((e) => e.pubkey));
     const searchedFollowing = toPubkeys(getSection(profileResult, "following"));
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
-  }, [selfData, profileResult]);
+  }, [selfFollowingList, profileResult]);
 
-  const selfFlaggedSet = useMemo(() => {
-    if (!selfData) return new Set<string>();
-    const selfGraph = selfData?.graph || selfData;
-    return new Set(toPubkeys(selfGraph?.low_and_reported_by_2_or_more_trusted_pubkeys));
-  }, [selfData]);
-
-  const isProfileFlagged = useMemo(() => {
-    if (!hexPubkey) return false;
-    return selfFlaggedSet.has(hexPubkey);
-  }, [selfFlaggedSet, hexPubkey]);
+  // `flagged_by_observer` is computed server-side on /user/{viewedPubkey}/overview
+  // using the JWT user's perspective (influence < verified_threshold AND
+  // trusted_reporters >= 2). See UserOverviewData.
+  const isProfileFlagged = profileOverviewQuery.data?.flagged_by_observer ?? false;
 
   useEffect(() => {
     if (!profileResult) return;
@@ -1544,10 +1590,10 @@ export default function ProfilePage() {
     return map;
   }, [profileResult, sectionInfluenceMaps, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
-  const TIER_THRESHOLDS = [
-    { key: "high", name: "Highly Trusted", min: 0.50, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
-    { key: "trusted", name: "Trusted", min: 0.20, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
-    { key: "neutral", name: "Neutral", min: 0.07, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
+  const TIER_DISPLAY_CONFIG = [
+    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
+    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
+    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#a1a1aa", bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", ring: "stroke-zinc-400" },
   ];
@@ -1555,7 +1601,7 @@ export default function ProfilePage() {
   const profileTier = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    return TIER_THRESHOLDS.find(t => score >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1];
+    return TIER_DISPLAY_CONFIG.find(t => score >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1];
   }, [profileResult, trustPreset]);
 
   const confidenceGuidance = useMemo(() => {
@@ -1605,7 +1651,7 @@ export default function ProfilePage() {
     let counts: Record<string, number>;
     let total: number;
     if (serverStats) {
-      counts = { ...serverStats.tier_counts };
+      counts = grTierCountsToUI(serverStats.tier_counts);
       total = serverStats.total;
     } else {
       if (!Array.isArray(profileResult.followed_by)) return null;
@@ -1647,7 +1693,7 @@ export default function ProfilePage() {
     let counts: Record<string, number> | null = null;
     const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
     if (serverStats) {
-      counts = { ...serverStats.tier_counts };
+      counts = grTierCountsToUI(serverStats.tier_counts);
     } else {
       const section = getSection(profileResult, sectionKey);
       if (!section || !Array.isArray(section)) return null;
@@ -1823,6 +1869,7 @@ export default function ProfilePage() {
         search={sectionSearch[key] || ""}
         reportTypeFilter={reportTypeFilterState[key] || "all"}
         visibleCount={sectionVisibleCount[key] || 10}
+        sectionTotal={sectionStats[key]?.total}
         filterDropdownOpen={filterDropdownOpen[key] || false}
         reportTypeDropdownOpen={reportTypeDropdownOpen[key] || false}
         reportMetaLoading={!!reportMetadataLoading[key]}
@@ -1895,7 +1942,7 @@ export default function ProfilePage() {
     const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
     const nfPct = Math.round(nfScore * 100);
     const nfTier = hasNf
-      ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
+      ? TIER_DISPLAY_CONFIG.find(t => nfScore >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1]
       : null;
     const circumference = 2 * Math.PI * 18;
     const yourOffset = circumference - (yourScore * circumference);
@@ -2472,7 +2519,7 @@ export default function ProfilePage() {
                 )}
 
                 {(() => {
-                  if (!selfData || !profileResult) return null;
+                  if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0)) return null;
                   const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
                   const sharedCount = sharedUnique.size;
                   const mutualFollowersCount = sharedFollowerPubkeys.length;
@@ -2734,7 +2781,7 @@ export default function ProfilePage() {
                               <span className="text-[10px] text-slate-400 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
                             </div>
                             <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
-                              {TIER_THRESHOLDS.map(tier => {
+                              {TIER_DISPLAY_CONFIG.map(tier => {
                                 const count = followerTierBreakdown.counts[tier.key] || 0;
                                 if (count === 0) return null;
                                 const widthPct = (count / followerTierBreakdown.total) * 100;
@@ -2749,7 +2796,7 @@ export default function ProfilePage() {
                               })}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                              {TIER_THRESHOLDS.map(tier => {
+                              {TIER_DISPLAY_CONFIG.map(tier => {
                                 const count = followerTierBreakdown.counts[tier.key] || 0;
                                 if (count === 0) return null;
                                 return (
