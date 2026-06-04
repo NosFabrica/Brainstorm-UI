@@ -1,21 +1,18 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { getVerifiedThreshold, PRESET_THRESHOLDS, TIER_THRESHOLDS } from "@/services/trustThreshold";
+import {
+  getVerifiedThreshold,
+  PRESET_THRESHOLDS,
+  TIER_THRESHOLDS,
+} from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
-import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import {
   Search as SearchIcon,
   Home,
-  LogOut,
-  Menu,
   X,
   Loader2,
-  Copy,
-  Check,
-  Settings as SettingsIcon,
-  BookOpen,
   Users,
   Filter,
   LayoutGrid,
@@ -23,55 +20,58 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
-  UserPlus,
-  UserCheck,
-  UserMinus,
-  VolumeX,
-  Volume2,
   ShieldCheck,
-  Shield,
   Network,
-  HelpCircle,
 } from "lucide-react";
-import { AgentIcon } from "@/components/AgentIcon";
-import { FEATURES } from "@/config/featureFlags";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } from "@/services/nostr";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
+import {
+  getCurrentUser,
+  logout,
+  fetchProfiles,
+  eventStore,
+  type NostrUser,
+} from "@/services/nostr";
+import {
+  getProfileContent,
+  isValidProfile,
+} from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { useSelfOverview, useSelfStats, useSelfConnections, flattenConnections, type ConnectionItem } from "@/hooks/useSelf";
-import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphHelpers";
+import {
+  useSelfOverview,
+  useSelfStats,
+  useSelfConnections,
+  flattenConnections,
+  type ConnectionItem,
+} from "@/hooks/useSelf";
+import { toPubkeys, toInfluenceMap } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { NodeFollowersIcon, NodeFollowingIcon, NodeMutedByIcon, NodeReportedByIcon, NodeMutingIcon, NodeReportingIcon, NodeFlaggedIcon } from "@/components/WotIcons";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
-
-const FollowersIcon = NodeFollowersIcon;
-const FollowingIcon = NodeFollowingIcon;
-const MutedByIcon = NodeMutedByIcon;
-const MutingIcon = NodeMutingIcon;
-const ReportedByIcon = NodeReportedByIcon;
-const ReportingIcon = NodeReportingIcon;
-const FlaggedIcon = NodeFlaggedIcon;
+import { NetworkProfileCard } from "@/components/network/NetworkProfileCard";
+import { groups, type GroupKey } from "@/components/network/networkGroups";
+import {
+  NetworkCardActionsProvider,
+  NetworkCardViewProvider,
+  type NetworkCardActions,
+  type NetworkCardView,
+} from "@/components/network/cardContext";
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -84,8 +84,16 @@ const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
 }));
 
 const connectionPairs = [
-  [0, 3], [1, 4], [2, 5], [3, 7], [4, 8],
-  [5, 9], [0, 6], [1, 7], [2, 8], [6, 9],
+  [0, 3],
+  [1, 4],
+  [2, 5],
+  [3, 7],
+  [4, 8],
+  [5, 9],
+  [0, 6],
+  [1, 7],
+  [2, 8],
+  [6, 9],
 ];
 
 const decorativeText = [
@@ -110,20 +118,24 @@ const decorativeText = [
 ];
 
 function estimateNetworkLineLength(a: number, b: number): number {
-  const dx = (floatingNodes[a].x - floatingNodes[b].x);
-  const dy = (floatingNodes[a].y - floatingNodes[b].y);
+  const dx = floatingNodes[a].x - floatingNodes[b].x;
+  const dy = floatingNodes[a].y - floatingNodes[b].y;
   return Math.sqrt(dx * dx + dy * dy) * 12;
 }
 
-const connectionLineStyles: React.CSSProperties[] = connectionPairs.map(([a, b], i) => {
-  const len = estimateNetworkLineLength(a, b);
-  return {
-    ["--dash" as string]: len,
-    animation: `networkLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${i * 0.8 + 0.3}s forwards, networkLinePulse 12s ease-in-out ${i * 0.8 + 0.3 + 1.5}s infinite`,
-  } as React.CSSProperties;
-});
+const connectionLineStyles: React.CSSProperties[] = connectionPairs.map(
+  ([a, b], i) => {
+    const len = estimateNetworkLineLength(a, b);
+    return {
+      ["--dash" as string]: len,
+      animation: `networkLineDraw ${1.2 + (i % 3) * 0.4}s ease-out ${i * 0.8 + 0.3}s forwards, networkLinePulse 12s ease-in-out ${i * 0.8 + 0.3 + 1.5}s infinite`,
+    } as React.CSSProperties;
+  },
+);
 
-const connectionLineDashArrays = connectionPairs.map(([a, b]) => estimateNetworkLineLength(a, b));
+const connectionLineDashArrays = connectionPairs.map(([a, b]) =>
+  estimateNetworkLineLength(a, b),
+);
 
 const floatingNodeStyles: React.CSSProperties[] = floatingNodes.map((node) => ({
   left: `${node.x}%`,
@@ -135,686 +147,20 @@ const floatingNodeStyles: React.CSSProperties[] = floatingNodes.map((node) => ({
   animation: `networkNodePop 0.6s ease-out ${node.popDelay}s forwards, networkNodeFloat ${node.floatDuration}s ease-in-out ${node.popDelay + 0.6}s infinite`,
 }));
 
-const decorativeTextStyles: React.CSSProperties[] = decorativeText.map((_, i) => {
-  const col = i % 4;
-  const row = Math.floor(i / 4);
-  const left = 3 + col * 24 + ((row % 2) * 10);
-  const top = 80 + row * 220;
-  return {
-    left: `${left}%`,
-    top: `${top}px`,
-    opacity: 0,
-    animation: `networkCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
-  };
-});
-
-const getVerificationGuidance = (pct: number, name: string) => {
-  if (pct >= 50) return { label: "High confidence", color: "text-emerald-600", message: `${pct}% confidence that ${name} is a genuine participant, based on your trusted community's follows, mutes, and reports.` };
-  if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-600", message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.` };
-  if (pct >= 7) return { label: "Low confidence", color: "text-slate-500", message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.` };
-  return { label: "Very low confidence", color: "text-amber-600", message: `${pct}% confidence that ${name} is a genuine participant. Your community's signals suggest careful scrutiny before trusting.` };
-};
-
-const detailMetrics: { key: string; label: string; desc: string; iconBg: string; iconColor: string; countColor: string }[] = [
-  { key: "followed_by", label: "Followers", desc: "People following this account", iconBg: "bg-blue-50 border-blue-100", iconColor: "text-blue-500", countColor: "text-slate-900" },
-  { key: "following", label: "Following", desc: "Accounts this person follows", iconBg: "bg-blue-50 border-blue-100", iconColor: "text-blue-500", countColor: "text-slate-900" },
-  { key: "muted_by", label: "Muted By", desc: "Others who muted this account", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-amber-700" },
-  { key: "reported_by", label: "Reported By", desc: "Others who reported this account", iconBg: "bg-red-50 border-red-200", iconColor: "text-red-500", countColor: "text-red-700" },
-  { key: "muting", label: "Muting", desc: "Accounts this person mutes", iconBg: "bg-amber-50 border-amber-200", iconColor: "text-amber-500", countColor: "text-slate-900" },
-  { key: "reporting", label: "Reporting", desc: "Accounts this person reports", iconBg: "bg-slate-50 border-slate-200", iconColor: "text-slate-500", countColor: "text-slate-900" },
-];
-
-const metricIcons: Record<string, (cls: string) => JSX.Element> = {
-  followed_by: (cls) => <FollowersIcon className={cls} />,
-  following: (cls) => <FollowingIcon className={cls} />,
-  muted_by: (cls) => <MutedByIcon className={cls} />,
-  reported_by: (cls) => <ReportedByIcon className={cls} />,
-  muting: (cls) => <MutingIcon className={cls} />,
-  reporting: (cls) => <ReportingIcon className={cls} />,
-  flagged: (cls) => <FlaggedIcon className={cls} />,
-};
-
-type GroupKey = "followed_by" | "following" | "muted_by" | "muting" | "reported_by" | "reporting" | "flagged";
-
-const groups = [
-  { key: "followed_by" as GroupKey, label: "Followers", shortLabel: "Followers", Icon: FollowersIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts that follow you", tooltipAccent: "border-l-blue-400" },
-  { key: "following" as GroupKey, label: "Following", shortLabel: "Following", Icon: FollowingIcon, color: "text-blue-500", bgColor: "bg-blue-50", borderColor: "border-blue-100", tooltip: "Accounts you follow", tooltipAccent: "border-l-blue-400" },
-  { key: "muted_by" as GroupKey, label: "Muted By", shortLabel: "Muted", Icon: MutedByIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts that have muted you", tooltipAccent: "border-l-amber-400" },
-  { key: "muting" as GroupKey, label: "Muting", shortLabel: "Muting", Icon: MutingIcon, color: "text-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", tooltip: "Accounts you have muted", tooltipAccent: "border-l-amber-400" },
-  { key: "reported_by" as GroupKey, label: "Reported By", shortLabel: "Reported", Icon: ReportedByIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts that have reported you", tooltipAccent: "border-l-red-400" },
-  { key: "reporting" as GroupKey, label: "Reporting", shortLabel: "Reporting", Icon: ReportingIcon, color: "text-red-500", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Accounts you have reported", tooltipAccent: "border-l-red-400" },
-  { key: "flagged" as GroupKey, label: "Flagged", shortLabel: "Flagged", Icon: FlaggedIcon, color: "text-red-600", bgColor: "bg-red-50", borderColor: "border-red-200", tooltip: "Low trust accounts reported by 2+ of your trusted contacts", tooltipAccent: "border-l-red-400" },
-];
-
-interface NetworkProfileCardProps {
-  pk: string;
-  profile: any | undefined;
-  trustScore: number | null | undefined;
-  graphData: any | undefined;
-  detail: any | undefined;
-  stats: Record<string, { verified: number; total: number }> | undefined;
-  memberGroups: GroupKey[];
-  viewMode: "grid" | "list";
-  isExpanded: boolean;
-  isCopied: boolean;
-  isProfileLoaded: boolean;
-  profileAttempted: boolean;
-  expandedLoading: boolean;
-  activeGroup: string;
-  trustCacheRef: React.RefObject<Map<string, number | null>>;
-  onToggleExpanded: (pk: string) => void;
-  onCopyNpub: (npub: string, pk: string) => void;
-  onCloseDetail: () => void;
-  onNavigate: (path: string) => void;
-  getPubkeyGroups: (pk: string) => GroupKey[];
-  isSelf: boolean;
-  isFollowingUser: boolean;
-  isMutedUser: boolean;
-  onFollow: (pk: string) => Promise<{ success: boolean; error?: string }>;
-  onUnfollow: (pk: string) => Promise<{ success: boolean; error?: string }>;
-  onMute: (pk: string) => Promise<{ success: boolean; error?: string }>;
-  onUnmute: (pk: string) => Promise<{ success: boolean; error?: string }>;
-  socialPending: boolean;
-  socialListsLoading: boolean;
-  isFlagged: boolean;
-  onPrefetchEnter?: (pk: string) => void;
-  onPrefetchLeave?: (pk: string) => void;
-}
-
-const NetworkProfileCard = memo(function NetworkProfileCard({
-  pk, profile, trustScore, graphData, detail, stats, memberGroups, viewMode, isExpanded, isCopied,
-  isProfileLoaded, profileAttempted, expandedLoading, activeGroup, trustCacheRef,
-  onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
-  isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading,
-  isFlagged, onPrefetchEnter, onPrefetchLeave
-}: NetworkProfileCardProps) {
-  const npub = nip19.npubEncode(pk);
-  const displayNpub = npub.slice(0, 12) + "..." + npub.slice(-6);
-  const displayName = profile?.display_name || profile?.name || displayNpub;
-  const pkShort = pk.slice(0, 8);
-  const [cardFollowHovered, setCardFollowHovered] = useState(false);
-  const [cardActionPending, setCardActionPending] = useState<string | null>(null);
-
-  const liveFilteredGroups = useMemo(() => {
-    if (socialListsLoading) return memberGroups;
-    return memberGroups.filter((gk) => {
-      if (gk === "following" && !isFollowingUser) return false;
-      if (gk === "muting" && !isMutedUser) return false;
-      return true;
-    });
-  }, [memberGroups, socialListsLoading, isFollowingUser, isMutedUser]);
-
-  const getVerifiedFlagCounts = () => {
-    if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
-    const TA_THRESHOLD = getVerifiedThreshold();
-    let verifiedMuters = 0;
-    let verifiedReporters = 0;
-    for (const muterPk of graphData.muted_by || []) {
-      const score = trustCacheRef.current?.get(muterPk);
-      if (typeof score === "number" && score >= TA_THRESHOLD) verifiedMuters++;
-    }
-    for (const reporterPk of graphData.reported_by || []) {
-      const score = trustCacheRef.current?.get(reporterPk);
-      if (typeof score === "number" && score >= TA_THRESHOLD) verifiedReporters++;
-    }
-    return { verifiedMuters, verifiedReporters };
-  };
-
-  const renderVerifiedFlags = () => {
-    const { verifiedMuters, verifiedReporters } = getVerifiedFlagCounts();
-    if (verifiedMuters === 0 && verifiedReporters === 0) return null;
-    return (
-      <div className="flex items-center gap-1.5 flex-wrap" data-testid={`flags-verified-${pkShort}`}>
-        {verifiedMuters > 0 && (
-          <UITooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-muted-${pkShort}`}>
-                Muted by {verifiedMuters} verified
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
-              <p className="text-xs leading-relaxed">{verifiedMuters} verified {verifiedMuters === 1 ? "user has" : "users have"} muted this account. Verified users have a trust assertion score of 0.01 or above.</p>
-            </TooltipContent>
-          </UITooltip>
-        )}
-        {verifiedReporters > 0 && (
-          <UITooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 cursor-help no-default-hover-elevate no-default-active-elevate" data-testid={`badge-verified-reported-${pkShort}`}>
-                Reported by {verifiedReporters} verified
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-2.5 max-w-[240px]">
-              <p className="text-xs leading-relaxed">{verifiedReporters} verified {verifiedReporters === 1 ? "user has" : "users have"} reported this account. Verified users have a trust assertion score of 0.01 or above.</p>
-            </TooltipContent>
-          </UITooltip>
-        )}
-      </div>
-    );
-  };
-
-  const renderTrustBadge = (compact: boolean = false) => {
-    if (trustScore === undefined) {
-      return (
-        <div className="flex items-center gap-1" data-testid={`trust-loading-${pkShort}`}>
-          <div className={`rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}>
-            <Loader2 className={`text-indigo-300 animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`} />
-          </div>
-        </div>
-      );
-    }
-    if (trustScore === null) return null;
-    const score = Math.min(1, Math.max(0, trustScore));
-    const pct = Math.round(score * 100);
-    const ringColor = pct >= 50 ? "stroke-emerald-500" : pct >= 20 ? "stroke-indigo-500" : pct >= 7 ? "stroke-orange-300" : "stroke-amber-500";
-    const circumference = 2 * Math.PI * 18;
-    const offset = circumference - (score * circumference);
-    const size = compact ? "w-7 h-7" : "w-9 h-9";
-    const textSize = compact ? "text-[10px]" : "text-xs";
-    const guidance = getVerificationGuidance(pct, displayName);
-    return (
-      <UITooltip>
-        <TooltipTrigger asChild>
-          <div className="flex flex-col items-center shrink-0 cursor-help" data-testid={`badge-trust-${pkShort}`}>
-            <div className={`relative ${size} flex items-center justify-center`}>
-              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="3" className="text-indigo-100" />
-                <circle cx="22" cy="22" r="18" fill="none" strokeWidth="3" strokeLinecap="round"
-                  className={ringColor} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 0.8s ease-out" }} />
-              </svg>
-              <span className={`${textSize} font-bold font-mono tabular-nums text-indigo-700`}>{pct}</span>
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="left" className="bg-white/95 backdrop-blur-xl border-slate-200 text-slate-700 shadow-xl p-3 max-w-[260px]" data-testid={`tooltip-trust-${pkShort}`}>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-bold text-xs text-slate-900">Verification Score</p>
-              <span className={`text-xs font-semibold ${guidance.color}`}>{guidance.label}</span>
-            </div>
-            <p className="text-xs leading-relaxed text-slate-600">{guidance.message}</p>
-          </div>
-        </TooltipContent>
-      </UITooltip>
-    );
-  };
-
-  const renderDetailPanel = () => {
-    if (!isExpanded) return null;
-    // Seed the panel from data already on the row (graphData arrays from the
-    // eager trust-score pass + the trust score itself) so counts and the
-    // Influence Score render INSTANTLY on expand, even before the per-user
-    // detail fetch lands. Once `detail` arrives it overrides the seed
-    // (full counts for followed_by/following/muting/reporting, plus precise
-    // influence). Keys not in the seed render an "—" placeholder instead of
-    // a misleading "0" until the fetch completes.
-    const seedDetail: any | null = (graphData || trustScore != null)
-      ? {
-          muted_by: graphData?.muted_by ?? [],
-          reported_by: graphData?.reported_by ?? [],
-          ...(trustScore != null ? { influence: trustScore } : {}),
-        }
-      : null;
-    // Field-level merge: overview supplies totals for every metric, but
-    // when the eager pass has already populated array seeds for
-    // muted_by/reported_by we keep those arrays so the verified-subset
-    // display (which requires per-pubkey influence maps) stays intact.
-    // Influence falls back to the row's trustScore if overview omits it.
-    const effectiveDetail: any | null = detail
-      ? {
-          ...detail,
-          ...(Array.isArray(graphData?.muted_by) ? { muted_by: graphData!.muted_by } : {}),
-          ...(Array.isArray(graphData?.reported_by) ? { reported_by: graphData!.reported_by } : {}),
-          ...(detail.influence == null && trustScore != null ? { influence: trustScore } : {}),
-        }
-      : seedDetail;
-    const seededKeys = new Set<string>(
-      seedDetail ? Object.keys(seedDetail) : [],
-    );
-    // We only show an inline refresh spinner; never a full-panel blocker.
-    const isRefreshing = expandedLoading && !detail;
-    return (
-      <div
-        className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl rounded-2xl border border-[#7c86ff]/20 shadow-[0_8px_30px_-12px_rgba(124,134,255,0.15)] overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
-        data-testid={`detail-panel-${pkShort}`}
-      >
-        <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-12 w-12 border-2 border-[#7c86ff]/20 shrink-0 shadow-sm">
-                {profile?.picture ? (
-                  <AvatarImage src={profile.picture} alt={profile?.display_name || profile?.name || ""} className="object-cover" />
-                ) : null}
-                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-sm font-bold">
-                  {(profile?.display_name || profile?.name || "?").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900 truncate" data-testid={`detail-name-${pkShort}`}>
-                  {profile?.display_name || profile?.name || npub.slice(0, 12) + "..."}
-                </p>
-                {profile?.nip05 && (
-                  <p className="text-xs text-indigo-500 truncate" data-testid={`detail-nip05-${pkShort}`}>{profile.nip05}</p>
-                )}
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <p className="text-xs font-mono text-slate-400 truncate" data-testid={`detail-npub-${pkShort}`}>{npub.slice(0, 16) + "..." + npub.slice(-8)}</p>
-                  <button
-                    type="button"
-                    className="p-0.5 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
-                    onClick={(e) => { e.stopPropagation(); onCopyNpub(npub, pk); }}
-                    data-testid={`button-detail-copy-npub-${pkShort}`}
-                  >
-                    {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {renderTrustBadge(false)}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-xl"
-                onClick={(e) => { e.stopPropagation(); onCloseDetail(); }}
-                data-testid={`button-close-detail-${pkShort}`}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {isFlagged && (
-            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200" data-testid={`detail-flagged-badge-${pkShort}`}>
-              <FlaggedIcon className="h-4 w-4 text-red-600" />
-              <span className="text-xs font-semibold text-red-700">Flagged</span>
-              <span className="text-[10px] text-red-500">Low trust & reported by 2+ trusted accounts</span>
-            </div>
-          )}
-
-          {profile?.about && (
-            <p className="text-xs text-slate-600 leading-relaxed mb-4 line-clamp-3" data-testid={`detail-about-${pkShort}`}>
-              {profile.about}
-            </p>
-          )}
-
-          {effectiveDetail ? (
-            <div>
-              {isRefreshing && (
-                <div
-                  className="flex items-center gap-1.5 mb-2 text-[10px] text-indigo-500/80"
-                  data-testid={`detail-refreshing-${pkShort}`}
-                >
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Refreshing details…</span>
-                </div>
-              )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4" data-testid={`detail-metrics-${pkShort}`}>
-                {detailMetrics.map((m) => {
-                  const raw = effectiveDetail[m.key];
-                  const hasData = raw !== undefined && raw !== null;
-                  const isPending = !hasData && !seededKeys.has(m.key) && isRefreshing;
-                  const isVerifiable = m.key === "followed_by" || m.key === "following" || m.key === "muted_by" || m.key === "reported_by";
-                  // Prefer server-side stats (accurate over the full set) for
-                  // verified-vs-total display. Fall back to per-pubkey
-                  // influence map derived from a seed array when stats
-                  // haven't landed yet — that path still works for
-                  // muted_by/reported_by from the eager trust-score pass.
-                  const serverStat = isVerifiable ? stats?.[m.key] : undefined;
-                  let count = Array.isArray(raw) ? toPubkeys(raw).length : (typeof raw === "number" ? raw : 0);
-                  let verifiedCount = 0;
-                  let hasVerifiedData = false;
-                  if (serverStat) {
-                    count = serverStat.total;
-                    verifiedCount = serverStat.verified;
-                    hasVerifiedData = true;
-                  } else if (isVerifiable && Array.isArray(raw)) {
-                    const infMap = toInfluenceMap(raw);
-                    infMap.forEach((score) => {
-                      if (typeof score === "number" && score >= getVerifiedThreshold()) verifiedCount++;
-                    });
-                    hasVerifiedData = infMap.size > 0 && Array.from(infMap.values()).some(v => v !== null);
-                  }
-                  return (
-                    <div
-                      key={m.key}
-                      className="flex items-center gap-2.5 rounded-xl bg-white/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3 py-2.5"
-                      data-testid={`detail-metric-${m.key}-${pkShort}`}
-                    >
-                      <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${m.iconBg}`}>
-                        {metricIcons[m.key]?.(`h-4 w-4 ${m.iconColor}`)}
-                      </div>
-                      <div className="min-w-0">
-                        {isPending ? (
-                          <p className="text-sm font-bold font-mono tabular-nums text-slate-300">—</p>
-                        ) : (
-                          <p className={`text-sm font-bold font-mono tabular-nums ${count > 0 && (m.key === "muted_by" || m.key === "reported_by") ? m.countColor : "text-slate-900"}`}>
-                            {isVerifiable && hasVerifiedData ? verifiedCount.toLocaleString() : count.toLocaleString()}
-                          </p>
-                        )}
-                        <p className="text-[10px] text-slate-400 leading-tight truncate">
-                          {isVerifiable && hasVerifiedData ? `Verified ${m.label}` : m.label}
-                        </p>
-                        {isVerifiable && hasVerifiedData && (
-                          <p className="text-[9px] text-slate-400 font-mono tabular-nums">of {count.toLocaleString()} total</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {effectiveDetail.influence !== undefined && (
-                <div className="flex items-center gap-3 rounded-xl bg-white/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3.5 py-2.5 mb-4" data-testid={`detail-influence-${pkShort}`}>
-                  <div className="w-8 h-8 rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50 to-indigo-100/60 flex items-center justify-center shrink-0">
-                    <BrainLogo size={16} className="text-indigo-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-slate-400 leading-tight">Influence Score</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]" style={{ width: `${Math.min((typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : 0) * 100, 100)}%` }} />
-                      </div>
-                      <span className="text-xs font-bold font-mono text-slate-700">
-                        {typeof effectiveDetail.influence === "number" ? effectiveDetail.influence.toFixed(3) : effectiveDetail.influence}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 flex-wrap">
-                {(() => {
-                  let detailGroups = getPubkeyGroups(pk);
-                  if (!socialListsLoading) {
-                    detailGroups = detailGroups.filter((gk) => {
-                      if (gk === "following" && !isFollowingUser) return false;
-                      if (gk === "muting" && !isMutedUser) return false;
-                      return true;
-                    });
-                  }
-                  return detailGroups.length > 0 ? (
-                    <div className="flex items-center gap-1 flex-wrap" data-testid={`detail-groups-${pkShort}`}>
-                      {detailGroups.map((gk) => {
-                        const groupDef = groups.find(g => g.key === gk);
-                        if (!groupDef) return null;
-                        return (
-                          <Badge
-                            key={gk}
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
-                            data-testid={`detail-badge-group-${gk}-${pkShort}`}
-                          >
-                            {groupDef.label}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  ) : null;
-                })()}
-                {renderVerifiedFlags()}
-                {!isSelf && (
-                  <div className="flex items-center gap-1.5" data-testid={`detail-social-actions-${pkShort}`}>
-                    {socialListsLoading ? (
-                      <>
-                        <div className="h-7 w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid={`skeleton-follow-${pkShort}`} />
-                        <div className="h-7 w-16 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid={`skeleton-mute-${pkShort}`} />
-                      </>
-                    ) : (
-                    <>
-                    <button
-                      type="button"
-                      disabled={cardActionPending !== null || socialPending}
-                      onMouseEnter={() => isFollowingUser && setCardFollowHovered(true)}
-                      onMouseLeave={() => setCardFollowHovered(false)}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setCardActionPending("follow");
-                        try {
-                          if (isFollowingUser) await onUnfollow(pk);
-                          else await onFollow(pk);
-                        } finally {
-                          setCardActionPending(null);
-                          setCardFollowHovered(false);
-                        }
-                      }}
-                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
-                        isFollowingUser
-                          ? cardFollowHovered
-                            ? "bg-red-50 border border-red-200 text-red-600"
-                            : "bg-white border border-slate-200 text-slate-600"
-                          : "bg-[#3730a3] text-white hover:bg-[#312e81]"
-                      }`}
-                      data-testid={`button-follow-${pkShort}`}
-                    >
-                      {cardActionPending === "follow" ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : isFollowingUser ? (
-                        cardFollowHovered ? <UserMinus className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />
-                      ) : (
-                        <UserPlus className="h-3 w-3" />
-                      )}
-                      <span className="hidden sm:inline">
-                        {cardActionPending === "follow" ? "..." : isFollowingUser ? (cardFollowHovered ? "Unfollow" : "Following") : "Follow"}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={cardActionPending !== null || socialPending}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setCardActionPending("mute");
-                        try {
-                          if (isMutedUser) await onUnmute(pk);
-                          else await onMute(pk);
-                        } finally {
-                          setCardActionPending(null);
-                        }
-                      }}
-                      className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
-                        isMutedUser
-                          ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
-                      }`}
-                      data-testid={`button-mute-${pkShort}`}
-                    >
-                      {cardActionPending === "mute" ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : isMutedUser ? (
-                        <Volume2 className="h-3 w-3" />
-                      ) : (
-                        <VolumeX className="h-3 w-3" />
-                      )}
-                      <span className="hidden sm:inline">
-                        {cardActionPending === "mute" ? "..." : isMutedUser ? "Unmute" : "Mute"}
-                      </span>
-                    </button>
-                    </>
-                    )}
-                  </div>
-                )}
-                <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
-                  onClick={(e) => { e.stopPropagation(); onNavigate(`/profile/${npub}?fromGroup=${activeGroup}`); }}
-                  data-testid={`button-view-full-${pkShort}`}
-                >
-                  <SearchIcon className="h-3.5 w-3.5" />
-                  View full profile
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ) : isRefreshing ? (
-            <div className="flex items-center justify-center gap-2 py-4 text-xs text-indigo-500/80" data-testid={`detail-loading-${pkShort}`}>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Loading details…</span>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 py-4 text-center" data-testid={`detail-error-${pkShort}`}>Unable to load details</p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Only block on the skeleton until we've actually attempted to fetch the
-  // kind-0 profile. Once attempted, render the card even with no profile — the
-  // body falls back to the npub (see `displayName`/`displayNpub`) and upgrades
-  // in place if a profile arrives later. This prevents rows from being stuck as
-  // skeletons forever when a pubkey has no resolvable kind-0 profile.
-  if (!isProfileLoaded && !profileAttempted) {
-    return (
-      <>
-        <div
-          className={`bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pulse ${viewMode === "grid" ? "p-4" : "p-3"}`}
-          data-testid={`skeleton-profile-${pkShort}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`rounded-full bg-slate-200 shrink-0 ${viewMode === "grid" ? "h-8 w-8" : "h-7 w-7"}`} />
-            <div className="flex-1 space-y-2">
-              <div className="h-3 bg-slate-200 rounded w-24" />
-              <div className="h-2 bg-slate-100 rounded w-32" />
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  if (viewMode === "list") {
-    return (
-      <>
-        <div
-          className={`bg-white/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
-          onClick={() => onToggleExpanded(pk)}
-          onMouseEnter={() => onPrefetchEnter?.(pk)}
-          onMouseLeave={() => onPrefetchLeave?.(pk)}
-          data-testid={`card-profile-${pkShort}`}
-        >
-          <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
-            {profile?.picture ? (
-              <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
-            ) : null}
-            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
-              {(displayName || "?").charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
-            <p className="text-sm font-semibold text-slate-800 truncate max-w-[160px]" data-testid={`text-profile-name-${pkShort}`}>
-              {displayName}
-            </p>
-            {profile?.nip05 && (
-              <span className="text-xs text-indigo-500 truncate max-w-[140px] hidden sm:inline" data-testid={`text-profile-nip05-${pkShort}`}>
-                {profile.nip05}
-              </span>
-            )}
-            <span className="text-xs font-mono text-slate-400 truncate hidden md:inline" data-testid={`text-profile-npub-${pkShort}`}>
-              {displayNpub}
-            </span>
-          </div>
-          {liveFilteredGroups.length > 0 && (
-            <div className="flex items-center gap-1 shrink-0 flex-wrap" data-testid={`row-profile-groups-${pkShort}`}>
-              {liveFilteredGroups.map((gk) => {
-                const groupDef = groups.find(g => g.key === gk);
-                if (!groupDef) return null;
-                return (
-                  <Badge
-                    key={gk}
-                    variant="outline"
-                    className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
-                    data-testid={`badge-group-${gk}-${pkShort}`}
-                  >
-                    {groupDef.label}
-                  </Badge>
-                );
-              })}
-            </div>
-          )}
-          {renderVerifiedFlags()}
-          {renderTrustBadge(true)}
-          <button
-            type="button"
-            className="p-1 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
-            onClick={(e) => { e.stopPropagation(); onCopyNpub(npub, pk); }}
-            data-testid={`button-copy-npub-${pkShort}`}
-          >
-            {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-          </button>
-        </div>
-        {renderDetailPanel()}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <div
-        className={`bg-white/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
-        onClick={() => onToggleExpanded(pk)}
-        onMouseEnter={() => onPrefetchEnter?.(pk)}
-        onMouseLeave={() => onPrefetchLeave?.(pk)}
-        data-testid={`card-profile-${pkShort}`}
-      >
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 border border-slate-200/60">
-            {profile?.picture ? (
-              <AvatarImage src={profile.picture} alt={displayName} className="object-cover" />
-            ) : null}
-            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
-              {(displayName || "?").charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-800 truncate" data-testid={`text-profile-name-${pkShort}`}>
-              {displayName}
-            </p>
-            {profile?.nip05 && (
-              <p className="text-xs text-indigo-500 truncate" data-testid={`text-profile-nip05-${pkShort}`}>
-                {profile.nip05}
-              </p>
-            )}
-          </div>
-          {renderTrustBadge(false)}
-        </div>
-        <div className="mt-2 flex items-center gap-1.5">
-          <span className="text-xs font-mono text-slate-400 truncate" data-testid={`text-profile-npub-${pkShort}`}>
-            {displayNpub}
-          </span>
-          <button
-            type="button"
-            className="p-0.5 rounded text-slate-400 hover:text-indigo-600 transition-colors shrink-0"
-            onClick={(e) => { e.stopPropagation(); onCopyNpub(npub, pk); }}
-            data-testid={`button-copy-npub-${pkShort}`}
-          >
-            {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-          </button>
-        </div>
-        {liveFilteredGroups.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1" data-testid={`row-profile-groups-${pkShort}`}>
-            {liveFilteredGroups.map((gk) => {
-              const groupDef = groups.find(g => g.key === gk);
-              if (!groupDef) return null;
-              return (
-                <Badge
-                  key={gk}
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 ${groupDef.bgColor} ${groupDef.color} ${groupDef.borderColor} no-default-hover-elevate no-default-active-elevate`}
-                  data-testid={`badge-group-${gk}-${pkShort}`}
-                >
-                  {groupDef.label}
-                </Badge>
-              );
-            })}
-          </div>
-        )}
-        {renderVerifiedFlags() && (
-          <div className="mt-2">{renderVerifiedFlags()}</div>
-        )}
-      </div>
-      {renderDetailPanel()}
-    </>
-  );
-});
+const decorativeTextStyles: React.CSSProperties[] = decorativeText.map(
+  (_, i) => {
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const left = 3 + col * 24 + (row % 2) * 10;
+    const top = 80 + row * 220;
+    return {
+      left: `${left}%`,
+      top: `${top}px`,
+      opacity: 0,
+      animation: `networkCalcFloat 10s ease-in-out ${i * 1.2 + 1}s infinite`,
+    };
+  },
+);
 
 /**
  * The Network row expander now uses the lightweight `/user/:pk/overview`
@@ -874,38 +220,50 @@ function prefetchProfileOverview(pk: string): void {
     .catch(() => {});
 }
 
-function sortByTrustScore(
-  scoreMap: Map<string, number | null>,
-  direction: "asc" | "desc"
-): (a: string, b: string) => number {
-  return (a, b) => {
-    const scoreA = scoreMap.get(a);
-    const scoreB = scoreMap.get(b);
-    const hasA = typeof scoreA === "number";
-    const hasB = typeof scoreB === "number";
-    if (!hasA && !hasB) return 0;
-    if (!hasA) return 1;
-    if (!hasB) return -1;
-    return direction === "desc" ? scoreB! - scoreA! : scoreA! - scoreB!;
-  };
-}
-
 export default function NetworkPage() {
-  const [location, navigate] = useLocation();
+  const [, navigate] = useLocation();
   const [user, setUser] = useState<NostrUser | null>(null);
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
     const group = params.get("group");
-    const validGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"];
-    return group && validGroups.includes(group as GroupKey) ? (group as GroupKey) : "followed_by";
+    const validGroups: GroupKey[] = [
+      "followed_by",
+      "following",
+      "muted_by",
+      "muting",
+      "reported_by",
+      "reporting",
+      "flagged",
+    ];
+    return group && validGroups.includes(group as GroupKey)
+      ? (group as GroupKey)
+      : "followed_by";
   });
+  // Mirror activeGroup into a ref so cards can read it lazily inside their
+  // "view full profile" navigate handler without re-rendering on every change.
+  const activeGroupRef = useRef(activeGroup);
+  activeGroupRef.current = activeGroup;
   const [searchFilter, setSearchFilter] = useState("");
-  type TrustTier = "all" | "high" | "medium" | "neutral" | "low" | "unverified" | "flagged";
+  type TrustTier =
+    | "all"
+    | "high"
+    | "medium"
+    | "neutral"
+    | "low"
+    | "unverified"
+    | "flagged";
   const [trustFilter, setTrustFilter] = useState<TrustTier>(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("trust");
-    const valid: TrustTier[] = ["high", "medium", "neutral", "low", "unverified", "flagged"];
+    const valid: TrustTier[] = [
+      "high",
+      "medium",
+      "neutral",
+      "low",
+      "unverified",
+      "flagged",
+    ];
     if (t && valid.includes(t as TrustTier)) return t as TrustTier;
     return "all";
   });
@@ -935,13 +293,20 @@ export default function NetworkPage() {
     enabled: !!user,
     staleTime: 30_000,
   });
-  const calcDoneNow = grapeRankData?.data?.internal_publication_status === "success";
+  const calcDoneNow =
+    grapeRankData?.data?.internal_publication_status === "success";
   const hadPreviousCalc = useMemo(() => {
     if (calcDoneNow) {
-      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      try {
+        localStorage.setItem("brainstorm_calc_completed", "true");
+      } catch {}
       return true;
     }
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+    try {
+      return localStorage.getItem("brainstorm_calc_completed") === "true";
+    } catch {
+      return false;
+    }
   }, [calcDoneNow]);
   const calcDone = calcDoneNow || hadPreviousCalc;
 
@@ -953,7 +318,9 @@ export default function NetworkPage() {
   // skeleton when no profile exists. See the gate in NetworkProfileCard.
   const profileAttempted = useRef<Set<string>>(new Set());
   const trustCache = useRef<Map<string, number | null>>(new Map());
-  const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
+  const graphDataCache = useRef<
+    Map<string, { muted_by?: string[]; reported_by?: string[] }>
+  >(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
   const supportsHoverRef = useRef<boolean>(true);
@@ -1008,8 +375,15 @@ export default function NetworkPage() {
   // Stats verified/tier counts DO depend on threshold. Derive from the
   // server-confirmed preset (stable) rather than `getVerifiedThreshold()`
   // (which reads localStorage and can flip mid-mount).
-  const statsThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
-  const statsQuery = useSelfStats(user?.pubkey, statsThreshold !== undefined ? { verified_threshold: statsThreshold } : undefined);
+  const statsThreshold = trustPreset
+    ? PRESET_THRESHOLDS[trustPreset]
+    : undefined;
+  const statsQuery = useSelfStats(
+    user?.pubkey,
+    statsThreshold !== undefined
+      ? { verified_threshold: statsThreshold }
+      : undefined,
+  );
 
   // Track which kinds the user has visited so each kind only fetches once mounted.
   // "flagged" is a derived view that scopes to currently-loaded sections — it
@@ -1022,7 +396,10 @@ export default function NetworkPage() {
   // When activeGroup is the derived "flagged" view, drop filters so the
   // cross-kind flag derivation sees unfiltered loaded items.
   const isFlaggedView = activeGroup === "flagged";
-  const UI_TO_GR_TIER: Record<string, NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]> = {
+  const UI_TO_GR_TIER: Record<
+    string,
+    NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]
+  > = {
     high: "high",
     medium: "medium_high",
     neutral: "medium",
@@ -1030,12 +407,17 @@ export default function NetworkPage() {
     unverified: "low",
     flagged: "low_and_reported_by_2_or_more_trusted_pubkeys",
   };
-  const mappedTier = isFlaggedView || trustFilter === "all" ? undefined : UI_TO_GR_TIER[trustFilter];
+  const mappedTier =
+    isFlaggedView || trustFilter === "all"
+      ? undefined
+      : UI_TO_GR_TIER[trustFilter];
   // Single source of truth for the verified line: the preset value when a preset
   // is active (stable), else the localStorage threshold. Used for BOTH the
   // verified-only `min_influence` list filter AND the `verified_threshold`
   // predicate, so the filtered list and the stats-derived header count agree.
-  const verifiedThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : getVerifiedThreshold();
+  const verifiedThreshold = trustPreset
+    ? PRESET_THRESHOLDS[trustPreset]
+    : getVerifiedThreshold();
   const minInfluenceFilter =
     !isFlaggedView && verifiedOnly && mappedTier === undefined
       ? verifiedThreshold
@@ -1044,7 +426,9 @@ export default function NetworkPage() {
   // tier=low_and_reported_by_2_or_more_trusted_pubkeys / min_influence on
   // /connections honour the user's preset (otherwise backend would default
   // to 0.02).
-  const connectionsVt = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
+  const connectionsVt = trustPreset
+    ? PRESET_THRESHOLDS[trustPreset]
+    : undefined;
   const filterOpts = {
     order: sortDirection,
     tier: mappedTier,
@@ -1055,12 +439,30 @@ export default function NetworkPage() {
     withTotal: true,
   };
 
-  const followedByConn = useSelfConnections(user?.pubkey, "followed_by", { enabled: loadedKinds.has("followed_by"), ...filterOpts });
-  const followingConn = useSelfConnections(user?.pubkey, "following", { enabled: loadedKinds.has("following"), ...filterOpts });
-  const mutedByConn = useSelfConnections(user?.pubkey, "muted_by", { enabled: loadedKinds.has("muted_by"), ...filterOpts });
-  const mutingConn = useSelfConnections(user?.pubkey, "muting", { enabled: loadedKinds.has("muting"), ...filterOpts });
-  const reportedByConn = useSelfConnections(user?.pubkey, "reported_by", { enabled: loadedKinds.has("reported_by"), ...filterOpts });
-  const reportingConn = useSelfConnections(user?.pubkey, "reporting", { enabled: loadedKinds.has("reporting"), ...filterOpts });
+  const followedByConn = useSelfConnections(user?.pubkey, "followed_by", {
+    enabled: loadedKinds.has("followed_by"),
+    ...filterOpts,
+  });
+  const followingConn = useSelfConnections(user?.pubkey, "following", {
+    enabled: loadedKinds.has("following"),
+    ...filterOpts,
+  });
+  const mutedByConn = useSelfConnections(user?.pubkey, "muted_by", {
+    enabled: loadedKinds.has("muted_by"),
+    ...filterOpts,
+  });
+  const mutingConn = useSelfConnections(user?.pubkey, "muting", {
+    enabled: loadedKinds.has("muting"),
+    ...filterOpts,
+  });
+  const reportedByConn = useSelfConnections(user?.pubkey, "reported_by", {
+    enabled: loadedKinds.has("reported_by"),
+    ...filterOpts,
+  });
+  const reportingConn = useSelfConnections(user?.pubkey, "reporting", {
+    enabled: loadedKinds.has("reporting"),
+    ...filterOpts,
+  });
   // Virtual cross-relationship kind: DISTINCT flagged users, server-side.
   // Filters/min_influence don't apply — the flagged predicate is fixed. The
   // verified_threshold is still preset-driven (it's part of the predicate).
@@ -1072,16 +474,22 @@ export default function NetworkPage() {
 
   // Lookup the currently-active connection query so we can fetch the next
   // backend page on demand when the user navigates past the loaded window.
-  const activeConn = (
-    activeGroup === "followed_by" ? followedByConn :
-    activeGroup === "following" ? followingConn :
-    activeGroup === "muted_by" ? mutedByConn :
-    activeGroup === "muting" ? mutingConn :
-    activeGroup === "reported_by" ? reportedByConn :
-    activeGroup === "reporting" ? reportingConn :
-    activeGroup === "flagged" ? flaggedConn :
-    null
-  );
+  const activeConn =
+    activeGroup === "followed_by"
+      ? followedByConn
+      : activeGroup === "following"
+        ? followingConn
+        : activeGroup === "muted_by"
+          ? mutedByConn
+          : activeGroup === "muting"
+            ? mutingConn
+            : activeGroup === "reported_by"
+              ? reportedByConn
+              : activeGroup === "reporting"
+                ? reportingConn
+                : activeGroup === "flagged"
+                  ? flaggedConn
+                  : null;
 
   const networkData = useMemo(() => {
     const acc: Record<string, ConnectionItem[]> = {
@@ -1106,7 +514,9 @@ export default function NetworkPage() {
 
   // Mark a kind loaded as soon as user navigates to it.
   useEffect(() => {
-    setLoadedKinds((prev) => (prev.has(activeGroup) ? prev : new Set([...prev, activeGroup])));
+    setLoadedKinds((prev) =>
+      prev.has(activeGroup) ? prev : new Set([...prev, activeGroup]),
+    );
   }, [activeGroup]);
 
   // Overall load gate: loading only while overview is in-flight. Connection
@@ -1115,7 +525,14 @@ export default function NetworkPage() {
   const isLoading = overviewQuery.isLoading;
 
   useMemo(() => {
-    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    const allGroups: GroupKey[] = [
+      "followed_by",
+      "following",
+      "muted_by",
+      "muting",
+      "reported_by",
+      "reporting",
+    ];
     for (const groupKey of allGroups) {
       const items = networkData[groupKey];
       if (!items || items.length === 0) continue;
@@ -1129,7 +546,7 @@ export default function NetworkPage() {
   }, [networkData]);
 
   const fetchProfilesCallback = useCallback(async (pubkeys: string[]) => {
-    const unfetched = pubkeys.filter(pk => !profileCache.current.has(pk));
+    const unfetched = pubkeys.filter((pk) => !profileCache.current.has(pk));
     const cached: string[] = [];
     const missing: string[] = [];
     for (const pk of unfetched) {
@@ -1144,14 +561,14 @@ export default function NetworkPage() {
       }
     }
     if (cached.length > 0) {
-      setLoadedCount(prev => prev + cached.length);
+      setLoadedCount((prev) => prev + cached.length);
     }
     const batchSize = 400;
     for (let i = 0; i < missing.length; i += batchSize) {
       const batch = missing.slice(i, i + batchSize);
       await fetchProfiles(batch, (pubkey, profile) => {
         profileCache.current.set(pubkey, profile);
-        setLoadedCount(prev => prev + 1);
+        setLoadedCount((prev) => prev + 1);
       });
     }
     // Every requested pubkey has now had a fetch attempt (eventStore hit or a
@@ -1166,13 +583,15 @@ export default function NetworkPage() {
       }
     }
     if (newlyAttempted || unfetched.length === 0) {
-      setLoadedCount(prev => prev + 1);
+      setLoadedCount((prev) => prev + 1);
     }
   }, []);
 
   const fetchTrustScores = useCallback(async (pubkeys: string[]) => {
-    const unfetched = pubkeys.filter(pk => !trustCache.current.has(pk));
-    if (unfetched.length === 0) { return; }
+    const unfetched = pubkeys.filter((pk) => !trustCache.current.has(pk));
+    if (unfetched.length === 0) {
+      return;
+    }
     const batchSize = 8;
     for (let i = 0; i < unfetched.length; i += batchSize) {
       const batch = unfetched.slice(i, i + batchSize);
@@ -1180,14 +599,17 @@ export default function NetworkPage() {
         batch.map(async (pk) => {
           const res = await apiClient.getUserByPubkey(pk);
           return res?.data ?? null;
-        })
+        }),
       );
       results.forEach((res, idx) => {
         const pk = batch[idx];
         if (res.status === "fulfilled") {
           const graph = res.value?.graph ?? res.value;
           const influence = graph?.influence;
-          trustCache.current.set(pk, typeof influence === "number" ? influence : null);
+          trustCache.current.set(
+            pk,
+            typeof influence === "number" ? influence : null,
+          );
           graphDataCache.current.set(pk, {
             muted_by: toPubkeys(graph?.muted_by),
             reported_by: toPubkeys(graph?.reported_by),
@@ -1196,7 +618,7 @@ export default function NetworkPage() {
           trustCache.current.set(pk, null);
         }
       });
-      setTrustLoadedCount(prev => prev + batch.length);
+      setTrustLoadedCount((prev) => prev + batch.length);
     }
   }, []);
 
@@ -1259,7 +681,11 @@ export default function NetworkPage() {
     reporting: SectionStats;
   };
   const expandedStatsQuery = useQuery<StatsResponse | null>({
-    queryKey: ["profile-stats", (expandedPubkey ?? "").toLowerCase(), trustPreset],
+    queryKey: [
+      "profile-stats",
+      (expandedPubkey ?? "").toLowerCase(),
+      trustPreset,
+    ],
     queryFn: async () => {
       const res = await apiClient.getUserStats(expandedPubkey!, {
         verified_threshold: getVerifiedThreshold(),
@@ -1277,12 +703,30 @@ export default function NetworkPage() {
     const s = expandedStatsQuery.data;
     if (!s) return undefined;
     return {
-      followed_by: { verified: s.followed_by?.verified ?? 0, total: s.followed_by?.total ?? 0 },
-      following: { verified: s.following?.verified ?? 0, total: s.following?.total ?? 0 },
-      muted_by: { verified: s.muted_by?.verified ?? 0, total: s.muted_by?.total ?? 0 },
-      muting: { verified: s.muting?.verified ?? 0, total: s.muting?.total ?? 0 },
-      reported_by: { verified: s.reported_by?.verified ?? 0, total: s.reported_by?.total ?? 0 },
-      reporting: { verified: s.reporting?.verified ?? 0, total: s.reporting?.total ?? 0 },
+      followed_by: {
+        verified: s.followed_by?.verified ?? 0,
+        total: s.followed_by?.total ?? 0,
+      },
+      following: {
+        verified: s.following?.verified ?? 0,
+        total: s.following?.total ?? 0,
+      },
+      muted_by: {
+        verified: s.muted_by?.verified ?? 0,
+        total: s.muted_by?.total ?? 0,
+      },
+      muting: {
+        verified: s.muting?.verified ?? 0,
+        total: s.muting?.total ?? 0,
+      },
+      reported_by: {
+        verified: s.reported_by?.verified ?? 0,
+        total: s.reported_by?.total ?? 0,
+      },
+      reporting: {
+        verified: s.reporting?.verified ?? 0,
+        total: s.reporting?.total ?? 0,
+      },
     } as Record<string, { verified: number; total: number }>;
   }, [expandedStatsQuery.data]);
 
@@ -1293,7 +737,15 @@ export default function NetworkPage() {
   const flaggedPubkeySet = useMemo(() => {
     const set = new Set<string>();
     const vt = getVerifiedThreshold();
-    const allKinds: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"];
+    const allKinds: GroupKey[] = [
+      "followed_by",
+      "following",
+      "muted_by",
+      "muting",
+      "reported_by",
+      "reporting",
+      "flagged",
+    ];
     for (const k of allKinds) {
       for (const item of (networkData[k] as ConnectionItem[]) || []) {
         const inf = item.influence;
@@ -1306,57 +758,76 @@ export default function NetworkPage() {
     return set;
   }, [networkData, trustPreset]);
 
-  const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
-    if (!networkData) return [];
-    return toPubkeys(networkData[key]);
-  }, [networkData]);
+  const getGroupPubkeys = useCallback(
+    (key: GroupKey): string[] => {
+      if (!networkData) return [];
+      return toPubkeys(networkData[key]);
+    },
+    [networkData],
+  );
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
     const sets: Record<GroupKey, Set<string>> = {} as any;
-    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).forEach(k => {
+    (
+      [
+        "followed_by",
+        "following",
+        "muted_by",
+        "muting",
+        "reported_by",
+        "reporting",
+      ] as GroupKey[]
+    ).forEach((k) => {
       sets[k] = new Set(toPubkeys(networkData[k]));
     });
     sets["flagged"] = flaggedPubkeySet;
     return sets;
   }, [networkData, flaggedPubkeySet]);
 
-  const getPubkeyGroups = useCallback((pubkey: string): GroupKey[] => {
-    if (!groupPubkeySets) return [];
-    const memberOf: GroupKey[] = [];
-    (["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"] as GroupKey[]).forEach(k => {
-      if (groupPubkeySets[k].has(pubkey)) {
-        memberOf.push(k);
-      }
-    });
-    return memberOf;
-  }, [groupPubkeySets]);
+  const getPubkeyGroups = useCallback(
+    (pubkey: string): GroupKey[] => {
+      if (!groupPubkeySets) return [];
+      const memberOf: GroupKey[] = [];
+      (
+        [
+          "followed_by",
+          "following",
+          "muted_by",
+          "muting",
+          "reported_by",
+          "reporting",
+          "flagged",
+        ] as GroupKey[]
+      ).forEach((k) => {
+        if (groupPubkeySets[k].has(pubkey)) {
+          memberOf.push(k);
+        }
+      });
+      return memberOf;
+    },
+    [groupPubkeySets],
+  );
 
   const isVerifiableGroup = (_key: GroupKey) => true;
 
-  const getVerifiedPubkeys = useCallback((key: GroupKey): string[] => {
-    const all = getGroupPubkeys(key);
-    if (!isVerifiableGroup(key)) return all;
-    const TA_THRESHOLD = getVerifiedThreshold();
-    return all.filter(pk => {
-      const score = trustCache.current.get(pk);
-      return typeof score === "number" && score >= TA_THRESHOLD;
-    });
-  }, [getGroupPubkeys, trustLoadedCount, trustPreset]);
-
-  const getGroupCount = useCallback((key: GroupKey): number => {
-    // "flagged" comes from overview.flagged_count (DISTINCT across all
-    // relationships, computed server-side).
-    if (key === "flagged") return overviewQuery.data?.data?.flagged_count ?? 0;
-    // Always source section header counts from overview/stats (server-side
-    // totals), independent of whether the section's items have been fetched.
-    const counts = overviewQuery.data?.data?.counts;
-    const stats = statsQuery.data?.data;
-    if (verifiedOnly && isVerifiableGroup(key)) {
-      return (stats as any)?.[key]?.verified ?? 0;
-    }
-    return (counts as any)?.[key] ?? 0;
-  }, [verifiedOnly, overviewQuery.data, statsQuery.data]);
+  const getGroupCount = useCallback(
+    (key: GroupKey): number => {
+      // "flagged" comes from overview.flagged_count (DISTINCT across all
+      // relationships, computed server-side).
+      if (key === "flagged")
+        return overviewQuery.data?.data?.flagged_count ?? 0;
+      // Always source section header counts from overview/stats (server-side
+      // totals), independent of whether the section's items have been fetched.
+      const counts = overviewQuery.data?.data?.counts;
+      const stats = statsQuery.data?.data;
+      if (verifiedOnly && isVerifiableGroup(key)) {
+        return (stats as any)?.[key]?.verified ?? 0;
+      }
+      return (counts as any)?.[key] ?? 0;
+    },
+    [verifiedOnly, overviewQuery.data, statsQuery.data],
+  );
 
   const filteredPubkeys = useCallback(() => {
     // tier + verified-only are now applied server-side via the `tier` /
@@ -1367,7 +838,7 @@ export default function NetworkPage() {
     const hasSearch = !!searchFilter.trim();
     if (hasSearch) {
       const query = searchFilter.trim().toLowerCase();
-      pubkeys = pubkeys.filter(pk => {
+      pubkeys = pubkeys.filter((pk) => {
         const profile = profileCache.current.get(pk);
         const npub = nip19.npubEncode(pk);
         if (npub.toLowerCase().includes(query)) return true;
@@ -1392,7 +863,7 @@ export default function NetworkPage() {
     const abortId = ++searchAbortRef.current;
     const timer = setTimeout(async () => {
       const allPks = getGroupPubkeys(activeGroup);
-      const uncached = allPks.filter(pk => !profileCache.current.has(pk));
+      const uncached = allPks.filter((pk) => !profileCache.current.has(pk));
       if (uncached.length === 0) return;
 
       setSearchLoading(true);
@@ -1433,37 +904,124 @@ export default function NetworkPage() {
     setExpandedPubkey(null);
   }, []);
 
-  const handleSocialFollow = useCallback(async (pk: string) => {
-    const result = await social.follow(pk);
-    if (result.success) toast({ title: "Followed", description: "Added to your contact list" });
-    else toast({ title: "Error", description: result.error || "Follow failed", variant: "destructive" });
-    return result;
-  }, [social, toast]);
+  const handleSocialFollow = useCallback(
+    async (pk: string) => {
+      const result = await social.follow(pk);
+      if (result.success)
+        toast({ title: "Followed", description: "Added to your contact list" });
+      else
+        toast({
+          title: "Error",
+          description: result.error || "Follow failed",
+          variant: "destructive",
+        });
+      return result;
+    },
+    [social, toast],
+  );
 
-  const handleSocialUnfollow = useCallback(async (pk: string) => {
-    const result = await social.unfollow(pk);
-    if (result.success) toast({ title: "Unfollowed", description: "Removed from your contact list" });
-    else toast({ title: "Error", description: result.error || "Unfollow failed", variant: "destructive" });
-    return result;
-  }, [social, toast]);
+  const handleSocialUnfollow = useCallback(
+    async (pk: string) => {
+      const result = await social.unfollow(pk);
+      if (result.success)
+        toast({
+          title: "Unfollowed",
+          description: "Removed from your contact list",
+        });
+      else
+        toast({
+          title: "Error",
+          description: result.error || "Unfollow failed",
+          variant: "destructive",
+        });
+      return result;
+    },
+    [social, toast],
+  );
 
-  const handleSocialMute = useCallback(async (pk: string) => {
-    const result = await social.mute(pk);
-    if (result.success) toast({ title: "Muted", description: "Added to your mute list" });
-    else toast({ title: "Error", description: result.error || "Mute failed", variant: "destructive" });
-    return result;
-  }, [social, toast]);
+  const handleSocialMute = useCallback(
+    async (pk: string) => {
+      const result = await social.mute(pk);
+      if (result.success)
+        toast({ title: "Muted", description: "Added to your mute list" });
+      else
+        toast({
+          title: "Error",
+          description: result.error || "Mute failed",
+          variant: "destructive",
+        });
+      return result;
+    },
+    [social, toast],
+  );
 
-  const handleSocialUnmute = useCallback(async (pk: string) => {
-    const result = await social.unmute(pk);
-    if (result.success) toast({ title: "Unmuted", description: "Removed from your mute list" });
-    else toast({ title: "Error", description: result.error || "Unmute failed", variant: "destructive" });
-    return result;
-  }, [social, toast]);
+  const handleSocialUnmute = useCallback(
+    async (pk: string) => {
+      const result = await social.unmute(pk);
+      if (result.success)
+        toast({ title: "Unmuted", description: "Removed from your mute list" });
+      else
+        toast({
+          title: "Error",
+          description: result.error || "Unmute failed",
+          variant: "destructive",
+        });
+      return result;
+    },
+    [social, toast],
+  );
+
+  // Stable, identity-constant deps shared by every card. Memoized so the
+  // context value only changes when one of these callbacks/refs does (in
+  // practice only `getPubkeyGroups`, when networkData changes) — so consuming
+  // it never causes a wasteful per-card re-render.
+  const cardActions: NetworkCardActions = useMemo(
+    () => ({
+      trustCacheRef: trustCache,
+      activeGroupRef,
+      getPubkeyGroups,
+      onToggleExpanded: toggleExpanded,
+      onCopyNpub: handleCopyNpub,
+      onCloseDetail: handleCloseDetail,
+      onNavigate: navigate,
+      onFollow: handleSocialFollow,
+      onUnfollow: handleSocialUnfollow,
+      onMute: handleSocialMute,
+      onUnmute: handleSocialUnmute,
+      onPrefetchEnter: handleRowPrefetchEnter,
+      onPrefetchLeave: handleRowPrefetchLeave,
+    }),
+    [
+      getPubkeyGroups,
+      toggleExpanded,
+      handleCopyNpub,
+      handleCloseDetail,
+      navigate,
+      handleSocialFollow,
+      handleSocialUnfollow,
+      handleSocialMute,
+      handleSocialUnmute,
+      handleRowPrefetchEnter,
+      handleRowPrefetchLeave,
+    ],
+  );
+
+  // View state whose change *should* repaint every card.
+  const cardView: NetworkCardView = useMemo(
+    () => ({
+      viewMode,
+      socialPending: social.isAnyPending,
+      socialListsLoading: social.listsLoading,
+    }),
+    [viewMode, social.isAnyPending, social.listsLoading],
+  );
 
   // Items arrive from the backend already in the requested order (the `order`
   // query param drives ORDER BY in /connections). No client-side re-sort.
-  const visiblePubkeys = useMemo(() => filteredPubkeys(), [filteredPubkeys, trustFilter, trustLoadedCount]);
+  const visiblePubkeys = useMemo(
+    () => filteredPubkeys(),
+    [filteredPubkeys, trustFilter, trustLoadedCount],
+  );
 
   // Pull the next backend page (cursor-paginated /connections) when the user
   // navigates near the end of the loaded window for the active section.
@@ -1485,16 +1043,17 @@ export default function NetworkPage() {
     // Server returns the filtered total on every page — read it from page 1.
     // Falls back to overview/stats only when no fetch has landed yet.
     const hasSearch = !!searchFilter.trim();
-    const serverFilteredTotal: number | undefined =
-      (activeConn?.data?.pages?.[0] as any)?.data?.total;
+    const serverFilteredTotal: number | undefined = (
+      activeConn?.data?.pages?.[0] as any
+    )?.data?.total;
     const activeServerCount = hasSearch
       ? visiblePubkeys.length
-      : serverFilteredTotal ??
+      : (serverFilteredTotal ??
         (activeGroup === "flagged"
           ? (overviewQuery.data?.data?.flagged_count ?? 0)
           : verifiedOnly
             ? (statsQuery.data?.data?.[activeGroup]?.verified ?? 0)
-            : ((overviewQuery.data?.data?.counts as any)?.[activeGroup] ?? 0));
+            : ((overviewQuery.data?.data?.counts as any)?.[activeGroup] ?? 0)));
     const loadedTotalItems = visiblePubkeys.length;
     const totalItems = Math.max(loadedTotalItems, activeServerCount);
     const totalPages = Math.ceil(totalItems / PAGE_SIZE);
@@ -1516,9 +1075,9 @@ export default function NetworkPage() {
           safePage: safePage,
           nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
           totalItems: totalItems,
-          items: visiblePubkeys.slice(nextIdx, nextIdx + PAGE_SIZE)
-        }
-      }
+          items: visiblePubkeys.slice(nextIdx, nextIdx + PAGE_SIZE),
+        },
+      };
     } else {
       return {
         totalPages: totalPages,
@@ -1526,13 +1085,25 @@ export default function NetworkPage() {
         safePage: safePage,
         nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
         totalItems: totalItems,
-        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE)
-      }
+        items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
+      };
     }
-  }, [currentPage, visiblePubkeys, loadedCount, trustLoadedCount, searchFilter, trustFilter, verifiedOnly, activeGroup, overviewQuery.data, statsQuery.data, activeConn?.data?.pages]);
+  }, [
+    currentPage,
+    visiblePubkeys,
+    loadedCount,
+    trustLoadedCount,
+    searchFilter,
+    trustFilter,
+    verifiedOnly,
+    activeGroup,
+    overviewQuery.data,
+    statsQuery.data,
+    activeConn?.data?.pages,
+  ]);
 
   useEffect(() => {
-    const pageItems = visiblePubkeyPage.items
+    const pageItems = visiblePubkeyPage.items;
     if (pageItems.length > 0) {
       fetchProfilesCallback(pageItems);
       fetchTrustScores(pageItems);
@@ -1559,21 +1130,32 @@ export default function NetworkPage() {
       fetchTrustScores(Array.from(muterReporterPks));
     }
   }, [visiblePubkeyPage]);
-  
-  if (!user) return null;
 
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
+  if (!user) return null;
 
   if (!calcDone && !grapeRankLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4" data-testid="page-network-gate">
+      <div
+        className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4"
+        data-testid="page-network-gate"
+      >
         <div className="max-w-md w-full text-center">
           <div className="mb-6 flex justify-center">
             <BrainLogo size={64} className="text-indigo-400 animate-pulse" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-3" data-testid="text-network-gate-title">Your network is being calculated</h1>
-          <p className="text-slate-400 mb-8 text-sm leading-relaxed" data-testid="text-network-gate-description">
-            We're crunching the numbers on your social graph. Once the calculation completes, you'll be able to explore your full network here.
+          <h1
+            className="text-2xl font-bold text-white mb-3"
+            data-testid="text-network-gate-title"
+          >
+            Your network is being calculated
+          </h1>
+          <p
+            className="text-slate-400 mb-8 text-sm leading-relaxed"
+            data-testid="text-network-gate-description"
+          >
+            We're crunching the numbers on your social graph. Once the
+            calculation completes, you'll be able to explore your full network
+            here.
           </p>
           <button
             type="button"
@@ -1616,21 +1198,27 @@ export default function NetworkPage() {
       <div className="absolute top-0 left-0 right-0 h-[600px] overflow-hidden pointer-events-none z-0">
         <svg className="absolute inset-0 w-full h-full">
           {connectionPairs.map(([a, b], i) => (
-              <line
-                key={i}
-                x1={`${floatingNodes[a].x}%`}
-                y1={`${floatingNodes[a].y}%`}
-                x2={`${floatingNodes[b].x}%`}
-                y2={`${floatingNodes[b].y}%`}
-                stroke="url(#networkLineGrad)"
-                strokeWidth="0.5"
-                strokeDasharray={connectionLineDashArrays[i]}
-                strokeDashoffset={connectionLineDashArrays[i]}
-                style={connectionLineStyles[i]}
-              />
+            <line
+              key={i}
+              x1={`${floatingNodes[a].x}%`}
+              y1={`${floatingNodes[a].y}%`}
+              x2={`${floatingNodes[b].x}%`}
+              y2={`${floatingNodes[b].y}%`}
+              stroke="url(#networkLineGrad)"
+              strokeWidth="0.5"
+              strokeDasharray={connectionLineDashArrays[i]}
+              strokeDashoffset={connectionLineDashArrays[i]}
+              style={connectionLineStyles[i]}
+            />
           ))}
           <defs>
-            <linearGradient id="networkLineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient
+              id="networkLineGrad"
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
               <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.18" />
               <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0.14" />
             </linearGradient>
@@ -1648,40 +1236,63 @@ export default function NetworkPage() {
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-[5]">
         {decorativeText.map((text, i) => (
-            <div
-              key={i}
-              className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
-              style={decorativeTextStyles[i]}
-              data-testid={`text-network-bg-decorative-${i}`}
-            >
-              {text}
-            </div>
+          <div
+            key={i}
+            className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
+            style={decorativeTextStyles[i]}
+            data-testid={`text-network-bg-decorative-${i}`}
+          >
+            {text}
+          </div>
         ))}
       </div>
 
-      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="network" />
+      <AppHeader
+        user={user}
+        onLogout={handleLogout}
+        calcDone={calcDone}
+        active="network"
+      />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="space-y-8 animate-fade-up">
-          <div className="text-left relative z-10 mb-8 pt-2" data-testid="section-network-header">
+          <div
+            className="text-left relative z-10 mb-8 pt-2"
+            data-testid="section-network-header"
+          >
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
             <div className="flex flex-col items-start gap-3">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm" data-testid="pill-network-kicker">
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm"
+                data-testid="pill-network-kicker"
+              >
                 <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">Network Explorer</span>
+                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">
+                  Network Explorer
+                </span>
               </div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight relative" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-title">
+              <h1
+                className="text-2xl md:text-3xl font-bold tracking-tight relative"
+                style={{ fontFamily: "var(--font-display)" }}
+                data-testid="text-network-title"
+              >
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
                   Your Network
                 </span>
               </h1>
-              <p className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light" data-testid="text-network-subtitle">
+              <p
+                className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light"
+                data-testid="text-network-subtitle"
+              >
                 Browse and manage your social graph connections.
               </p>
             </div>
           </div>
 
-          <Card className="bg-white/90 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative" data-testid="card-network-filters">
+          <Card
+            className="bg-white/90 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative"
+            data-testid="card-network-filters"
+          >
             <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
             <CardHeader className="relative bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
@@ -1692,51 +1303,96 @@ export default function NetworkPage() {
                     <Filter className="h-4 w-4" />
                   </div>
                   <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm min-w-0">
-                    <CardTitle className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Filters</CardTitle>
-                    <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">Social Graph</CardDescription>
+                    <CardTitle
+                      className="text-sm font-bold text-slate-800 tracking-tight"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      Network Filters
+                    </CardTitle>
+                    <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                      Social Graph
+                    </CardDescription>
                   </div>
                 </div>
                 {/* Desktop: Verified + NOSTR inline on the right */}
                 <div className="hidden sm:flex items-center gap-3 shrink-0">
-                  <label className="flex items-center gap-2 cursor-pointer select-none" data-testid="toggle-verified-only">
+                  <label
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    data-testid="toggle-verified-only"
+                  >
                     <Switch
                       checked={verifiedOnly}
-                      onCheckedChange={(checked) => { setVerifiedOnly(checked); setCurrentPage(1); }}
+                      onCheckedChange={(checked) => {
+                        setVerifiedOnly(checked);
+                        setCurrentPage(1);
+                      }}
                       className="data-[state=checked]:bg-indigo-600"
                       data-testid="switch-verified-only"
                     />
-                    <span className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}>
+                    <span
+                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}
+                    >
                       Verified
                     </span>
                   </label>
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0" data-testid="badge-nostr-network">
-                    <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+                  <div
+                    className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                    data-testid="badge-nostr-network"
+                  >
+                    <img
+                      src="/nostr-ostrich.gif"
+                      alt=""
+                      className="h-4 w-4 object-contain"
+                      aria-hidden="true"
+                    />
                     <span>NOSTR</span>
                   </div>
                 </div>
               </div>
 
               {/* Mobile: NOSTR badge pinned to top-right corner */}
-              <div className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5" data-testid="badge-nostr-network-mobile">
-                <img src="/nostr-ostrich.gif" alt="" className="h-4 w-4 object-contain" aria-hidden="true" />
+              <div
+                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5"
+                data-testid="badge-nostr-network-mobile"
+              >
+                <img
+                  src="/nostr-ostrich.gif"
+                  alt=""
+                  className="h-4 w-4 object-contain"
+                  aria-hidden="true"
+                />
                 <span>NOSTR</span>
               </div>
 
               {/* Mobile: Verified toggle — full-width settings-style row */}
               <div className="sm:hidden mt-3">
-                <label className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100" data-testid="toggle-verified-only-mobile">
+                <label
+                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100"
+                  data-testid="toggle-verified-only-mobile"
+                >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"}`}>
+                    <div
+                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"}`}
+                    >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
-                      <div className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600"}`}>Verified</div>
-                      <div className="text-[10px] text-slate-400 leading-tight">Show only WoT-verified accounts</div>
+                      <div
+                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600"}`}
+                      >
+                        Verified
+                      </div>
+                      <div className="text-[10px] text-slate-400 leading-tight">
+                        Show only WoT-verified accounts
+                      </div>
                     </div>
                   </div>
                   <Switch
                     checked={verifiedOnly}
-                    onCheckedChange={(checked) => { setVerifiedOnly(checked); setCurrentPage(1); }}
+                    onCheckedChange={(checked) => {
+                      setVerifiedOnly(checked);
+                      setCurrentPage(1);
+                    }}
                     className="data-[state=checked]:bg-indigo-600 shrink-0"
                     data-testid="switch-verified-only-mobile"
                   />
@@ -1749,31 +1405,50 @@ export default function NetworkPage() {
               <div className="sm:hidden flex gap-2">
                 <div className="flex-1 min-w-0">
                   <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
-                    <Network className="h-3 w-3" />Graph
+                    <Network className="h-3 w-3" />
+                    Graph
                   </label>
                   <select
                     value={activeGroup}
-                    onChange={(e) => { setActiveGroup(e.target.value as GroupKey); setCurrentPage(1); }}
+                    onChange={(e) => {
+                      setActiveGroup(e.target.value as GroupKey);
+                      setCurrentPage(1);
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
                     data-testid="select-group-filter-mobile"
                   >
-                    {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
-                      const group = groups.find(g => g.key === k);
+                    {(
+                      [
+                        "followed_by",
+                        "following",
+                        "muted_by",
+                        "muting",
+                        "reported_by",
+                        "reporting",
+                      ] as GroupKey[]
+                    ).map((k) => {
+                      const group = groups.find((g) => g.key === k);
                       if (!group) return null;
                       const count = getGroupCount(group.key);
                       return (
-                        <option key={k} value={k}>{group.label} — {count}</option>
+                        <option key={k} value={k}>
+                          {group.label} — {count}
+                        </option>
                       );
                     })}
                   </select>
                 </div>
                 <div className="flex-1 min-w-0">
                   <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
-                    <ShieldCheck className="h-3 w-3" />Trust
+                    <ShieldCheck className="h-3 w-3" />
+                    Trust
                   </label>
                   <select
                     value={trustFilter}
-                    onChange={(e) => { setTrustFilter(e.target.value as TrustTier); setCurrentPage(1); }}
+                    onChange={(e) => {
+                      setTrustFilter(e.target.value as TrustTier);
+                      setCurrentPage(1);
+                    }}
                     className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
                     data-testid="select-trust-filter-mobile"
                   >
@@ -1792,21 +1467,41 @@ export default function NetworkPage() {
 
               {/* Desktop pill rows — hidden on mobile */}
               <div>
-                <div className="hidden sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2" data-testid="row-group-filters-graph">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60">Graph</span>
-                  {(["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"] as GroupKey[]).map((k) => {
-                    const group = groups.find(g => g.key === k);
+                <div
+                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2"
+                  data-testid="row-group-filters-graph"
+                >
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60">
+                    Graph
+                  </span>
+                  {(
+                    [
+                      "followed_by",
+                      "following",
+                      "muted_by",
+                      "muting",
+                      "reported_by",
+                      "reporting",
+                    ] as GroupKey[]
+                  ).map((k) => {
+                    const group = groups.find((g) => g.key === k);
                     if (!group) return null;
                     const count = getGroupCount(group.key);
-                    const totalCount = (overviewQuery.data?.data?.counts as any)?.[group.key] ?? 0;
+                    const totalCount =
+                      (overviewQuery.data?.data?.counts as any)?.[group.key] ??
+                      0;
                     const isActive = activeGroup === group.key;
-                    const showVerified = verifiedOnly && isVerifiableGroup(group.key);
+                    const showVerified =
+                      verifiedOnly && isVerifiableGroup(group.key);
                     return (
                       <UITooltip key={group.key} delayDuration={500}>
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            onClick={() => { setActiveGroup(group.key); setCurrentPage(1); }}
+                            onClick={() => {
+                              setActiveGroup(group.key);
+                              setCurrentPage(1);
+                            }}
                             className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
@@ -1814,21 +1509,30 @@ export default function NetworkPage() {
                             }`}
                             data-testid={`button-filter-${group.key}`}
                           >
-                            <group.Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`} />
+                            <group.Icon
+                              className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : group.color}`}
+                            />
                             <span>{group.shortLabel}</span>
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-                              isActive
-                                ? "bg-white/20 text-white"
-                                : `${group.bgColor} ${group.color} ${group.borderColor} border`
-                            }`}>
+                            <span
+                              className={`text-xs font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                                isActive
+                                  ? "bg-white/20 text-white"
+                                  : `${group.bgColor} ${group.color} ${group.borderColor} border`
+                              }`}
+                            >
                               {showVerified ? `${count}/${totalCount}` : count}
                             </span>
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom" className={`bg-white backdrop-blur-xl border border-slate-300 text-slate-700 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}>
+                        <TooltipContent
+                          side="bottom"
+                          className={`bg-white backdrop-blur-xl border border-slate-300 text-slate-700 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
+                        >
                           <p className="text-xs font-medium">{group.tooltip}</p>
                           {showVerified && totalCount !== count && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">{count} verified of {totalCount} total</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {count} verified of {totalCount} total
+                            </p>
                           )}
                         </TooltipContent>
                       </UITooltip>
@@ -1839,47 +1543,151 @@ export default function NetworkPage() {
 
               <div className="hidden sm:block border-t border-slate-200/60 my-0.5" />
 
-              <div className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2" data-testid="row-trust-filters">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">Trust</span>
-                {([
-                  { key: "all" as TrustTier, label: "All", shortLabel: "All", icon: null, ringFill: 0, tooltip: "Show all trust levels" },
-                  { key: "high" as TrustTier, label: "Highly Trusted", shortLabel: "High", icon: "text-emerald-600", ringFill: 0.9, tooltip: "Highest trust score in your network" },
-                  { key: "medium" as TrustTier, label: "Trusted", shortLabel: "Med", icon: "text-sky-500", ringFill: 0.65, tooltip: "Above-average trust score" },
-                  { key: "neutral" as TrustTier, label: "Neutral", shortLabel: "Neutral", icon: "text-indigo-400", ringFill: 0.37, tooltip: "Average trust score" },
-                  { key: "low" as TrustTier, label: "Low Trust", shortLabel: "Low", icon: "text-amber-500", ringFill: 0.12, tooltip: "Below-average trust score" },
-                  { key: "unverified" as TrustTier, label: "Unverified", shortLabel: "Unverified", icon: "text-zinc-400", ringFill: 0, tooltip: "No trust score calculated yet" },
-                  { key: "flagged" as TrustTier, label: "Flagged", shortLabel: "Flagged", icon: "flagged", ringFill: 0, tooltip: "Low trust accounts reported by 2+ of your trusted contacts" },
-                ] as const).map((tier) => {
+              <div
+                className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2"
+                data-testid="row-trust-filters"
+              >
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">
+                  Trust
+                </span>
+                {(
+                  [
+                    {
+                      key: "all" as TrustTier,
+                      label: "All",
+                      shortLabel: "All",
+                      icon: null,
+                      ringFill: 0,
+                      tooltip: "Show all trust levels",
+                    },
+                    {
+                      key: "high" as TrustTier,
+                      label: "Highly Trusted",
+                      shortLabel: "High",
+                      icon: "text-emerald-600",
+                      ringFill: 0.9,
+                      tooltip: "Highest trust score in your network",
+                    },
+                    {
+                      key: "medium" as TrustTier,
+                      label: "Trusted",
+                      shortLabel: "Med",
+                      icon: "text-sky-500",
+                      ringFill: 0.65,
+                      tooltip: "Above-average trust score",
+                    },
+                    {
+                      key: "neutral" as TrustTier,
+                      label: "Neutral",
+                      shortLabel: "Neutral",
+                      icon: "text-indigo-400",
+                      ringFill: 0.37,
+                      tooltip: "Average trust score",
+                    },
+                    {
+                      key: "low" as TrustTier,
+                      label: "Low Trust",
+                      shortLabel: "Low",
+                      icon: "text-amber-500",
+                      ringFill: 0.12,
+                      tooltip: "Below-average trust score",
+                    },
+                    {
+                      key: "unverified" as TrustTier,
+                      label: "Unverified",
+                      shortLabel: "Unverified",
+                      icon: "text-zinc-400",
+                      ringFill: 0,
+                      tooltip: "No trust score calculated yet",
+                    },
+                    {
+                      key: "flagged" as TrustTier,
+                      label: "Flagged",
+                      shortLabel: "Flagged",
+                      icon: "flagged",
+                      ringFill: 0,
+                      tooltip:
+                        "Low trust accounts reported by 2+ of your trusted contacts",
+                    },
+                  ] as const
+                ).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
                     <UITooltip key={tier.key} delayDuration={500}>
                       <TooltipTrigger asChild>
                         <button
                           type="button"
-                          onClick={() => { setTrustFilter(tier.key); setCurrentPage(1); }}
+                          onClick={() => {
+                            setTrustFilter(tier.key);
+                            setCurrentPage(1);
+                          }}
                           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                             isActive
-                              ? tier.key === "flagged" ? "bg-red-600 text-white border border-red-600" : "bg-indigo-800 text-white border border-indigo-800"
-                              : tier.key === "flagged" ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300" : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
+                              ? tier.key === "flagged"
+                                ? "bg-red-600 text-white border border-red-600"
+                                : "bg-indigo-800 text-white border border-indigo-800"
+                              : tier.key === "flagged"
+                                ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
+                                : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
                           }`}
                           data-testid={`button-trust-filter-${tier.key}`}
                         >
                           {tier.key === "flagged" ? (
-                            <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <svg
+                              className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : "text-red-500"}`}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
                               <line x1="4" y1="22" x2="4" y2="15" />
                             </svg>
-                          ) : tier.icon && tier.icon !== "flagged" && (
-                            <svg className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`} viewBox="0 0 44 44">
-                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" opacity="0.3" />
-                              <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"
-                                style={{ strokeDasharray: `${2 * Math.PI * 18}`, strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`, transform: "rotate(-90deg)", transformOrigin: "center" }} />
-                            </svg>
+                          ) : (
+                            tier.icon &&
+                            tier.icon !== "flagged" && (
+                              <svg
+                                className={`h-3 w-3 shrink-0 ${isActive ? "text-white" : tier.icon}`}
+                                viewBox="0 0 44 44"
+                              >
+                                <circle
+                                  cx="22"
+                                  cy="22"
+                                  r="18"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  opacity="0.3"
+                                />
+                                <circle
+                                  cx="22"
+                                  cy="22"
+                                  r="18"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                  strokeLinecap="round"
+                                  style={{
+                                    strokeDasharray: `${2 * Math.PI * 18}`,
+                                    strokeDashoffset: `${2 * Math.PI * 18 * (1 - tier.ringFill)}`,
+                                    transform: "rotate(-90deg)",
+                                    transformOrigin: "center",
+                                  }}
+                                />
+                              </svg>
+                            )
                           )}
-                          <span>{tier.key === "all" ? tier.shortLabel : tier.label}</span>
+                          <span>
+                            {tier.key === "all" ? tier.shortLabel : tier.label}
+                          </span>
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom" className={`bg-white backdrop-blur-xl border border-slate-300 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 shadow-lg px-2.5 py-1.5`}>
+                      <TooltipContent
+                        side="bottom"
+                        className={`bg-white backdrop-blur-xl border border-slate-300 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 shadow-lg px-2.5 py-1.5`}
+                      >
                         <p className="text-xs font-medium">{tier.tooltip}</p>
                       </TooltipContent>
                     </UITooltip>
@@ -1897,10 +1705,17 @@ export default function NetworkPage() {
                       <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
                     )}
                     <Input
-                      placeholder={isLoading ? "Loading your network…" : "Search by name or npub..."}
-                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${(isLoading || searchLoading) ? "cursor-wait opacity-70" : ""}`}
+                      placeholder={
+                        isLoading
+                          ? "Loading your network…"
+                          : "Search by name or npub..."
+                      }
+                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
-                      onChange={(e) => { setSearchFilter(e.target.value); setCurrentPage(1); }}
+                      onChange={(e) => {
+                        setSearchFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
                       disabled={isLoading || searchLoading}
                       aria-busy={isLoading || searchLoading}
                       data-testid="input-network-search"
@@ -1908,7 +1723,10 @@ export default function NetworkPage() {
                     {searchFilter && !isLoading && (
                       <button
                         type="button"
-                        onClick={() => { setSearchFilter(""); setCurrentPage(1); }}
+                        onClick={() => {
+                          setSearchFilter("");
+                          setCurrentPage(1);
+                        }}
                         className="absolute right-2 z-10 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                         aria-label="Clear search"
                         data-testid="button-clear-network-search"
@@ -1933,13 +1751,19 @@ export default function NetworkPage() {
                   <button
                     type="button"
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
-                    onClick={() => { setSortDirection(d => d === "desc" ? "asc" : "desc"); setCurrentPage(1); }}
+                    onClick={() => {
+                      setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
+                      setCurrentPage(1);
+                    }}
                     data-testid="button-sort-trust"
                   >
                     <ArrowUpDown className="h-3.5 w-3.5" />
                     <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
                   </button>
-                  <div className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0" data-testid="row-view-toggle">
+                  <div
+                    className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0"
+                    data-testid="row-view-toggle"
+                  >
                     <button
                       type="button"
                       className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
@@ -1962,8 +1786,12 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          {isLoading || (activeConn?.isFetching && visiblePubkeys.length === 0) ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-network-skeleton">
+          {isLoading ||
+          (activeConn?.isFetching && visiblePubkeys.length === 0) ? (
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              data-testid="grid-network-skeleton"
+            >
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
@@ -1985,15 +1813,27 @@ export default function NetworkPage() {
               ))}
             </div>
           ) : visiblePubkeys.length === 0 ? (
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden" data-testid="card-network-empty">
+            <Card
+              className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden"
+              data-testid="card-network-empty"
+            >
               <div className="p-8 flex flex-col items-center text-center">
                 <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-indigo-800 flex items-center justify-center mb-4">
                   <Users className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-empty-title">
-                  {searchFilter || trustFilter !== "all" ? "No matches found" : "No contacts yet"}
+                <h3
+                  className="text-lg font-bold text-slate-900 tracking-tight"
+                  style={{ fontFamily: "var(--font-display)" }}
+                  data-testid="text-network-empty-title"
+                >
+                  {searchFilter || trustFilter !== "all"
+                    ? "No matches found"
+                    : "No contacts yet"}
                 </h3>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md" data-testid="text-network-empty-body">
+                <p
+                  className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md"
+                  data-testid="text-network-empty-body"
+                >
                   {searchFilter || trustFilter !== "all"
                     ? "Try a different search term, trust score range, or group filter."
                     : "Your network data will appear here once your social graph is populated."}
@@ -2005,50 +1845,62 @@ export default function NetworkPage() {
               {(() => {
                 return (
                   <>
-                    <div className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} transition-opacity duration-150 ${activeConn?.isFetching ? "opacity-60" : "opacity-100"}`} data-testid="grid-network-profiles">
-                      {visiblePubkeyPage.items.map((pk) => (
-                        <div key={pk} className={viewMode === "grid" ? "contents" : ""}>
-                          <NetworkProfileCard
-                            pk={pk}
-                            profile={profileCache.current.get(pk)}
-                            trustScore={trustCache.current.get(pk)}
-                            graphData={graphDataCache.current.get(pk)}
-                            detail={expandedPubkey === pk ? expandedDetailGraph : undefined}
-                            stats={expandedPubkey === pk ? expandedStats : undefined}
-                            memberGroups={getPubkeyGroups(pk)}
-                            viewMode={viewMode}
-                            isExpanded={expandedPubkey === pk}
-                            isCopied={copiedPubkey === pk}
-                            isProfileLoaded={profileCache.current.has(pk)}
-                            profileAttempted={profileAttempted.current.has(pk)}
-                            expandedLoading={expandedPubkey === pk && expandedIsLoading}
-                            activeGroup={activeGroup}
-                            trustCacheRef={trustCache}
-                            onToggleExpanded={toggleExpanded}
-                            onCopyNpub={handleCopyNpub}
-                            onCloseDetail={handleCloseDetail}
-                            onNavigate={navigate}
-                            getPubkeyGroups={getPubkeyGroups}
-                            isSelf={user?.pubkey === pk}
-                            isFollowingUser={social.isFollowing(pk)}
-                            isMutedUser={social.isMuted(pk)}
-                            onFollow={handleSocialFollow}
-                            onUnfollow={handleSocialUnfollow}
-                            onMute={handleSocialMute}
-                            onUnmute={handleSocialUnmute}
-                            socialPending={social.isAnyPending}
-                            socialListsLoading={social.listsLoading}
-                            isFlagged={groupPubkeySets?.flagged?.has(pk) ?? false}
-                            onPrefetchEnter={handleRowPrefetchEnter}
-                            onPrefetchLeave={handleRowPrefetchLeave}
-                          />
+                    <NetworkCardActionsProvider value={cardActions}>
+                      <NetworkCardViewProvider value={cardView}>
+                        <div
+                          className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} transition-opacity duration-150 ${activeConn?.isFetching ? "opacity-60" : "opacity-100"}`}
+                          data-testid="grid-network-profiles"
+                        >
+                          {visiblePubkeyPage.items.map((pk) => (
+                            <div
+                              key={pk}
+                              className={viewMode === "grid" ? "contents" : ""}
+                            >
+                              <NetworkProfileCard
+                                pk={pk}
+                                profile={profileCache.current.get(pk)}
+                                trustScore={trustCache.current.get(pk)}
+                                graphData={graphDataCache.current.get(pk)}
+                                detail={
+                                  expandedPubkey === pk
+                                    ? expandedDetailGraph
+                                    : undefined
+                                }
+                                stats={
+                                  expandedPubkey === pk
+                                    ? expandedStats
+                                    : undefined
+                                }
+                                isExpanded={expandedPubkey === pk}
+                                isCopied={copiedPubkey === pk}
+                                isProfileLoaded={profileCache.current.has(pk)}
+                                profileAttempted={profileAttempted.current.has(
+                                  pk,
+                                )}
+                                expandedLoading={
+                                  expandedPubkey === pk && expandedIsLoading
+                                }
+                                isSelf={user?.pubkey === pk}
+                                isFollowingUser={social.isFollowing(pk)}
+                                isMutedUser={social.isMuted(pk)}
+                                isFlagged={
+                                  groupPubkeySets?.flagged?.has(pk) ?? false
+                                }
+                              />
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </NetworkCardViewProvider>
+                    </NetworkCardActionsProvider>
 
-                    <div className="flex items-center justify-between gap-4 pt-4" data-testid="row-pagination">
+                    <div
+                      className="flex items-center justify-between gap-4 pt-4"
+                      data-testid="row-pagination"
+                    >
                       <span className="text-xs text-slate-500">
-                        {visiblePubkeyPage.startIdx + 1}&ndash;{visiblePubkeyPage.nextItemStart} of {visiblePubkeyPage.totalItems}
+                        {visiblePubkeyPage.startIdx + 1}&ndash;
+                        {visiblePubkeyPage.nextItemStart} of{" "}
+                        {visiblePubkeyPage.totalItems}
                       </span>
                       {visiblePubkeyPage.totalPages > 1 && (
                         <div className="flex items-center gap-2">
@@ -2057,21 +1909,34 @@ export default function NetworkPage() {
                             size="sm"
                             className="gap-1.5 text-xs"
                             disabled={visiblePubkeyPage.safePage <= 1}
-                            onClick={() => { setCurrentPage(visiblePubkeyPage.safePage - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            onClick={() => {
+                              setCurrentPage(visiblePubkeyPage.safePage - 1);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
                             data-testid="button-page-prev"
                           >
                             <ChevronLeft className="h-3.5 w-3.5" />
                             Previous
                           </Button>
-                          <span className="text-xs font-medium text-slate-600 tabular-nums px-2" data-testid="text-page-indicator">
-                            {visiblePubkeyPage.safePage} / {visiblePubkeyPage.totalPages}
+                          <span
+                            className="text-xs font-medium text-slate-600 tabular-nums px-2"
+                            data-testid="text-page-indicator"
+                          >
+                            {visiblePubkeyPage.safePage} /{" "}
+                            {visiblePubkeyPage.totalPages}
                           </span>
                           <Button
                             variant="outline"
                             size="sm"
                             className="gap-1.5 text-xs"
-                            disabled={visiblePubkeyPage.safePage >= visiblePubkeyPage.totalPages}
-                            onClick={() => { setCurrentPage(visiblePubkeyPage.safePage + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                            disabled={
+                              visiblePubkeyPage.safePage >=
+                              visiblePubkeyPage.totalPages
+                            }
+                            onClick={() => {
+                              setCurrentPage(visiblePubkeyPage.safePage + 1);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
                             data-testid="button-page-next"
                           >
                             Next
