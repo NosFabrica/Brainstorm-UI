@@ -56,6 +56,7 @@ import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, type NostrUser } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Footer } from "@/components/Footer";
@@ -96,7 +97,7 @@ export default function SettingsPage() {
       });
       queryClient.invalidateQueries({ queryKey: key });
       setOptimisticPreset(null);
-      const lastResult = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
+      const lastResult = queryClient.getQueryData<any>(["/user/graperankResult"]);
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
       const newLabel = presetDisplayLabel(preset);
       const description = previousUsedLabel
@@ -140,15 +141,12 @@ export default function SettingsPage() {
     navigate("/");
   };
 
-  const { data: selfData, isPending: selfLoading } = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
+  const { data: overviewData, isPending: overviewLoading } = useSelfOverview(user?.pubkey);
+  const { data: historyData, isPending: historyLoading } = useSelfHistory(user?.pubkey);
+  const selfLoading = overviewLoading || historyLoading;
 
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -158,9 +156,9 @@ export default function SettingsPage() {
     mutationFn: () => apiClient.triggerGrapeRank(),
     onSuccess: (data) => {
       if (data?.data && typeof data.data === "object") {
-        queryClient.setQueryData(["/api/auth/graperankResult"], data);
+        queryClient.setQueryData(["/user/graperankResult"], data);
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       toast({
         title: "Recalculation started",
         description: "Your trust scores are being recalculated. Redirecting to dashboard...",
@@ -277,11 +275,11 @@ export default function SettingsPage() {
   const isRecalcInProgress = grapeRankData?.data?.internal_publication_status === "waiting" || grapeRankData?.data?.status === "waiting";
   const isGrapeRankFailedState = (typeof grapeRankData?.data?.status === "string" && grapeRankData.data.status.toLowerCase() === "failure") || (typeof grapeRankData?.data?.ta_status === "string" && grapeRankData.data.ta_status.toLowerCase() === "failure");
   const grapeRankStatus = grapeRankData?.data?.ta_status || grapeRankData?.data?.status || null;
-  const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
-  const lastTriggered = selfData?.data?.history?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
-  const taPubkey = selfData?.data?.history?.ta_pubkey || null;
-  const settingsNetwork = selfData?.graph || null;
-  const hasNoFollowing = !selfLoading && selfData !== undefined && settingsNetwork !== null && Array.isArray(settingsNetwork?.following) && settingsNetwork.following.length === 0;
+  const lastCalculated = historyData?.data?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
+  const lastTriggered = historyData?.data?.last_time_triggered_graperank || grapeRankData?.data?.created_at || null;
+  const taPubkey = historyData?.data?.ta_pubkey || null;
+  const followingCount = overviewData?.data?.counts?.following ?? null;
+  const hasNoFollowing = !selfLoading && followingCount === 0;
 
   if (!user || isAuthRedirecting()) return null;
 

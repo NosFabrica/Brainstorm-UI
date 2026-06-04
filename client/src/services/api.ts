@@ -246,12 +246,15 @@ export const apiClient = {
     return data;
   },
 
-  async getSelf() {
-    const response = await authenticatedFetch(`${getBrainstormApi()}/user/self`, {
-      signal: AbortSignal.timeout(60000),
-    });
+  async getUserHistory() {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/history`,
+      {
+        signal: AbortSignal.timeout(30000),
+      },
+    );
     if (!response.ok) {
-      throw new Error(`Failed to fetch user data (${response.status})`);
+      throw new Error(`Failed to fetch user history (${response.status})`);
     }
     return await response.json();
   },
@@ -269,13 +272,18 @@ export const apiClient = {
     return await response.json();
   },
 
-  async getUserOverview(pubkey: string) {
-    const response = await optionalAuthFetch(
-      `${getBrainstormApi()}/user/${pubkey}/overview`,
-      {
-        signal: AbortSignal.timeout(30000),
-      },
-    );
+  async getUserOverview(
+    pubkey: string,
+    opts?: { verified_threshold?: number },
+  ) {
+    const params = new URLSearchParams();
+    if (opts?.verified_threshold != null)
+      params.set("verified_threshold", String(opts.verified_threshold));
+    const qs = params.toString();
+    const url = `${getBrainstormApi()}/user/${pubkey}/overview${qs ? `?${qs}` : ""}`;
+    const response = await optionalAuthFetch(url, {
+      signal: AbortSignal.timeout(30000),
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch user overview (${response.status})`);
     }
@@ -287,8 +295,8 @@ export const apiClient = {
     opts?: {
       verified_threshold?: number;
       tier_high?: number;
-      tier_trusted?: number;
-      tier_neutral?: number;
+      tier_medium_high?: number;
+      tier_medium?: number;
     },
   ) {
     const params = new URLSearchParams();
@@ -296,10 +304,10 @@ export const apiClient = {
       params.set("verified_threshold", String(opts.verified_threshold));
     if (opts?.tier_high != null)
       params.set("tier_high", String(opts.tier_high));
-    if (opts?.tier_trusted != null)
-      params.set("tier_trusted", String(opts.tier_trusted));
-    if (opts?.tier_neutral != null)
-      params.set("tier_neutral", String(opts.tier_neutral));
+    if (opts?.tier_medium_high != null)
+      params.set("tier_medium_high", String(opts.tier_medium_high));
+    if (opts?.tier_medium != null)
+      params.set("tier_medium", String(opts.tier_medium));
     const qs = params.toString();
     const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
     const response = await optionalAuthFetch(url, {
@@ -319,13 +327,39 @@ export const apiClient = {
       | "muted_by"
       | "muting"
       | "reported_by"
-      | "reporting",
-    opts?: { limit?: number; cursor?: string },
+      | "reporting"
+      | "flagged",
+    opts?: {
+      limit?: number;
+      cursor?: string;
+      order?: "asc" | "desc";
+      tier?:
+        | "high"
+        | "medium_high"
+        | "medium"
+        | "medium_low"
+        | "low"
+        | "low_and_reported_by_2_or_more_trusted_pubkeys";
+      min_influence?: number;
+      verified_threshold?: number;
+      tier_high?: number;
+      tier_medium_high?: number;
+      tier_medium?: number;
+      with_total?: boolean;
+    },
   ) {
     const params = new URLSearchParams();
     params.set("kind", kind);
     if (opts?.limit != null) params.set("limit", String(opts.limit));
     if (opts?.cursor) params.set("cursor", opts.cursor);
+    if (opts?.order) params.set("order", opts.order);
+    if (opts?.tier) params.set("tier", opts.tier);
+    if (opts?.min_influence != null) params.set("min_influence", String(opts.min_influence));
+    if (opts?.verified_threshold != null) params.set("verified_threshold", String(opts.verified_threshold));
+    if (opts?.tier_high != null) params.set("tier_high", String(opts.tier_high));
+    if (opts?.tier_medium_high != null) params.set("tier_medium_high", String(opts.tier_medium_high));
+    if (opts?.tier_medium != null) params.set("tier_medium", String(opts.tier_medium));
+    if (opts?.with_total) params.set("with_total", "true");
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
     const response = await optionalAuthFetch(url, {
       signal: AbortSignal.timeout(30000),

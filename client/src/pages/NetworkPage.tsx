@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { getVerifiedThreshold, PRESET_THRESHOLDS, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation } from "wouter";
@@ -56,6 +56,7 @@ import { getCurrentUser, logout, fetchProfiles, eventStore, type NostrUser } fro
 import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { useSelfOverview, useSelfStats, useSelfConnections, flattenConnections, type ConnectionItem } from "@/hooks/useSelf";
 import { toPubkeys, toInfluenceMap, getFlaggedPubkeys } from "../services/graphHelpers";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -197,6 +198,7 @@ interface NetworkProfileCardProps {
   isExpanded: boolean;
   isCopied: boolean;
   isProfileLoaded: boolean;
+  profileAttempted: boolean;
   expandedLoading: boolean;
   activeGroup: string;
   trustCacheRef: React.RefObject<Map<string, number | null>>;
@@ -221,7 +223,7 @@ interface NetworkProfileCardProps {
 
 const NetworkProfileCard = memo(function NetworkProfileCard({
   pk, profile, trustScore, graphData, detail, stats, memberGroups, viewMode, isExpanded, isCopied,
-  isProfileLoaded, expandedLoading, activeGroup, trustCacheRef,
+  isProfileLoaded, profileAttempted, expandedLoading, activeGroup, trustCacheRef,
   onToggleExpanded, onCopyNpub, onCloseDetail, onNavigate, getPubkeyGroups,
   isSelf, isFollowingUser, isMutedUser, onFollow, onUnfollow, onMute, onUnmute, socialPending, socialListsLoading,
   isFlagged, onPrefetchEnter, onPrefetchLeave
@@ -655,7 +657,12 @@ const NetworkProfileCard = memo(function NetworkProfileCard({
     );
   };
 
-  if (!isProfileLoaded) {
+  // Only block on the skeleton until we've actually attempted to fetch the
+  // kind-0 profile. Once attempted, render the card even with no profile — the
+  // body falls back to the npub (see `displayName`/`displayNpub`) and upgrades
+  // in place if a profile arrives later. This prevents rows from being stuck as
+  // skeletons forever when a pubkey has no resolvable kind-0 profile.
+  if (!isProfileLoaded && !profileAttempted) {
     return (
       <>
         <div
@@ -923,7 +930,7 @@ export default function NetworkPage() {
   const { toast } = useToast();
   const social = useSocialActions(user?.pubkey);
   const { data: grapeRankData, isPending: grapeRankLoading } = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -938,9 +945,13 @@ export default function NetworkPage() {
   }, [calcDoneNow]);
   const calcDone = calcDoneNow || hadPreviousCalc;
 
-  const PAGE_SIZE = 24;
+  const PAGE_SIZE = 100;
 
   const profileCache = useRef<Map<string, any>>(new Map());
+  // Pubkeys we've already tried to fetch a kind-0 profile for (whether or not
+  // one came back). Lets a row fall back to its npub instead of an endless
+  // skeleton when no profile exists. See the gate in NetworkProfileCard.
+  const profileAttempted = useRef<Set<string>>(new Set());
   const trustCache = useRef<Map<string, number | null>>(new Map());
   const graphDataCache = useRef<Map<string, { muted_by?: string[]; reported_by?: string[] }>>(new Map());
   const [trustLoadedCount, setTrustLoadedCount] = useState(0);
@@ -990,21 +1001,125 @@ export default function NetworkPage() {
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
-  const selfQuery = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    staleTime: 30_000,
+  // SELF overview's `flagged_by_observer` is always false (self ≠ flags self),
+  // so threshold doesn't affect any consumed field — omit to keep the queryKey
+  // stable across `trustPreset` lifecycle transitions.
+  const overviewQuery = useSelfOverview(user?.pubkey);
+  // Stats verified/tier counts DO depend on threshold. Derive from the
+  // server-confirmed preset (stable) rather than `getVerifiedThreshold()`
+  // (which reads localStorage and can flip mid-mount).
+  const statsThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
+  const statsQuery = useSelfStats(user?.pubkey, statsThreshold !== undefined ? { verified_threshold: statsThreshold } : undefined);
+
+  // Track which kinds the user has visited so each kind only fetches once mounted.
+  // "flagged" is a derived view that scopes to currently-loaded sections — it
+  // does NOT trigger any fetch itself.
+  const [loadedKinds, setLoadedKinds] = useState<Set<GroupKey>>(new Set());
+
+  // Map UI trust filter to backend tier param. Backend uses the GR
+  // `count_values` naming (medium_high / medium / medium_low / low /
+  // low_and_reported_by_2_or_more_trusted_pubkeys); FE UI names differ.
+  // When activeGroup is the derived "flagged" view, drop filters so the
+  // cross-kind flag derivation sees unfiltered loaded items.
+  const isFlaggedView = activeGroup === "flagged";
+  const UI_TO_GR_TIER: Record<string, NonNullable<Parameters<typeof useSelfConnections>[2]>["tier"]> = {
+    high: "high",
+    medium: "medium_high",
+    neutral: "medium",
+    low: "medium_low",
+    unverified: "low",
+    flagged: "low_and_reported_by_2_or_more_trusted_pubkeys",
+  };
+  const mappedTier = isFlaggedView || trustFilter === "all" ? undefined : UI_TO_GR_TIER[trustFilter];
+  // Single source of truth for the verified line: the preset value when a preset
+  // is active (stable), else the localStorage threshold. Used for BOTH the
+  // verified-only `min_influence` list filter AND the `verified_threshold`
+  // predicate, so the filtered list and the stats-derived header count agree.
+  const verifiedThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : getVerifiedThreshold();
+  const minInfluenceFilter =
+    !isFlaggedView && verifiedOnly && mappedTier === undefined
+      ? verifiedThreshold
+      : undefined;
+  // Preset-driven verified_threshold so tier=low / tier=unverified /
+  // tier=low_and_reported_by_2_or_more_trusted_pubkeys / min_influence on
+  // /connections honour the user's preset (otherwise backend would default
+  // to 0.02).
+  const connectionsVt = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
+  const filterOpts = {
+    order: sortDirection,
+    tier: mappedTier,
+    min_influence: minInfluenceFilter,
+    verified_threshold: connectionsVt,
+    // Pager needs the filtered total per section (overview/stats can't express
+    // arbitrary tier filters). Requested on the first page only (see useSelf).
+    withTotal: true,
+  };
+
+  const followedByConn = useSelfConnections(user?.pubkey, "followed_by", { enabled: loadedKinds.has("followed_by"), ...filterOpts });
+  const followingConn = useSelfConnections(user?.pubkey, "following", { enabled: loadedKinds.has("following"), ...filterOpts });
+  const mutedByConn = useSelfConnections(user?.pubkey, "muted_by", { enabled: loadedKinds.has("muted_by"), ...filterOpts });
+  const mutingConn = useSelfConnections(user?.pubkey, "muting", { enabled: loadedKinds.has("muting"), ...filterOpts });
+  const reportedByConn = useSelfConnections(user?.pubkey, "reported_by", { enabled: loadedKinds.has("reported_by"), ...filterOpts });
+  const reportingConn = useSelfConnections(user?.pubkey, "reporting", { enabled: loadedKinds.has("reporting"), ...filterOpts });
+  // Virtual cross-relationship kind: DISTINCT flagged users, server-side.
+  // Filters/min_influence don't apply — the flagged predicate is fixed. The
+  // verified_threshold is still preset-driven (it's part of the predicate).
+  const flaggedConn = useSelfConnections(user?.pubkey, "flagged", {
+    enabled: loadedKinds.has("flagged"),
+    order: sortDirection,
+    verified_threshold: connectionsVt,
   });
-  const selfData = selfQuery.data?.data;
-  const networkData = selfData?.graph || null;
-  const isLoading = selfQuery.isLoading;
+
+  // Lookup the currently-active connection query so we can fetch the next
+  // backend page on demand when the user navigates past the loaded window.
+  const activeConn = (
+    activeGroup === "followed_by" ? followedByConn :
+    activeGroup === "following" ? followingConn :
+    activeGroup === "muted_by" ? mutedByConn :
+    activeGroup === "muting" ? mutingConn :
+    activeGroup === "reported_by" ? reportedByConn :
+    activeGroup === "reporting" ? reportingConn :
+    activeGroup === "flagged" ? flaggedConn :
+    null
+  );
+
+  const networkData = useMemo(() => {
+    const acc: Record<string, ConnectionItem[]> = {
+      followed_by: flattenConnections(followedByConn.data?.pages),
+      following: flattenConnections(followingConn.data?.pages),
+      muted_by: flattenConnections(mutedByConn.data?.pages),
+      muting: flattenConnections(mutingConn.data?.pages),
+      reported_by: flattenConnections(reportedByConn.data?.pages),
+      reporting: flattenConnections(reportingConn.data?.pages),
+      flagged: flattenConnections(flaggedConn.data?.pages),
+    };
+    return acc;
+  }, [
+    followedByConn.data?.pages,
+    followingConn.data?.pages,
+    mutedByConn.data?.pages,
+    mutingConn.data?.pages,
+    reportedByConn.data?.pages,
+    reportingConn.data?.pages,
+    flaggedConn.data?.pages,
+  ]);
+
+  // Mark a kind loaded as soon as user navigates to it.
+  useEffect(() => {
+    setLoadedKinds((prev) => (prev.has(activeGroup) ? prev : new Set([...prev, activeGroup])));
+  }, [activeGroup]);
+
+  // Overall load gate: loading only while overview is in-flight. Connection
+  // queries are per-section and lazy; their loading state is surfaced by the
+  // per-section UI, not by this top-level flag.
+  const isLoading = overviewQuery.isLoading;
 
   useMemo(() => {
-    if (!networkData) return;
-    const allGroups = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
+    const allGroups: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting"];
     for (const groupKey of allGroups) {
-      const influenceMap = toInfluenceMap(networkData?.[groupKey]);
+      const items = networkData[groupKey];
+      if (!items || items.length === 0) continue;
+      const influenceMap = toInfluenceMap(items as any);
       influenceMap.forEach((influence, pk) => {
         if (!trustCache.current.has(pk)) {
           trustCache.current.set(pk, influence);
@@ -1039,7 +1154,18 @@ export default function NetworkPage() {
         setLoadedCount(prev => prev + 1);
       });
     }
-    if (unfetched.length === 0) {
+    // Every requested pubkey has now had a fetch attempt (eventStore hit or a
+    // settled relay request). Mark them so their rows stop showing a skeleton
+    // and fall back to the npub if no profile was found. Force one re-render so
+    // the cards re-evaluate the gate.
+    let newlyAttempted = false;
+    for (const pk of pubkeys) {
+      if (!profileAttempted.current.has(pk)) {
+        profileAttempted.current.add(pk);
+        newlyAttempted = true;
+      }
+    }
+    if (newlyAttempted || unfetched.length === 0) {
       setLoadedCount(prev => prev + 1);
     }
   }, []);
@@ -1137,9 +1263,9 @@ export default function NetworkPage() {
     queryFn: async () => {
       const res = await apiClient.getUserStats(expandedPubkey!, {
         verified_threshold: getVerifiedThreshold(),
-        tier_high: 0.5,
-        tier_trusted: 0.2,
-        tier_neutral: 0.07,
+        tier_high: TIER_THRESHOLDS.high,
+        tier_medium_high: TIER_THRESHOLDS.medium_high,
+        tier_medium: TIER_THRESHOLDS.medium,
       });
       return res?.data ?? null;
     },
@@ -1160,16 +1286,30 @@ export default function NetworkPage() {
     } as Record<string, { verified: number; total: number }>;
   }, [expandedStatsQuery.data]);
 
+  // Derive flagged set from per-item properties across all loaded sections,
+  // not just the dedicated `flagged` kind. This way the badge / membership
+  // check works in any combination — flagged tab, or tier=flagged filter
+  // inside another tab, or just spotting flagged users in an unfiltered list.
   const flaggedPubkeySet = useMemo(() => {
-    if (!networkData) return new Set<string>();
-    return getFlaggedPubkeys(networkData, getVerifiedThreshold());
+    const set = new Set<string>();
+    const vt = getVerifiedThreshold();
+    const allKinds: GroupKey[] = ["followed_by", "following", "muted_by", "muting", "reported_by", "reporting", "flagged"];
+    for (const k of allKinds) {
+      for (const item of (networkData[k] as ConnectionItem[]) || []) {
+        const inf = item.influence;
+        const tr = item.trusted_reporters ?? 0;
+        if (inf !== null && inf !== undefined && inf < vt && tr >= 2) {
+          set.add(item.pubkey);
+        }
+      }
+    }
+    return set;
   }, [networkData, trustPreset]);
 
   const getGroupPubkeys = useCallback((key: GroupKey): string[] => {
     if (!networkData) return [];
-    if (key === "flagged") return Array.from(flaggedPubkeySet);
     return toPubkeys(networkData[key]);
-  }, [networkData, flaggedPubkeySet]);
+  }, [networkData]);
 
   const groupPubkeySets = useMemo(() => {
     if (!networkData) return null;
@@ -1205,17 +1345,26 @@ export default function NetworkPage() {
   }, [getGroupPubkeys, trustLoadedCount, trustPreset]);
 
   const getGroupCount = useCallback((key: GroupKey): number => {
+    // "flagged" comes from overview.flagged_count (DISTINCT across all
+    // relationships, computed server-side).
+    if (key === "flagged") return overviewQuery.data?.data?.flagged_count ?? 0;
+    // Always source section header counts from overview/stats (server-side
+    // totals), independent of whether the section's items have been fetched.
+    const counts = overviewQuery.data?.data?.counts;
+    const stats = statsQuery.data?.data;
     if (verifiedOnly && isVerifiableGroup(key)) {
-      return getVerifiedPubkeys(key).length;
+      return (stats as any)?.[key]?.verified ?? 0;
     }
-    return getGroupPubkeys(key).length;
-  }, [getGroupPubkeys, getVerifiedPubkeys, verifiedOnly]);
+    return (counts as any)?.[key] ?? 0;
+  }, [verifiedOnly, overviewQuery.data, statsQuery.data]);
 
   const filteredPubkeys = useCallback(() => {
+    // tier + verified-only are now applied server-side via the `tier` /
+    // `min_influence` query params on /connections — see filterOpts above.
+    // The active-section's loaded items already match the filter, so the only
+    // client-side narrowing left is the text search.
+    let pubkeys = getGroupPubkeys(activeGroup);
     const hasSearch = !!searchFilter.trim();
-    let pubkeys = (hasSearch || !verifiedOnly || !isVerifiableGroup(activeGroup) || trustFilter === "flagged")
-      ? getGroupPubkeys(activeGroup)
-      : getVerifiedPubkeys(activeGroup);
     if (hasSearch) {
       const query = searchFilter.trim().toLowerCase();
       pubkeys = pubkeys.filter(pk => {
@@ -1231,32 +1380,8 @@ export default function NetworkPage() {
         return false;
       });
     }
-    if (trustFilter !== "all") {
-      if (trustFilter === "flagged") {
-        const flaggedPubkeys = new Set(getGroupPubkeys("flagged"));
-        pubkeys = pubkeys.filter(pk => flaggedPubkeys.has(pk));
-      } else if (trustFilter === "unverified") {
-        pubkeys = pubkeys.filter(pk => {
-          const influence = trustCache.current.get(pk);
-          if (influence === undefined || influence === null) return true;
-          return typeof influence === "number" && influence < getVerifiedThreshold();
-        });
-      } else {
-        pubkeys = pubkeys.filter(pk => {
-          const influence = trustCache.current.get(pk);
-          if (influence === undefined) return false;
-          if (influence === null) return false;
-          const pct = Math.round(Math.min(1, Math.max(0, influence)) * 100);
-          if (trustFilter === "high") return pct >= 50;
-          if (trustFilter === "medium") return pct >= 20 && pct < 50;
-          if (trustFilter === "neutral") return pct >= 7 && pct < 20;
-          if (trustFilter === "low") return pct >= 2 && pct < 7;
-          return true;
-        });
-      }
-    }
     return pubkeys;
-  }, [activeGroup, searchFilter, trustFilter, getGroupPubkeys, getVerifiedPubkeys, verifiedOnly, loadedCount, trustLoadedCount]);
+  }, [activeGroup, searchFilter, getGroupPubkeys, loadedCount]);
 
   useEffect(() => {
     const query = searchFilter.trim();
@@ -1336,13 +1461,43 @@ export default function NetworkPage() {
     return result;
   }, [social, toast]);
 
-  const visiblePubkeys = useMemo(() => {
-    const pks = filteredPubkeys();
-    return [...pks].sort(sortByTrustScore(trustCache.current, sortDirection));
-  }, [filteredPubkeys, sortDirection, trustFilter, trustLoadedCount]);
+  // Items arrive from the backend already in the requested order (the `order`
+  // query param drives ORDER BY in /connections). No client-side re-sort.
+  const visiblePubkeys = useMemo(() => filteredPubkeys(), [filteredPubkeys, trustFilter, trustLoadedCount]);
+
+  // Pull the next backend page (cursor-paginated /connections) when the user
+  // navigates near the end of the loaded window for the active section.
+  // Prefetches one display page ahead so the next-page click feels instant.
+  useEffect(() => {
+    if (!activeConn) return;
+    if (!activeConn.hasNextPage || activeConn.isFetchingNextPage) return;
+    const loaded = visiblePubkeys.length;
+    const consumed = currentPage * PAGE_SIZE;
+    if (consumed + PAGE_SIZE >= loaded) {
+      void activeConn.fetchNextPage();
+    }
+  }, [activeConn, visiblePubkeys.length, currentPage, PAGE_SIZE]);
 
   const visiblePubkeyPage = useMemo(() => {
-    const totalPages = Math.ceil(visiblePubkeys.length / PAGE_SIZE);
+    // Use server-side counts as the source of truth for totalPages so the
+    // pager can advance past what's currently loaded — fetchNextPage is
+    // triggered above when the user approaches the loaded boundary.
+    // Server returns the filtered total on every page — read it from page 1.
+    // Falls back to overview/stats only when no fetch has landed yet.
+    const hasSearch = !!searchFilter.trim();
+    const serverFilteredTotal: number | undefined =
+      (activeConn?.data?.pages?.[0] as any)?.data?.total;
+    const activeServerCount = hasSearch
+      ? visiblePubkeys.length
+      : serverFilteredTotal ??
+        (activeGroup === "flagged"
+          ? (overviewQuery.data?.data?.flagged_count ?? 0)
+          : verifiedOnly
+            ? (statsQuery.data?.data?.[activeGroup]?.verified ?? 0)
+            : ((overviewQuery.data?.data?.counts as any)?.[activeGroup] ?? 0));
+    const loadedTotalItems = visiblePubkeys.length;
+    const totalItems = Math.max(loadedTotalItems, activeServerCount);
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE);
     const safePage = Math.min(currentPage, totalPages || 1);
     const startIdx = (safePage - 1) * PAGE_SIZE;
 
@@ -1351,16 +1506,16 @@ export default function NetworkPage() {
       return {
         totalPages: totalPages,
         startIdx: startIdx,
-        safePage: safePage, 
-        nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
-        totalItems: visiblePubkeys.length,
+        safePage: safePage,
+        nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
+        totalItems: totalItems,
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE),
         nextPage: {
           totalPages: totalPages,
           startIdx: nextIdx,
-          safePage: safePage, 
-          nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
-          totalItems: visiblePubkeys.length,
+          safePage: safePage,
+          nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
+          totalItems: totalItems,
           items: visiblePubkeys.slice(nextIdx, nextIdx + PAGE_SIZE)
         }
       }
@@ -1368,13 +1523,13 @@ export default function NetworkPage() {
       return {
         totalPages: totalPages,
         startIdx: startIdx,
-        safePage: safePage, 
-        nextItemStart: Math.min(startIdx + PAGE_SIZE, visiblePubkeys.length),
-        totalItems: visiblePubkeys.length,
+        safePage: safePage,
+        nextItemStart: Math.min(startIdx + PAGE_SIZE, totalItems),
+        totalItems: totalItems,
         items: visiblePubkeys.slice(startIdx, startIdx + PAGE_SIZE)
       }
     }
-  }, [currentPage, visiblePubkeys, loadedCount, trustLoadedCount]);
+  }, [currentPage, visiblePubkeys, loadedCount, trustLoadedCount, searchFilter, trustFilter, verifiedOnly, activeGroup, overviewQuery.data, statsQuery.data, activeConn?.data?.pages]);
 
   useEffect(() => {
     const pageItems = visiblePubkeyPage.items
@@ -1643,7 +1798,7 @@ export default function NetworkPage() {
                     const group = groups.find(g => g.key === k);
                     if (!group) return null;
                     const count = getGroupCount(group.key);
-                    const totalCount = getGroupPubkeys(group.key).length;
+                    const totalCount = (overviewQuery.data?.data?.counts as any)?.[group.key] ?? 0;
                     const isActive = activeGroup === group.key;
                     const showVerified = verifiedOnly && isVerifiableGroup(group.key);
                     return (
@@ -1807,7 +1962,7 @@ export default function NetworkPage() {
             </CardContent>
           </Card>
 
-          {isLoading ? (
+          {isLoading || (activeConn?.isFetching && visiblePubkeys.length === 0) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="grid-network-skeleton">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
@@ -1850,7 +2005,7 @@ export default function NetworkPage() {
               {(() => {
                 return (
                   <>
-                    <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} data-testid="grid-network-profiles">
+                    <div className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-2"} transition-opacity duration-150 ${activeConn?.isFetching ? "opacity-60" : "opacity-100"}`} data-testid="grid-network-profiles">
                       {visiblePubkeyPage.items.map((pk) => (
                         <div key={pk} className={viewMode === "grid" ? "contents" : ""}>
                           <NetworkProfileCard
@@ -1865,6 +2020,7 @@ export default function NetworkPage() {
                             isExpanded={expandedPubkey === pk}
                             isCopied={copiedPubkey === pk}
                             isProfileLoaded={profileCache.current.has(pk)}
+                            profileAttempted={profileAttempted.current.has(pk)}
                             expandedLoading={expandedPubkey === pk && expandedIsLoading}
                             activeGroup={activeGroup}
                             trustCacheRef={trustCache}

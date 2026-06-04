@@ -50,6 +50,10 @@ export class LRUMap<K, V> {
 const GLOBAL_KEY = "__brainstormProfilePageCache__";
 type CacheBucket = {
   expandProfileCache: LRUMap<string, ProfileContent>;
+  // Pubkeys we've already tried to fetch a kind-0 profile for (whether or not
+  // one came back). Lets a row fall back to its npub instead of an endless
+  // skeleton when no profile exists.
+  expandProfileAttempted: LRUMap<string, true>;
   expandTrustCache: LRUMap<string, number | null>;
   reportMetadataCache: LRUMap<string, ReportMetadata[]>;
   muteMetadataCache: LRUMap<string, MuteMetadata>;
@@ -61,12 +65,14 @@ const bucket: CacheBucket =
   g[GLOBAL_KEY] ??
   (g[GLOBAL_KEY] = {
     expandProfileCache: new LRUMap<string, ProfileContent>(5000),
+    expandProfileAttempted: new LRUMap<string, true>(5000),
     expandTrustCache: new LRUMap<string, number | null>(10000),
     reportMetadataCache: new LRUMap<string, ReportMetadata[]>(1000),
     muteMetadataCache: new LRUMap<string, MuteMetadata>(5000),
   });
 
 export const expandProfileCache = bucket.expandProfileCache;
+export const expandProfileAttempted = bucket.expandProfileAttempted;
 export const expandTrustCache = bucket.expandTrustCache;
 export const reportMetadataCache = bucket.reportMetadataCache;
 export const muteMetadataCache = bucket.muteMetadataCache;

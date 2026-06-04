@@ -172,33 +172,6 @@ interface GrapeRankData {
   value?: number;
 }
 
-interface GraphMember {
-  pubkey: string;
-  influence: number;
-}
-
-interface NetworkGraph {
-  followed_by?: Array<string | GraphMember>;
-  following?: Array<string | GraphMember>;
-  muted_by?: Array<string | GraphMember>;
-  muting?: Array<string | GraphMember>;
-  reported_by?: Array<string | GraphMember>;
-  reporting?: Array<string | GraphMember>;
-  low_and_reported_by_2_or_more_trusted_pubkeys?: unknown;
-}
-
-interface SelfApiResponse {
-  data?: {
-    graph?: NetworkGraph;
-    history?: {
-      ta_pubkey?: string;
-      last_time_calculated_graperank?: string;
-      last_time_triggered_graperank?: string;
-      times_calculated_graperank?: number;
-    };
-  };
-}
-
 interface GrapeRankApiResponse {
   data?: GrapeRankData;
 }
@@ -1627,15 +1600,8 @@ export default function AdminPage() {
     }
   }, [navigate]);
 
-  const selfQuery = useQuery<SelfApiResponse>({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-
   const grapeRankQuery = useQuery<GrapeRankApiResponse>({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -1911,8 +1877,6 @@ export default function AdminPage() {
     navigate("/");
   };
 
-  const selfData = selfQuery.data?.data;
-  const network: NetworkGraph | null = selfData?.graph ?? null;
   const grapeRank: GrapeRankData | null = grapeRankQuery.data?.data ?? null;
   const calcDone = grapeRank?.internal_publication_status?.toLowerCase() === "success";
   const taStatus = grapeRank?.ta_status ?? null;
@@ -1920,10 +1884,6 @@ export default function AdminPage() {
   const queuePosition = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
   const lastUpdated = grapeRank?.updated_at ?? null;
   const lastCreated = grapeRank?.created_at ?? null;
-  const historyData = selfData?.history ?? null;
-  const timesCalculated = historyData?.times_calculated_graperank ?? null;
-  const lastCalcTime = historyData?.last_time_calculated_graperank ?? null;
-  const lastTriggerTime = historyData?.last_time_triggered_graperank ?? null;
 
   const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
   const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
@@ -2329,14 +2289,6 @@ export default function AdminPage() {
     }
     setDetailData(data);
   }, []);
-
-  const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
-  const followersCount = getListLength(network?.followed_by);
-  const followingCount = getListLength(network?.following);
-  const mutedByCount = getListLength(network?.muted_by);
-  const mutingCount = getListLength(network?.muting);
-  const reportedByCount = getListLength(network?.reported_by);
-  const reportingCount = getListLength(network?.reporting);
 
   if (!user || isAuthRedirecting()) return null;
 
@@ -3028,7 +2980,8 @@ export default function AdminPage() {
                     {(() => {
                       const baseUrl = env.VITE_API_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
                       return [
-                        { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
+                        // TODO: replace with a meaningful health probe (dedicated endpoint?)
+                        // { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
@@ -3946,7 +3899,8 @@ export default function AdminPage() {
                 </div>
                 <div className="p-5 space-y-3">
                   {[
-                    { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
+                    // TODO: replace with a meaningful health probe (dedicated endpoint?)
+                    // { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
                     { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, loading: grapeRankQuery.isLoading, error: grapeRankQuery.isError, description: "GrapeRank calculation result" },
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
                     { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },
