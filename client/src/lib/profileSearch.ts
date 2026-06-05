@@ -181,13 +181,14 @@ export async function searchByText(
   query: string,
   pov: SearchPov,
   _userPubkey?: string,
+  maxHits?: number,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
   // Map the app-wide POV vocabulary onto the `/search/byText` `ownPubkey` flag:
   // "mywot" runs from the logged-in user's own (authenticated) perspective,
   // anything else runs from NosFabrica's perspective without authentication.
   const ownPubkey = pov === "mywot";
-  const data = await apiClient.searchByText(query, true, ownPubkey);
+  const data = await apiClient.searchByText(query, true, ownPubkey, 15000, maxHits);
   const hits = data?.data?.results ?? [];
   const total = data?.data?.numResults ?? hits.length;
   const results: SearchResult[] = [];

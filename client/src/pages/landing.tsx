@@ -206,7 +206,7 @@ export default function Landing() {
     setShowSuggestions(true);
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
-        const { results: suggestResults } = await searchByText(q, effectivePov, user?.pubkey);
+        const { results: suggestResults } = await searchByText(q, effectivePov, user?.pubkey, 10);
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(suggestResults.slice(0, 7));
         setActiveSuggestion(-1);
@@ -398,7 +398,7 @@ export default function Landing() {
     } catch {}
 
     try {
-      const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey);
+      const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey, 100);
       if (searchAbortRef.current !== searchId) return;
       setResults(searchResults);
       setSearchTime(timeMs || Math.round(performance.now() - start));

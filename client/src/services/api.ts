@@ -443,6 +443,7 @@ export const apiClient = {
     onlyRanked: boolean = true,
     ownPubkey: boolean = false,
     timeoutMs: number = 15000,
+    maxHits?: number,
   ): Promise<{
     code: number;
     message: string | null;
@@ -457,6 +458,9 @@ export const apiClient = {
       onlyRanked: String(onlyRanked),
       ownPubkey: String(ownPubkey),
     });
+    if (typeof maxHits === "number" && Number.isFinite(maxHits)) {
+      params.set("maxHits", String(Math.trunc(maxHits)));
+    }
     const url = `${getBrainstormApi()}/search/byText?${params.toString()}`;
     const response = ownPubkey
       ? await authenticatedFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
