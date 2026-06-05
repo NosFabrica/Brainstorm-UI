@@ -1,0 +1,58 @@
+Fix: hamburger menu "takes ages to open" on iPhone (iOS Safari), fine on Android Chrome
+Context
+Signed-in users on iPhone (e.g. iPhone Air) report the mobile hamburger menu takes seconds to open; Android Chrome is fine. The menu code itself is cheap and has no open animation, so "takes ages" = the first paint that includes the menu is being blocked, not a slow transition.
+
+The mechanism is iOS-Safari-specific compositing cost:
+
+The overlay is a translucent full-screen scrim — bg-black/70 fixed inset-0 (MobileMenu.tsx:117-121). Because it is see-through, Safari cannot occlude the page beneath it and must keep the whole page composited/live underneath.
+Signed-in pages are full of backdrop-filter: blur() elements — many cards/tooltips use backdrop-blur-sm / backdrop-blur-xl (e.g. NetworkPage.tsx:382,485,512,668,687,751,1645, plus the global .glass at index.css:204-211).
+backdrop-filter is very expensive on iOS Safari (each is its own blur pass) and cheap on Android Chrome. Mounting the translucent overlay forces iOS to recomposite the page with every backdrop-blur region re-evaluated → multi-second stall. This cleanly explains "fine on Android, ages on iPhone, on signed-in pages."
+Contributing factors: the menu is not portaled (nested in the page's stacking context), has no GPU-layer isolation, and there is no scroll-lock / no freezing of the page while open (mobileMenuStore.ts, MobileMenuHost.tsx — neither touches document.body).
+
+Goal: opening the menu should be instant on iOS by removing the per-frame blur/compositing cost of the page while the menu is open, and by isolating the menu onto its own layer.
+
+Approach (targeted menu hardening)
+1. Toggle a body.menu-open class while the menu is open
+In MobileMenuHost.tsx add a useEffect([open]) that adds/removes menu-open on document.body (and cleans up on unmount). This is the hook the CSS below keys off.
+
+2. Kill the iOS cost in CSS — the primary fix
+Wrap <Router /> in App with a shell container so page content can be targeted without touching the menu:
+
+App.tsx:102 — <div id="app-shell"><Router /></div> (MobileMenuHost stays a sibling, and the menu will be portaled to body, so both sit outside #app-shell).
+Add to index.css:
+
+body.menu-open { overflow: hidden; }            /* scroll-lock the page */
+body.menu-open #app-shell,
+body.menu-open #app-shell * {
+  backdrop-filter: none !important;             /* remove the expensive iOS blur passes */
+  -webkit-backdrop-filter: none !important;
+  animation-play-state: paused !important;      /* stop continuous repaints under the scrim */
+}
+This removes every backdrop-blur pass behind the scrim while the menu is open — the single highest-leverage change. Visuals are unaffected (those blurs are 70%-obscured by the scrim anyway).
+
+Stronger fallback if blur-disable alone isn't enough: body.menu-open #app-shell { visibility: hidden; } — fully stops painting the page behind the 70%-black scrim. Slightly changes the faint see-through look; only use if step 2 doesn't fully resolve it.
+
+3. Isolate + portal the menu onto its own layer
+In MobileMenu.tsx:
+
+Render the overlay+panel via createPortal(..., document.body) so the menu is not nested inside the page's heavy stacking context.
+Wrap them in a container with data-mobile-menu and give overlay + panel their own compositing layer: transform: translateZ(0) + will-change: transform, and isolation: isolate on the wrapper. Keep existing classes/markup otherwise.
+4. Honor reduced motion (hygiene)
+Guard ComputingBackground's animations (signed-out landing/onboarding) behind prefers-reduced-motion so the same overlay-over-animation cost can't bite there. Low priority since the report is signed-in pages.
+
+Files to modify
+MobileMenuHost.tsx — body-class effect
+MobileMenu.tsx — portal + layer isolation
+App.tsx — #app-shell wrapper around <Router />
+index.css — body.menu-open rules
+(optional) ComputingBackground.tsx — reduced-motion guard
+Verification
+Confirm root cause first (cheap, also a fix): apply step 1+2 only, open the menu on a signed-in page on an iPhone (Safari → Mac → Develop → Web Inspector → Timelines, or just feel). If the multi-second stall disappears, backdrop-filter compositing was the cause.
+Manual iOS test on a signed-in page rich in cards (Network, Dashboard, Search): tap hamburger → menu must appear within ~1 frame. Test open/close repeatedly.
+Regression check on Android Chrome + desktop: menu still opens/closes, scroll-lock releases on close, backdrop-blur visuals return after close.
+Verify the portal didn't break the overlay click-to-close, sign-in/out, and nav.
+Confirm no scroll position jump on open/close (scroll-lock via overflow:hidden keeps position; if a jump appears, revisit with a position-preserving lock).
+Unresolved questions
+OK to disable page backdrop-filter while menu open (step 2), or must the faint see-through blur be preserved? (Affects whether we can use the stronger visibility:hidden.)
+Confirm on a real iPhone that step 2 alone fixes it before adding step 3 — or apply all together?
+Reduced-motion guard for ComputingBackground in scope now, or defer?
