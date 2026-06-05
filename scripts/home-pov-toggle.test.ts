@@ -227,7 +227,7 @@ check(
 );
 check(
   "searches are issued with the effective perspective",
-  has("searchByText(q, effectivePov, user?.pubkey)"),
+  has("searchByText(q, effectivePov, user?.pubkey, 100)"),
 );
 
 // ---------------------------------------------------------------------------
