@@ -21,6 +21,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
@@ -116,7 +117,10 @@ export default function Landing() {
   const didInitFromUrlRef = useRef(false);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
-  const [user, setUser] = useState<NostrUser | null>(() => getCurrentUser());
+  // Live current-user state: re-reads when the profile metadata (avatar/name)
+  // arrives shortly after login, so the header avatar appears on first load
+  // without needing a refresh. See useCurrentUser.
+  const [user, setUser] = useCurrentUser();
   const [pov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
 
