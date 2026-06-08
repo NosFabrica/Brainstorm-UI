@@ -267,16 +267,17 @@ export default function WhatIsWotPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for real people and trusted voices"
                   aria-label="Search Brainstorm"
-                  className="w-full rounded-full border border-slate-200 bg-white py-4 pl-12 pr-[7.5rem] text-[15px] text-slate-900 placeholder:text-slate-400 shadow-[0_10px_34px_-12px_rgba(51,50,134,0.25)] focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 transition"
+                  className="w-full rounded-full border border-slate-200 bg-white py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 placeholder:text-slate-400 shadow-[0_10px_34px_-12px_rgba(51,50,134,0.25)] focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 transition"
                   data-testid="input-wot-search"
                 />
                 <button
                   type="submit"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
+                  aria-label="Search"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
                   data-testid="button-wot-search-submit"
                 >
                   <Search className="h-4 w-4" />
-                  Search
+                  <span className="hidden sm:inline">Search</span>
                 </button>
               </div>
             </form>
@@ -289,7 +290,7 @@ export default function WhatIsWotPage() {
                   key={q}
                   type="button"
                   onClick={() => runSearch(q)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[13px] text-slate-600 hover:border-[#7c86ff]/40 hover:text-indigo-600 transition-colors"
+                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 hover:border-[#7c86ff]/40 hover:text-indigo-600 transition-colors"
                   data-testid={`chip-${q.toLowerCase()}`}
                 >
                   {q}
@@ -309,7 +310,7 @@ export default function WhatIsWotPage() {
 
           {/* Wide cinematic photo band */}
           <div
-            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.30)] aspect-[2/1] bg-slate-900"
+            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.30)] aspect-[3/2] sm:aspect-[2/1] bg-slate-900"
             data-testid="wot-hero-media"
           >
             <motion.img
