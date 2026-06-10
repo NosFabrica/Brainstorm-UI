@@ -26,6 +26,7 @@ import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
+import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -123,14 +124,19 @@ export default function Landing() {
   const [user, setUser] = useCurrentUser();
   const [pov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
+  // Permission to search from one's own perspective, per GET /user/isSearchObserver.
+  const { isSearchObserver } = useIsSearchObserver();
+  const canUseMywot = hasMywot && isSearchObserver;
 
   // Logged-in users stay on this search-first home and search from their active
-  // trust perspective; "My WoT" gracefully falls back to the house view when no
-  // personalized graph exists yet (and anonymous visitors always use house).
+  // trust perspective; "My WoT" gracefully falls back to the house view unless
+  // the user both has a personalized graph (hasMywot) and is permitted to be
+  // their own search observer (isSearchObserver). Anonymous visitors always use
+  // the house view.
   const effectivePov = useMemo(() => {
     if (!user) return ANON_POV;
-    return pov === "mywot" && !hasMywot ? ANON_POV : pov;
-  }, [user, pov, hasMywot]);
+    return pov === "mywot" && !canUseMywot ? ANON_POV : pov;
+  }, [user, pov, canUseMywot]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -795,17 +801,23 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (hasMywot) setPov("mywot");
+                    if (canUseMywot) setPov("mywot");
                   }}
-                  disabled={!hasMywot}
+                  disabled={!canUseMywot}
                   aria-pressed={effectivePov === "mywot"}
-                  title={hasMywot ? undefined : "Calculate your trust network in Settings to enable"}
+                  title={
+                    !hasMywot
+                      ? "Calculate your trust network in Settings to enable"
+                      : !isSearchObserver
+                        ? "Personalized search isn't available for your account yet"
+                        : undefined
+                  }
                   className={
                     "rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40 " +
                     (effectivePov === "mywot"
                       ? "font-semibold text-emerald-700"
                       : "font-medium text-slate-500 hover:text-slate-700") +
-                    (!hasMywot ? " opacity-50 cursor-not-allowed" : "")
+                    (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
