@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { env } from "@/lib/runtimeEnv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,7 +8,6 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -170,33 +170,6 @@ interface GrapeRankData {
   result?: number;
   confidence?: number;
   value?: number;
-}
-
-interface GraphMember {
-  pubkey: string;
-  influence: number;
-}
-
-interface NetworkGraph {
-  followed_by?: Array<string | GraphMember>;
-  following?: Array<string | GraphMember>;
-  muted_by?: Array<string | GraphMember>;
-  muting?: Array<string | GraphMember>;
-  reported_by?: Array<string | GraphMember>;
-  reporting?: Array<string | GraphMember>;
-  low_and_reported_by_2_or_more_trusted_pubkeys?: unknown;
-}
-
-interface SelfApiResponse {
-  data?: {
-    graph?: NetworkGraph;
-    history?: {
-      ta_pubkey?: string;
-      last_time_calculated_graperank?: string;
-      last_time_triggered_graperank?: string;
-      times_calculated_graperank?: number;
-    };
-  };
 }
 
 interface GrapeRankApiResponse {
@@ -1627,15 +1600,8 @@ export default function AdminPage() {
     }
   }, [navigate]);
 
-  const selfQuery = useQuery<SelfApiResponse>({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-
   const grapeRankQuery = useQuery<GrapeRankApiResponse>({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -1911,8 +1877,6 @@ export default function AdminPage() {
     navigate("/");
   };
 
-  const selfData = selfQuery.data?.data;
-  const network: NetworkGraph | null = selfData?.graph ?? null;
   const grapeRank: GrapeRankData | null = grapeRankQuery.data?.data ?? null;
   const calcDone = grapeRank?.internal_publication_status?.toLowerCase() === "success";
   const taStatus = grapeRank?.ta_status ?? null;
@@ -1920,10 +1884,6 @@ export default function AdminPage() {
   const queuePosition = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
   const lastUpdated = grapeRank?.updated_at ?? null;
   const lastCreated = grapeRank?.created_at ?? null;
-  const historyData = selfData?.history ?? null;
-  const timesCalculated = historyData?.times_calculated_graperank ?? null;
-  const lastCalcTime = historyData?.last_time_calculated_graperank ?? null;
-  const lastTriggerTime = historyData?.last_time_triggered_graperank ?? null;
 
   const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
   const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
@@ -2330,14 +2290,6 @@ export default function AdminPage() {
     setDetailData(data);
   }, []);
 
-  const getListLength = (list: unknown): number => Array.isArray(list) ? list.length : 0;
-  const followersCount = getListLength(network?.followed_by);
-  const followingCount = getListLength(network?.following);
-  const mutedByCount = getListLength(network?.muted_by);
-  const mutingCount = getListLength(network?.muting);
-  const reportedByCount = getListLength(network?.reported_by);
-  const reportingCount = getListLength(network?.reporting);
-
   if (!user || isAuthRedirecting()) return null;
 
   const tabs: { key: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -2354,124 +2306,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-admin">
       <PageBackground />
 
-      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-admin">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4 sm:gap-6 min-w-0">
-              <div className="lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={openMobileMenu}
-                  className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                  data-testid="button-open-mobile-menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
-
-              <button
-                type="button"
-                className="flex items-center gap-3 min-w-0 lg:hidden"
-                onClick={() => navigate("/dashboard")}
-                data-testid="button-admin-mobile-brand"
-              >
-                <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center shrink-0">
-                  <BrainLogo size={20} className="text-indigo-200" />
-                </div>
-                <div className="leading-tight text-left min-w-0">
-                  <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-indigo-300/80">Brainstorm</p>
-                  <p className="text-sm font-bold text-white" style={{ fontFamily: "var(--font-display)" }}>Admin</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                className="hidden lg:flex items-center gap-2"
-                onClick={() => navigate("/dashboard")}
-                data-testid="button-desktop-brand"
-              >
-                <BrainLogo size={28} className="text-indigo-500" />
-                <span className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
-              </button>
-
-              <div className="hidden lg:flex gap-1" data-testid="nav-admin-tabs">
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
-                  <Home className="h-4 w-4" />
-                  Dashboard
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                  <Search className="h-4 w-4" />
-                  Search
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/network")} data-testid="button-nav-network">
-                  <Users className="h-4 w-4" />
-                  Network
-                </Button>
-                {FEATURES.agentSuite && (
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                    <AgentIcon className="h-4 w-4" />
-                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30">
-                <Shield className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">Admin</span>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-admin-profile-menu">
-                    <div className="relative shrink-0">
-                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md" data-testid="img-admin-avatar">
-                        {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
-                      </Avatar>
-                      <PovBadge user={user} />
-                    </div>
-                    <div className="hidden md:flex flex-col items-start mr-2">
-                      <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                      <span className="text-[10px] text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                    </div>
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anon"}</p>
-                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
-                        <span>{user.npub.slice(0, 16)}...</span>
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    <span>FAQ</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>Admin Dashboard</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-signout">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sign out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <div className="space-y-6 animate-fade-up">
@@ -3145,7 +2980,8 @@ export default function AdminPage() {
                     {(() => {
                       const baseUrl = env.VITE_API_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
                       return [
-                        { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
+                        // TODO: replace with a meaningful health probe (dedicated endpoint?)
+                        // { endpoint: "/user/self", label: "User Self", status: selfQuery.isSuccess ? "connected" as const : selfQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/user/graperankResult", label: "GrapeRank Result", status: grapeRankQuery.isSuccess ? "connected" as const : grapeRankQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
@@ -4063,7 +3899,8 @@ export default function AdminPage() {
                 </div>
                 <div className="p-5 space-y-3">
                   {[
-                    { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
+                    // TODO: replace with a meaningful health probe (dedicated endpoint?)
+                    // { name: "/user/self", ok: selfQuery.isSuccess, loading: selfQuery.isLoading, error: selfQuery.isError, description: "User profile & social graph" },
                     { name: "/user/graperankResult", ok: grapeRankQuery.isSuccess, loading: grapeRankQuery.isLoading, error: grapeRankQuery.isError, description: "GrapeRank calculation result" },
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
                     { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },

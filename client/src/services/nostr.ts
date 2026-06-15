@@ -209,7 +209,8 @@ export function getCurrentUser(): NostrUser | null {
 }
 
 function setCurrentUser(user: NostrUser | null) {
-  const prevPubkey = currentUser?.pubkey ?? null;
+  const prev = currentUser;
+  const prevPubkey = prev?.pubkey ?? null;
   currentUser = user;
   if (user) {
     localStorage.setItem("nostr_user", JSON.stringify(user));
@@ -217,7 +218,16 @@ function setCurrentUser(user: NostrUser | null) {
     localStorage.removeItem("nostr_user");
   }
   const nextPubkey = user?.pubkey ?? null;
-  if (prevPubkey !== nextPubkey) {
+  const pubkeyChanged = prevPubkey !== nextPubkey;
+  // Also notify listeners when the same user's profile metadata fills in
+  // (e.g. the avatar/name fetched right after login), so the header and
+  // mobile menu re-render instead of waiting for the next page render.
+  const profileChanged =
+    !!user &&
+    !!prev &&
+    prev.pubkey === user.pubkey &&
+    (prev.picture !== user.picture || prev.displayName !== user.displayName);
+  if (pubkeyChanged || profileChanged) {
     try {
       window.dispatchEvent(new CustomEvent("brainstorm-user-changed", {
         detail: { previous: prevPubkey, current: nextPubkey },
@@ -589,7 +599,92 @@ export async function fetchProfileEvent(
   return undefined;
 }
 
-export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+// Resolve with the first promise that yields a truthy value. Unlike
+// Promise.race (first to *settle*) this skips sources that resolve to
+// undefined/null, only falling back to undefined once every source is done.
+function firstTruthy<T>(promises: Array<Promise<T | undefined>>): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    let remaining = promises.length;
+    if (remaining === 0) {
+      resolve(undefined);
+      return;
+    }
+    let settled = false;
+    for (const p of promises) {
+      p.then((value) => {
+        if (!settled && value) {
+          settled = true;
+          resolve(value);
+        }
+      })
+        .catch(() => {})
+        .finally(() => {
+          remaining -= 1;
+          if (remaining === 0 && !settled) resolve(undefined);
+        });
+    }
+  });
+}
+
+// Recursively scan an arbitrary JSON payload for a kind 0 profile event and
+// return its parsed content. Handles the differing envelopes used by the HTTP
+// sources: nostrhttp.com returns a bare array of events, while api.nostr.band
+// wraps the event under `profiles[].event`.
+function extractKind0Content(node: unknown, depth = 0): ProfileContent | undefined {
+  if (!node || typeof node !== "object" || depth > 6) return undefined;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = extractKind0Content(item, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const obj = node as Record<string, unknown>;
+  if (obj.kind === 0 && typeof obj.content === "string") {
+    try {
+      const parsed = JSON.parse(obj.content) as ProfileContent;
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {}
+  }
+  for (const key of Object.keys(obj)) {
+    const found = extractKind0Content(obj[key], depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+async function fetchProfileFromUrl(url: string, timeoutMs: number): Promise<ProfileContent | undefined> {
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return undefined;
+    const json = await res.json();
+    return extractKind0Content(json);
+  } catch {
+    return undefined;
+  }
+}
+
+// HTTP fast-path for kind 0 profile metadata. Queries CORS-enabled HTTP
+// gateways in parallel so a slow/unavailable relay set never bottlenecks the
+// avatar. Returns the first source that yields a valid profile.
+export async function fetchProfileHttp(pubkey: string, timeoutMs = 6000): Promise<ProfileContent | undefined> {
+  let npub: string;
+  try {
+    npub = nip19.npubEncode(pubkey);
+  } catch {
+    return undefined;
+  }
+  const urls = [
+    `https://nostrhttp.com/${npub}`,
+    `https://api.nostr.band/v0/stats/profile/${npub}`,
+  ];
+  return firstTruthy(urls.map((u) => fetchProfileFromUrl(u, timeoutMs)));
+}
+
+async function fetchProfileFromRelays(pubkey: string, timeoutMs: number): Promise<ProfileContent | undefined> {
   const event = await fetchProfileEvent(pubkey, timeoutMs);
   if (!event) return undefined;
   if (isValidProfile(event as any)) {
@@ -601,6 +696,17 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
     } catch {}
   }
   return undefined;
+}
+
+export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
+  // Race the HTTP fast-path against the relay query and take whichever returns
+  // a valid kind 0 profile first. The HTTP gateways are usually faster and
+  // avoid worst-case relay hangs; the relay query stays as the resilient
+  // fallback (and still warms the relay pool / event store).
+  return firstTruthy([
+    fetchProfileHttp(pubkey, Math.min(timeoutMs, 6000)),
+    fetchProfileFromRelays(pubkey, timeoutMs),
+  ]);
 }
 
 export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> {
@@ -648,6 +754,19 @@ async function completeLogin(pubkey: string, signedEvent: Record<string, unknown
 
   const user: NostrUser = { pubkey, npub, isAdmin };
   setCurrentUser(user);
+
+  // Start fetching the user's profile metadata (kind 0) immediately at login
+  // instead of deferring it to the dashboard. This removes the dashboard-mount
+  // delay from the time-to-avatar. Fire-and-forget so login is never blocked on
+  // relay latency; when it resolves, updateCurrentUser dispatches a
+  // user-changed event that the header/menu listen to, so the avatar appears
+  // as soon as the metadata arrives.
+  void fetchProfile(pubkey)
+    .then((content) => {
+      if (content) updateCurrentUser(applyProfileToUser(content));
+    })
+    .catch(() => {});
+
   return user;
 }
 
@@ -656,7 +775,7 @@ export async function handleLogin(): Promise<NostrUser> {
   if (!extensionFound) {
     throw new LoginError(
       "NO_EXTENSION",
-      "No Nostr extension detected. You can sign in with your nsec instead, or install a NIP-07 extension."
+      "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension."
     );
   }
 
@@ -669,19 +788,19 @@ export async function handleLogin(): Promise<NostrUser> {
     if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
       throw new LoginError(
         "PERMISSION_DENIED",
-        "Your extension denied the request. Unlock it and approve access, or sign in with your nsec."
+        "Your extension denied the request. Unlock it and approve access, or use your key."
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your Nostr extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or sign in with your nsec.`
+      `Your sign-in extension didn't respond${msg ? `: ${msg}` : ""}. Unlock it and try again, or use your key.`
     );
   }
 
   if (!pubkey || typeof pubkey !== "string") {
     throw new LoginError(
       "EXTENSION_FAILED",
-      "Your extension returned an invalid public key. Unlock it and try again, or sign in with your nsec."
+      "Your extension returned an invalid public key. Unlock it and try again, or use your key."
     );
   }
 
@@ -712,19 +831,19 @@ export async function handleLogin(): Promise<NostrUser> {
     if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
       throw new LoginError(
         "SIGN_CANCELLED",
-        "Signing was cancelled. Approve the request in your extension, or sign in with your nsec."
+        "Signing was cancelled. Approve the request in your extension, or use your key."
       );
     }
     throw new LoginError(
       "EXTENSION_FAILED",
-      `Your extension couldn't sign the login event${msg ? `: ${msg}` : ""}. Try again, or sign in with your nsec.`
+      `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
     );
   }
 
   if (!signedEvent || !signedEvent.sig) {
     throw new LoginError(
       "EXTENSION_FAILED",
-      "Your extension returned an unsigned event. Try again, or sign in with your nsec."
+      "Your extension couldn't complete sign-in. Try again, or use your key."
     );
   }
 
@@ -735,7 +854,7 @@ export async function handleLogin(): Promise<NostrUser> {
 export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   const trimmed = nsec.trim();
   if (!trimmed) {
-    throw new LoginError("INVALID_NSEC", "Please paste your nsec (starts with “nsec1…”).");
+    throw new LoginError("INVALID_NSEC", "Please paste your key to continue.");
   }
 
   let sk: Uint8Array;
@@ -748,7 +867,7 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   } catch {
     throw new LoginError(
       "INVALID_NSEC",
-      "That doesn't look like a valid nsec. It should start with “nsec1” and be 63 characters long."
+      "That doesn't look like a valid key. Double-check it and try again."
     );
   }
 
@@ -756,7 +875,7 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
   try {
     pubkey = getPublicKey(sk);
   } catch {
-    throw new LoginError("INVALID_NSEC", "Couldn't derive a public key from that nsec.");
+    throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
 
   let challenge: string;

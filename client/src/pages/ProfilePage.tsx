@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { AppHeader } from "@/components/AppHeader";
+import { getVerifiedThreshold, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation, useRoute } from "wouter";
@@ -66,11 +67,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting } from "@/services/api";
+import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
+import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
 import {
   expandProfileCache,
+  expandProfileAttempted,
   expandTrustCache,
   reportMetadataCache,
   muteMetadataCache,
@@ -78,7 +81,7 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
+import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { useToast } from "@/hooks/use-toast";
@@ -478,9 +481,9 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
 };
 
 function getTierKey(score: number): string {
-  if (score >= 0.50) return "high";
-  if (score >= 0.20) return "trusted";
-  if (score >= 0.07) return "neutral";
+  if (score >= TIER_THRESHOLDS.high) return "high";
+  if (score >= TIER_THRESHOLDS.medium_high) return "trusted";
+  if (score >= TIER_THRESHOLDS.medium) return "neutral";
   if (score >= getVerifiedThreshold()) return "low";
   return "unverified";
 }
@@ -514,16 +517,9 @@ function computeProcessedPubkeys(
   sectionInfluenceMaps: Record<string, Map<string, number | null>>,
   getReportForPubkey: (sectionKey: string, pubkey: string) => ReportMetadata | undefined,
 ): string[] {
-  const verifiedThreshold = getVerifiedThreshold();
+  // tier / verified filtering is applied server-side via /connections query
+  // params, so the items reaching us already match `filter`.
   let filtered = pubkeys;
-  if (filter !== "all") {
-    filtered = filtered.filter(pk => {
-      const score = getTrustForPkFromMaps(pk, sectionInfluenceMaps);
-      if (score < 0) return filter === "unverified";
-      if (filter === "verified") return score >= verifiedThreshold;
-      return getTierKey(score) === filter;
-    });
-  }
   if (reportTypeFilter !== "all" && (key === "reported_by" || key === "reporting")) {
     filtered = filtered.filter(pk => {
       const report = getReportForPubkey(key, pk);
@@ -577,6 +573,7 @@ interface ExpandedPanelProps {
   search: string;
   reportTypeFilter: ReportTypeFilter;
   visibleCount: number;
+  sectionTotal?: number; // Server-truth total for this section/filter, if known.
   filterDropdownOpen: boolean;
   reportTypeDropdownOpen: boolean;
   reportMetaLoading: boolean;
@@ -600,6 +597,7 @@ interface ExpandedPanelProps {
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   const {
     sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
+    sectionTotal,
     filterDropdownOpen, reportTypeDropdownOpen, reportMetaLoading,
     sectionInfluenceMaps, groupsByPubkey, getReportForPubkey, formatRelativeTime,
     navigateToProfile, onSetSort, onSetFilter, onSetSearch, onSetReportTypeFilter,
@@ -765,7 +763,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
           const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
 
-          if (profile === undefined) {
+          if (profile === undefined && !expandProfileAttempted.has(pk)) {
             return (
               <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
                 <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
@@ -884,7 +882,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
-              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining)</span>
+              Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
             </button>
           </div>
         )}
@@ -914,8 +912,6 @@ export default function ProfilePage() {
 
   const [copied, setCopied] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
-
-  const [selfData, setSelfData] = useState<any>(null);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [sectionVisibleCount, setSectionVisibleCount] = useState<Record<string, number>>({});
@@ -961,7 +957,7 @@ export default function ProfilePage() {
   const social = useSocialActions(user?.pubkey);
 
   const { data: grapeRankData } = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
@@ -986,12 +982,10 @@ export default function ProfilePage() {
   }, [calcDoneNow]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
+    // Anonymous-friendly: full profiles are public (NosFabrica "house" POV).
+    // Capture the user when present so personalized sections + the account menu
+    // render, but never redirect anon visitors away.
+    setUser(getCurrentUser());
   }, [navigate]);
 
   useEffect(() => {
@@ -1006,13 +1000,17 @@ export default function ProfilePage() {
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
-  useEffect(() => {
-    if (user) {
-      apiClient.getSelf().then(res => {
-        if (res?.data) setSelfData(res.data);
-      }).catch(() => {});
-    }
-  }, [user]);
+  // Self's own follower/following lists drive the mutual-followers/following
+  // banner. `useSelfConnections` calls `/user/{pk}/connections` via
+  // `optionalAuthFetch`, which on an existing-but-stale session triggers
+  // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
+  // session token — anon and stale-token visitors see the public overview
+  // without their browsing being hijacked.
+  const selfMutualsPubkey = hasSessionToken() ? user?.pubkey : undefined;
+  const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
+  const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
+  const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
+  const selfFollowingList = useMemo(() => flattenConnections(selfFollowingConn.data?.pages), [selfFollowingConn.data?.pages]);
 
   const seed = useMemo<ProfileSeed | null>(() => {
     if (!hexPubkey) return null;
@@ -1041,9 +1039,12 @@ export default function ProfilePage() {
   }, [hexPubkey]);
 
   // Overview drives the header (influence + counts). Lists load lazily on expand.
+  // `flagged_by_observer` reflects "is this user flagged from the JWT user's
+  // perspective" — used by isProfileFlagged below.
   const profileOverviewQuery = useQuery<{
     pubkey: string;
     influence: number | null;
+    flagged_by_observer: boolean;
     counts: {
       followed_by: number;
       following: number;
@@ -1053,12 +1054,14 @@ export default function ProfilePage() {
       reporting: number;
     };
   } | null>({
-    queryKey: ["profile-overview", hexPubkey],
+    queryKey: ["profile-overview", hexPubkey, trustPreset],
     queryFn: async () => {
-      const res = await apiClient.getUserOverview(hexPubkey);
+      const res = await apiClient.getUserOverview(hexPubkey, {
+        verified_threshold: getVerifiedThreshold(),
+      });
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1071,10 +1074,11 @@ export default function ProfilePage() {
     verified: number;
     tier_counts: {
       high: number;
-      trusted: number;
-      neutral: number;
+      medium_high: number;
+      medium: number;
+      medium_low: number;
       low: number;
-      unverified: number;
+      low_and_reported_by_2_or_more_trusted_pubkeys: number;
     };
   };
   const profileStatsQuery = useQuery<{
@@ -1089,13 +1093,13 @@ export default function ProfilePage() {
     queryFn: async () => {
       const res = await apiClient.getUserStats(hexPubkey, {
         verified_threshold: getVerifiedThreshold(),
-        tier_high: 0.5,
-        tier_trusted: 0.2,
-        tier_neutral: 0.07,
+        tier_high: TIER_THRESHOLDS.high,
+        tier_medium_high: TIER_THRESHOLDS.medium_high,
+        tier_medium: TIER_THRESHOLDS.medium,
       });
       return res?.data ?? null;
     },
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1104,6 +1108,49 @@ export default function ProfilePage() {
   //  - followed_by + following: eager (drive mutual/shared computations).
   //  - the other four: lazy, only fire when their section is expanded.
   const SECTION_LIMIT = 200;
+  // Map per-section SortMode → backend `order`. Name sorts stay client-side
+  // (no backend name index), and fall back to DESC for fetch purposes.
+  const orderFor = (kind: string): "asc" | "desc" =>
+    sectionSort[kind] === "trust-asc" ? "asc" : "desc";
+
+  // Map per-section FilterMode → backend `tier` + `min_influence`.
+  // "verified" is the union of high/trusted/neutral/low so it lives on
+  // min_influence; specific tiers go through `tier`.
+  // Map UI FilterMode keys → backend GR-style tier names.
+  const UI_TO_GR_TIER: Record<string, "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"> = {
+    high: "high",
+    trusted: "medium_high",
+    neutral: "medium",
+    low: "medium_low",
+    unverified: "low",
+  };
+  // Inverse map: collapse backend GR-style tier_counts onto the FE display
+  // keys used by TIER_DISPLAY_CONFIG (high/trusted/neutral/low/unverified)
+  // so existing breakdown UI keeps working unchanged.
+  const grTierCountsToUI = (tc: any): Record<string, number> => ({
+    high: tc?.high ?? 0,
+    trusted: tc?.medium_high ?? 0,
+    neutral: tc?.medium ?? 0,
+    low: tc?.medium_low ?? 0,
+    // ProfilePage's breakdown has no dedicated flagged slice, so fold flagged
+    // (low_and_reported_by_2_or_more_trusted_pubkeys) into unverified — same as
+    // the legacy bundled `tier_counts.unverified`, which counted all sub-vt
+    // users. Keeps the slices summing to `total`.
+    unverified:
+      (tc?.low ?? 0) + (tc?.low_and_reported_by_2_or_more_trusted_pubkeys ?? 0),
+  });
+  const filterFor = (
+    kind: string,
+  ): {
+    tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
+    min_influence?: number;
+  } => {
+    const f = sectionFilter[kind] || "all";
+    if (f === "all") return {};
+    if (f === "verified") return { min_influence: getVerifiedThreshold() };
+    return { tier: UI_TO_GR_TIER[f] };
+  };
+
   const useConnectionsQuery = (
     kind:
       | "followed_by"
@@ -1113,19 +1160,25 @@ export default function ProfilePage() {
       | "reported_by"
       | "reporting",
     eager: boolean = false,
-  ) =>
-    useInfiniteQuery<
+  ) => {
+    const order = orderFor(kind);
+    const { tier, min_influence } = filterFor(kind);
+    return useInfiniteQuery<
       { items: GraphEntry[]; next_cursor: string | null },
       Error,
       { pages: { items: GraphEntry[]; next_cursor: string | null }[]; pageParams: (string | undefined)[] },
       readonly unknown[],
       string | undefined
     >({
-      queryKey: ["profile-conn", hexPubkey, kind, trustPreset],
+      queryKey: ["profile-conn", hexPubkey, kind, trustPreset, order, tier ?? null, min_influence ?? null],
       queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
         const res = await apiClient.getUserConnections(hexPubkey, kind, {
           limit: SECTION_LIMIT,
           cursor: pageParam || undefined,
+          order,
+          tier,
+          min_influence,
+          verified_threshold: getVerifiedThreshold(),
         });
         return {
           items: (res?.data?.items ?? []) as GraphEntry[],
@@ -1136,10 +1189,11 @@ export default function ProfilePage() {
       getNextPageParam: (lastPage: { next_cursor: string | null }) =>
         lastPage?.next_cursor ?? undefined,
       enabled:
-        !!user && !!hexPubkey && (eager || !!expandedSections[kind]),
+        !!hexPubkey && (eager || !!expandedSections[kind]),
       staleTime: 5 * 60_000,
       retry: false,
     });
+  };
 
   const followedByQuery = useConnectionsQuery("followed_by", true);
   const followingQuery = useConnectionsQuery("following", true);
@@ -1232,7 +1286,7 @@ export default function ProfilePage() {
   const nostrProfileQuery = useQuery<ProfileContent | null>({
     queryKey: ["nostr-profile", hexPubkey],
     queryFn: async () => (await fetchProfile(hexPubkey)) ?? null,
-    enabled: !!user && !!hexPubkey,
+    enabled: !!hexPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -1332,6 +1386,10 @@ export default function ProfilePage() {
       })] : []),
     ]);
     if (fetchAbortRef.current !== fetchId) return;
+    // Every pubkey in this batch has now had a fetch attempt (eventStore hit or
+    // a settled relay request). Mark them so rows with no resolvable kind-0
+    // profile fall back to the npub instead of a skeleton forever.
+    toFetch.forEach(pk => expandProfileAttempted.set(pk, true));
     bumpRerender();
     const nextStart = startIdx + count;
     if (nextStart < pubkeys.length) {
@@ -1435,33 +1493,23 @@ export default function ProfilePage() {
   }, [profileResult]);
 
   const sharedFollowerPubkeys = useMemo(() => {
-    if (!selfData || !profileResult) return [];
-    const selfGraph = selfData?.graph || selfData;
-    const selfFollowedBy = toPubkeys(selfGraph?.followed_by);
-    const selfFollowedBySet = new Set(selfFollowedBy);
+    if (!profileResult || selfFollowedByList.length === 0) return [];
+    const selfFollowedBySet = new Set(selfFollowedByList.map((e) => e.pubkey));
     const searchedFollowedBy = toPubkeys(getSection(profileResult, "followed_by"));
     return searchedFollowedBy.filter((pk: string) => selfFollowedBySet.has(pk));
-  }, [selfData, profileResult]);
+  }, [selfFollowedByList, profileResult]);
 
   const sharedFollowingPubkeys = useMemo(() => {
-    if (!selfData || !profileResult) return [];
-    const selfGraph = selfData?.graph || selfData;
-    const selfFollowing = toPubkeys(selfGraph?.following);
-    const selfFollowingSet = new Set(selfFollowing);
+    if (!profileResult || selfFollowingList.length === 0) return [];
+    const selfFollowingSet = new Set(selfFollowingList.map((e) => e.pubkey));
     const searchedFollowing = toPubkeys(getSection(profileResult, "following"));
     return searchedFollowing.filter((pk: string) => selfFollowingSet.has(pk));
-  }, [selfData, profileResult]);
+  }, [selfFollowingList, profileResult]);
 
-  const selfFlaggedSet = useMemo(() => {
-    if (!selfData) return new Set<string>();
-    const selfGraph = selfData?.graph || selfData;
-    return new Set(toPubkeys(selfGraph?.low_and_reported_by_2_or_more_trusted_pubkeys));
-  }, [selfData]);
-
-  const isProfileFlagged = useMemo(() => {
-    if (!hexPubkey) return false;
-    return selfFlaggedSet.has(hexPubkey);
-  }, [selfFlaggedSet, hexPubkey]);
+  // `flagged_by_observer` is computed server-side on /user/{viewedPubkey}/overview
+  // using the JWT user's perspective (influence < verified_threshold AND
+  // trusted_reporters >= 2). See UserOverviewData.
+  const isProfileFlagged = profileOverviewQuery.data?.flagged_by_observer ?? false;
 
   useEffect(() => {
     if (!profileResult) return;
@@ -1542,10 +1590,10 @@ export default function ProfilePage() {
     return map;
   }, [profileResult, sectionInfluenceMaps, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
-  const TIER_THRESHOLDS = [
-    { key: "high", name: "Highly Trusted", min: 0.50, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
-    { key: "trusted", name: "Trusted", min: 0.20, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
-    { key: "neutral", name: "Neutral", min: 0.07, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
+  const TIER_DISPLAY_CONFIG = [
+    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
+    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
+    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#a1a1aa", bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", ring: "stroke-zinc-400" },
   ];
@@ -1553,7 +1601,7 @@ export default function ProfilePage() {
   const profileTier = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    return TIER_THRESHOLDS.find(t => score >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1];
+    return TIER_DISPLAY_CONFIG.find(t => score >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1];
   }, [profileResult, trustPreset]);
 
   const confidenceGuidance = useMemo(() => {
@@ -1603,7 +1651,7 @@ export default function ProfilePage() {
     let counts: Record<string, number>;
     let total: number;
     if (serverStats) {
-      counts = { ...serverStats.tier_counts };
+      counts = grTierCountsToUI(serverStats.tier_counts);
       total = serverStats.total;
     } else {
       if (!Array.isArray(profileResult.followed_by)) return null;
@@ -1645,7 +1693,7 @@ export default function ProfilePage() {
     let counts: Record<string, number> | null = null;
     const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
     if (serverStats) {
-      counts = { ...serverStats.tier_counts };
+      counts = grTierCountsToUI(serverStats.tier_counts);
     } else {
       const section = getSection(profileResult, sectionKey);
       if (!section || !Array.isArray(section)) return null;
@@ -1821,6 +1869,7 @@ export default function ProfilePage() {
         search={sectionSearch[key] || ""}
         reportTypeFilter={reportTypeFilterState[key] || "all"}
         visibleCount={sectionVisibleCount[key] || 10}
+        sectionTotal={sectionStats[key]?.total}
         filterDropdownOpen={filterDropdownOpen[key] || false}
         reportTypeDropdownOpen={reportTypeDropdownOpen[key] || false}
         reportMetaLoading={!!reportMetadataLoading[key]}
@@ -1867,14 +1916,15 @@ export default function ProfilePage() {
       if (!hexPubkey || !displayNpub) return null;
       return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
     },
-    enabled: !!user && !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  if (!user || isAuthRedirecting()) return null;
+  if (isAuthRedirecting()) return null;
 
-  const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
+  const isAnon = !user;
+  const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
@@ -1892,7 +1942,7 @@ export default function ProfilePage() {
     const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
     const nfPct = Math.round(nfScore * 100);
     const nfTier = hasNf
-      ? TIER_THRESHOLDS.find(t => nfScore >= t.min) || TIER_THRESHOLDS[TIER_THRESHOLDS.length - 1]
+      ? TIER_DISPLAY_CONFIG.find(t => nfScore >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1]
       : null;
     const circumference = 2 * Math.PI * 18;
     const yourOffset = circumference - (yourScore * circumference);
@@ -1950,19 +2000,21 @@ export default function ProfilePage() {
           <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
         </div>
         <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        <div
-          className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-          data-testid={`chip-nosfabrica-compare${idSuffix}`}
-          title={nfTier ? `NosFabrica perspective: ${nfPct} · ${nfTier.name}` : `NosFabrica perspective: ${nfPct}`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
-          <span className="text-indigo-500/80">NosFabrica</span>
-          <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-          <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
-            <TrendIcon className="h-3 w-3" />
-            {diffPrefix}{diffAbs}
-          </span>
-        </div>
+        {!isAnon && (
+          <div
+            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
+            data-testid={`chip-nosfabrica-compare${idSuffix}`}
+            title={nfTier ? `Brainstorm perspective: ${nfPct} · ${nfTier.name}` : `Brainstorm perspective: ${nfPct}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
+            <span className="text-indigo-500/80">Brainstorm</span>
+            <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
+            <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
+              <TrendIcon className="h-3 w-3" />
+              {diffPrefix}{diffAbs}
+            </span>
+          </div>
+        )}
       </div>
     );
   };
@@ -1979,147 +2031,26 @@ export default function ProfilePage() {
         <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]" style={{ animation: "profileBlobB 32s ease-in-out infinite 2s" }} />
       </div>
 
-      <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-profile">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 sm:gap-6">
-              <div className="lg:hidden">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={openMobileMenu}
-                  className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
-                  data-testid="button-mobile-menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
-              <button
-                type="button"
-                className="flex items-center gap-2"
-                onClick={() => navigate("/dashboard")}
-                data-testid="button-brand"
-              >
-                <BrainLogo size={28} className="text-indigo-500" />
-                <h1
-                  className="text-lg sm:text-xl font-bold tracking-tight text-white"
-                  style={{ fontFamily: "var(--font-display)" }}
-                  data-testid="text-logo"
-                >
-                  Brainstorm
-                </h1>
-              </button>
-              <div className="hidden lg:flex gap-1" data-testid="row-nav-links">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  onClick={() => navigate("/dashboard")}
-                  data-testid="button-nav-dashboard"
-                >
-                  <Home className="h-4 w-4" />
-                  Dashboard
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200"
-                  onClick={() => navigate("/search")}
-                  data-testid="button-nav-search"
-                >
-                  <SearchIcon className="h-4 w-4" />
-                  Search
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`}
-                  onClick={() => calcDone && navigate("/network")}
-                  disabled={!calcDone}
-                  title={!calcDone ? "Available after calculation completes" : undefined}
-                  data-testid="button-nav-network"
-                >
-                  <User className="h-4 w-4" />
-                  Network
-                </Button>
-                {FEATURES.agentSuite && (
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                    <AgentIcon className="h-4 w-4" />
-                    <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 sm:gap-4">
-              {isAdmin && <AdminBadge />}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div
-                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5"
-                    data-testid="button-user-menu"
-                  >
-                    <div className="relative shrink-0">
-                      <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                        {user.picture ? (
-                          <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                        ) : null}
-                        <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                          {user.displayName?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <PovBadge user={user} />
-                    </div>
-                    <div className="hidden md:flex flex-col items-start mr-2">
-                      <span className="text-sm font-bold text-white leading-none mb-0.5">
-                        {user.displayName || "Anon"}
-                      </span>
-                      <span className="text-xs text-indigo-300 font-mono leading-none">
-                        {user.npub.slice(0, 8)}...
-                      </span>
-                    </div>
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
-                        <span>{user.npub.slice(0, 16)}...</span>
-                        <Copy className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
-                    <HelpCircle className="mr-2 h-4 w-4" />
-                    <span>FAQ</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
-                    <SettingsIcon className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                      <Shield className="mr-2 h-4 w-4" />
-                      <span>Admin Dashboard</span>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator className="bg-indigo-100" />
-                  <DropdownMenuItem
-                    className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
-                    onClick={handleLogout}
-                    data-testid="dropdown-logout"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sign out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </nav>
+      {isAnon ? (
+        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
+          <button
+            type="button"
+            onClick={() => navigate("/about")}
+            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-about"
+          >
+            About
+          </button>
+          <SignInButton
+            variant="primary"
+            label="Sign in"
+            className="!rounded-full sm:px-5"
+            data-testid="button-profile-sign-in"
+          />
+        </header>
+      ) : (
+      <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+      )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
@@ -2166,7 +2097,7 @@ export default function ProfilePage() {
                 variant="ghost"
                 size="sm"
                 className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
-                onClick={() => goBack("/search")}
+                onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -2224,7 +2155,7 @@ export default function ProfilePage() {
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
-                      onClick={() => navigate("/search")}
+                      onClick={() => navigate("/")}
                       className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#3730a3] hover:bg-[#312e81] text-white"
                       data-testid="button-profile-new-search"
                     >
@@ -2447,7 +2378,7 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {hexPubkey && !social.isSelf(hexPubkey) && (
+                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
                           <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
                             {social.listsLoading ? (
                               <>
@@ -2588,7 +2519,7 @@ export default function ProfilePage() {
                 )}
 
                 {(() => {
-                  if (!selfData || !profileResult) return null;
+                  if (!profileResult || (selfFollowedByList.length === 0 && selfFollowingList.length === 0)) return null;
                   const sharedUnique = new Set([...sharedFollowerPubkeys, ...sharedFollowingPubkeys]);
                   const sharedCount = sharedUnique.size;
                   const mutualFollowersCount = sharedFollowerPubkeys.length;
@@ -2850,7 +2781,7 @@ export default function ProfilePage() {
                               <span className="text-[10px] text-slate-400 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
                             </div>
                             <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
-                              {TIER_THRESHOLDS.map(tier => {
+                              {TIER_DISPLAY_CONFIG.map(tier => {
                                 const count = followerTierBreakdown.counts[tier.key] || 0;
                                 if (count === 0) return null;
                                 const widthPct = (count / followerTierBreakdown.total) * 100;
@@ -2865,7 +2796,7 @@ export default function ProfilePage() {
                               })}
                             </div>
                             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                              {TIER_THRESHOLDS.map(tier => {
+                              {TIER_DISPLAY_CONFIG.map(tier => {
                                 const count = followerTierBreakdown.counts[tier.key] || 0;
                                 if (count === 0) return null;
                                 return (
@@ -3175,7 +3106,7 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate("/search")}
+                    onClick={() => navigate("/")}
                     className="h-10 rounded-xl px-4 border-slate-200 bg-white"
                     data-testid="button-profile-new-search"
                   >
@@ -3294,7 +3225,31 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Footer />
+      {isAnon ? (
+        <footer
+          className="relative z-10 mt-auto flex items-center justify-between px-4 sm:px-8 py-4 text-xs"
+          data-testid="footer-profile-anon"
+        >
+          <button
+            type="button"
+            onClick={() => navigate("/developers")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-developers"
+          >
+            Developers
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/how-search-works")}
+            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            data-testid="link-profile-how-search-works"
+          >
+            How search works
+          </button>
+        </footer>
+      ) : (
+        <Footer />
+      )}
     </div>
   );
 }

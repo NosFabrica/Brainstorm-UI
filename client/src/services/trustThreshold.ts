@@ -15,6 +15,19 @@ export const PRESET_THRESHOLDS: Record<TrustPreset, number> = {
   strict: 0.15,
 };
 
+// Tier-band lower bounds. Keys match the GR `count_values` / backend
+// `ConnectionTierCounts` bucket names — each value is the lower bound of
+// the bucket it names (influence >= TIER_THRESHOLDS.high → tier "high",
+// >= .medium_high → tier "medium_high", etc.). Kept in sync with
+// `app/core/tier_thresholds.py` on the backend.
+// Currently NOT preset-driven — only verified_threshold (above) moves with
+// preset.
+export const TIER_THRESHOLDS = {
+  high: 0.50,
+  medium_high: 0.20,
+  medium: 0.07,
+} as const;
+
 const BACKEND_TO_PRESET: Record<string, TrustPreset> = {
   PERMISSIVE: "relax",
   DEFAULT: "default",

@@ -17,35 +17,6 @@ interface PovUser {
   pubkey?: string;
 }
 
-export function PovBadge({ user }: { user: PovUser | null }) {
-  const [pov] = useActivePov();
-  const { hasMywot } = useHasMywot();
-  const effective: ActivePov = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
-  const label = effective === "mywot" ? user?.displayName || "My WoT" : "NosFabrica";
-
-  return (
-    <span
-      className={
-        "pointer-events-none absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-slate-950 shadow-md flex items-center justify-center overflow-hidden " +
-        (effective === "nosfabrica" ? "bg-indigo-400" : "bg-emerald-400")
-      }
-      title={`Trust perspective: ${label}`}
-      data-testid="badge-pov-indicator"
-      aria-label={`Trust perspective: ${label}`}
-    >
-      {effective === "nosfabrica" ? (
-        <img src={nosFabricaLogo} alt="" className="h-full w-full object-cover" />
-      ) : user?.picture ? (
-        <img src={user.picture} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="text-[7px] font-bold text-emerald-900 leading-none">
-          {user?.displayName?.charAt(0) || "U"}
-        </span>
-      )}
-    </span>
-  );
-}
-
 interface PovMenuSectionProps {
   user: PovUser | null;
   /**
@@ -82,15 +53,15 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         data-testid="menu-pov-option-nosfabrica"
       >
         <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-          <AvatarImage src={nosFabricaLogo} alt="NosFabrica" className="object-cover" />
+          <AvatarImage src={nosFabricaLogo} alt="Brainstorm" className="object-cover" />
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-slate-800">NosFabrica</span>
+            <span className="text-[13px] font-medium text-slate-800">Brainstorm</span>
             {effective === "nosfabrica" && <Check className="h-3 w-3 text-indigo-500" />}
           </div>
           <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
-            The "house" view from NosFabrica's curated trust graph.
+            The "house" view from Brainstorm's curated trust graph.
           </p>
         </div>
       </DropdownMenuItem>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
+import { AppHeader } from "@/components/AppHeader";
+import { getVerifiedThreshold, PRESET_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -80,7 +81,6 @@ import {
   setAssistantDismissed as setAssistantDismissedStorage,
 } from "@/lib/assistantStorage";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -108,6 +108,7 @@ import {
 import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 
@@ -218,6 +219,11 @@ export default function DashboardPage() {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
       setAssistantDismissed(readAssistantDismissed());
+      // Keep the local user copy in sync with late-arriving profile metadata
+      // (e.g. the avatar/name fetched right after login) so the header updates
+      // reactively and the profile fallback query below stays suppressed.
+      const fresh = getCurrentUser();
+      if (fresh) setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
@@ -248,6 +254,14 @@ export default function DashboardPage() {
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
+      // The login-time profile fetch may have resolved after this query was
+      // already enabled (React Query won't cancel an in-flight query). If the
+      // metadata is already present, reuse it instead of re-hitting relays.
+      const fresh = getCurrentUser();
+      if (fresh && (fresh.picture || fresh.displayName)) {
+        setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
+        return fresh.profile ?? null;
+      }
       await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
@@ -266,41 +280,47 @@ export default function DashboardPage() {
 
   const recalcTriggeredAtRef = useRef<number | null>(null);
 
-  const selfQuery = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    retry: false,
-    refetchInterval: () => {
-      const grData = queryClient.getQueryData<any>(["/api/auth/graperankResult"]);
-      const d = grData?.data;
-      if (!d || typeof d !== "object") return 10_000;
-      const done = isStatusDone((d as any).ta_status);
-      if (done && recalcTriggeredAtRef.current) {
-        const elapsed = Date.now() - recalcTriggeredAtRef.current;
-        if (elapsed < 25 * 60 * 1000) return 10_000;
-      }
-      return done ? false : 10_000;
-    },
-  });
+  // SELF overview's `flagged_by_observer` is always false (self ≠ flags self),
+  // so threshold doesn't affect any consumed field — omit to keep the queryKey
+  // stable across `trustPreset` lifecycle transitions.
+  const overviewQuery = useSelfOverview(user?.pubkey);
+  const historyQuery = useSelfHistory(user?.pubkey);
+  // Stats verified/tier counts DO depend on threshold. Derive from the
+  // server-confirmed preset (stable) rather than `getVerifiedThreshold()`
+  // (which reads localStorage and can flip mid-mount).
+  const statsThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
+  const statsQuery = useSelfStats(user?.pubkey, statsThreshold !== undefined ? { verified_threshold: statsThreshold } : undefined);
 
   const grapeRankQuery = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     retry: false,
     refetchInterval: (query) => {
       const d = query.state.data?.data;
-      if (!d || typeof d !== "object") return 10_000;
+      if (!d || typeof d !== "object") return 60_000;
       const done = isStatusDone((d as any).ta_status);
       if (done && recalcTriggeredAtRef.current) {
         const elapsed = Date.now() - recalcTriggeredAtRef.current;
-        if (elapsed < 25 * 60 * 1000) return 10_000;
+        if (elapsed < 25 * 60 * 1000) return 60_000;
         recalcTriggeredAtRef.current = null;
       }
-      return done ? false : 10_000;
+      return done ? false : 60_000;
     },
   });
+
+  const prevStatusDoneRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const d = grapeRankQuery.data?.data as any;
+    if (!d || typeof d !== "object") return;
+    const done = isStatusDone(d.ta_status) || isStatusDone(d.internal_publication_status);
+    if (prevStatusDoneRef.current === false && done) {
+      queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
+    }
+    prevStatusDoneRef.current = done;
+  }, [grapeRankQuery.data]);
 
   const wasAutoTriggeredRef = useRef(false);
 
@@ -309,9 +329,9 @@ export default function DashboardPage() {
     onSuccess: (data) => {
       recalcTriggeredAtRef.current = Date.now();
       if (data?.data && typeof data.data === "object") {
-        queryClient.setQueryData(["/api/auth/graperankResult"], data);
+        queryClient.setQueryData(["/user/graperankResult"], data);
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/graperankResult"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       const isAutoTrigger = wasAutoTriggeredRef.current;
       wasAutoTriggeredRef.current = false;
       toast({
@@ -334,10 +354,11 @@ export default function DashboardPage() {
     },
   });
 
-  const selfData = selfQuery.data?.data;
-  const network = selfData?.graph || user?.userData?.data?.graph || null;
+  const overview = overviewQuery.data?.data ?? null;
+  const history = historyQuery.data?.data ?? null;
+  const stats = statsQuery.data?.data ?? null;
 
-  const taPubkey = selfQuery.data?.data?.history?.ta_pubkey;
+  const taPubkey = history?.ta_pubkey;
   const trustServiceProvider = useQuery({
     queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
     queryFn: async () => {
@@ -371,35 +392,16 @@ export default function DashboardPage() {
 
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
 
-  const followersCount = network?.followed_by?.length ?? 0;
-  const followingCount = network?.following?.length ?? 0;
-  const mutedByCount = network?.muted_by?.length ?? 0;
-  const mutingCount = network?.muting?.length ?? 0;
-  const reportedByCount = network?.reported_by?.length ?? 0;
-  const reportingCount = network?.reporting?.length ?? 0;
-  const flaggedCount = (() => {
-    const raw = network?.low_and_reported_by_2_or_more_trusted_pubkeys;
-    if (!raw) return 0;
-    if (Array.isArray(raw)) return raw.length;
-    if (typeof raw === "object") {
-      return Object.values(raw).reduce((sum: number, v: any) => sum + (typeof v === "number" ? v : 0), 0);
-    }
-    return 0;
-  })();
-  const influence = network?.influence ?? 0;
+  const followersCount = overview?.counts?.followed_by ?? 0;
+  const followingCount = overview?.counts?.following ?? 0;
+  const mutedByCount = overview?.counts?.muted_by ?? 0;
+  const mutingCount = overview?.counts?.muting ?? 0;
+  const reportedByCount = overview?.counts?.reported_by ?? 0;
+  const reportingCount = overview?.counts?.reporting ?? 0;
+  const influence = overview?.influence ?? 0;
 
-  const { verifiedFollowersCount, verifiedFollowingCount } = useMemo(() => {
-    if (!network) return { verifiedFollowersCount: 0, verifiedFollowingCount: 0 };
-    const countVerified = (arr: any[] | undefined) => {
-      if (!Array.isArray(arr)) return 0;
-      const threshold = getVerifiedThreshold();
-      return arr.filter(m => typeof m.influence === "number" && m.influence >= threshold).length;
-    };
-    return {
-      verifiedFollowersCount: countVerified(network.followed_by),
-      verifiedFollowingCount: countVerified(network.following),
-    };
-  }, [network, trustPreset]);
+  const verifiedFollowersCount = stats?.followed_by?.verified ?? 0;
+  const verifiedFollowingCount = stats?.following?.verified ?? 0;
 
   const grapeRankStatus = grapeRank
     ? (grapeRank as any).status || "complete"
@@ -441,12 +443,14 @@ export default function DashboardPage() {
     ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
     : false;
 
-  const hasNoFollowing = selfQuery.isSuccess && network !== null && Array.isArray(network?.following) && network.following.length === 0;
+  const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
 
   const prevCalcDoneRef = useRef(false);
   useEffect(() => {
     if (calcDone && !prevCalcDoneRef.current) {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/self"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
     }
     prevCalcDoneRef.current = calcDone;
   }, [calcDone]);
@@ -467,7 +471,7 @@ export default function DashboardPage() {
       !isGrapeRankFailed &&
       !triggerGrapeRankMutation.isPending &&
       !autoTriggeredRef.current &&
-      selfQuery.isSuccess &&
+      overviewQuery.isSuccess &&
       !hasNoFollowing &&
       followingCount > 0
     ) {
@@ -480,7 +484,7 @@ export default function DashboardPage() {
     grapeRank,
     isGrapeRankFailed,
     triggerGrapeRankMutation.isPending,
-    selfQuery.isSuccess,
+    overviewQuery.isSuccess,
     hasNoFollowing,
     followingCount,
   ]);
@@ -524,6 +528,13 @@ export default function DashboardPage() {
     } catch { /* ignore parse errors */ }
     return null;
   }, [grapeRank]);
+
+  // Direct flagged count (DISTINCT flagged users across all of your
+  // relationships), from /overview — preserves the legacy /self graph's flagged
+  // semantics and matches NetworkPage. Only consumed by the pre-calc
+  // `enhancedPieData` fallback slice (the post-calc pie reads count_values via
+  // aggregateByHopRange).
+  const flaggedCount = overview?.flagged_count ?? 0;
 
   const maxHopInData = useMemo(() => {
     if (!countValues) return 5;
@@ -639,49 +650,16 @@ export default function DashboardPage() {
   const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
   const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
-  const directTierCounts = useMemo(() => {
-    if (!network) return {} as Record<string, number>;
-    const followers = network.followed_by;
-    if (!Array.isArray(followers)) return {} as Record<string, number>;
-    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
-    const vt = getVerifiedThreshold();
-    for (const m of followers) {
-      const inf = typeof m.influence === "number" ? m.influence : null;
-      if (inf !== null && inf < vt && typeof m.trusted_reporters === "number" && m.trusted_reporters >= 2) {
-        counts.flagged++;
-        continue;
-      }
-      if (inf === null) { counts.unverified++; continue; }
-      if (inf >= 0.50) counts.high++;
-      else if (inf >= 0.20) counts.medium++;
-      else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= vt) counts.low++;
-      else counts.unverified++;
-    }
-    return counts;
-  }, [network, trustPreset]);
-
-  const directFollowingTierCounts = useMemo(() => {
-    if (!network) return {} as Record<string, number>;
-    const following = network.following;
-    if (!Array.isArray(following)) return {} as Record<string, number>;
-    const counts: Record<string, number> = { high: 0, medium: 0, neutral: 0, low: 0, flagged: 0, unverified: 0 };
-    const vt = getVerifiedThreshold();
-    for (const m of following) {
-      const inf = typeof m.influence === "number" ? m.influence : null;
-      if (inf !== null && inf < vt && typeof m.trusted_reporters === "number" && m.trusted_reporters >= 2) {
-        counts.flagged++;
-        continue;
-      }
-      if (inf === null) { counts.unverified++; continue; }
-      if (inf >= 0.50) counts.high++;
-      else if (inf >= 0.20) counts.medium++;
-      else if (inf >= 0.07) counts.neutral++;
-      else if (inf >= vt) counts.low++;
-      else counts.unverified++;
-    }
-    return counts;
-  }, [network, trustPreset]);
+  // Stats `tier_counts` field names now match the GR `count_values` keys
+  // used by TIER_CONFIG — pass straight through.
+  const directTierCounts = useMemo(
+    () => (stats?.followed_by?.tier_counts ?? {}) as Record<string, number>,
+    [stats],
+  );
+  const directFollowingTierCounts = useMemo(
+    () => (stats?.following?.tier_counts ?? {}) as Record<string, number>,
+    [stats],
+  );
 
   const followingPieData = useMemo(() => {
     return TIER_CONFIG.map((tier) => ({
@@ -757,101 +735,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
-        <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4 sm:gap-6">
-                <div className="lg:hidden">
-                  <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-mobile-menu">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <BrainLogo size={28} className="text-indigo-500" />
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-logo">
-                    Brainstorm
-                  </h1>
-                </div>
-                <div className="hidden lg:flex gap-1">
-                  <Button variant="ghost" size="sm" className="gap-2 text-white bg-white/[0.12] rounded-md no-default-hover-elevate no-default-active-elevate" data-testid="button-dashboard-nav">
-                    <Home className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                  <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Button>
-                  <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${isCalculationComplete ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => isCalculationComplete && navigate("/network")} disabled={!isCalculationComplete} title={!isCalculationComplete ? "Available after calculation completes" : undefined} data-testid="button-nav-network">
-                    <Users className="h-4 w-4" />
-                    Network
-                  </Button>
-                  {FEATURES.agentSuite && (
-                    <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/agentsuite")} data-testid="button-nav-agentsuite">
-                      <AgentIcon className="h-4 w-4" />
-                      <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">Agent Suite</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 sm:gap-4">
-                {isAdminPubkey(user?.pubkey) && <AdminBadge />}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-user-menu">
-                      <div className="relative shrink-0">
-                        <Avatar className="h-9 w-9 border-2 border-white ring-2 ring-white/20 shadow-md">
-                          {user.picture ? (
-                            <AvatarImage src={user.picture} alt={user.displayName || "Profile"} className="object-cover" />
-                          ) : null}
-                          <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
-                            {needsProfile && profileQuery.isFetching ? <BrainLogo size={18} className="animate-pulse text-indigo-400" /> : (user.displayName?.charAt(0) || "U")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <PovBadge user={user} />
-                      </div>
-                      <div className="hidden md:flex flex-col items-start mr-2">
-                        <span className="text-sm font-bold text-white leading-none mb-0.5">{user.displayName || "Anon"}</span>
-                        <span className="text-xs text-indigo-300 font-mono leading-none">{user.npub.slice(0, 8)}...</span>
-                      </div>
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-[#7c86ff]/20">
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anonymous"}</p>
-                        <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
-                          <span>{user.npub.slice(0, 16)}...</span>
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-indigo-100" />
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
-                      <HelpCircle className="mr-2 h-4 w-4" />
-                      <span>FAQ</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
-                      <SettingsIcon className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
-                    </DropdownMenuItem>
-                    {isAdminPubkey(user?.pubkey) && (
-                      <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
-                        <Shield className="mr-2 h-4 w-4" />
-                        <span>Admin Dashboard</span>
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator className="bg-indigo-100" />
-                    <DropdownMenuItem className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700" onClick={handleLogout} data-testid="dropdown-logout">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
 
@@ -902,10 +786,10 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-medium text-slate-500 block mt-0.5 leading-none">
                           NIP-85 Declaration
                         </span>
-                        {selfData?.history?.last_time_calculated_graperank && (
+                        {history?.last_time_calculated_graperank && (
                           <span className="text-[9px] text-slate-400 mt-1 leading-none flex items-center gap-1.5 flex-wrap">
                             <span>
-                              Updated {formatTimestamp(new Date(selfData.history.last_time_calculated_graperank.endsWith("Z") ? selfData.history.last_time_calculated_graperank : selfData.history.last_time_calculated_graperank + "Z"))}
+                              Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}
                             </span>
                             <PresetBadge
                               preset={grapeRank?.graperank_preset_used}
@@ -1618,7 +1502,7 @@ export default function DashboardPage() {
           <ActivateBrainstormModal
             open={nip85ModalOpen}
             onOpenChange={setNip85ModalOpen}
-            serviceKey={selfData?.history?.ta_pubkey || ""}
+            serviceKey={history?.ta_pubkey || ""}
             onActivated={() => {
               setNip85Activated(true);
               setNip85ModalOpen(false);
@@ -1664,7 +1548,7 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
+                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
                       {isCalculationComplete && (
@@ -1691,7 +1575,7 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {selfQuery.isLoading ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
+                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {isCalculationComplete && (
@@ -1813,7 +1697,7 @@ export default function DashboardPage() {
                         )}
                         {reportedByCount === 0 && mutedByCount === 0 && (
                           <div className="text-center py-6" data-testid="row-dialog-no-signals">
-                            {selfQuery.isLoading ? (
+                            {(overviewQuery.isLoading || statsQuery.isLoading) ? (
                               <>
                                 <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-2 animate-pulse" />
                                 <p className="text-sm font-bold text-slate-500">Loading signals...</p>
@@ -1890,7 +1774,7 @@ export default function DashboardPage() {
                   </div>
 
                   <p className="text-xs text-slate-500 leading-tight">
-                    {selfQuery.isLoading ? (
+                    {(overviewQuery.isLoading || statsQuery.isLoading) ? (
                       <span className="text-slate-400">Loading signals...</span>
                     ) : (reportedByCount + mutedByCount) > 0 ? (
                       <><strong className="text-slate-900">{reportedByCount + mutedByCount} signals</strong> from your network.</>
@@ -1981,7 +1865,7 @@ export default function DashboardPage() {
 
                   <div>
                     <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
+                      {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
                     </div>
                     <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
@@ -2053,7 +1937,7 @@ export default function DashboardPage() {
                           Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          {selfQuery.isLoading || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
+                          {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
                         </CardDescription>
                       </div>
                     </div>
@@ -2075,7 +1959,7 @@ export default function DashboardPage() {
                           {isCalculationComplete && (
                           <Tooltip
                             formatter={(value: number, _name: string) => {
-                              if (selfQuery.isLoading) return ["\u2014", ""];
+                              if ((overviewQuery.isLoading || statsQuery.isLoading)) return ["\u2014", ""];
                               const hopLabel = hopRange[0] === hopRange[1] ? `Hop ${hopRange[0]}` : `Hops ${hopRange[0]}–${hopRange[1]}`;
                               return [`${value.toLocaleString()} profiles · ${hopLabel}`, ""];
                             }}
@@ -2131,7 +2015,7 @@ export default function DashboardPage() {
                                 {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
                               <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
-                                {selfQuery.isLoading || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
+                                {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">

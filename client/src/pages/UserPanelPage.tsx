@@ -13,7 +13,6 @@ import {
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
-import { PovBadge } from "@/components/PovBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -75,16 +74,12 @@ import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, getNip85Relay
 import { isAdminPubkey } from "@/config/adminAccess";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { useSocialActions } from "@/hooks/useSocialActions";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
 type AgentStatus = "dormant" | "activating" | "active" | "established" | "networked" | "trusted";
-
-interface GraphEntry {
-  pubkey: string;
-  influence?: number;
-}
 
 interface FollowedUser {
   pubkey: string;
@@ -283,21 +278,19 @@ export default function UserPanelPage() {
     };
   }, []);
 
-  const { data: selfData, isLoading: selfLoading } = useQuery({
-    queryKey: ["/api/auth/self"],
-    queryFn: () => apiClient.getSelf(),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
+  const { data: overviewData, isLoading: overviewLoading } = useSelfOverview(user?.pubkey);
+  const { data: historyData, isLoading: historyLoading } = useSelfHistory(user?.pubkey);
+  const followingConnections = useSelfConnections(user?.pubkey, "following", { enabled: !!user });
+  const selfLoading = overviewLoading || historyLoading;
 
   const { data: grapeRankData, isLoading: grapeRankLoading } = useQuery({
-    queryKey: ["/api/auth/graperankResult"],
+    queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!user,
     staleTime: 30_000,
   });
 
-  const taPubkey = selfData?.data?.history?.ta_pubkey;
+  const taPubkey = historyData?.data?.ta_pubkey;
   const trustServiceProvider = useQuery({
     queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
     queryFn: async () => {
@@ -312,11 +305,16 @@ export default function UserPanelPage() {
   const nip85Activated = trustServiceProvider.data === true || localStorage.getItem("brainstorm_nip85_activated") === "true";
   const socialActions = useSocialActions(user?.pubkey);
 
+  const followingList = useMemo(
+    () => flattenConnections(followingConnections.data?.pages),
+    [followingConnections.data?.pages],
+  );
+  const followingCount = overviewData?.data?.counts?.following ?? 0;
+  const followersCount = overviewData?.data?.counts?.followed_by ?? 0;
+  const totalNetworkSize = followingCount + followersCount;
+
   useEffect(() => {
     if (agentState.status === "dormant" || agentState.status === "activating") return;
-    const network = selfData?.data?.graph;
-    const followingCount = Array.isArray(network?.following) ? network.following.length : 0;
-    const followersCount = Array.isArray(network?.followed_by) ? network.followed_by.length : 0;
     const totalSize = followingCount + followersCount;
     const grData = grapeRankData?.data;
     const hasCalc = grData?.internal_publication_status?.toLowerCase() === "success";
@@ -330,23 +328,16 @@ export default function UserPanelPage() {
     if (newStatus !== agentState.status) {
       updateAgentState({ status: newStatus });
     }
-  }, [selfData, grapeRankData, nip85Activated, agentState.status, agentState.publishedAt, updateAgentState]);
-
-  const network = selfData?.data?.graph || null;
-  const followingList = network?.following;
-  const followingCount = Array.isArray(followingList) ? followingList.length : 0;
-  const followersCount = Array.isArray(network?.followed_by) ? network.followed_by.length : 0;
-  const totalNetworkSize = followingCount + followersCount;
+  }, [followingCount, followersCount, grapeRankData, nip85Activated, agentState.status, agentState.publishedAt, updateAgentState]);
 
   const grapeRank = grapeRankData?.data;
   const calcDone = grapeRank?.internal_publication_status?.toLowerCase() === "success" || localStorage.getItem("brainstorm_calc_completed") === "true";
-  const lastCalculated = selfData?.data?.history?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
+  const lastCalculated = historyData?.data?.last_time_calculated_graperank || grapeRankData?.data?.updated_at || null;
 
   const followedUsers = useMemo((): FollowedUser[] => {
-    if (!followingList || !Array.isArray(followingList)) return [];
-    return followingList.map((entry: string | GraphEntry) => {
-      const pubkey = typeof entry === "string" ? entry : entry.pubkey;
-      const influence = typeof entry === "object" ? (entry.influence ?? 0) : 0;
+    return followingList.map((entry) => {
+      const pubkey = entry.pubkey;
+      const influence = entry.influence ?? 0;
       let npub: string;
       try { npub = nip19.npubEncode(pubkey); } catch { npub = pubkey; }
       const tierInfo = getTier(influence);
@@ -364,8 +355,8 @@ export default function UserPanelPage() {
   }, [followedUsers]);
 
   useEffect(() => {
-    if (!followingList || !Array.isArray(followingList) || followingList.length === 0) return;
-    const pubkeys = followingList.map((e: string | GraphEntry) => typeof e === "string" ? e : e.pubkey).slice(0, 100);
+    if (followingList.length === 0) return;
+    const pubkeys = followingList.map((e) => e.pubkey).slice(0, 100);
     if (pubkeys.length === 0) return;
     fetchProfiles(pubkeys, (pubkey, profile) => {
       setFollowedProfiles(prev => {
@@ -621,7 +612,7 @@ export default function UserPanelPage() {
                 <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/dashboard")} data-testid="button-nav-dashboard">
                   <Home className="h-4 w-4" /> Dashboard
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/search")} data-testid="button-nav-search">
+                <Button variant="ghost" size="sm" className="gap-2 text-slate-400 rounded-md no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/[0.06] transition-all duration-200" onClick={() => navigate("/")} data-testid="button-nav-search">
                   <Search className="h-4 w-4" /> Search
                 </Button>
                 <Button variant="ghost" size="sm" className={`gap-2 rounded-md no-default-hover-elevate no-default-active-elevate transition-all duration-200 ${calcDone ? "text-slate-400 hover:text-white hover:bg-white/[0.06]" : "text-slate-600 opacity-40 cursor-not-allowed"}`} onClick={() => calcDone && navigate("/network")} disabled={!calcDone} data-testid="button-nav-network">
@@ -643,7 +634,6 @@ export default function UserPanelPage() {
                         {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
                         <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">{user.displayName?.charAt(0) || "U"}</AvatarFallback>
                       </Avatar>
-                      <PovBadge user={user} />
                     </div>
                     <div className="hidden md:flex flex-col items-start mr-2">
                       <span className="text-sm font-bold text-white leading-none mb-0.5" data-testid="text-agentsuite-profile-name">{user.displayName || "Anon"}</span>
