@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Shield,
   Copy,
+  UserCircle,
 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
@@ -23,8 +24,9 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
+import { ProfileEditModal } from "@/components/ProfileEditModal";
 import type { NostrUser } from "@/services/nostr";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 interface AppHeaderProps {
   user: NostrUser;
@@ -55,8 +57,10 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
   const { toast } = useToast();
   const isAdmin = isAdminPubkey(user?.pubkey);
   const isLight = variant === "light";
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   return (
+    <>
     <nav
       className={
         isLight
@@ -183,6 +187,10 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-indigo-100" />
+                <DropdownMenuItem className="cursor-pointer" onClick={() => setEditProfileOpen(true)} data-testid="dropdown-edit-profile">
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>Edit profile</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                   <HelpCircle className="mr-2 h-4 w-4" />
                   <span>FAQ</span>
@@ -216,5 +224,8 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
         </div>
       </div>
     </nav>
+
+    <ProfileEditModal open={editProfileOpen} onOpenChange={setEditProfileOpen} />
+    </>
   );
 }

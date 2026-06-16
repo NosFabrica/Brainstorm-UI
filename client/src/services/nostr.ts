@@ -1,4 +1,5 @@
-import { nip19, finalizeEvent, getPublicKey } from "nostr-tools";
+import { nip19, finalizeEvent, getPublicKey, generateSecretKey } from "nostr-tools";
+import { encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
 
@@ -62,6 +63,9 @@ declare global {
 }
 
 const SK_STORAGE_KEY = "brainstorm_sk_hex";
+// Persistent variant for self-custodial accounts created in-app, so they "stay
+// signed in" across sessions (extension/nsec flows keep using the session copy).
+const SK_PERSIST_KEY = "brainstorm_sk_hex_persist";
 
 export type LoginErrorCode =
   | "NO_EXTENSION"
@@ -82,7 +86,8 @@ export class LoginError extends Error {
 
 function getStoredSecretKey(): Uint8Array | null {
   try {
-    const hex = sessionStorage.getItem(SK_STORAGE_KEY);
+    const hex =
+      sessionStorage.getItem(SK_STORAGE_KEY) || localStorage.getItem(SK_PERSIST_KEY);
     if (!hex) return null;
     return hexToBytes(hex);
   } catch {
@@ -90,20 +95,39 @@ function getStoredSecretKey(): Uint8Array | null {
   }
 }
 
-function storeSecretKey(sk: Uint8Array): void {
+function storeSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): void {
   try {
-    sessionStorage.setItem(SK_STORAGE_KEY, bytesToHex(sk));
+    const hex = bytesToHex(sk);
+    if (opts?.persistent) {
+      // Created-in-app account: persist so the user stays signed in. Clear any
+      // stale session copy so the two stores never disagree.
+      localStorage.setItem(SK_PERSIST_KEY, hex);
+      sessionStorage.removeItem(SK_STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(SK_STORAGE_KEY, hex);
+      localStorage.removeItem(SK_PERSIST_KEY);
+    }
   } catch {}
 }
 
 function clearSecretKey(): void {
   try {
     sessionStorage.removeItem(SK_STORAGE_KEY);
+    localStorage.removeItem(SK_PERSIST_KEY);
   } catch {}
 }
 
 export function hasLocalSecretKey(): boolean {
   return getStoredSecretKey() !== null;
+}
+
+/** True when an in-app–created account's key is persisted locally ("stay signed in"). */
+export function hasPersistentKey(): boolean {
+  try {
+    return !!localStorage.getItem(SK_PERSIST_KEY);
+  } catch {
+    return false;
+  }
 }
 
 function signWithStoredKey(event: Record<string, unknown>): Record<string, unknown> {
@@ -930,6 +954,189 @@ export async function publishToRelays(
   } catch {
     return { success: false, error: "All relays failed" };
   }
+}
+
+// ─── Native account creation + first-run auto-setup ──────────────────────────
+
+// Single curated account every new user auto-follows so their graph/feed is
+// never empty (and the trust calc has something to anchor on).
+const SEED_FOLLOW_NPUB =
+  "npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p";
+let SEED_FOLLOW_HEX = "";
+try {
+  const decoded = nip19.decode(SEED_FOLLOW_NPUB);
+  if (decoded.type === "npub") SEED_FOLLOW_HEX = decoded.data as string;
+} catch {}
+
+const initialSetupFlag = (pubkey: string) => `brainstorm_initial_setup_done:${pubkey}`;
+
+/**
+ * Build → locally sign → publish an event, verifying the signer didn't mutate
+ * the kind before broadcasting. Returns the publish result.
+ */
+async function signAndPublish(
+  template: { kind: number; tags: string[][]; content: string },
+  expectedKind: number,
+): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  if (!window.nostr && !hasLocalSecretKey()) {
+    return { success: false, error: "No signer available" };
+  }
+  try {
+    const event = {
+      ...template,
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: user.pubkey,
+    };
+    const signed = await signEventLocally(event);
+    if ((signed as { kind?: number }).kind !== expectedKind) {
+      return { success: false, error: "Signer returned an unexpected event kind" };
+    }
+    return await publishToRelays(signed);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Signing failed" };
+  }
+}
+
+/** Publish the user's profile metadata (kind 0) and reflect it in the header. */
+export async function publishProfile(
+  content: Record<string, unknown>,
+): Promise<{ success: boolean; error?: string }> {
+  const res = await signAndPublish({ kind: 0, tags: [], content: JSON.stringify(content) }, 0);
+  if (res.success) {
+    try {
+      updateCurrentUser(applyProfileToUser(content as unknown as ProfileContent));
+    } catch {}
+  }
+  return res;
+}
+
+/** Publish a NIP-65 relay list (kind 10002). */
+export async function publishRelayList(
+  relays: string[],
+): Promise<{ success: boolean; error?: string }> {
+  const tags = relays.filter(Boolean).map((r) => ["r", r]);
+  return signAndPublish({ kind: 10002, tags, content: "" }, 10002);
+}
+
+/** Publish a fresh follow list (kind 3) — for brand-new accounts only. */
+export async function publishFollowList(
+  pubkeys: string[],
+): Promise<{ success: boolean; error?: string }> {
+  const tags = pubkeys.filter(Boolean).map((pk) => ["p", pk]);
+  return signAndPublish({ kind: 3, tags, content: "" }, 3);
+}
+
+/**
+ * Background-poll for the user's trust anchor (assigned by the backend after
+ * GrapeRank runs) and publish their NIP-85 declaration (kind 10040) once it
+ * exists. Best-effort: never throws, gives up after the backoff schedule.
+ */
+async function pollAndPublishTrustAnchor(pubkey: string): Promise<void> {
+  try {
+    if (localStorage.getItem("brainstorm_nip85_activated") === "true") return;
+  } catch {}
+  const delaysMs = [15000, 20000, 30000, 45000, 60000, 60000, 60000, 60000, 60000, 60000];
+  for (const delay of delaysMs) {
+    await new Promise((r) => setTimeout(r, delay));
+    let taPubkey: string | null = null;
+    try {
+      const history = await apiClient.getUserHistory();
+      taPubkey = history?.data?.ta_pubkey ?? null;
+    } catch {
+      continue;
+    }
+    if (!taPubkey) continue;
+    try {
+      const signed = await signNip85(taPubkey, getNip85RelayUrl());
+      const res = await publishToRelays(signed);
+      if (res.success) {
+        try { localStorage.setItem("brainstorm_nip85_activated", "true"); } catch {}
+      }
+    } catch {}
+    return; // TA resolved — stop polling regardless of publish outcome.
+  }
+}
+
+/**
+ * The "magic finish": after an account exists, best-effort publish profile,
+ * relay list and a seed follow, then kick off scoring and (in the background)
+ * publish the trust anchor. Idempotent per pubkey; never blocks or throws.
+ */
+export async function runInitialSetup(
+  pubkey: string,
+  profile: { name: string; about?: string; picture?: string },
+): Promise<void> {
+  try {
+    if (localStorage.getItem(initialSetupFlag(pubkey)) === "true") return;
+  } catch {}
+
+  const content: Record<string, unknown> = { name: profile.name };
+  if (profile.about) content.about = profile.about;
+  if (profile.picture) content.picture = profile.picture;
+  try { await publishProfile(content); } catch {}
+  try { await publishRelayList(PROFILE_RELAYS); } catch {}
+  try { if (SEED_FOLLOW_HEX) await publishFollowList([SEED_FOLLOW_HEX]); } catch {}
+
+  // Bootstrap publishes done — guard against re-running on reload.
+  try { localStorage.setItem(initialSetupFlag(pubkey), "true"); } catch {}
+
+  // Kick off scoring (swallow cooldown/429 — this is background).
+  try { await apiClient.triggerGrapeRank(); } catch {}
+
+  // Publish the trust anchor once the backend computes it.
+  void pollAndPublishTrustAnchor(pubkey);
+}
+
+/**
+ * Create a brand-new Brainstorm account: generate a keypair client-side, log in
+ * via the existing challenge/verify flow, persist the key locally so the user
+ * stays signed in, and fire-and-forget the first-run setup. Mirrors
+ * `loginWithNsec` but with a generated key.
+ */
+export async function createAccount(displayName: string): Promise<NostrUser> {
+  const name = displayName.trim();
+  const sk = generateSecretKey();
+  const pubkey = getPublicKey(sk);
+
+  let challenge: string;
+  try {
+    challenge = await apiClient.getAuthChallenge(pubkey);
+  } catch (err) {
+    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
+  }
+
+  const eventTemplate = {
+    kind: 22242,
+    tags: [
+      ["t", "brainstorm_login"],
+      ["challenge", challenge],
+    ],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
+  };
+  const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
+
+  storeSecretKey(sk, { persistent: true });
+  let user: NostrUser;
+  try {
+    user = await completeLogin(pubkey, signedEvent);
+  } catch (err) {
+    clearSecretKey();
+    throw err;
+  }
+
+  // Don't block the UI on relay/scoring work.
+  void runInitialSetup(pubkey, { name }).catch(() => {});
+  return user;
+}
+
+/** Encrypt the stored secret key with a passphrase (NIP-49) for an optional backup. */
+export function exportEncryptedKey(password: string): string {
+  const sk = getStoredSecretKey();
+  if (!sk) throw new Error("No account key available to back up.");
+  return encryptSecretKeyNip49(sk, password);
 }
 
 export async function signNip85(

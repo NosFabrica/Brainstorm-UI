@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
+import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroImage1 from "@/assets/login-hero/hero-1.webp";
 import heroImage2 from "@/assets/login-hero/hero-2.webp";
@@ -42,6 +43,7 @@ function getNextPath(): string {
 export default function LoginPage() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
@@ -287,7 +289,7 @@ export default function LoginPage() {
           <div className="flex flex-col items-center gap-3">
             <button
               type="button"
-              onClick={() => window.open("https://nstart.me", "_blank", "noopener,noreferrer")}
+              onClick={() => setCreateOpen(true)}
               className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.99]"
               data-testid="link-create-identity"
             >
@@ -373,6 +375,15 @@ export default function LoginPage() {
         errorMessage={failureMessage}
         onLoginSuccess={handleNsecLoginSuccess}
         onRetryExtension={handleRetryExtension}
+      />
+
+      <CreateAccountModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => {
+          setCreateOpen(false);
+          navigate(nextPath, { replace: true });
+        }}
       />
     </div>
   );

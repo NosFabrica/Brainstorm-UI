@@ -27,6 +27,7 @@ import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { PostSignupCard } from "@/components/PostSignupCard";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -846,6 +847,8 @@ export default function Landing() {
             </div>
           )}
         </div>
+
+        <PostSignupCard />
 
         {isSearching && (
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
