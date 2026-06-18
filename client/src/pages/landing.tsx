@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import {
@@ -1049,7 +1050,7 @@ export default function Landing() {
                               tabIndex={0}
                               className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                               data-testid={`button-copy-npub-${idx}`}
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(result.npub); }}
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
                             >
                               <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
                             </span>

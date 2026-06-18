@@ -17,16 +17,19 @@ import {
   Shield,
   Copy,
   UserCircle,
+  Share2,
+  UserPlus,
 } from "lucide-react";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { copyToClipboard } from "@/lib/clipboard";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
-import { ProfileEditModal } from "@/components/ProfileEditModal";
 import type { NostrUser } from "@/services/nostr";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 interface AppHeaderProps {
   user: NostrUser;
@@ -55,12 +58,12 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout, calcDone = false, active, variant = "dark", actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [inviteOpen, setInviteOpen] = useState(false);
   const isAdmin = isAdminPubkey(user?.pubkey);
   const isLight = variant === "light";
-  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
 
   return (
-    <>
     <nav
       className={
         isLight
@@ -175,8 +178,8 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                     </p>
                     <button
                       className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors"
-                      onClick={() => {
-                        navigator.clipboard.writeText(user.npub);
+                      onClick={async () => {
+                        await copyToClipboard(user.npub);
                         toast({ title: "Copied!", description: "npub copied to clipboard" });
                       }}
                       data-testid="button-copy-npub"
@@ -187,9 +190,17 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-indigo-100" />
-                <DropdownMenuItem className="cursor-pointer" onClick={() => setEditProfileOpen(true)} data-testid="dropdown-edit-profile">
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="dropdown-view-profile">
                   <UserCircle className="mr-2 h-4 w-4" />
-                  <span>Edit profile</span>
+                  <span>View profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate(`/p/${user.npub}`)} data-testid="dropdown-share-profile">
+                  <Share2 className="mr-2 h-4 w-4" />
+                  <span>Share profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => setInviteOpen(true)} data-testid="dropdown-invite">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  <span>Invite friends</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                   <HelpCircle className="mr-2 h-4 w-4" />
@@ -223,9 +234,17 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
           </div>
         </div>
       </div>
-    </nav>
 
-    <ProfileEditModal open={editProfileOpen} onOpenChange={setEditProfileOpen} />
-    </>
+      <ShareProfileModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        invite
+        npub={user.npub}
+        displayName={user.displayName || "You"}
+        picture={user.picture}
+        nip05={user.profile?.nip05}
+        canonicalUrl={inviteUrl}
+      />
+    </nav>
   );
 }

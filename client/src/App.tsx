@@ -12,6 +12,7 @@ import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
+import SharePage from "@/pages/SharePage";
 import FaqPage from "@/pages/FaqPage";
 import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
@@ -73,6 +74,7 @@ function Router() {
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         <Route path="/profile/:npub" component={ProfilePage} />
+        <Route path="/p/:id" component={SharePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />

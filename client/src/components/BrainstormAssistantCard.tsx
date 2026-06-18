@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -7,6 +8,7 @@ import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw,
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
 import { fetchProfile, fetchAssistantPointer, publishAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { followUser } from "@/services/socialActions";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -123,6 +125,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       };
       writePublishedAssistant(state);
       setPublished(state);
+      // Ensure the user follows their own (already-published) assistant.
+      followUser(state.pubkey).catch(() => {});
     })();
     return () => { cancelled = true; };
   }, [userPubkey, published]);
@@ -213,6 +217,10 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         publishedAt: state.publishedAt,
       }).catch(() => {});
 
+      // Auto-follow the user's own assistant so it shows up in their network
+      // (merges into the existing contact list; no-op if already following).
+      followUser(state.pubkey).catch(() => {});
+
       const isFirst = !readFirstPublishDone();
       if (isFirst) {
         setFirstPublishDone();
@@ -239,7 +247,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
   const handleCopyNpub = useCallback(() => {
     if (!published?.npub) return;
-    navigator.clipboard.writeText(published.npub).then(
+    copyToClipboard(published.npub).then(
       () => toast({ title: "Copied!", description: "Assistant npub copied to clipboard." }),
       () => toast({ title: "Copy failed", description: "Could not copy to clipboard. Please copy manually.", variant: "destructive" }),
     );
@@ -378,7 +386,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </Popover>
         </div>
         <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
-          {isActive ? "Your sidekick is publishing your trust scores to Nostr." : "Give your trust scores a voice on Nostr — one click."}
+          {isActive ? "Your sidekick is publishing your trust scores." : "Give your trust scores a voice — one click."}
         </p>
 
         {isActive ? (

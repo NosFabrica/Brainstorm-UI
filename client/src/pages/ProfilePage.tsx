@@ -38,7 +38,10 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Share2,
 } from "lucide-react";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { copyToClipboard } from "@/lib/clipboard";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { FEATURES } from "@/config/featureFlags";
@@ -911,6 +914,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<NostrUser | null>(null);
 
   const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -1314,7 +1318,36 @@ export default function ProfilePage() {
     };
   }, [seed]);
 
-  const displayNostrProfile = nostrProfile ?? seedAsNostrProfile;
+  // When you're viewing your *own* profile, the locally-known current-user
+  // profile (updated on every in-app save) is the freshest source — a just-
+  // created/edited kind 0 may not have propagated to the HTTP gateways/relays
+  // that `fetchProfile` queries yet. Use it to fill gaps (esp. picture/banner)
+  // so your own avatar shows immediately instead of the initials fallback.
+  const ownProfileFallback = useMemo<ProfileContent | null>(() => {
+    if (!user || !hexPubkey || user.pubkey !== hexPubkey) return null;
+    if (user.profile) return user.profile;
+    if (user.picture || user.displayName) {
+      return {
+        name: user.displayName,
+        display_name: user.displayName,
+        picture: user.picture,
+        about: user.about,
+        nip05: user.nip05,
+      } as ProfileContent;
+    }
+    return null;
+  }, [user, hexPubkey]);
+
+  const displayNostrProfile = useMemo<ProfileContent | null>(() => {
+    const base = nostrProfile ?? seedAsNostrProfile;
+    if (!ownProfileFallback) return base;
+    if (!base) return ownProfileFallback;
+    // Network values win when present; the local copy backfills empty fields.
+    const nonEmpty = Object.fromEntries(
+      Object.entries(base).filter(([, v]) => v != null && v !== ""),
+    );
+    return { ...ownProfileFallback, ...nonEmpty } as ProfileContent;
+  }, [nostrProfile, seedAsNostrProfile, ownProfileFallback]);
 
   const loadError = useMemo<string | null>(() => {
     if (!npubParam) return null;
@@ -1893,11 +1926,10 @@ export default function ProfilePage() {
   };
 
   const handleCopyNpub = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyToClipboard(text)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    }
   };
 
   const displayNpub = useMemo(() => {
@@ -2051,6 +2083,16 @@ export default function ProfilePage() {
       ) : (
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
       )}
+
+      <ShareProfileModal
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        npub={displayNpub}
+        displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+        picture={displayNostrProfile?.picture}
+        nip05={displayNostrProfile?.nip05}
+        canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+      />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
@@ -2376,6 +2418,14 @@ export default function ProfilePage() {
                           <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
                           <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShareOpen(true)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0"
+                            data-testid="button-share-profile"
+                          >
+                            <Share2 className="w-3 h-3" /> Share
                           </button>
                         </div>
                         {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (

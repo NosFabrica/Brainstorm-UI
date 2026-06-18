@@ -10,6 +10,7 @@ import {
 import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
+import { decodeShareId } from "@/lib/shareId";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroImage1 from "@/assets/login-hero/hero-1.webp";
 import heroImage2 from "@/assets/login-hero/hero-2.webp";
@@ -40,6 +41,20 @@ function getNextPath(): string {
   return "/";
 }
 
+// The inviter's hex pubkey when arriving via someone's invite link
+// (?invite=npub… or a pending invite stored when viewing their share page). New
+// accounts created here auto-follow them so they start connected.
+function getInviterPubkey(): string | undefined {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("invite") || sessionStorage.getItem("brainstorm_pending_invite") || "";
+    if (!raw) return undefined;
+    return decodeShareId(raw)?.pubkey;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function LoginPage() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
@@ -51,6 +66,7 @@ export default function LoginPage() {
   const [heroIndex, setHeroIndex] = useState(0);
 
   const nextPath = getNextPath();
+  const inviterPubkey = getInviterPubkey();
 
   useEffect(() => {
     if (getCurrentUser()) {
@@ -380,8 +396,10 @@ export default function LoginPage() {
       <CreateAccountModal
         open={createOpen}
         onOpenChange={setCreateOpen}
+        inviterPubkey={inviterPubkey}
         onCreated={() => {
           setCreateOpen(false);
+          try { sessionStorage.removeItem("brainstorm_pending_invite"); } catch {}
           navigate(nextPath, { replace: true });
         }}
       />

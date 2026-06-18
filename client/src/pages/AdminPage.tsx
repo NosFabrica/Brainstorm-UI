@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { env } from "@/lib/runtimeEnv";
@@ -701,7 +702,7 @@ function CopyButton({ text }: { text: string }) {
       className="p-1 rounded hover:bg-slate-100 transition-colors"
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
+        copyToClipboard(text);
         toast({ title: "Copied", description: text.slice(0, 20) + "...", duration: 1500 });
       }}
       data-testid="button-copy-npub"

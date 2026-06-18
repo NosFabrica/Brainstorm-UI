@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -539,7 +540,7 @@ export default function UserPanelPage() {
   };
 
   const handleCopyInviteLink = () => {
-    navigator.clipboard.writeText(window.location.origin);
+    copyToClipboard(window.location.origin);
     toast({ title: "Invite link copied!", description: "Share this link to grow the network." });
   };
 
@@ -645,7 +646,7 @@ export default function UserPanelPage() {
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anon"}</p>
-                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { copyToClipboard(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
                         <span>{user.npub.slice(0, 16)}...</span>
                         <Copy className="h-3 w-3" />
                       </button>
@@ -1054,7 +1055,7 @@ export default function UserPanelPage() {
               <div className="hidden sm:flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider">Pubkey</span>
-                  <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub">
+                  <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors" onClick={() => { copyToClipboard(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub">
                     {truncatedNpub}
                     <Copy className="h-3 w-3 text-indigo-300/50" />
                   </button>
@@ -1092,7 +1093,7 @@ export default function UserPanelPage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] font-semibold text-indigo-300/70 uppercase tracking-wider shrink-0">Pubkey</span>
-                    <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors truncate" onClick={() => { navigator.clipboard.writeText(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub-mobile">
+                    <button className="flex items-center gap-1 text-xs font-mono text-white/80 hover:text-white transition-colors truncate" onClick={() => { copyToClipboard(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-overview-copy-npub-mobile">
                       {truncatedNpub}
                       <Copy className="h-3 w-3 text-indigo-300/50 shrink-0" />
                     </button>

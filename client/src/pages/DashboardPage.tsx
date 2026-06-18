@@ -150,7 +150,7 @@ const ONBOARDING_SLIDES = [
     title: "Computation In Progress",
     subtitle: "Your scores are being prepared",
     content: "We're calculating your trust graph and generating explainable scores you can use across the Brainstorm experience.",
-    detail: "This usually takes a few minutes \u2014 you can keep browsing while we build your view of the network.",
+    detail: "You can use Brainstorm right now \u2014 this finishes in the background, no waiting. It usually takes a few minutes.",
     tone: "from-cyan-500/20 via-sky-500/10 to-transparent",
   },
   {

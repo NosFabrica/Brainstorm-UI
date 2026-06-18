@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { Upload, X, Loader2, ImageIcon } from "lucide-react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
+import { Upload, X, Loader2, ImageIcon, Camera } from "lucide-react";
 
 interface ImageUploadProps {
   value?: string;
@@ -8,6 +8,22 @@ interface ImageUploadProps {
   aspect?: "square" | "banner";
   label?: string;
   className?: string;
+  /**
+   * Optional default preview rendered in the empty state (e.g. an initials avatar
+   * or a brand-gradient banner). When provided, the dashed "Upload" box is replaced
+   * by this default plus an overlay upload control; Remove (on a real value) reverts
+   * to it. Purely visual — never published.
+   */
+  placeholder?: ReactNode;
+  /**
+   * Overrides the default box size/shape classes in all states. Lets callers request
+   * e.g. a tall banner (`w-full h-36 rounded-t-2xl`) or a circular avatar
+   * (`h-24 w-24 rounded-full border-4 border-white shadow-lg`). When absent, the
+   * default 72px box is used.
+   */
+  containerClassName?: string;
+  /** Display-only: render the image/placeholder with no upload/remove affordances. */
+  readOnly?: boolean;
 }
 
 const MAX_AVATAR_SIZE = 400;
@@ -113,7 +129,7 @@ async function uploadImage(blob: Blob): Promise<string> {
   return dataUrl;
 }
 
-export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "" }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "", placeholder, containerClassName, readOnly }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,13 +175,26 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
 
   const handleDragLeave = useCallback(() => setDragOver(false), []);
 
-  const containerClass = isSquare
+  const containerClass = containerClassName ?? (isSquare
     ? "w-[72px] h-[72px] rounded-xl"
-    : "w-full h-[72px] rounded-xl";
+    : "w-full h-[72px] rounded-xl");
+
+  // Display-only: show the image (or default placeholder) with no controls.
+  if (readOnly) {
+    return (
+      <div className={`${containerClass} overflow-hidden ${className}`} data-testid={`display-${aspect}`}>
+        {value ? (
+          <img src={value} alt={label || ""} className="w-full h-full object-cover" />
+        ) : (
+          placeholder ?? null
+        )}
+      </div>
+    );
+  }
 
   if (value) {
     return (
-      <div className={`relative group ${containerClass} overflow-hidden border border-white/10 ${className}`}>
+      <div className={`relative group ${containerClass} overflow-hidden ${containerClassName ? "" : "border border-white/10"} ${className}`}>
         <img src={value} alt={label || "Uploaded"} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
           <button
@@ -187,6 +216,51 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
             </button>
           )}
         </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+        />
+      </div>
+    );
+  }
+
+  // Default-preview empty state: render the supplied placeholder (initials avatar /
+  // brand-gradient banner) with an overlay upload control instead of a dashed box.
+  if (placeholder) {
+    return (
+      <div className={className}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={isSquare ? "Upload profile photo" : "Upload banner"}
+          className={`relative group ${containerClass} overflow-hidden cursor-pointer transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50 ${
+            dragOver ? "ring-2 ring-[#7c86ff]/60" : ""
+          }`}
+          onClick={() => !uploading && inputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!uploading) inputRef.current?.click(); }
+          }}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          data-testid={`upload-${aspect}`}
+        >
+          <div className="absolute inset-0">{placeholder}</div>
+          <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 sm:opacity-0 max-sm:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+            {uploading ? (
+              <Loader2 className="h-4 w-4 text-white animate-spin" />
+            ) : (
+              <span className="inline-flex items-center gap-1 text-white text-[11px] font-semibold drop-shadow">
+                <Camera className="h-3.5 w-3.5" />
+                {isSquare ? "Add photo" : "Add banner"}
+              </span>
+            )}
+          </div>
+        </div>
+        {error && <p className="text-[10px] text-red-500 mt-1">{error}</p>}
         <input
           ref={inputRef}
           type="file"

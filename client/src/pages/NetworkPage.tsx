@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import {
   getVerifiedThreshold,
@@ -894,7 +895,7 @@ export default function NetworkPage() {
 
   const handleCopyNpub = useCallback(async (npub: string, pubkey: string) => {
     try {
-      await navigator.clipboard.writeText(npub);
+      await copyToClipboard(npub);
       setCopiedPubkey(pubkey);
       setTimeout(() => setCopiedPubkey(null), 2000);
     } catch {}

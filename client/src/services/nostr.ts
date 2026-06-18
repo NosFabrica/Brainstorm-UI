@@ -1,5 +1,5 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey } from "nostr-tools";
-import { encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
+import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
 
@@ -128,6 +128,16 @@ export function hasPersistentKey(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * True when we hold the raw secret key in this session (created/restored account
+ * in localStorage, OR an nsec pasted into sessionStorage) — i.e. when we can back
+ * it up or reveal it. False for extension logins, where the key never leaves the
+ * signer.
+ */
+export function hasStoredSecretKey(): boolean {
+  return !!getStoredSecretKey();
 }
 
 function signWithStoredKey(event: Record<string, unknown>): Record<string, unknown> {
@@ -733,6 +743,148 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
   ]);
 }
 
+/**
+ * Fetch a kind-0 profile for the public share page, reporting whether it had to
+ * fall back to relays. The HTTP/indexed gateways are treated as the "known"
+ * path; when they miss (a profile not yet indexed by Brainstorm), we query the
+ * relays — including any `nprofile` relay hints — and flag `foundViaRelays` so
+ * the UI can show a "fetched from relays" state. (Adding the hinted relays to
+ * the backend sync pipeline is handled server-side; here we only pass them on.)
+ */
+export async function fetchProfileForShare(
+  pubkey: string,
+  opts: { relayHints?: string[]; timeoutMs?: number } = {},
+): Promise<{ content?: ProfileContent; foundViaRelays: boolean }> {
+  const timeoutMs = opts.timeoutMs ?? 10000;
+  const relayHints = opts.relayHints ?? [];
+
+  const http = await fetchProfileHttp(pubkey, Math.min(timeoutMs, 6000));
+  if (http) return { content: http, foundViaRelays: false };
+
+  const event = await fetchProfileEvent(pubkey, timeoutMs, relayHints);
+  if (event) {
+    let content: ProfileContent | undefined;
+    if (isValidProfile(event as any)) {
+      content = getProfileContent(event as any);
+    } else if (typeof event.content === "string") {
+      try { content = JSON.parse(event.content) as ProfileContent; } catch {}
+    }
+    if (content) return { content, foundViaRelays: true };
+  }
+
+  return { content: undefined, foundViaRelays: false };
+}
+
+/**
+ * Fetch the most recent events of the given kinds for an author, newest first.
+ * Generic relay query feeding the share page's content "teaser" blocks (notes,
+ * photos, articles, …). Merges the author's outbox relays with optional
+ * `nprofile` relay hints, de-dupes across relays, and caps to `limit`.
+ */
+export async function fetchRecentByKinds(
+  pubkey: string,
+  kinds: number[],
+  limit = 5,
+  opts: { relayHints?: string[]; timeoutMs?: number } = {},
+): Promise<NostrEvent[]> {
+  const timeoutMs = opts.timeoutMs ?? 8000;
+  const relays = Array.from(new Set([
+    ...loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS),
+    ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
+  ]));
+
+  return new Promise<NostrEvent[]>((resolve) => {
+    const collected = new Map<string, NostrEvent>();
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { sub.unsubscribe(); } catch {}
+      const arr = Array.from(collected.values())
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+        .slice(0, limit);
+      resolve(arr);
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = pool.request(relays, { kinds, authors: [pubkey], limit }).subscribe({
+      next: (event) => {
+        try { eventStore.add(event); } catch {}
+        collected.set((event as NostrEvent).id, event as NostrEvent);
+      },
+      error: () => finish(),
+      complete: () => finish(),
+    });
+  });
+}
+
+/**
+ * Fetch events by id (referenced/quoted/reposted notes for the share page's
+ * rich note rendering). De-dupes across relays; resolves once all relays
+ * complete or the timeout fires.
+ */
+export async function fetchEventsByIds(
+  ids: string[],
+  relays: string[] = PROFILE_RELAYS,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
+  if (!unique.length) return [];
+  const targetRelays = relays.length ? relays : PROFILE_RELAYS;
+  return new Promise<NostrEvent[]>((resolve) => {
+    const collected = new Map<string, NostrEvent>();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { sub.unsubscribe(); } catch {}
+      resolve(Array.from(collected.values()));
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = pool.request(targetRelays, { ids: unique }).subscribe({
+      next: (event) => {
+        try { eventStore.add(event); } catch {}
+        collected.set((event as NostrEvent).id, event as NostrEvent);
+        if (collected.size >= unique.length) finish();
+      },
+      error: () => finish(),
+      complete: () => finish(),
+    });
+  });
+}
+
+/** Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map. */
+export async function fetchProfileMap(
+  pubkeys: string[],
+  timeoutMs = 6000,
+): Promise<Map<string, ProfileContent>> {
+  const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
+  const map = new Map<string, ProfileContent>();
+  if (!unique.length) return map;
+  return new Promise<Map<string, ProfileContent>>((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; clearTimeout(timer); try { sub.unsubscribe(); } catch {}; resolve(map); };
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = pool.request(PROFILE_RELAYS, { kinds: [0], authors: unique }).subscribe({
+      next: (event) => {
+        try { eventStore.add(event); } catch {}
+        try {
+          if (isValidProfile(event as any)) {
+            const content = getProfileContent(event as any);
+            if (content) map.set((event as NostrEvent).pubkey, content);
+          }
+        } catch {}
+        if (map.size >= unique.length) finish();
+      },
+      error: () => finish(),
+      complete: () => finish(),
+    });
+  });
+}
+
 export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> {
   return {
     profile: content,
@@ -875,26 +1027,12 @@ export async function handleLogin(): Promise<NostrUser> {
   return completeLogin(pubkey, signedEvent);
 }
 
-export async function loginWithNsec(nsec: string): Promise<NostrUser> {
-  const trimmed = nsec.trim();
-  if (!trimmed) {
-    throw new LoginError("INVALID_NSEC", "Please paste your key to continue.");
-  }
-
-  let sk: Uint8Array;
-  try {
-    const decoded = nip19.decode(trimmed);
-    if (decoded.type !== "nsec") {
-      throw new Error("Not an nsec key");
-    }
-    sk = decoded.data as Uint8Array;
-  } catch {
-    throw new LoginError(
-      "INVALID_NSEC",
-      "That doesn't look like a valid key. Double-check it and try again."
-    );
-  }
-
+/**
+ * Shared login core: take a raw secret key, sign the server's challenge LOCALLY
+ * (the key never leaves the device), and complete the session. `opts.persistent`
+ * stores the key in localStorage so a restored/created account stays signed in.
+ */
+async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): Promise<NostrUser> {
   let pubkey: string;
   try {
     pubkey = getPublicKey(sk);
@@ -921,13 +1059,63 @@ export async function loginWithNsec(nsec: string): Promise<NostrUser> {
 
   const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
 
-  storeSecretKey(sk);
+  storeSecretKey(sk, opts);
   try {
     return await completeLogin(pubkey, signedEvent);
   } catch (err) {
     clearSecretKey();
     throw err;
   }
+}
+
+export async function loginWithNsec(nsec: string, opts?: { persistent?: boolean }): Promise<NostrUser> {
+  const trimmed = nsec.trim();
+  if (!trimmed) {
+    throw new LoginError("INVALID_NSEC", "Please paste your key to continue.");
+  }
+
+  let sk: Uint8Array;
+  try {
+    const decoded = nip19.decode(trimmed);
+    if (decoded.type !== "nsec") {
+      throw new Error("Not an nsec key");
+    }
+    sk = decoded.data as Uint8Array;
+  } catch {
+    throw new LoginError(
+      "INVALID_NSEC",
+      "That doesn't look like a valid key. Double-check it and try again."
+    );
+  }
+
+  // `persistent` ("Remember me on this device") stores the key in localStorage so
+  // the user stays signed in. Default false → ephemeral sessionStorage.
+  return authenticateWithSecretKey(sk, opts);
+}
+
+/**
+ * Restore an account from an encrypted backup key (NIP-49 `ncryptsec…`) + password.
+ * Decryption happens entirely in the browser; the password is never sent anywhere.
+ * Restored accounts persist (stay signed in), matching created-account behavior.
+ */
+export async function loginWithEncryptedBackup(ncryptsec: string, password: string, opts?: { persistent?: boolean }): Promise<NostrUser> {
+  const trimmed = ncryptsec.trim();
+  if (!trimmed) {
+    throw new LoginError("INVALID_NSEC", "Please paste your backup key to continue.");
+  }
+  if (!password) {
+    throw new LoginError("INVALID_NSEC", "Enter the password you used for this backup.");
+  }
+
+  let sk: Uint8Array;
+  try {
+    sk = decryptSecretKeyNip49(trimmed, password);
+  } catch {
+    throw new LoginError("INVALID_NSEC", "Wrong password, or this isn't a valid backup key.");
+  }
+
+  // Restoring from a backup defaults to staying signed in (the user has the password).
+  return authenticateWithSecretKey(sk, { persistent: opts?.persistent ?? true });
 }
 
 export function logout() {
@@ -1067,6 +1255,7 @@ async function pollAndPublishTrustAnchor(pubkey: string): Promise<void> {
 export async function runInitialSetup(
   pubkey: string,
   profile: { name: string; about?: string; picture?: string },
+  opts: { inviterPubkey?: string } = {},
 ): Promise<void> {
   try {
     if (localStorage.getItem(initialSetupFlag(pubkey)) === "true") return;
@@ -1077,7 +1266,16 @@ export async function runInitialSetup(
   if (profile.picture) content.picture = profile.picture;
   try { await publishProfile(content); } catch {}
   try { await publishRelayList(PROFILE_RELAYS); } catch {}
-  try { if (SEED_FOLLOW_HEX) await publishFollowList([SEED_FOLLOW_HEX]); } catch {}
+  // Seed the new account's follow list: the default seed + the inviter (if the
+  // account was created via someone's invite link), so they start connected and
+  // their web of trust isn't empty. Deduped; never self.
+  try {
+    const follows = new Set<string>();
+    if (SEED_FOLLOW_HEX) follows.add(SEED_FOLLOW_HEX);
+    const inviter = (opts.inviterPubkey || "").toLowerCase();
+    if (/^[0-9a-f]{64}$/.test(inviter) && inviter !== pubkey.toLowerCase()) follows.add(inviter);
+    if (follows.size) await publishFollowList(Array.from(follows));
+  } catch {}
 
   // Bootstrap publishes done — guard against re-running on reload.
   try { localStorage.setItem(initialSetupFlag(pubkey), "true"); } catch {}
@@ -1095,7 +1293,10 @@ export async function runInitialSetup(
  * stays signed in, and fire-and-forget the first-run setup. Mirrors
  * `loginWithNsec` but with a generated key.
  */
-export async function createAccount(displayName: string): Promise<NostrUser> {
+export async function createAccount(
+  displayName: string,
+  opts: { inviterPubkey?: string } = {},
+): Promise<NostrUser> {
   const name = displayName.trim();
   const sk = generateSecretKey();
   const pubkey = getPublicKey(sk);
@@ -1128,7 +1329,7 @@ export async function createAccount(displayName: string): Promise<NostrUser> {
   }
 
   // Don't block the UI on relay/scoring work.
-  void runInitialSetup(pubkey, { name }).catch(() => {});
+  void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});
   return user;
 }
 
@@ -1137,6 +1338,16 @@ export function exportEncryptedKey(password: string): string {
   const sk = getStoredSecretKey();
   if (!sk) throw new Error("No account key available to back up.");
   return encryptSecretKeyNip49(sk, password);
+}
+
+/**
+ * Encode the stored secret key as a raw `nsec…` for an explicit, in-app reveal
+ * (advanced users only). Runs entirely client-side; never written to disk.
+ */
+export function exportNsec(): string {
+  const sk = getStoredSecretKey();
+  if (!sk) throw new Error("No account key available.");
+  return nip19.nsecEncode(sk);
 }
 
 export async function signNip85(
