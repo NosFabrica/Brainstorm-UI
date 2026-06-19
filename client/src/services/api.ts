@@ -574,8 +574,11 @@ export const apiClient = {
   },
 
   async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
+    // Publishes the user's assistant kind-0 metadata event. The backend route is
+    // `/user/assistantProfile` (there is no `/user/publishAssistantProfile`); the
+    // profile fields are sent as the body and ignored by the server if unused.
     const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/publishAssistantProfile`,
+      `${getBrainstormApi()}/user/assistantProfile`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
