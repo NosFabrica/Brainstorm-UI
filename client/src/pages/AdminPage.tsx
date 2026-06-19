@@ -89,7 +89,8 @@ import {
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, searchProfilesMeili, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
@@ -2185,7 +2186,18 @@ export default function AdminPage() {
     try {
       let results: NostrSearchResult[] = [];
       try {
-        results = await searchProfilesMeili(q, { limit: 10, timeoutMs: 8000 });
+        // Backend search (NosFabrica/house POV, unauthenticated) — same endpoint
+        // the public search uses. Falls back to a direct relay search on failure.
+        const { results: byText } = await searchByText(q, "nosfabrica", undefined, 10);
+        results = byText.map((r) => ({
+          pubkey: r.pubkey,
+          npub: r.npub,
+          name: r.name,
+          displayName: r.displayName,
+          picture: r.picture,
+          about: r.about,
+          nip05: r.nip05,
+        }));
       } catch {
         results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
       }

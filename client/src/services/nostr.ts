@@ -633,93 +633,12 @@ export async function fetchProfileEvent(
   return undefined;
 }
 
-// Resolve with the first promise that yields a truthy value. Unlike
-// Promise.race (first to *settle*) this skips sources that resolve to
-// undefined/null, only falling back to undefined once every source is done.
-function firstTruthy<T>(promises: Array<Promise<T | undefined>>): Promise<T | undefined> {
-  return new Promise((resolve) => {
-    let remaining = promises.length;
-    if (remaining === 0) {
-      resolve(undefined);
-      return;
-    }
-    let settled = false;
-    for (const p of promises) {
-      p.then((value) => {
-        if (!settled && value) {
-          settled = true;
-          resolve(value);
-        }
-      })
-        .catch(() => {})
-        .finally(() => {
-          remaining -= 1;
-          if (remaining === 0 && !settled) resolve(undefined);
-        });
-    }
-  });
-}
-
-// Recursively scan an arbitrary JSON payload for a kind 0 profile event and
-// return its parsed content. Handles the differing envelopes used by the HTTP
-// sources: nostrhttp.com returns a bare array of events, while api.nostr.band
-// wraps the event under `profiles[].event`.
-function extractKind0Content(node: unknown, depth = 0): ProfileContent | undefined {
-  if (!node || typeof node !== "object" || depth > 6) return undefined;
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      const found = extractKind0Content(item, depth + 1);
-      if (found) return found;
-    }
-    return undefined;
-  }
-  const obj = node as Record<string, unknown>;
-  if (obj.kind === 0 && typeof obj.content === "string") {
-    try {
-      const parsed = JSON.parse(obj.content) as ProfileContent;
-      if (parsed && typeof parsed === "object") return parsed;
-    } catch {}
-  }
-  for (const key of Object.keys(obj)) {
-    const found = extractKind0Content(obj[key], depth + 1);
-    if (found) return found;
-  }
-  return undefined;
-}
-
-async function fetchProfileFromUrl(url: string, timeoutMs: number): Promise<ProfileContent | undefined> {
-  try {
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return undefined;
-    const json = await res.json();
-    return extractKind0Content(json);
-  } catch {
-    return undefined;
-  }
-}
-
-// HTTP fast-path for kind 0 profile metadata. Queries CORS-enabled HTTP
-// gateways in parallel so a slow/unavailable relay set never bottlenecks the
-// avatar. Returns the first source that yields a valid profile.
-export async function fetchProfileHttp(pubkey: string, timeoutMs = 6000): Promise<ProfileContent | undefined> {
-  let npub: string;
-  try {
-    npub = nip19.npubEncode(pubkey);
-  } catch {
-    return undefined;
-  }
-  const urls = [
-    `https://nostrhttp.com/${npub}`,
-    `https://api.nostr.band/v0/stats/profile/${npub}`,
-  ];
-  return firstTruthy(urls.map((u) => fetchProfileFromUrl(u, timeoutMs)));
-}
-
-async function fetchProfileFromRelays(pubkey: string, timeoutMs: number): Promise<ProfileContent | undefined> {
-  const event = await fetchProfileEvent(pubkey, timeoutMs);
+async function fetchProfileFromRelays(
+  pubkey: string,
+  timeoutMs: number,
+  extraRelays: string[] = [],
+): Promise<ProfileContent | undefined> {
+  const event = await fetchProfileEvent(pubkey, timeoutMs, extraRelays);
   if (!event) return undefined;
   if (isValidProfile(event as any)) {
     return getProfileContent(event as any);
@@ -733,46 +652,21 @@ async function fetchProfileFromRelays(pubkey: string, timeoutMs: number): Promis
 }
 
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {
-  // Race the HTTP fast-path against the relay query and take whichever returns
-  // a valid kind 0 profile first. The HTTP gateways are usually faster and
-  // avoid worst-case relay hangs; the relay query stays as the resilient
-  // fallback (and still warms the relay pool / event store).
-  return firstTruthy([
-    fetchProfileHttp(pubkey, Math.min(timeoutMs, 6000)),
-    fetchProfileFromRelays(pubkey, timeoutMs),
-  ]);
+  // Relay-only. Kind-0 metadata is read from the author's outbox relays (merged
+  // with PROFILE_RELAYS) — no external HTTP gateways (nostr.band / nostrhttp).
+  return fetchProfileFromRelays(pubkey, timeoutMs);
 }
 
 /**
- * Fetch a kind-0 profile for the public share page, reporting whether it had to
- * fall back to relays. The HTTP/indexed gateways are treated as the "known"
- * path; when they miss (a profile not yet indexed by Brainstorm), we query the
- * relays — including any `nprofile` relay hints — and flag `foundViaRelays` so
- * the UI can show a "fetched from relays" state. (Adding the hinted relays to
- * the backend sync pipeline is handled server-side; here we only pass them on.)
+ * Fetch a kind-0 profile for the public share page, from relays only — including
+ * any `nprofile` relay hints, so a profile not yet on the default relay set can
+ * still be resolved.
  */
 export async function fetchProfileForShare(
   pubkey: string,
   opts: { relayHints?: string[]; timeoutMs?: number } = {},
-): Promise<{ content?: ProfileContent; foundViaRelays: boolean }> {
-  const timeoutMs = opts.timeoutMs ?? 10000;
-  const relayHints = opts.relayHints ?? [];
-
-  const http = await fetchProfileHttp(pubkey, Math.min(timeoutMs, 6000));
-  if (http) return { content: http, foundViaRelays: false };
-
-  const event = await fetchProfileEvent(pubkey, timeoutMs, relayHints);
-  if (event) {
-    let content: ProfileContent | undefined;
-    if (isValidProfile(event as any)) {
-      content = getProfileContent(event as any);
-    } else if (typeof event.content === "string") {
-      try { content = JSON.parse(event.content) as ProfileContent; } catch {}
-    }
-    if (content) return { content, foundViaRelays: true };
-  }
-
-  return { content: undefined, foundViaRelays: false };
+): Promise<ProfileContent | undefined> {
+  return fetchProfileFromRelays(pubkey, opts.timeoutMs ?? 10000, opts.relayHints ?? []);
 }
 
 /**
@@ -1515,46 +1409,6 @@ export interface NostrSearchResult {
   picture?: string;
   about?: string;
   nip05?: string;
-}
-
-/**
- * Search profiles via the legacy Brainstorm Meilisearch endpoint.
- * Supports per-user WoT perspective ("house" vs "user").
- */
-export async function searchProfilesMeili(
-  query: string,
-  options: { limit?: number; timeoutMs?: number; userPubkey?: string; pov?: "house" | "user" } = {}
-): Promise<NostrSearchResult[]> {
-  const { limit = 10, timeoutMs = 8000, userPubkey, pov = "house" } = options;
-  const { apiClient } = await import("./api");
-  const data = await apiClient.searchProfilesLegacyMeili(query, pov, userPubkey, limit, timeoutMs);
-  const hits = data.hits;
-  const seen = new Set<string>();
-  const out: NostrSearchResult[] = [];
-  for (const h of hits) {
-    const pubkey = typeof h?.pubkey === "string" ? (h.pubkey as string) : undefined;
-    if (!pubkey || seen.has(pubkey)) continue;
-    seen.add(pubkey);
-    let npub: string;
-    if (typeof h?.npub === "string" && h.npub) {
-      npub = h.npub as string;
-    } else {
-      try { npub = nip19.npubEncode(pubkey); } catch { continue; }
-    }
-    const str = (v: unknown): string | undefined =>
-      typeof v === "string" && v.length > 0 ? v : undefined;
-    out.push({
-      pubkey,
-      npub,
-      name: str(h?.name),
-      displayName: str(h?.display_name) || str(h?.displayName),
-      picture: str(h?.picture),
-      about: str(h?.about),
-      nip05: str(h?.nip05),
-    });
-    if (out.length >= limit) break;
-  }
-  return out;
 }
 
 export function searchNostrProfiles(

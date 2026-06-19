@@ -1937,18 +1937,17 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
-  // Fetch the NosFabrica ("house") perspective rank for the viewed profile on
-  // mount, so the dual-meter widget renders regardless of entry point (Search,
-  // Network, deep link, etc). The /user/{pubkey}/overview endpoint doesn't
-  // accept a `wotPov` parameter yet, so we lean on the Meili search endpoint
-  // (which does). Skipped when the search-click seed already supplied a value.
+  // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
+  // profile on mount, so the dual-meter widget renders regardless of entry point
+  // (Search, Network, deep link, etc). Uses an unauthenticated overview request
+  // (always house POV). Skipped when the search-click seed already supplied a value.
   const nosfabricaRankQuery = useQuery<number | null>({
     queryKey: ["profile-nosfabrica-rank", hexPubkey],
     queryFn: async () => {
-      if (!hexPubkey || !displayNpub) return null;
-      return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
+      if (!hexPubkey) return null;
+      return await apiClient.getHouseInfluence(hexPubkey);
     },
-    enabled: !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && (seed?.wotRankNosfabrica == null),
     staleTime: 5 * 60_000,
     retry: false,
   });

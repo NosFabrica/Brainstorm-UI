@@ -72,20 +72,21 @@ export default function SharePage() {
 
   const overviewQuery = useQuery({
     queryKey: ["share-overview", pubkey],
-    queryFn: () => apiClient.getUserOverview(pubkey),
+    // Unwrap the { code, message, data } envelope → the inner overview object.
+    queryFn: async () => (await apiClient.getUserOverview(pubkey))?.data ?? null,
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
 
-  // House (NosFabrica / network) rank from the Meili index. Anonymous-safe and
-  // often populated even when the main overview API has no score, so we fetch it
-  // always: it's the secondary "network view" for signed-in viewers AND the
-  // primary fallback for logged-out viewers. 0–100 → normalized to 0–1.
+  // House (NosFabrica / network) influence from our backend, via an
+  // unauthenticated overview request (always the house POV). It's the secondary
+  // "network view" for signed-in viewers; for logged-out viewers the primary
+  // overview query already runs from the house POV, so this is a fallback only.
   const houseRankQuery = useQuery({
-    queryKey: ["share-house-rank", pubkey],
-    queryFn: () => apiClient.lookupNosfabricaRank(pubkey, npub),
-    enabled: !!pubkey && !!npub,
+    queryKey: ["share-house-influence", pubkey],
+    queryFn: () => apiClient.getHouseInfluence(pubkey),
+    enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -138,21 +139,24 @@ export default function SharePage() {
     retry: false,
   });
 
-  const profile = (profileQuery.data?.content ?? {}) as ProfileContentLike;
-  const foundViaRelays = !!profileQuery.data?.foundViaRelays;
+  const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
   const score01 = typeof overview?.influence === "number" ? overview.influence : null;
-  // House score (0–100 → 0–1).
+  // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
     if (typeof r !== "number" || !Number.isFinite(r)) return null;
-    return Math.min(1, Math.max(0, r > 1 ? r / 100 : r));
+    return Math.min(1, Math.max(0, r));
   }, [houseRankQuery.data]);
+  // We resolve kind-0 from relays; treat a profile the backend hasn't scored
+  // (no house influence once that query settles) as "not yet indexed by
+  // Brainstorm" so the UI can show the live-from-relays note.
+  const foundViaRelays = !!profileQuery.data && houseRankQuery.isFetched && houseScore01 == null;
   // The ring: signed-in → your personalized POV; logged-out → network score
-  // (overview house POV, falling back to the Meili house rank when absent).
+  // (the overview house POV, falling back to the house-influence query).
   const primaryScore01 = loggedIn ? score01 : (score01 ?? houseScore01);
 
   // Photos = images from kind-20 picture events (every imeta URL is a photo) +

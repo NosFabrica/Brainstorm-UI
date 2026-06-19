@@ -471,71 +471,30 @@ export const apiClient = {
     return await response.json();
   },
 
-  async searchProfilesLegacyMeili(
-    text: string,
-    pov: "house" | "user" = "house",
-    userPubkey?: string,
-    limit: number = 50,
-    timeoutMs: number = 15000,
-  ): Promise<{
-    success: boolean;
-    hits: Array<Record<string, unknown>>;
-    estimatedTotalHits?: number;
-  }> {
-    const params = new URLSearchParams({
-      q: text,
-      limit: String(limit),
-      offset: "0",
-      wotPov: pov,
-    });
-    if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
-    const response = await fetch(
-      `https://brainstorm.world/api/search/profiles/meili?${params.toString()}`,
-      { signal: AbortSignal.timeout(timeoutMs) },
-    );
-    if (!response.ok) {
-      throw new Error(`Search failed (${response.status})`);
-    }
-    const data = await response.json();
-    if (!data?.success) {
-      throw new Error("Search service unavailable");
-    }
-    return {
-      success: true,
-      hits: Array.isArray(data.hits) ? data.hits : [],
-      estimatedTotalHits:
-        typeof data.estimatedTotalHits === "number"
-          ? data.estimatedTotalHits
-          : undefined,
-    };
-  },
-
   /**
-   * Look up a single profile's NosFabrica ("house") perspective `wot_rank`
-   * (returned 0..100 by Meili). Used by the Profile page to render the dual
-   * meter regardless of entry point (Search, Network, deep link), since the
-   * per-profile overview endpoint doesn't yet accept a `wotPov` parameter.
-   * Returns null if the pubkey isn't in the Meili index or if no rank field
-   * is present on the matching hit.
+   * Look up a single profile's NosFabrica ("house") perspective trust score —
+   * `influence` (0..1) — from our own backend. Issues an *unauthenticated*
+   * `/user/{pubkey}/overview` request so the result is always the house POV
+   * (the default observer), regardless of whether a viewer is logged in. Used
+   * by the Profile page's dual meter and the share page's network-trust score.
+   * Returns null if the backend has no overview for the pubkey (not yet indexed
+   * by Brainstorm) or the request fails.
    */
-  async lookupNosfabricaRank(
-    hexPubkey: string,
-    npub: string,
+  async getHouseInfluence(
+    pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    if (!hexPubkey || !npub) return null;
+    if (!pubkey) return null;
     try {
-      // Query by npub — Meili indexes both hex pubkey and npub as searchable
-      // fields; npub is the more discriminating token.
-      const res = await this.searchProfilesLegacyMeili(npub, "house", undefined, 5, timeoutMs);
-      const targetHex = hexPubkey.toLowerCase();
-      const hit = res.hits.find(h => typeof h.pubkey === "string" && (h.pubkey as string).toLowerCase() === targetHex);
-      if (!hit) return null;
-      const raw =
-        (typeof hit.wot_rank === "number" && Number.isFinite(hit.wot_rank) ? (hit.wot_rank as number) : null) ??
-        (typeof (hit as Record<string, unknown>).wotRank === "number" && Number.isFinite((hit as Record<string, unknown>).wotRank as number) ? ((hit as Record<string, unknown>).wotRank as number) : null) ??
-        (typeof (hit as Record<string, unknown>).rank === "number" && Number.isFinite((hit as Record<string, unknown>).rank as number) ? ((hit as Record<string, unknown>).rank as number) : null);
-      return raw;
+      // Plain fetch (no session token) → NosFabrica/house perspective.
+      const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return null;
+      const json = await response.json();
+      // Overview responses are wrapped: { code, message, data: { influence } }.
+      const influence = (json as { data?: { influence?: unknown } })?.data?.influence;
+      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
     } catch {
       return null;
     }
