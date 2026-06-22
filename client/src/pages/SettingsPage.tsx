@@ -56,7 +56,6 @@ import {
   Key,
   AlertTriangle,
   IdCard,
-  Sparkles,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
@@ -425,8 +424,7 @@ export default function SettingsPage() {
       </div>
       <div className="p-5 space-y-4">
         {hasStoredSecretKey() && (!backedUp || !user?.picture) && (
-          <div className="flex items-start gap-2.5 rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-3.5 py-3" data-testid="hint-finish-setup">
-            <Sparkles className="h-4 w-4 text-[#333286] shrink-0 mt-0.5" />
+          <div className="flex items-start rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-3.5 py-3" data-testid="hint-finish-setup">
             <p className="text-xs text-slate-600 leading-relaxed">
               <span className="font-semibold text-slate-900">Finish setting up.</span>{" "}
               {!backedUp && !user?.picture
@@ -969,7 +967,12 @@ export default function SettingsPage() {
             {hasNoFollowing && (
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/60 mb-3" data-testid="banner-gr-no-follows">
                 <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                <p className="text-xs text-amber-700 font-medium">Follow some people on Nostr first to calculate trust scores.</p>
+                <p className="text-xs text-amber-700 font-medium">
+                  Follow at least one account first so we can calculate your trust scores.{" "}
+                  <button type="button" onClick={() => navigate("/welcome")} className="font-semibold underline hover:text-amber-900" data-testid="link-gr-build-network">
+                    Find people to follow →
+                  </button>
+                </p>
               </div>
             )}
 

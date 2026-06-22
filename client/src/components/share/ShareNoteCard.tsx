@@ -3,8 +3,9 @@ import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useShareNav } from "@/components/share/ShareNavContext";
-import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
+import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 
@@ -55,13 +56,28 @@ export function ShareNoteCard({
   event,
   profiles,
   eventsById,
+  addrByCoord,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
   eventsById: Map<string, MinimalEvent>;
+  addrByCoord?: Map<string, MinimalEvent>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const a = analyzeNote(event);
+
+  // Addressable refs (e.g. NIP-23 articles) resolved to events, deduped by coord.
+  const articles: MinimalEvent[] = [];
+  if (addrByCoord) {
+    const seen = new Set<string>();
+    for (const ad of a.addrs) {
+      const key = addrCoord(ad);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const ev = addrByCoord.get(key);
+      if (ev) articles.push(ev);
+    }
+  }
 
   // Repost (kind 6/16)
   if (event.kind === 6 || event.kind === 16) {
@@ -121,6 +137,10 @@ export function ShareNoteCard({
 
       {quoted.map((qe) => (
         <EmbeddedNoteCard key={qe.id} event={qe} author={profiles.get(qe.pubkey)} profiles={profiles} />
+      ))}
+
+      {articles.map((ae) => (
+        <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
       ))}
 
       <p className="mt-1.5 text-xs text-slate-400">{ago(event.created_at)}</p>

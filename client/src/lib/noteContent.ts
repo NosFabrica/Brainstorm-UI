@@ -6,6 +6,8 @@
  * taste of the note, not a full client renderer.
  */
 
+import { nip19 } from "nostr-tools";
+
 export type NoteToken =
   | { type: "text"; value: string }
   | { type: "url"; value: string }
@@ -17,13 +19,56 @@ export type NoteToken =
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 
-// One pass: URLs, nostr: bech32 mentions, and #hashtags. Everything else is text.
+// One pass: URLs, bech32 mentions (with or without the `nostr:` prefix), and
+// #hashtags. Everything else is text. The lookbehind keeps us from matching a
+// bech32 entity glued to the end of a word (e.g. "footnote1…"); a decode guard
+// in parseNoteContent rejects anything that isn't a real entity.
 const TOKEN_REGEX =
-  /(https?:\/\/[^\s]+)|(nostr:(?:npub|nprofile|nevent|note)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
+  /(https?:\/\/[^\s]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
+
+// A nostr bech32 entity embedded anywhere inside a normal web URL's path, e.g.
+// `https://relayop.xyz/articles/naddr1…` or `https://njump.me/nevent1…`.
+const EMBEDDED_BECH32 = /(naddr|nevent|note|npub|nprofile)1[02-9ac-hj-np-z]+/i;
+
+/**
+ * If a web URL wraps a nostr entity (article/note/profile link via njump,
+ * relayop, primal, etc.), return that bech32 — but only if it actually decodes
+ * (checksum guard against false positives). Otherwise null.
+ */
+export function extractBech32FromUrl(url: string): string | null {
+  const m = EMBEDDED_BECH32.exec(url);
+  if (!m) return null;
+  try {
+    nip19.decode(m[0]);
+    return m[0];
+  } catch {
+    return null;
+  }
+}
+
+/** Compact display label for a plain web URL: `host(no www) + short path`. */
+export function prettyUrlLabel(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.replace(/^www\./, "");
+    let path = (u.pathname + u.search).replace(/\/+$/, "");
+    if (path) {
+      if (path.length > 18) path = path.slice(0, 18) + "…";
+      return host + path;
+    }
+    return host;
+  } catch {
+    return raw.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  }
+}
 
 function classifyUrl(url: string): NoteToken {
   if (IMAGE_EXT.test(url)) return { type: "image", value: url };
   if (VIDEO_EXT.test(url)) return { type: "video", value: url };
+  // A web URL that wraps a nostr entity becomes a mention so it can render as a
+  // rich card instead of a long ugly link.
+  const bech = extractBech32FromUrl(url);
+  if (bech) return { type: "mention", bech32: bech };
   return { type: "url", value: url };
 }
 
@@ -37,9 +82,17 @@ export function parseNoteContent(content: string): NoteToken[] {
       tokens.push({ type: "text", value: text.slice(lastIndex, idx) });
     }
     const [whole, url, mention, hashtag] = match;
-    if (url) tokens.push(classifyUrl(url));
-    else if (mention) tokens.push({ type: "mention", bech32: mention.replace(/^nostr:/, "") });
-    else if (hashtag) tokens.push({ type: "hashtag", value: hashtag });
+    if (url) {
+      tokens.push(classifyUrl(url));
+    } else if (mention) {
+      const bech = mention.replace(/^nostr:/, "");
+      // Decode-guard: a bare token like "note1…" in prose isn't a real entity.
+      let valid = false;
+      try { nip19.decode(bech); valid = true; } catch { /* not an entity */ }
+      tokens.push(valid ? { type: "mention", bech32: bech } : { type: "text", value: whole });
+    } else if (hashtag) {
+      tokens.push({ type: "hashtag", value: hashtag });
+    }
     lastIndex = idx + whole.length;
   }
   if (lastIndex < text.length) {

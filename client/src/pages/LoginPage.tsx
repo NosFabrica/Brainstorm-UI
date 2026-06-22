@@ -7,7 +7,7 @@ import {
   KeyRound,
   ArrowRight,
 } from "lucide-react";
-import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
+import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser, hasPersistentKey } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
@@ -15,21 +15,8 @@ import { BrainLogo } from "@/components/BrainLogo";
 import heroImage1 from "@/assets/login-hero/hero-1.webp";
 import heroImage2 from "@/assets/login-hero/hero-2.webp";
 import heroImage3 from "@/assets/login-hero/hero-3.webp";
-import avatarJack from "@/assets/login-avatars/jack.webp";
-import avatarElizableu from "@/assets/login-avatars/elizableu.webp";
-import avatarLynAlden from "@/assets/login-avatars/lynalden.webp";
-import avatarRoss from "@/assets/login-avatars/rossulbricht.webp";
-import avatarNatalie from "@/assets/login-avatars/natalie.webp";
 
 const HERO_IMAGES: string[] = [heroImage1, heroImage2, heroImage3];
-
-const COMMUNITY_AVATARS: { src: string; name: string }[] = [
-  { src: avatarRoss, name: "Ross Ulbricht" },
-  { src: avatarElizableu, name: "elizableu" },
-  { src: avatarLynAlden, name: "Lyn Alden" },
-  { src: avatarJack, name: "jack" },
-  { src: avatarNatalie, name: "Natalie" },
-];
 
 function getNextPath(): string {
   try {
@@ -97,12 +84,31 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Existing external accounts (extension/nsec) reaching Brainstorm for the first
+  // time and never scored → the one-time "Calculate your Web of Trust" step.
+  // Brand-new in-app accounts go through CreateAccountModal → /welcome instead.
+  const routeAfterLogin = () => {
+    try {
+      const pk = getCurrentUser()?.pubkey || "";
+      const explicitNext = new URLSearchParams(window.location.search).get("next");
+      // Per-pubkey only — NOT the global `brainstorm_calc_completed`, which would
+      // leak one account's state onto the next user on the same browser. The
+      // /activate page itself redirects already-scored accounts (via hasMywot).
+      const seen = pk ? localStorage.getItem(`brainstorm_activate_seen:${pk}`) === "true" : true;
+      if (pk && !hasPersistentKey() && !explicitNext && !seen) {
+        navigate("/activate", { replace: true });
+        return;
+      }
+    } catch { /* fall through */ }
+    navigate(nextPath, { replace: true });
+  };
+
   const onLogin = async () => {
     setError(null);
     setLoading(true);
     try {
       await handleLogin();
-      navigate(nextPath, { replace: true });
+      routeAfterLogin();
     } catch (err) {
       if (err instanceof LoginError) {
         setFailureCode(err.code);
@@ -124,7 +130,7 @@ export default function LoginPage() {
 
   const handleNsecLoginSuccess = () => {
     setFailureOpen(false);
-    navigate(nextPath, { replace: true });
+    routeAfterLogin();
   };
 
   const handleRetryExtension = () => {
@@ -176,43 +182,6 @@ export default function LoginPage() {
             Brainstorm maps the relationships that matter. See who your friends trust,
             build your reputation, and navigate your network with confidence.
           </p>
-
-          <div className="group mt-12 flex items-center gap-4 text-sm font-medium text-indigo-300">
-            <div className="flex -space-x-3" role="img" aria-label="Community members on Brainstorm" data-testid="community-avatars">
-              {COMMUNITY_AVATARS.map((a) => {
-                const slug = a.name.toLowerCase().replace(/\s+/g, "-");
-                return (
-                  <span
-                    key={a.name}
-                    className="relative inline-block w-8 h-8 transition-transform duration-200 ease-out hover:-translate-y-1 hover:z-10"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-0 rounded-full border-2 border-indigo-900 bg-indigo-700 flex items-center justify-center text-xs font-semibold text-white"
-                    >
-                      {a.name.charAt(0).toUpperCase()}
-                    </span>
-                    <img
-                      src={a.src}
-                      alt={a.name}
-                      width={32}
-                      height={32}
-                      loading="eager"
-                      decoding="async"
-                      className="absolute inset-0 w-8 h-8 rounded-full border-2 border-indigo-900 object-cover opacity-90 ring-1 ring-white/10 saturate-[0.9] transition duration-200 group-hover:opacity-100 group-hover:saturate-100 hover:ring-2 hover:ring-white/40"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                      data-testid={`img-community-avatar-${slug}`}
-                    />
-                  </span>
-                );
-              })}
-            </div>
-            <span className="transition-colors duration-200 group-hover:text-indigo-100">
-              Real people already building their web of trust
-            </span>
-          </div>
         </div>
       </div>
 
@@ -332,38 +301,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Mobile social proof (hidden on desktop — desktop shows this in the left panel) */}
-          <div className="flex lg:hidden items-center justify-center gap-3 mt-8 text-xs font-medium text-slate-500">
-            <div className="flex -space-x-2.5" role="img" aria-label="Community members on Brainstorm">
-              {COMMUNITY_AVATARS.map((a) => {
-                const slug = a.name.toLowerCase().replace(/\s+/g, "-");
-                return (
-                  <span key={a.name} className="relative inline-block w-7 h-7">
-                    <span
-                      aria-hidden="true"
-                      className="absolute inset-0 rounded-full border-2 border-white bg-slate-300 flex items-center justify-center text-[10px] font-semibold text-slate-700"
-                    >
-                      {a.name.charAt(0).toUpperCase()}
-                    </span>
-                    <img
-                      src={a.src}
-                      alt={a.name}
-                      width={28}
-                      height={28}
-                      loading="lazy"
-                      decoding="async"
-                      className="absolute inset-0 w-7 h-7 rounded-full border-2 border-white object-cover ring-1 ring-black/5"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                      data-testid={`img-community-avatar-mobile-${slug}`}
-                    />
-                  </span>
-                );
-              })}
-            </div>
-            <span>Real people already building their web of trust</span>
-          </div>
         </div>
         </div>
 
@@ -399,8 +336,10 @@ export default function LoginPage() {
         inviterPubkey={inviterPubkey}
         onCreated={() => {
           setCreateOpen(false);
-          try { sessionStorage.removeItem("brainstorm_pending_invite"); } catch {}
-          navigate(nextPath, { replace: true });
+          // New accounts go to the "Build your network" activation step (follow →
+          // scores). The inviter is preselected there from the pending-invite,
+          // so we keep it in sessionStorage for /welcome to read.
+          navigate("/welcome", { replace: true });
         }}
       />
     </div>

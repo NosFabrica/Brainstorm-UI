@@ -51,6 +51,7 @@ import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
+import { recordFollowList } from "@/lib/followStore";
 import { NostrEvent } from "applesauce-core/helpers";
 
 declare global {
@@ -750,6 +751,53 @@ export async function fetchEventsByIds(
   });
 }
 
+/**
+ * Fetch addressable/replaceable events (kind-30000+, e.g. NIP-23 articles) by
+ * coordinate — what an `naddr` or `a` tag points to. For each
+ * `{kind, pubkey, identifier}` queries `{kinds, authors, "#d"}` (a single
+ * combined filter), keeps the NEWEST version per coordinate, and returns a
+ * `Map` keyed by `kind:pubkey:identifier`. Used by the share page to resolve
+ * articles referenced inside notes into rich cards.
+ */
+export async function fetchAddressableEvents(
+  coords: { kind: number; pubkey: string; identifier: string; relays?: string[] }[],
+  relays: string[] = PROFILE_RELAYS,
+  timeoutMs = 6000,
+): Promise<Map<string, NostrEvent>> {
+  const result = new Map<string, NostrEvent>();
+  const valid = coords.filter((c) => c && Number.isFinite(c.kind) && /^[0-9a-f]{64}$/i.test(c.pubkey));
+  if (!valid.length) return result;
+  const coordKey = (c: { kind: number; pubkey: string; identifier: string }) =>
+    `${c.kind}:${c.pubkey}:${c.identifier}`;
+  const wanted = new Set(valid.map(coordKey));
+  const targetRelays = Array.from(new Set(
+    [...relays, ...valid.flatMap((c) => c.relays ?? [])].map((r) => r.trim()).filter(Boolean),
+  ));
+  const kinds = Array.from(new Set(valid.map((c) => c.kind)));
+  const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
+  const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
+  return new Promise<Map<string, NostrEvent>>((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; clearTimeout(timer); try { sub.unsubscribe(); } catch {}; resolve(result); };
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = pool
+      .request(targetRelays.length ? targetRelays : PROFILE_RELAYS, { kinds, authors, "#d": identifiers })
+      .subscribe({
+        next: (event) => {
+          try { eventStore.add(event); } catch {}
+          const ev = event as NostrEvent;
+          const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+          const key = `${ev.kind}:${ev.pubkey}:${d}`;
+          if (!wanted.has(key)) return;
+          const existing = result.get(key);
+          if (!existing || (ev.created_at || 0) > (existing.created_at || 0)) result.set(key, ev);
+        },
+        error: () => finish(),
+        complete: () => finish(),
+      });
+  });
+}
+
 /** Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map. */
 export async function fetchProfileMap(
   pubkeys: string[],
@@ -824,6 +872,14 @@ async function completeLogin(pubkey: string, signedEvent: Record<string, unknown
 
   const user: NostrUser = { pubkey, npub, isAdmin };
   setCurrentUser(user);
+
+  // Load the authoritative contact list (kind 3) once at login and persist it as
+  // the known-follows floor, so the follow handlers can never publish a list
+  // shorter than what the user actually follows (wipe guard). Fire-and-forget.
+  void import("./socialActions")
+    .then((m) => m.fetchContactList(pubkey))
+    .then((ev) => { if (ev) recordFollowList(pubkey, ev as any); })
+    .catch(() => {});
 
   // Start fetching the user's profile metadata (kind 0) immediately at login
   // instead of deferring it to the dashboard. This removes the dashboard-mount
@@ -1040,11 +1096,13 @@ export async function publishToRelays(
 
 // ─── Native account creation + first-run auto-setup ──────────────────────────
 
-// Single curated account every new user auto-follows so their graph/feed is
-// never empty (and the trust calc has something to anchor on).
-const SEED_FOLLOW_NPUB =
+// The NosFabrica/GrapeRank "seed" account. New users are no longer auto-followed
+// to it; instead it's offered as a (preselected, removable) suggestion in the
+// /welcome "Build your network" step so their trust calc has something to anchor
+// on if they choose to keep it.
+export const SEED_FOLLOW_NPUB =
   "npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p";
-let SEED_FOLLOW_HEX = "";
+export let SEED_FOLLOW_HEX = "";
 try {
   const decoded = nip19.decode(SEED_FOLLOW_NPUB);
   if (decoded.type === "npub") SEED_FOLLOW_HEX = decoded.data as string;
@@ -1102,12 +1160,17 @@ export async function publishRelayList(
   return signAndPublish({ kind: 10002, tags, content: "" }, 10002);
 }
 
-/** Publish a fresh follow list (kind 3) — for brand-new accounts only. */
-export async function publishFollowList(
-  pubkeys: string[],
-): Promise<{ success: boolean; error?: string }> {
-  const tags = pubkeys.filter(Boolean).map((pk) => ["p", pk]);
-  return signAndPublish({ kind: 3, tags, content: "" }, 3);
+/**
+ * Kick off WoT scoring + the background trust-anchor publish. Called once the
+ * user has actually followed ≥1 account (the onboarding "calculate my scores"
+ * CTA) — NOT at account creation, since a follow-less account can't be scored.
+ */
+export async function triggerScoringAndAnchor(pubkey: string): Promise<void> {
+  // Mark the start so the global status chip can show "Calculating…" immediately,
+  // before the backend's graperankResult reflects an in-progress record.
+  try { localStorage.setItem(`brainstorm_calc_triggered_at:${pubkey}`, String(Date.now())); } catch {}
+  try { await apiClient.triggerGrapeRank(); } catch {}
+  void pollAndPublishTrustAnchor(pubkey);
 }
 
 /**
@@ -1160,25 +1223,24 @@ export async function runInitialSetup(
   if (profile.picture) content.picture = profile.picture;
   try { await publishProfile(content); } catch {}
   try { await publishRelayList(PROFILE_RELAYS); } catch {}
-  // Seed the new account's follow list: the default seed + the inviter (if the
-  // account was created via someone's invite link), so they start connected and
-  // their web of trust isn't empty. Deduped; never self.
+
+  // NOTE: we intentionally do NOT publish a seed follow list or trigger scoring
+  // here. New users choose who to follow in the post-signup "Build your network"
+  // step (/welcome), which publishes their chosen kind-3 and then triggers
+  // scoring via `triggerScoringAndAnchor`. Auto-following an account the user
+  // didn't choose is both a trust-graph artifact and a wipe risk.
+
+  // If they arrived via an invite link, remember the inviter so /welcome can
+  // preselect them among the suggested follows.
   try {
-    const follows = new Set<string>();
-    if (SEED_FOLLOW_HEX) follows.add(SEED_FOLLOW_HEX);
     const inviter = (opts.inviterPubkey || "").toLowerCase();
-    if (/^[0-9a-f]{64}$/.test(inviter) && inviter !== pubkey.toLowerCase()) follows.add(inviter);
-    if (follows.size) await publishFollowList(Array.from(follows));
+    if (/^[0-9a-f]{64}$/.test(inviter) && inviter !== pubkey.toLowerCase()) {
+      sessionStorage.setItem("brainstorm_pending_invite_hex", inviter);
+    }
   } catch {}
 
   // Bootstrap publishes done — guard against re-running on reload.
   try { localStorage.setItem(initialSetupFlag(pubkey), "true"); } catch {}
-
-  // Kick off scoring (swallow cooldown/429 — this is background).
-  try { await apiClient.triggerGrapeRank(); } catch {}
-
-  // Publish the trust anchor once the backend computes it.
-  void pollAndPublishTrustAnchor(pubkey);
 }
 
 /**

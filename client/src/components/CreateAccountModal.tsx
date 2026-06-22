@@ -125,7 +125,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
               maxLength={50}
               autoFocus
               disabled={busy}
-              placeholder="e.g. Satoshi Nakamoto"
+              placeholder="e.g. Alex Mercer"
               className="w-full h-11 rounded-xl bg-white border border-slate-200 px-4 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all disabled:opacity-60"
               data-testid="input-create-display-name"
             />

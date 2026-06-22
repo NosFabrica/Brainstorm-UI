@@ -332,13 +332,16 @@ export default function DashboardPage() {
         queryClient.setQueryData(["/user/graperankResult"], data);
       }
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
-      const isAutoTrigger = wasAutoTriggeredRef.current;
       wasAutoTriggeredRef.current = false;
+      // First-time calc vs a true recalculation reads very differently — don't
+      // tell a never-scored user we're "refreshing" / "recalculating".
+      let hadPrev = false;
+      try { hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
       toast({
-        title: isAutoTrigger ? "Refreshing your trust scores" : "Calculation started",
-        description: isAutoTrigger
-          ? "Your GrapeRank scores are being recalculated automatically. This may take a moment."
-          : "Your trust scores are being recalculated. Results will update shortly.",
+        title: hadPrev ? "Refreshing your trust scores" : "Calculating your Web of Trust",
+        description: hadPrev
+          ? "Your scores are being recalculated — results will update shortly."
+          : "We're scoring your network for the first time. You can keep exploring while it runs.",
         duration: 5000,
       });
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
@@ -728,7 +731,11 @@ export default function DashboardPage() {
   const isCalculationComplete = calcDone || isRecalculating;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
-  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated || grapeRank);
+  // A "recalculation" requires PRIOR completed scores — not merely an in-progress
+  // result object (which exists during a first-time calc too). Using `grapeRank`
+  // here made a never-scored user's first calc read as "Refreshing / previous
+  // scores will be replaced".
+  const isRecalculation = !publishDone && (hadPreviousScores || nip85Activated || !!grapeRankScore);
 
   return (
     <TooltipProvider>

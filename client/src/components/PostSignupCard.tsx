@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { X, Download, Check, ArrowRight } from "lucide-react";
+import { X, Download, Check, ArrowRight, Users } from "lucide-react";
 import { getCurrentUser, hasPersistentKey } from "@/services/nostr";
+import { knownFollowCount } from "@/lib/followStore";
 import { downloadAccountBackup } from "@/lib/accountBackup";
 import { useToast } from "@/hooks/use-toast";
 import bgPhoto from "@assets/generated_images/signup_bg_abstract.webp";
@@ -62,10 +63,13 @@ export function PostSignupCard() {
     }
   });
 
-  // The two setup steps: back up your key + add a profile photo. Once both are
-  // done the nudge has served its purpose, so it auto-hides (Google-style).
+  // Three setup steps, in value order: (1) build your network — the activation
+  // step that turns on trust scores; (2) back up your key; (3) add a profile
+  // photo. Once all three are done the nudge auto-hides (Google-style).
+  const networkStarted = pubkey ? knownFollowCount(pubkey) >= 1 : false;
   const hasPhoto = !!user?.picture;
-  const setupComplete = backedUp && hasPhoto;
+  const doneCount = (networkStarted ? 1 : 0) + (backedUp ? 1 : 0) + (hasPhoto ? 1 : 0);
+  const setupComplete = networkStarted && backedUp && hasPhoto;
 
   // Only for accounts created in-app (a persistent local key exists). Hide once
   // the user has finished setup, or has explicitly dismissed it (persisted).
@@ -115,14 +119,14 @@ export function PostSignupCard() {
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/70 to-white/45" />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-white/60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-transparent" />
 
         <div className="relative z-10 p-5 sm:p-6">
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute top-0 right-0 h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
             aria-label="Dismiss"
             data-testid="button-post-signup-dismiss"
           >
@@ -130,15 +134,15 @@ export function PostSignupCard() {
           </button>
 
           <div className="flex items-center gap-2.5 mb-3">
-            <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">
               Finish setting up
             </span>
-            <div className="h-px w-10 bg-[#7c86ff]/40" />
+            <div className="h-px w-10 bg-[#4338ca]/40" />
             <span
-              className="text-[11px] font-semibold text-slate-500 tabular-nums"
+              className="text-[11px] font-semibold text-slate-600 tabular-nums"
               data-testid="text-post-signup-progress"
             >
-              {(backedUp ? 1 : 0) + (hasPhoto ? 1 : 0)} of 2 done
+              {doneCount} of 3 done
             </span>
           </div>
           <h3
@@ -148,12 +152,68 @@ export function PostSignupCard() {
             Welcome to <span className="text-[#333286]">Brainstorm</span>
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
-          <p className="mt-1.5 text-[15px] text-slate-600 leading-relaxed max-w-xl">
-            Your account is ready. Back it up — that file is how you sign in on another device or
-            get back in if you clear your browser — and add a photo so people recognize you.
+          <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
+            Follow a few accounts to switch on your trust scores — then back up your account and add a
+            photo so people recognize you.
           </p>
 
-          <div className="mt-5 grid sm:grid-cols-2 gap-3">
+          {/* Step 1 (payload-first): build your network — the activation step. */}
+          {networkStarted ? (
+            <div className={`${tileBase} mt-5`} data-testid="tile-network-done">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <Check className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-[15px] font-semibold text-slate-900">Network started</div>
+                  <div className="text-[13px] text-emerald-700">Your trust scores are calculating</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate("/welcome")}
+              className={`${tileClickable} mt-5 !border-[#7c86ff]/50 !bg-[#7c86ff]/[0.06]`}
+              data-testid="tile-build-network"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#3730a3] flex items-center justify-center text-white shrink-0">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-bold text-slate-900">Build your network</div>
+                  <div className="text-[13px] font-semibold text-[#3730a3] inline-flex items-center gap-1">
+                    Follow accounts to turn on trust scores
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </button>
+          )}
+
+          <div className="mt-3 grid sm:grid-cols-2 gap-3">
+            {/* Complete your profile */}
+            <button
+              type="button"
+              onClick={() => navigate("/settings?tab=profile")}
+              className={tileClickable}
+              data-testid="tile-complete-profile"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <ProfileIcon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-semibold text-slate-900">Complete your profile</div>
+                  <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    Add a photo &amp; bio
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </button>
+
             {/* Back up your account */}
             {backedUp ? (
               <div className={tileBase} data-testid="tile-backup-done">
@@ -228,27 +288,6 @@ export function PostSignupCard() {
                 </div>
               </button>
             )}
-
-            {/* Complete your profile */}
-            <button
-              type="button"
-              onClick={() => navigate("/settings?tab=profile")}
-              className={tileClickable}
-              data-testid="tile-complete-profile"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
-                  <ProfileIcon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[15px] font-semibold text-slate-900">Complete your profile</div>
-                  <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
-                    Add a photo &amp; bio
-                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-              </div>
-            </button>
           </div>
         </div>
       </div>

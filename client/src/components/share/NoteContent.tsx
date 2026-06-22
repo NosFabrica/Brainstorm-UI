@@ -1,4 +1,4 @@
-import { parseNoteContent } from "@/lib/noteContent";
+import { parseNoteContent, prettyUrlLabel } from "@/lib/noteContent";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 
@@ -29,8 +29,8 @@ export function NoteContent({
             return <span key={i}>{token.value}</span>;
           case "url":
             return (
-              <a key={i} href={token.value} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline underline-offset-2 decoration-indigo-300 break-all">
-                {token.value.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+              <a key={i} href={token.value} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline underline-offset-2 decoration-indigo-300 break-words">
+                {prettyUrlLabel(token.value)}
               </a>
             );
           case "image":
@@ -48,7 +48,11 @@ export function NoteContent({
               <video key={i} src={token.value} controls preload="metadata" className={`mt-2 rounded-xl border border-slate-200 w-full ${compact ? "max-h-48" : "max-h-80"}`} />
             );
           case "mention": {
-            const { pubkey, id } = decodeNostrEntity(token.bech32);
+            const { pubkey, id, address } = decodeNostrEntity(token.bech32);
+            if (address) {
+              // The article is rendered as an embedded card below the body.
+              return <span key={i} className="text-indigo-400 font-medium">📄 article</span>;
+            }
             if (pubkey) {
               const prof = profiles?.get(pubkey);
               const name = prof?.display_name || prof?.name;

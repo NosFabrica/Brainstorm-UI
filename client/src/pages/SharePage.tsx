@@ -20,13 +20,15 @@ import {
 import { decodeShareId, npubFromPubkey, nostrUriFor } from "@/lib/shareId";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaIconImg from "../assets/nostria-icon.png";
-import { fetchProfileForShare, fetchRecentByKinds, fetchEventsByIds, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
-import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
+import { fetchProfileForShare, fetchRecentByKinds, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
+import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
+import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { ShareVideo } from "@/components/share/ShareVideo";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { copyToClipboard } from "@/lib/clipboard";
 import { apiClient, hasSessionToken } from "@/services/api";
+import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { loadPersonalization } from "@/lib/personalization";
 import { ROLES } from "@/config/personalization";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
@@ -91,6 +93,17 @@ export default function SharePage() {
     retry: false,
   });
 
+  // Per-section stats give VERIFIED (web-of-trust) follower/following counts —
+  // not the raw totals in the overview. Shared links show only the verified
+  // numbers so the social proof reflects trusted accounts, not spam.
+  const statsQuery = useQuery({
+    queryKey: ["share-stats", pubkey],
+    queryFn: () => apiClient.getUserStats(pubkey, { verified_threshold: getVerifiedThreshold() }),
+    enabled: !!pubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   const notesQuery = useQuery({
     queryKey: ["share-notes", pubkey],
     queryFn: () => fetchRecentByKinds(pubkey, [1, 6], 5, { relayHints }),
@@ -145,6 +158,12 @@ export default function SharePage() {
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
   const score01 = typeof overview?.influence === "number" ? overview.influence : null;
+  // Verified (web-of-trust) counts from the per-section stats endpoint.
+  const stats = statsQuery.data?.data as
+    | { followed_by?: { verified?: number }; following?: { verified?: number } }
+    | undefined;
+  const verifiedFollowers = typeof stats?.followed_by?.verified === "number" ? stats.followed_by.verified : null;
+  const verifiedFollowing = typeof stats?.following?.verified === "number" ? stats.following.verified : null;
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
@@ -155,9 +174,11 @@ export default function SharePage() {
   // (no house influence once that query settles) as "not yet indexed by
   // Brainstorm" so the UI can show the live-from-relays note.
   const foundViaRelays = !!profileQuery.data && houseRankQuery.isFetched && houseScore01 == null;
-  // The ring: signed-in → your personalized POV; logged-out → network score
-  // (the overview house POV, falling back to the house-influence query).
-  const primaryScore01 = loggedIn ? score01 : (score01 ?? houseScore01);
+  // A shared link is public, so the badge ALWAYS shows the network (house) score
+  // — the same number every recipient sees — never the viewer's personalized POV.
+  // (When logged out, `score01` already equals the house score, so it's a safe
+  // fallback if the dedicated house-influence query hasn't resolved.)
+  const primaryScore01 = houseScore01 ?? (loggedIn ? null : score01);
 
   // Photos = images from kind-20 picture events (every imeta URL is a photo) +
   // images embedded in recent notes (MIME/extension-detected). Broken URLs that
@@ -230,12 +251,33 @@ export default function SharePage() {
     return m;
   }, [refEventsQuery.data]);
 
+  // Addressable refs (NIP-23 articles etc.) referenced inside the notes.
+  const addrEventsQuery = useQuery({
+    queryKey: ["share-addr-events", pubkey, refs.addrs.map((a) => `${a.kind}:${a.pubkey}:${a.identifier}`).join(",")],
+    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    enabled: !!pubkey && refs.addrs.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const addrByCoord = useMemo(() => {
+    const m = new Map<string, MinimalEvent>();
+    const src = addrEventsQuery.data as Map<string, MinimalEvent> | undefined;
+    if (src) for (const [k, v] of src) m.set(k, v as MinimalEvent);
+    return m;
+  }, [addrEventsQuery.data]);
+
   // All pubkeys needing profiles = referenced pubkeys + authors of resolved events.
   const allRefPubkeys = useMemo(() => {
     const set = new Set<string>(refs.pubkeys);
-    for (const ev of eventsById.values()) set.add(ev.pubkey);
+    for (const ev of eventsById.values()) {
+      set.add(ev.pubkey);
+      // Resolve @names for anyone tagged inside a quoted/referenced note too.
+      mentionPubkeysFromContent(ev.content).forEach((pk) => set.add(pk));
+    }
+    for (const ev of addrByCoord.values()) set.add(ev.pubkey);
     return Array.from(set);
-  }, [refs.pubkeys, eventsById]);
+  }, [refs.pubkeys, eventsById, addrByCoord]);
 
   const profilesQuery = useQuery({
     queryKey: ["share-ref-profiles", pubkey, allRefPubkeys],
@@ -358,7 +400,7 @@ export default function SharePage() {
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full border pl-1.5 pr-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
                   style={{ color: tier.color, backgroundColor: `${tier.color}14`, borderColor: `${tier.color}55` }}
-                  title={loggedIn ? "Your web-of-trust score" : "Network web-of-trust score"}
+                  title="Network web-of-trust score"
                   data-testid="share-trust-chip"
                 >
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tier.color }} />
@@ -366,9 +408,8 @@ export default function SharePage() {
                 </span>
               );
             })()}
-            {!!overview?.counts?.followed_by && <span><span className="font-semibold text-slate-700">{overview.counts.followed_by}</span> followers</span>}
-            {!!overview?.counts?.following && <span><span className="font-semibold text-slate-700">{overview.counts.following}</span> following</span>}
-            {loggedIn && houseScore01 != null && <span className="text-slate-400" data-testid="share-house-secondary">Network {Math.round(houseScore01 * 100)}</span>}
+            {verifiedFollowers != null && <span title="Verified followers in the web of trust"><span className="font-semibold text-slate-700">{verifiedFollowers}</span> verified followers</span>}
+            {verifiedFollowing != null && <span title="Verified accounts this profile follows"><span className="font-semibold text-slate-700">{verifiedFollowing}</span> verified following</span>}
           </div>
 
           {/* Compact meta chips */}
@@ -426,7 +467,7 @@ export default function SharePage() {
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} />
+                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} />
                 </div>
               ))}
             </div>
@@ -453,15 +494,12 @@ export default function SharePage() {
         {articles.length > 0 && (
           <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={scrollToOpenIn} testId="share-block-articles">
             <div className="space-y-3">
-              {articles.map((a) => (
-                <div key={a.id} className="flex gap-3 items-start">
-                  {a.image && <img src={a.image} alt="" loading="lazy" className="h-16 w-16 rounded-lg object-cover border border-slate-200 shrink-0" />}
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-900">{a.title}</p>
-                    {a.summary && <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{a.summary}</p>}
-                    <p className="text-[11px] text-slate-400 mt-1">{timeAgo(a.ts)} ago</p>
-                  </div>
-                </div>
+              {(articlesQuery.data ?? []).map((ev) => (
+                <EmbeddedArticleCard
+                  key={ev.id}
+                  event={ev as MinimalEvent}
+                  author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }}
+                />
               ))}
             </div>
           </ContentTeaserBlock>

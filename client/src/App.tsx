@@ -13,6 +13,10 @@ import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
+import ArticlePage from "@/pages/ArticlePage";
+import WelcomePage from "@/pages/WelcomePage";
+import ActivatePage from "@/pages/ActivatePage";
+import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import FaqPage from "@/pages/FaqPage";
 import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
@@ -75,6 +79,9 @@ function Router() {
         <Route path="/search" component={SearchRedirect} />
         <Route path="/profile/:npub" component={ProfilePage} />
         <Route path="/p/:id" component={SharePage} />
+        <Route path="/a/:id" component={ArticlePage} />
+        <Route path="/welcome" component={WelcomePage} />
+        <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
@@ -101,6 +108,7 @@ function App() {
         <Toaster />
         <PovAutoDefault />
         <MobileMenuHost />
+        <ScoringStatusBar />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>

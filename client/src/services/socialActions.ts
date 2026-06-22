@@ -1,4 +1,5 @@
 import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb, signEventLocally } from "./nostr";
+import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
 
 export interface NostrEvent {
   id?: string;
@@ -8,6 +9,33 @@ export interface NostrEvent {
   tags: string[][];
   content: string;
   sig?: string;
+}
+
+/** This client's identifier, stamped on every list we publish for diagnosability. */
+const CLIENT_TAG = ["client", "Brainstorm"];
+
+/** Replace any existing client tag with ours (deduped). */
+function withClientTag(tags: string[][]): string[][] {
+  return [...tags.filter((t) => t[0] !== "client"), CLIENT_TAG];
+}
+
+/**
+ * Pick the most-authoritative contact list among the candidates: the one with the
+ * MOST `p` tags (ties broken by newest `created_at`). This stops us from merging
+ * onto a stale/short relay response when a longer list is known.
+ */
+function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): NostrEvent | null {
+  let best: NostrEvent | null = null;
+  let bestCount = -1;
+  for (const c of candidates) {
+    if (!c?.tags) continue;
+    const count = countFollows(c.tags);
+    if (count > bestCount || (count === bestCount && best && c.created_at > best.created_at)) {
+      best = c;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
@@ -69,59 +97,108 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
   return set;
 }
 
+/**
+ * Resolve the authoritative current contact list to build a kind-3 edit on top
+ * of. Picks the longest among {caller cache, fresh relay fetch, persisted known
+ * snapshot}. Returns `{ base: null }` when we can't confirm a base AND the user
+ * is known to follow people — the caller MUST abort rather than publish, or it
+ * would wipe the list.
+ */
+async function resolveContactBase(
+  pubkey: string,
+  cached?: NostrEvent | null,
+): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean }> {
+  const known = knownFollowCount(pubkey);
+  const fresh = cached ?? (await fetchContactList(pubkey));
+  const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
+  const base = pickAuthoritativeBase([cached, fresh, stored]);
+  // Unsafe = we have no usable base, or the best base is shorter than what we
+  // know the user follows (a stale/short relay read). Either way, don't publish.
+  const baseCount = base ? countFollows(base.tags) : 0;
+  const unsafe = (!base && known > 0) || (known > 0 && baseCount < known);
+  return { base, known, unsafe };
+}
+
+async function publishContactList(
+  user: { pubkey: string },
+  base: NostrEvent | null,
+  newTags: string[][],
+): Promise<{ success: boolean; error?: string }> {
+  const event: Record<string, unknown> = {
+    kind: 3,
+    tags: withClientTag(newTags),
+    content: base?.content || "",
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+  try {
+    const signed = await signEventLocally(event);
+    const res = await publishToRelays(signed);
+    if (res.success) recordFollowList(user.pubkey, signed as any, { authoritative: true });
+    return res;
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Signing failed" };
+  }
+}
+
 export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
 
-  const current = cachedContactList ?? await fetchContactList(user.pubkey);
-  if (!current) return { success: false, error: "Could not fetch your contact list from relays. Please try again." };
-
-  const alreadyFollowing = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (alreadyFollowing) return { success: true };
-
-  const newTags = [...current.tags, ["p", targetPubkey]];
-  const event: Record<string, unknown> = {
-    kind: 3,
-    tags: newTags,
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  try {
-    const signed = await signEventLocally(event);
-    return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+  if (unsafe) {
+    return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
+  if (base) recordFollowList(user.pubkey, base as any); // remember the largest seen
+  const baseTags = base?.tags ?? []; // brand-new account: genuinely empty list
+
+  if (baseTags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+
+  const newTags = [...baseTags, ["p", targetPubkey]];
+  return publishContactList(user, base, newTags);
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
 
-  const current = cachedContactList ?? await fetchContactList(user.pubkey);
-  if (!current) return { success: false, error: "Could not fetch your contact list" };
-
-  const wasFollowing = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (!wasFollowing) return { success: true };
-
-  const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  const event: Record<string, unknown> = {
-    kind: 3,
-    tags: newTags,
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  try {
-    const signed = await signEventLocally(event);
-    return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+  if (unsafe || !base) {
+    return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
+  recordFollowList(user.pubkey, base as any);
+
+  if (!base.tags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+
+  const newTags = base.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
+  return publishContactList(user, base, newTags);
+}
+
+/**
+ * Follow one or more accounts in a single signed kind-3 — used by the post-signup
+ * onboarding. Safe by construction: merges the given pubkeys into the
+ * authoritative base (empty for a brand-new account) and never shrinks an
+ * existing list.
+ */
+export async function followPubkeys(targetPubkeys: string[]): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== user.pubkey);
+  if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
+
+  const { base, unsafe } = await resolveContactBase(user.pubkey);
+  if (unsafe) {
+    return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
+  }
+  if (base) recordFollowList(user.pubkey, base as any);
+  const baseTags = base?.tags ?? [];
+  const have = new Set(baseTags.filter(t => t[0] === "p").map(t => t[1]));
+  const additions = wanted.filter(pk => !have.has(pk)).map(pk => ["p", pk]);
+  if (!additions.length) return { success: true };
+
+  const newTags = [...baseTags, ...additions];
+  return publishContactList(user, base, newTags);
 }
 
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
@@ -138,7 +215,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
   const newTags = [...current.tags, ["p", targetPubkey]];
   const event: Record<string, unknown> = {
     kind: 10000,
-    tags: newTags,
+    tags: withClientTag(newTags),
     content: current.content || "",
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
@@ -165,7 +242,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
   const event: Record<string, unknown> = {
     kind: 10000,
-    tags: newTags,
+    tags: withClientTag(newTags),
     content: current.content || "",
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
