@@ -717,13 +717,17 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate, user]);
 
+  // Per-pubkey — a global flag would leak one account's "has scores" state onto
+  // the next account on the same browser (making a brand-new user look like a
+  // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
+    const k = user?.pubkey ? `brainstorm_calc_completed:${user.pubkey}` : "";
     if (calcDone) {
-      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
       return true;
     }
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
-  }, [calcDone]);
+    try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
+  }, [calcDone, user?.pubkey]);
 
   if (!user || isAuthRedirecting()) return null;
 
@@ -735,7 +739,10 @@ export default function DashboardPage() {
   // result object (which exists during a first-time calc too). Using `grapeRank`
   // here made a never-scored user's first calc read as "Refreshing / previous
   // scores will be replaced".
-  const isRecalculation = !publishDone && (hadPreviousScores || nip85Activated || !!grapeRankScore);
+  // A recalculation requires PRIOR completed scores for THIS account. `grapeRankScore`
+  // can be present on a failed/in-progress result, and `nip85Activated` is a global
+  // flag — both caused brand-new accounts to read as "Recalculating".
+  const isRecalculation = !publishDone && hadPreviousScores;
 
   return (
     <TooltipProvider>

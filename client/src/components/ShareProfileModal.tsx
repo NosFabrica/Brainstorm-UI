@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Copy, Check, Share2 } from "lucide-react";
+import { Copy, Check, Share2, ExternalLink } from "lucide-react";
 import { ShareOgCard } from "@/components/ShareOgCard";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -65,10 +65,16 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
         </div>
 
         <div className="px-5 sm:px-6 pb-5 sm:pb-6 space-y-4">
-          {/* OG preview */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+          {/* OG preview — clickable: opens the live share page in a new tab. */}
+          <a
+            href={canonicalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
+            data-testid="share-open-page-card"
+          >
             <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} />
-          </div>
+          </a>
 
           {/* Link + copy */}
           <div className="flex items-center gap-2">
@@ -89,6 +95,16 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
+
+          <a
+            href={canonicalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#3730a3] hover:underline"
+            data-testid="share-open-page-link"
+          >
+            Open the page <ExternalLink className="h-3 w-3" />
+          </a>
 
           <div className="flex items-center gap-4">
             {/* QR */}
