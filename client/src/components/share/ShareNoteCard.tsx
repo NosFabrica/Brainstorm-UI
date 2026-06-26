@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
@@ -6,8 +7,22 @@ import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
-import { npubFromPubkey } from "@/lib/shareId";
+import { npubFromPubkey, eventPath } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
+
+/**
+ * Click anywhere on a card to open it, EXCEPT on real interactive descendants
+ * (links, buttons, video controls, or anything marked data-noopen). Nested
+ * clickable cards stopPropagation so only the innermost one fires.
+ */
+export function openOnCardClick(href: string | undefined, navigate: (to: string) => void) {
+  if (!href) return undefined;
+  return (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest("a, button, video, [data-noopen]")) return;
+    e.stopPropagation();
+    navigate(href);
+  };
+}
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -34,7 +49,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
   return (
     <button
       type="button"
-      onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name })}
+      onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
       <Avatar className="h-4 w-4 rounded-full bg-white border border-slate-200">
@@ -57,13 +72,22 @@ export function ShareNoteCard({
   profiles,
   eventsById,
   addrByCoord,
+  href,
+  forceExpanded = false,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
   eventsById: Map<string, MinimalEvent>;
   addrByCoord?: Map<string, MinimalEvent>;
+  /** When set, the whole card opens this path (e.g. the note's /e page). */
+  href?: string;
+  /** Show the full note with no "Show more" (used on the /e single-post view). */
+  forceExpanded?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [, navigate] = useLocation();
+  const onCardClick = openOnCardClick(href, navigate);
+  const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
 
   // Addressable refs (e.g. NIP-23 articles) resolved to events, deduped by coord.
@@ -83,12 +107,12 @@ export function ShareNoteCard({
   if (event.kind === 6 || event.kind === 16) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
-      <div data-testid="note-repost">
+      <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
         <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1.5">
           <Repeat2 className="h-3.5 w-3.5 text-emerald-600" /> Reposted
         </p>
         {inner ? (
-          <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} />
+          <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
         ) : (
           <p className="text-sm text-slate-400">Reposted a note</p>
         )}
@@ -103,10 +127,10 @@ export function ShareNoteCard({
   const quoted = a.quoteIds.map((id) => eventsById.get(id)).filter(Boolean) as MinimalEvent[];
 
   const isLong = (event.content?.length ?? 0) > LONG_NOTE_CHARS;
-  const collapsed = isLong && !expanded;
+  const collapsed = isLong && !expanded && !forceExpanded;
 
   return (
-    <div data-testid="note-card">
+    <div data-testid="note-card" onClick={onCardClick} className={clickable}>
       {a.isReply && replyTargets.length > 0 && (
         <p className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-xs text-slate-500 mb-1.5" data-testid="note-reply-context">
           <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
@@ -119,12 +143,12 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} />
+        <NoteContent content={event.content} compact profiles={profiles} linkCard />
         {collapsed && (
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" />
         )}
       </div>
-      {isLong && (
+      {isLong && !forceExpanded && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -136,7 +160,7 @@ export function ShareNoteCard({
       )}
 
       {quoted.map((qe) => (
-        <EmbeddedNoteCard key={qe.id} event={qe} author={profiles.get(qe.pubkey)} profiles={profiles} />
+        <EmbeddedNoteCard key={qe.id} event={qe} author={profiles.get(qe.pubkey)} profiles={profiles} href={eventPath(qe)} />
       ))}
 
       {articles.map((ae) => (

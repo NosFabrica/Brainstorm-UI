@@ -14,6 +14,7 @@ import brainstormHeroImg from "@assets/image_1773159756760.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -448,6 +449,18 @@ export default function DashboardPage() {
 
   const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
 
+  // The no-follows user just used the inline follow-picker → bridge to the
+  // "calculating" state and suppress any stale "failed" status until the fresh
+  // GrapeRank result replaces it.
+  const [justFollowed, setJustFollowed] = useState(false);
+  const handleFollowDone = () => {
+    setJustFollowed(true);
+    queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/history"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+  };
+
   const prevCalcDoneRef = useRef(false);
   useEffect(() => {
     if (calcDone && !prevCalcDoneRef.current) {
@@ -734,7 +747,10 @@ export default function DashboardPage() {
   const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
-  const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
+  // No-follows is NOT an error — it's the "start here" state (handled by the
+  // inline follow-picker). Only real GrapeRank/publish failures are errors, and
+  // we suppress those right after a fresh follow+calculate.
+  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed;
   // A "recalculation" requires PRIOR completed scores — not merely an in-progress
   // result object (which exists during a first-time calc too). Using `grapeRank`
   // here made a never-scored user's first calc read as "Refreshing / previous
@@ -950,6 +966,11 @@ export default function DashboardPage() {
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
+                  ) : justFollowed ? (
+                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Calculating…
+                    </span>
                   ) : isErrorState ? (
                     <span className="text-xs text-red-500 font-medium" data-testid="text-overall-trust-score-sub">
                       {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
@@ -1042,7 +1063,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {isGrapeRankFailed && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1061,26 +1082,11 @@ export default function DashboardPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <AnimatePresence>
-              {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-indigo-200/60 shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)] w-fit md:ml-auto"
-                  data-testid="graperank-no-following"
-                >
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Info className="w-4 h-4 text-indigo-500" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-indigo-700">No follows yet</p>
-                    <p className="text-xs text-indigo-600/80 mt-0.5">Follow some people on Nostr first for the best results. You can still try calculating.</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* No-follows users: an inline follow-picker (same suggestions as
+                /welcome) so they can start their Web of Trust without leaving. */}
+            {hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isPending && (
+              <FollowToCalculateCard onDone={handleFollowDone} />
+            )}
 
             {(showOnboarding || isRecalculating) && (
               <div

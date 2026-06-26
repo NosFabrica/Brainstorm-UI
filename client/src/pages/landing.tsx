@@ -29,6 +29,7 @@ import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { PostSignupCard } from "@/components/PostSignupCard";
+import { BackupReminder } from "@/components/BackupReminder";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -39,6 +40,7 @@ import {
   isNip05Handle,
   type SearchResult,
 } from "@/lib/profileSearch";
+import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
 // stay on this search-first home and search from their active trust perspective.
@@ -310,9 +312,17 @@ export default function Landing() {
         povFromSearch: effectivePov,
       });
     }
+    // Context-aware destination: anonymous searchers go to the clean public /p
+    // page (our njump replacement + join funnel), logged-in members get the
+    // personalized /profile analysis. The Public-page / View-full-profile
+    // cross-links cover anyone who wants the other view.
+    if (!user) {
+      setLocation(`/p/${result.npub}?fromSearch=1`);
+      return;
+    }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
     setLocation(`/profile/${result.npub}?fromSearch=1&pov=${effectivePov}${suffix}`);
-  }, [seedAndPrefetchProfile, setLocation, effectivePov]);
+  }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
@@ -365,6 +375,14 @@ export default function Landing() {
     setShowSuggestions(false);
     setIsSuggesting(false);
     resetFilters();
+
+    // Pasted note/event or long-form article link → on-site landing page
+    // (njump parity: "paste anything → it just works").
+    const ent = resolveEntityToPath(q);
+    if (ent && (ent.kind === "note" || ent.kind === "article")) {
+      setLocation(`${ent.path}?fromSearch=1`);
+      return;
+    }
 
     if (isLikelyNpub(q)) {
       try {
@@ -509,6 +527,9 @@ export default function Landing() {
   // The suggestions dropdown is open whenever we have something to show.
   // We lift the search box toward the top when it opens (or once a search is
   // under way) so the list/results have room.
+  // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
+  // the dropdown's action row resolves it straight to the right landing page.
+  const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting);
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
@@ -755,8 +776,11 @@ export default function Landing() {
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
                       data-testid="home-suggestion-see-all"
                     >
-                      <Search className="h-3.5 w-3.5 shrink-0" />
-                      See all results for "{query.trim()}"
+                      {entityMatch ? (
+                        <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
+                      ) : (
+                        <><Search className="h-3.5 w-3.5 shrink-0" />See all results for "{query.trim()}"</>
+                      )}
                     </button>
                   </>
                 )}
@@ -850,6 +874,7 @@ export default function Landing() {
         </div>
 
         <PostSignupCard />
+        <BackupReminder />
 
         {isSearching && (
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">

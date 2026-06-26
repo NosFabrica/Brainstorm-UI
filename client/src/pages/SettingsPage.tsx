@@ -64,7 +64,8 @@ import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { downloadAccountBackup } from "@/lib/accountBackup";
+import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
+import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { CONTENT_TYPES, ROLES, type PersonalizationPrefs } from "@/config/personalization";
 import { loadPersonalization, savePersonalization } from "@/lib/personalization";
@@ -119,6 +120,20 @@ export default function SettingsPage() {
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab = tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+  // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
+  // /settings?focus=backup scrolls straight to the Account > Back up section.
+  const focusParam = new URLSearchParams(search).get("focus");
+  const [highlightBackup, setHighlightBackup] = useState(false);
+  useEffect(() => {
+    if (focusParam !== "backup") return;
+    const t = setTimeout(() => {
+      document.getElementById("account-backup-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightBackup(true);
+    }, 150);
+    // Drop the cue once it has pulsed (2 × 1.5s) so it's a one-time nudge.
+    const off = setTimeout(() => setHighlightBackup(false), 3400);
+    return () => { clearTimeout(t); clearTimeout(off); };
+  }, [focusParam]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const [agentPath, setAgentPath] = useState<"selfhost" | "integrate">("selfhost");
@@ -234,11 +249,17 @@ export default function SettingsPage() {
       try {
         if (backupFlag) localStorage.setItem(backupFlag, "true");
       } catch {}
+      // Stash the encrypted key in the browser password manager (Chromium
+      // best-effort): username = npub, password = ncryptsec. Don't block on it.
+      try {
+        const { npub, ncryptsec } = getEncryptedBackupCredential(backupPass);
+        if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
+      } catch {}
       setBackedUp(true);
       setBackupMode(false);
       setBackupPass("");
       setBackupConfirm("");
-      toast({ title: "Backup saved", description: "Keep the file somewhere safe — it's how you sign in elsewhere." });
+      toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
     } catch {
       // no-op; user can retry
     }
@@ -457,7 +478,7 @@ export default function SettingsPage() {
         </div>
 
         {hasStoredSecretKey() && (
-          <div className="pt-4 border-t border-slate-100" data-testid="row-account-backup">
+          <div id="account-backup-section" className="pt-4 border-t border-slate-100 scroll-mt-20" data-testid="row-account-backup">
             {backedUp ? (
               <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
                 <div className="h-9 w-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
@@ -478,6 +499,7 @@ export default function SettingsPage() {
                   value={backupPass}
                   onChange={(e) => setBackupPass(e.target.value)}
                   placeholder="Password — at least 8 characters"
+                  autoComplete="new-password"
                   className={inputCls}
                   data-testid="input-account-backup-password"
                 />
@@ -487,6 +509,7 @@ export default function SettingsPage() {
                   value={backupConfirm}
                   onChange={(e) => setBackupConfirm(e.target.value)}
                   placeholder="Confirm password"
+                  autoComplete="new-password"
                   className={inputCls + " mt-2"}
                   data-testid="input-account-backup-confirm"
                 />
@@ -516,7 +539,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setBackupMode(true)}
-                className="w-full text-left flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:border-[#7c86ff]/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40"
+                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-white p-3 hover:border-[#7c86ff]/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${highlightBackup ? "border-[#7c86ff]/70 animate-attention-ring" : "border-slate-200"}`}
                 data-testid="button-account-backup"
               >
                 <div className="h-9 w-9 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">

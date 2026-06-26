@@ -7,7 +7,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Copy, Check, Share2, ExternalLink } from "lucide-react";
+import { useLocation } from "wouter";
+import { Copy, Check, Share2, ExternalLink, ImagePlus, ArrowRight } from "lucide-react";
 import { ShareOgCard } from "@/components/ShareOgCard";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -19,8 +20,13 @@ interface ShareProfileModalProps {
   picture?: string;
   nip05?: string;
   canonicalUrl: string;
+  /** House Web-of-Trust score (0–1) — shown as the trust pill on the preview card. */
+  score01?: number | null;
   /** Invite framing (for sharing your OWN profile to bring people in). */
   invite?: boolean;
+  /** True when the modal is opened FROM the public page itself — hides the
+      redundant "Open the page" link (it would point at the current page). */
+  onOwnPage?: boolean;
 }
 
 /**
@@ -29,8 +35,9 @@ interface ShareProfileModalProps {
  * canonical `/p/:npub` URL today; when the short-URL service lands it swaps in
  * here (the page passes the resolved URL).
  */
-export function ShareProfileModal({ open, onOpenChange, npub, displayName, picture, nip05, canonicalUrl, invite = false }: ShareProfileModalProps) {
+export function ShareProfileModal({ open, onOpenChange, npub, displayName, picture, nip05, canonicalUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
   const [copied, setCopied] = useState(false);
+  const [, navigate] = useLocation();
   const canNativeShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   const copy = async () => {
@@ -73,8 +80,28 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             className="block rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
             data-testid="share-open-page-card"
           >
-            <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} />
+            <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} score01={score01} />
           </a>
+
+          {/* Payoff nudge: sharing your OWN profile with no photo looks bare —
+              the share moment is exactly when a profile photo pays off. */}
+          {invite && !picture && (
+            <button
+              type="button"
+              onClick={() => { onOpenChange(false); navigate("/settings?tab=profile"); }}
+              className="w-full flex items-center gap-2.5 rounded-xl border border-[#7c86ff]/30 bg-[#7c86ff]/[0.06] px-3.5 py-2.5 text-left hover:border-[#7c86ff]/50 transition-colors"
+              data-testid="share-add-photo-nudge"
+            >
+              <span className="h-8 w-8 rounded-lg bg-white border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                <ImagePlus className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-slate-900">Add a photo first</span>
+                <span className="block text-[12px] text-slate-500">Your shared profile looks more complete with one.</span>
+              </span>
+              <ArrowRight className="h-4 w-4 text-[#3730a3] shrink-0" />
+            </button>
+          )}
 
           {/* Link + copy */}
           <div className="flex items-center gap-2">
@@ -96,15 +123,17 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             </button>
           </div>
 
-          <a
-            href={canonicalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#3730a3] hover:underline"
-            data-testid="share-open-page-link"
-          >
-            Open the page <ExternalLink className="h-3 w-3" />
-          </a>
+          {!onOwnPage && (
+            <a
+              href={canonicalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#3730a3] hover:underline"
+              data-testid="share-open-page-link"
+            >
+              Open the page <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
 
           <div className="flex items-center gap-4">
             {/* QR */}

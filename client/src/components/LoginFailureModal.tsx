@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { loginWithNsec, loginWithEncryptedBackup, type LoginErrorCode } from "@/services/nostr";
+import { looksLikeEncryptedKey } from "@/lib/credentialManager";
 import {
   Tooltip,
   TooltipContent,
@@ -65,8 +66,25 @@ export function LoginFailureModal({
   const [showSecretKeyForm, setShowSecretKeyForm] = useState(false);
 
   // An encrypted backup key (NIP-49) needs a password to unlock.
-  const isEncryptedKey = secretKey.trim().toLowerCase().startsWith("ncryptsec");
+  const isEncryptedKey = looksLikeEncryptedKey(secretKey);
   const canSubmitKey = !!secretKey.trim() && (!isEncryptedKey || !!backupPassword);
+
+  // Password-manager autofill often does NOT fire React's onChange, so the
+  // controlled `secretKey` would stay empty and the ncryptsec branch never
+  // trigger. Reconcile the DOM value into state on autofill + on mount.
+  const keyInputRef = useRef<HTMLInputElement>(null);
+  const syncKeyFromDom = () => {
+    const v = keyInputRef.current?.value;
+    if (v != null && v !== secretKey) {
+      setSecretKey(v);
+      setSecretKeyError("");
+    }
+  };
+  useEffect(() => {
+    if (!showSecretKeyForm) return;
+    const t = setTimeout(syncKeyFromDom, 80); // catch values prefilled before paint
+    return () => clearTimeout(t);
+  }, [showSecretKeyForm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) {
@@ -251,7 +269,23 @@ export function LoginFailureModal({
             )}
 
             {showSecretKeyForm && (
-              <>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!submitting && canSubmitKey) handleSecretKeyLogin();
+                }}
+              >
+                {/* Hidden username so the password manager can match/offer the saved
+                    credential (username = npub). Value is filled by the PM; we ignore it. */}
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className="sr-only"
+                  data-testid="input-login-username"
+                />
                 <div className="px-5 sm:px-6 pt-1 pb-3 space-y-3">
                   <div
                     className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600"
@@ -266,19 +300,21 @@ export function LoginFailureModal({
                   <div className="relative">
                     <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                     <input
+                      ref={keyInputRef}
                       type={showSecretKey ? "text" : "password"}
+                      name="password"
                       value={secretKey}
                       onChange={(e) => {
                         setSecretKey(e.target.value);
                         setSecretKeyError("");
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !submitting && canSubmitKey) {
-                          handleSecretKeyLogin();
-                        }
+                      onAnimationStart={(e) => {
+                        // Chrome fires this on :-webkit-autofill (see index.css) —
+                        // the moment the password manager fills the field.
+                        if (e.animationName === "onAutoFillStart") syncKeyFromDom();
                       }}
                       placeholder="Paste your recovery key or backup"
-                      autoComplete="off"
+                      autoComplete="current-password"
                       spellCheck={false}
                       disabled={submitting}
                       autoFocus
@@ -311,15 +347,11 @@ export function LoginFailureModal({
                       <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                       <input
                         type="password"
+                        name="backup-password"
                         value={backupPassword}
                         onChange={(e) => {
                           setBackupPassword(e.target.value);
                           setSecretKeyError("");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !submitting && canSubmitKey) {
-                            handleSecretKeyLogin();
-                          }
                         }}
                         placeholder="Backup password"
                         autoComplete="off"
@@ -371,8 +403,7 @@ export function LoginFailureModal({
                       : "You'll be signed out when you close this tab."}
                   </p>
                   <button
-                    type="button"
-                    onClick={handleSecretKeyLogin}
+                    type="submit"
                     disabled={submitting || !canSubmitKey}
                     className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
                     data-testid="button-nsec-signin"
@@ -404,7 +435,7 @@ export function LoginFailureModal({
                     Back to sign-in options
                   </button>
                 </div>
-              </>
+              </form>
             )}
           </div>
         </div>

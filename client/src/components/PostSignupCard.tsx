@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { X, Download, Check, ArrowRight, Users } from "lucide-react";
 import { getCurrentUser, hasPersistentKey } from "@/services/nostr";
 import { knownFollowCount } from "@/lib/followStore";
-import { downloadAccountBackup } from "@/lib/accountBackup";
+import { downloadAccountBackup, downloadRawKeyBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
+import { storePasswordCredential } from "@/lib/credentialManager";
 import { useToast } from "@/hooks/use-toast";
 import bgPhoto from "@assets/generated_images/signup_bg_abstract.webp";
 
@@ -91,11 +92,39 @@ export function PostSignupCard() {
       try {
         if (backupFlag) localStorage.setItem(backupFlag, "true");
       } catch {}
+      // Also stash the encrypted key in the browser password manager (Chromium
+      // best-effort) so it syncs and autofills the login key field on return.
+      // username = npub, password = ncryptsec. Never block on the result.
+      try {
+        const { npub, ncryptsec } = getEncryptedBackupCredential(pass);
+        if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
+      } catch {}
       setBackedUp(true);
       setBackupMode(false);
       setPass("");
       setConfirm("");
-      toast({ title: "Backup saved", description: "Keep the file somewhere safe — it's how you sign in elsewhere." });
+      toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
+    } catch {
+      // no-op; user can retry
+    }
+  };
+
+  // Lower-friction recovery: download the raw key with no password, so a
+  // forgotten encryption password can't permanently lock the user out. Gated by
+  // a blunt confirm because the file IS the account (anyone with it has control).
+  const handleDownloadRaw = () => {
+    const ok = window.confirm(
+      "This downloads your account key WITHOUT a password.\n\nThe file is your account — anyone who gets it has full control. Store it somewhere only you can reach, and never with your encrypted backup.\n\nDownload the unprotected key?",
+    );
+    if (!ok) return;
+    try {
+      downloadRawKeyBackup();
+      try { if (backupFlag) localStorage.setItem(backupFlag, "true"); } catch {}
+      setBackedUp(true);
+      setBackupMode(false);
+      setPass("");
+      setConfirm("");
+      toast({ title: "Key downloaded", description: "Store it safely — that file is your account. Never share it." });
     } catch {
       // no-op; user can retry
     }
@@ -243,6 +272,7 @@ export function PostSignupCard() {
                   value={pass}
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="Password — at least 8 characters"
+                  autoComplete="new-password"
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
                   data-testid="input-backup-password"
                 />
@@ -251,6 +281,7 @@ export function PostSignupCard() {
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Confirm password"
+                  autoComplete="new-password"
                   className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
                   data-testid="input-backup-confirm"
                 />
@@ -265,6 +296,14 @@ export function PostSignupCard() {
                   data-testid="button-download-backup"
                 >
                   <Download className="h-4 w-4" /> Download backup
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadRaw}
+                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                  data-testid="button-download-raw-key"
+                >
+                  Or download your key without a password
                 </button>
               </div>
             ) : (

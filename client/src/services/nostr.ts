@@ -752,6 +752,39 @@ export async function fetchEventsByIds(
 }
 
 /**
+ * Generic relay query: collect events matching an arbitrary Nostr filter until
+ * EOSE or timeout, deduped by id. Used to fetch a post's reply thread
+ * (`{ "#e": [id], kinds: [1] }`) and, later, engagement (kinds 7/9735).
+ */
+export async function fetchEventsByFilter(
+  filter: Record<string, unknown>,
+  relays: string[] = PROFILE_RELAYS,
+  timeoutMs = 6000,
+): Promise<NostrEvent[]> {
+  const targetRelays = relays.length ? relays : PROFILE_RELAYS;
+  return new Promise<NostrEvent[]>((resolve) => {
+    const collected = new Map<string, NostrEvent>();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { sub.unsubscribe(); } catch {}
+      resolve(Array.from(collected.values()));
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = pool.request(targetRelays, filter as Parameters<typeof pool.request>[1]).subscribe({
+      next: (event) => {
+        try { eventStore.add(event); } catch {}
+        collected.set((event as NostrEvent).id, event as NostrEvent);
+      },
+      error: () => finish(),
+      complete: () => finish(),
+    });
+  });
+}
+
+/**
  * Fetch addressable/replaceable events (kind-30000+, e.g. NIP-23 articles) by
  * coordinate — what an `naddr` or `a` tag points to. For each
  * `{kind, pubkey, identifier}` queries `{kinds, authors, "#d"}` (a single

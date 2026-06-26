@@ -4,6 +4,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LightboxProvider } from "@/components/share/Lightbox";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
@@ -14,6 +15,7 @@ import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
 import ArticlePage from "@/pages/ArticlePage";
+import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
@@ -80,6 +82,7 @@ function Router() {
         <Route path="/profile/:npub" component={ProfilePage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
+      <Route path="/e/:id" component={EventPage} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
@@ -109,7 +112,9 @@ function App() {
         <PovAutoDefault />
         <MobileMenuHost />
         <ScoringStatusBar />
-        <Router />
+        <LightboxProvider>
+          <Router />
+        </LightboxProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

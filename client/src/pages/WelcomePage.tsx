@@ -1,40 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { Check, Loader2, ArrowRight, Search as SearchIcon, BadgeCheck, X } from "lucide-react";
+import { Loader2, ArrowRight, Search as SearchIcon, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
+import { PersonRow, type PersonLite } from "@/components/PersonRow";
+import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { getCurrentUser, fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
-
-type PersonLite = { pubkey: string; name?: string; nip05?: string; picture?: string };
-
-function npubToHex(npub: string): string {
-  try {
-    const d = nip19.decode(npub);
-    return d.type === "npub" ? (d.data as string).toLowerCase() : "";
-  } catch {
-    return "";
-  }
-}
-
-// Curated accounts offered (not preselected) in the suggestions list.
-const SUGGESTED = [
-  { name: "jack", npub: "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m" },
-  { name: "Lyn Alden", npub: "npub1a2cww4kn9wqte4ry70vyfwqyqvpswksna27rtxd8vty6c74era8sdcw83a" },
-  { name: "Derek Ross", npub: "npub18ams6ewn5aj2n3wt2qawzglx9mr4nzksxhvrdc4gzrecw7n5tvjqctp424" },
-  { name: "Efrat Fenigson", npub: "npub1dg6es53r3hys9tk3n7aldgz4lx4ly8qu4zg468zwyl6smuhjjrvsnhsguz" },
-  { name: "Vitor Pamplona", npub: "npub1gcxzte5zlkncx26j68ez60fzkvtkm9e0vrwdcvsjakxf9mu9qewqlfnj5z" },
-  { name: "Ainsley Costello", npub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy" },
-  { name: "walker", npub: "npub1cj8znuztfqkvq89pl8hceph0svvvqk0qay6nydgk9uyq7fhpfsgsqwrz4u" },
-  { name: "Alex Gleason", npub: "npub1q3sle0kvfsehgsuexttt3ugjd8xdklxfwwkh559wxckmzddywnws6cd26p" },
-]
-  .map((s) => ({ name: s.name, pubkey: npubToHex(s.npub) }))
-  .filter((s) => /^[0-9a-f]{64}$/.test(s.pubkey));
 
 function readInviterHex(): string {
   try {
@@ -49,47 +26,6 @@ function readInviterHex(): string {
     /* ignore */
   }
   return "";
-}
-
-/** A selectable person row: avatar, name, and a follow/added toggle. */
-function PersonRow({
-  person,
-  selected,
-  onToggle,
-}: {
-  person: PersonLite;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  const name = person.name || (person.pubkey ? nip19.npubEncode(person.pubkey).slice(0, 12) + "…" : "Unknown");
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <Avatar className="h-10 w-10 rounded-full bg-white border border-slate-200 shrink-0">
-        {person.picture ? <AvatarImage src={person.picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(name)}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold text-slate-900 truncate">{name}</span>
-          {person.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
-        </div>
-        {person.nip05 && <p className="text-xs text-slate-400 truncate">{person.nip05}</p>}
-      </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-pressed={selected}
-        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 h-9 text-sm font-semibold transition-colors ${
-          selected
-            ? "bg-[#3730a3] text-white hover:bg-[#312e81]"
-            : "border border-slate-300 text-slate-700 hover:border-indigo-400 hover:text-indigo-700"
-        }`}
-        data-testid={`welcome-toggle-${person.pubkey.slice(0, 8)}`}
-      >
-        {selected ? <><Check className="h-4 w-4" /> Following</> : "Follow"}
-      </button>
-    </div>
-  );
 }
 
 /**
@@ -121,7 +57,7 @@ export default function WelcomePage() {
     };
     add(SEED_FOLLOW_HEX, "NosFabrica", true);
     if (inviterHex && inviterHex !== SEED_FOLLOW_HEX) add(inviterHex, "Who invited you", true);
-    for (const s of SUGGESTED) add(s.pubkey, s.name, false);
+    for (const s of SUGGESTED_ACCOUNTS) add(s.pubkey, s.name, false);
     return list;
   }, [inviterHex]);
 
@@ -212,22 +148,45 @@ export default function WelcomePage() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [query]);
 
-  const finish = useMutation({
-    mutationFn: async () => {
-      const pks = Array.from(selected);
-      const res = await followPubkeys(pks);
-      if (!res.success) throw new Error(res.error || "Couldn't save your follows. Please try again.");
-      const u = getCurrentUser();
-      if (u?.pubkey) await triggerScoringAndAnchor(u.pubkey);
-    },
-    onSuccess: () => {
-      toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
-      // Land on the search home (not the still-calculating dashboard): they can
-      // search right away, and the post-signup checklist (back up + profile) is there.
-      navigate("/", { replace: true });
-    },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Couldn't finish setup", description: e.message }),
-  });
+  // Don't make the user wait on the relay publish + scoring round-trips. Navigate
+  // to the search home IMMEDIATELY, then publish the follow list and trigger
+  // scoring in the background. The global ScoringStatusBar keeps the "calculating"
+  // state visible after this page unmounts; the toast/chip are app-wide so they
+  // still render. (When the dev's "calculate with follow list" API lands, swap the
+  // background trigger to pass `pks` directly so scoring doesn't wait on relay
+  // propagation.)
+  // If they reached onboarding via a value gate (e.g. the "build your WoT to
+  // filter this thread" nudge with ?next=/e/…), return them there afterward.
+  const returnPath = (() => {
+    try {
+      const n = new URLSearchParams(window.location.search).get("next");
+      if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/welcome") return n;
+    } catch { /* ignore */ }
+    return "/";
+  })();
+
+  const finish = () => {
+    const pks = Array.from(selected);
+    if (!pks.length) return;
+    const u = getCurrentUser();
+    // Stamp the calc marker now so the global chip shows "Calculating…" instantly,
+    // before the (slower) relay publish completes.
+    if (u?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${u.pubkey}`, String(Date.now())); } catch {} }
+    toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
+    navigate(returnPath, { replace: true });
+    void (async () => {
+      try {
+        const res = await followPubkeys(pks);
+        if (!res.success) {
+          toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
+          return;
+        }
+        if (u?.pubkey) await triggerScoringAndAnchor(u.pubkey);
+      } catch {
+        /* the status chip + dashboard reflect the outcome */
+      }
+    })();
+  };
 
   const count = selected.size;
 
@@ -368,16 +327,12 @@ export default function WelcomePage() {
             )}
             <button
               type="button"
-              onClick={() => finish.mutate()}
-              disabled={count === 0 || finish.isPending}
+              onClick={finish}
+              disabled={count === 0}
               className="w-full h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
               data-testid="welcome-finish"
             >
-              {finish.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Setting up your network…</>
-              ) : (
-                <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>
-              )}
+              Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" />
             </button>
             {count === 0 && <p className="mt-2 text-center text-xs text-slate-400">Select at least one account to continue.</p>}
           </div>

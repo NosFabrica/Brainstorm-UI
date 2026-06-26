@@ -336,10 +336,10 @@ export default function LoginPage() {
         inviterPubkey={inviterPubkey}
         onCreated={() => {
           setCreateOpen(false);
-          // New accounts go to the "Build your network" activation step (follow →
-          // scores). The inviter is preselected there from the pending-invite,
-          // so we keep it in sessionStorage for /welcome to read.
-          navigate("/welcome", { replace: true });
+          // If they came from a value gate with ?next= (e.g. a thread on /e),
+          // return them straight there — the thing that made them sign up.
+          // Otherwise go to the "Build your network" onboarding (/welcome).
+          navigate(nextPath !== "/" ? nextPath : "/welcome", { replace: true });
         }}
       />
     </div>

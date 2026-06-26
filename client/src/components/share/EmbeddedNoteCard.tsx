@@ -1,6 +1,9 @@
+import { type MouseEvent } from "react";
+import { useLocation } from "wouter";
 import { BadgeCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
+import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -26,17 +29,39 @@ export function EmbeddedNoteCard({
   event,
   author,
   profiles,
+  href,
+  trustScore01,
 }: {
   event: MinimalEvent;
   author?: ProfileLite;
   profiles?: Map<string, ProfileLite>;
+  /** When set, clicking the card (off the inner author link) opens this path. */
+  href?: string;
+  /** Author's Web-of-Trust score (0–1) — renders a tier pill in the header. */
+  trustScore01?: number | null;
 }) {
+  const [, navigate] = useLocation();
   const name = author?.display_name || author?.name || "Unknown";
   let npub = "";
   try { npub = npubFromPubkey(event.pubkey); } catch { /* ignore */ }
 
+  const tier = typeof trustScore01 === "number" && Number.isFinite(trustScore01) ? tierForScore(trustScore01) : null;
+  const pct = tier ? Math.round(Math.max(0, Math.min(1, trustScore01 as number)) * 100) : null;
+
+  const onClick = href
+    ? (e: MouseEvent) => {
+        if ((e.target as HTMLElement).closest("a, button, video, [data-noopen]")) return;
+        e.stopPropagation();
+        navigate(href);
+      }
+    : undefined;
+
   return (
-    <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3" data-testid="embedded-note">
+    <div
+      className={`mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 ${href ? "cursor-pointer hover:border-slate-300" : ""}`}
+      data-testid="embedded-note"
+      onClick={onClick}
+    >
       <div className="flex items-center gap-2 mb-1.5">
         <a href={npub ? `/p/${npub}` : undefined} className="flex items-center gap-2 min-w-0 hover:opacity-80">
           <Avatar className="h-6 w-6 rounded-full bg-white border border-slate-200">
@@ -46,7 +71,20 @@ export function EmbeddedNoteCard({
           <span className="text-sm font-semibold text-slate-900 truncate">{name}</span>
           {author?.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
         </a>
-        <span className="text-xs text-slate-400 ml-auto shrink-0">{ago(event.created_at)}</span>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {tier && (
+            <span
+              title={`${tier.name} · Web of Trust`}
+              className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-bold tabular-nums leading-none"
+              style={{ color: tier.color, backgroundColor: `${tier.color}14`, borderColor: `${tier.color}33` }}
+              data-testid="comment-trust-pill"
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tier.color }} />
+              {pct}
+            </span>
+          )}
+          <span className="text-xs text-slate-400">{ago(event.created_at)}</span>
+        </div>
       </div>
       <div className="line-clamp-5 text-[14px]">
         <NoteContent content={event.content} compact profiles={profiles} />

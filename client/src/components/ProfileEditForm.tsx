@@ -182,12 +182,26 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
           />
         </div>
 
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
-          Your profile
-        </h2>
-        <p className="text-sm text-slate-500 mb-5" data-testid="text-profile-subtitle">
-          How you appear to people across the network
-        </p>
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
+              Your profile
+            </h2>
+            <p className="text-sm text-slate-500" data-testid="text-profile-subtitle">
+              How you appear to people across the network
+            </p>
+          </div>
+          {!editing && state !== "success" && (
+            <button
+              type="button"
+              onClick={enterEdit}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:border-[#7c86ff]/50 hover:bg-slate-50 px-3.5 h-9 text-sm font-semibold text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40"
+              data-testid="button-edit-profile"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Edit
+            </button>
+          )}
+        </div>
 
         <div className="space-y-4">
           <div>
@@ -260,45 +274,38 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             </div>
           )}
 
-          <div className="pt-1">
-            {state === "success" ? (
-              <div className="flex items-center justify-center gap-2.5 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700" data-testid="status-edit-success">
-                <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                  <Check className="h-3.5 w-3.5 text-white" />
+          {(state === "success" || editing) && (
+            <div className="pt-1">
+              {state === "success" ? (
+                <div className="flex items-center justify-center gap-2.5 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700" data-testid="status-edit-success">
+                  <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <span className="text-sm font-bold">Profile saved!</span>
                 </div>
-                <span className="text-sm font-bold">Profile saved!</span>
-              </div>
-            ) : editing ? (
-              <div className="flex gap-2.5">
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="flex-1 h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  data-testid="button-edit-save"
-                >
-                  {busy ? (<><Loader2 className="h-5 w-5 animate-spin" /> Saving…</>) : submitLabel}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  disabled={busy}
-                  className="h-12 px-5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold text-sm transition-colors disabled:opacity-50"
-                  data-testid="button-edit-cancel"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={enterEdit}
-                className="w-full h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 active:scale-[0.99] flex items-center justify-center gap-2"
-                data-testid="button-edit-profile"
-              >
-                <Pencil className="h-4 w-4" /> Edit profile
-              </button>
-            )}
-          </div>
+              ) : (
+                <div className="flex justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={busy}
+                    className="h-11 px-5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold text-sm transition-colors disabled:opacity-50"
+                    data-testid="button-edit-cancel"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className="h-11 px-6 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    data-testid="button-edit-save"
+                  >
+                    {busy ? (<><Loader2 className="h-5 w-5 animate-spin" /> Saving…</>) : submitLabel}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </form>

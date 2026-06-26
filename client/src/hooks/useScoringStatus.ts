@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getCurrentUser } from "@/services/nostr";
-import { useHasMywot } from "@/hooks/useHasMywot";
 
 export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "failed";
 
@@ -16,10 +15,14 @@ const isFail = (s: unknown) => typeof s === "string" && s.toLowerCase() === "fai
  * whether scores are computing / ready). Shares the `/user/graperankResult`
  * query key with the dashboard so there's a single poll.
  */
-export function useScoringStatus(): { status: ScoringStatus; isCalculating: boolean; isReady: boolean } {
+export function useScoringStatus(): {
+  status: ScoringStatus;
+  isCalculating: boolean;
+  isReady: boolean;
+  elapsedMs: number | null;
+} {
   const user = getCurrentUser();
   const enabled = hasSessionToken() && !!user?.pubkey;
-  const { hasMywot } = useHasMywot();
 
   const q = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -39,17 +42,22 @@ export function useScoringStatus(): { status: ScoringStatus; isCalculating: bool
   const publishDone = calcDone && isDone(d?.ta_status);
   const failed = isFail(d?.status);
 
-  let triggeredRecently = false;
+  let triggeredAt = 0;
   try {
-    const ts = Number(localStorage.getItem(`brainstorm_calc_triggered_at:${user?.pubkey}`) || 0);
-    triggeredRecently = ts > 0 && Date.now() - ts < 30 * 60_000;
+    triggeredAt = Number(localStorage.getItem(`brainstorm_calc_triggered_at:${user?.pubkey}`) || 0);
   } catch {
     /* ignore */
   }
+  const triggeredRecently = triggeredAt > 0 && Date.now() - triggeredAt < 30 * 60_000;
+  const elapsedMs = triggeredAt > 0 ? Date.now() - triggeredAt : null;
 
+  // "Ready" must mean the backend genuinely finished AND published the scores
+  // (what actually populates the dashboard). The mere existence of a trust
+  // anchor (hasMywot) is too weak — it stays true across sessions and fires a
+  // false "ready" with an empty dashboard, so it's intentionally NOT used here.
   let status: ScoringStatus = "idle";
   if (!enabled) status = "idle";
-  else if (hasMywot || publishDone) status = "ready";
+  else if (publishDone) status = "ready";
   else if (failed) status = "failed";
   else if (calcDone) status = "publishing";
   else if (d || triggeredRecently) status = "calculating";
@@ -58,5 +66,6 @@ export function useScoringStatus(): { status: ScoringStatus; isCalculating: bool
     status,
     isCalculating: status === "calculating" || status === "publishing",
     isReady: status === "ready",
+    elapsedMs,
   };
 }

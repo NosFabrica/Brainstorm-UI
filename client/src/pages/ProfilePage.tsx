@@ -39,6 +39,7 @@ import {
   TrendingDown,
   Minus,
   Share2,
+  Globe,
 } from "lucide-react";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -2091,6 +2092,7 @@ export default function ProfilePage() {
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
         canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+        score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
@@ -2389,7 +2391,7 @@ export default function ProfilePage() {
                     );
                   })()}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
@@ -2418,17 +2420,30 @@ export default function ProfilePage() {
                           <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
+                        </div>
+                        {/* Two co-equal actions: view the public/shareable page, or share it.
+                            Full-width split on mobile, auto-width on desktop. */}
+                        <div className="flex items-stretch gap-2 mt-3" data-testid="row-public-share-actions">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/p/${displayNpub}`)}
+                            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                            data-testid="link-public-page"
+                            title="See the public, shareable version of this profile"
+                          >
+                            <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
+                          </button>
                           <button
                             type="button"
                             onClick={() => setShareOpen(true)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0"
+                            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
                             data-testid="button-share-profile"
                           >
-                            <Share2 className="w-3 h-3" /> Share
+                            <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
                           </button>
                         </div>
                         {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
-                          <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
+                          <div className="flex items-stretch gap-2 mt-2" data-testid="row-profile-actions">
                             {social.listsLoading ? (
                               <>
                                 <div className="h-7 sm:h-8 w-20 sm:w-24 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-follow-button" />
@@ -2456,7 +2471,7 @@ export default function ProfilePage() {
                                     }
                                     setFollowHovered(false);
                                   }}
-                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-3 sm:px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                                  className={`inline-flex flex-1 sm:flex-none justify-center items-center gap-1.5 h-8 px-3 sm:px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
                                     following
                                       ? followHovered
                                         ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
@@ -2472,7 +2487,7 @@ export default function ProfilePage() {
                                   ) : (
                                     <UserPlus className="h-3.5 w-3.5" />
                                   )}
-                                  <span className="hidden sm:inline">
+                                  <span>
                                     {pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}
                                   </span>
                                 </button>
@@ -2528,7 +2543,9 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      <div className="contents">{renderTrustBadge()}</div>
+                      {/* Trust badge: stacks full-width below the identity on mobile
+                          (centered), sits to the right on desktop (display:contents). */}
+                      <div className="flex justify-center sm:contents">{renderTrustBadge()}</div>
                     </div>
                   </div>
                 </div>

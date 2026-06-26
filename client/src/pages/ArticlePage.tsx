@@ -1,19 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { nip19 } from "nostr-tools";
-import { ArrowLeft, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
-import { apiClient } from "@/services/api";
+import { apiClient, hasSessionToken } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
+import { EventThread } from "@/components/share/EventThread";
+import { OpenInApp } from "@/components/share/OpenInApp";
+import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { BrainLogo } from "@/components/BrainLogo";
 
 type AddressPointer = { kind: number; pubkey: string; identifier: string; relays?: string[] };
@@ -64,7 +67,7 @@ export default function ArticlePage() {
 
   const profileQuery = useQuery({
     queryKey: ["article-author", ptr?.pubkey],
-    queryFn: () => (ptr ? fetchProfile(ptr.pubkey) : null),
+    queryFn: async () => (ptr ? (await fetchProfile(ptr.pubkey)) ?? null : null),
     enabled: !!ptr?.pubkey,
     staleTime: 5 * 60_000,
     retry: false,
@@ -88,6 +91,15 @@ export default function ArticlePage() {
   const authorNpub = ptr ? (() => { try { return npubFromPubkey(ptr.pubkey); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
   const tier = score01 != null ? tierForScore(score01) : null;
+  const loggedIn = hasSessionToken();
+  const firstName = authorName.split(" ")[0];
+  const [threadGated, setThreadGated] = useState(false);
+
+  // NIP-22 comments on an article reference its addressable coordinate.
+  const coord = ptr ? `${ptr.kind}:${ptr.pubkey}:${ptr.identifier}` : "";
+  // Sign up / sign in from here → return to this article afterward.
+  const here = typeof window !== "undefined" ? window.location.pathname : "";
+  const funnelLoginHref = `/login?${[authorNpub ? `invite=${authorNpub}` : "", here ? `next=${encodeURIComponent(here)}` : ""].filter(Boolean).join("&")}`;
 
   useShareMeta(
     ev
@@ -172,30 +184,46 @@ export default function ArticlePage() {
               )}
             </div>
 
-            {/* Generously-sized teaser of the rendered body, then a fade + funnel. */}
-            <div className="relative mt-6 max-h-[34rem] overflow-hidden" data-testid="article-body">
-              <div className="prose prose-slate max-w-none prose-headings:font-bold prose-a:text-[#3730a3] prose-img:rounded-xl">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-                  {ev.content || ""}
-                </ReactMarkdown>
-              </div>
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/90 to-transparent" />
+            {/* Full article body — Brainstorm is the reading destination. */}
+            <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-[#3730a3] prose-img:rounded-xl" data-testid="article-body">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                {ev.content || ""}
+              </ReactMarkdown>
             </div>
 
-            {/* Continue-reading funnel — open in a nostr app (never njump). */}
-            <div className="mt-2 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="article-funnel">
-              <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Keep reading</p>
-              <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">Open the full article in a nostr app to read it end to end.</p>
-              <button
-                type="button"
-                onClick={() => openArticleInApp(naddr)}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
-                data-testid="article-open-app"
+            {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}
+            {ev && (
+              <EventThread eventId={ev.id} addressCoord={coord} authorNpub={authorNpub} relayHints={ptr?.relays ?? []} onGateChange={setThreadGated} />
+            )}
+
+            {/* More from this author — keep readers inside Brainstorm. */}
+            {ptr?.pubkey && <MoreFromAuthor pubkey={ptr.pubkey} authorName={authorName} author={profile} relayHints={ptr?.relays ?? []} excludeId={ev?.id} />}
+
+            {/* WoT signup funnel — hidden when the thread's own signup gate is showing. */}
+            {!threadGated && (
+            <div className="mt-6 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="article-funnel">
+              <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
+              <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
+              </p>
+              <Link
+                href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                data-testid="article-cta"
               >
-                <Smartphone className="h-4 w-4" /> Open in an app
-              </button>
-              <p className="mt-2 text-[11px] text-slate-400">Android installs Amethyst · everywhere else opens Nostria</p>
+                {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
+              </Link>
+              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
+              {!loggedIn && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-[#3730a3] hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
+                </p>
+              )}
             </div>
+            )}
+
+            {/* Secondary escape hatch — open in a Nostr client to read/zap. */}
+            <OpenInApp entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }} className="mt-6" />
           </article>
         )}
 

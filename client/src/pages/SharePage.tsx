@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   MessageSquare,
@@ -11,21 +11,20 @@ import {
   Copy,
   Check,
   ArrowRight,
+  ArrowLeft,
   Wifi,
   Video as VideoIcon,
   Music as MusicIcon,
   Radio,
   Play,
 } from "lucide-react";
-import { decodeShareId, npubFromPubkey, nostrUriFor } from "@/lib/shareId";
-import amethystLogoImg from "../assets/amethyst-logo.png";
-import nostriaIconImg from "../assets/nostria-icon.png";
+import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { fetchProfileForShare, fetchRecentByKinds, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
 import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
-import { ShareVideo } from "@/components/share/ShareVideo";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
+import { OpenInApp } from "@/components/share/OpenInApp";
 import { copyToClipboard } from "@/lib/clipboard";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
@@ -184,11 +183,19 @@ export default function SharePage() {
   // images embedded in recent notes (MIME/extension-detected). Broken URLs that
   // fail to load are dropped via `brokenPhotos`.
   const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set());
-  const photoUrls = useMemo(() => {
-    const urls: string[] = [];
-    for (const ev of photosQuery.data ?? []) urls.push(...extractImageUrls(ev.content, ev.tags, { allImeta: true }));
-    for (const ev of notesQuery.data ?? []) urls.push(...extractImageUrls(ev.content, ev.tags));
-    return Array.from(new Set(urls)).filter((u) => !brokenPhotos.has(u)).slice(0, 6);
+  const photos = useMemo(() => {
+    const out: { url: string; id: string; pubkey: string }[] = [];
+    const seen = new Set<string>();
+    const add = (ev: { id: string; pubkey: string; content: string; tags: string[][] }, urls: string[]) => {
+      for (const u of urls) {
+        if (seen.has(u) || brokenPhotos.has(u)) continue;
+        seen.add(u);
+        out.push({ url: u, id: ev.id, pubkey: ev.pubkey });
+      }
+    };
+    for (const ev of photosQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags, { allImeta: true }));
+    for (const ev of notesQuery.data ?? []) add(ev, extractImageUrls(ev.content, ev.tags));
+    return out.slice(0, 6);
   }, [photosQuery.data, notesQuery.data, brokenPhotos]);
 
   const articles = useMemo(
@@ -338,7 +345,7 @@ export default function SharePage() {
 
   const profileLoading = profileQuery.isLoading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 || photoUrls.length > 0 || articles.length > 0 ||
+    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 ||
     videos.length > 0 || tracks.length > 0 || !!live;
 
   return (
@@ -435,16 +442,23 @@ export default function SharePage() {
             )}
           </div>
 
-          {/* Actions */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm font-semibold">
-            <Link href={`/profile/${npub}`} className="inline-flex items-center gap-1 text-[#3730a3] hover:underline" data-testid="share-view-full">
-              View full profile <ArrowRight className="h-4 w-4" />
+          {/* Actions — lead with the one thing an account unlocks: this profile
+              seen through YOUR web of trust. "View full profile" (free house POV)
+              is the demoted secondary option. */}
+          <div className="mt-4 flex flex-col items-start gap-2">
+            <Link
+              href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
+              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
+              data-testid="share-wot-cta"
+            >
+              See {(displayName || "them").split(" ")[0]} through your Web of Trust <ArrowRight className="h-4 w-4" />
             </Link>
-            {!loggedIn && (
-              <Link href={`/login?next=${encodeURIComponent(`/p/${npub}`)}`} className="inline-flex items-center gap-1 text-slate-500 hover:text-[#333286]" data-testid="share-signin-cta">
-                See it through your own web of trust
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {!loggedIn && <span className="text-slate-400">Sign in or create a free account — no email</span>}
+              <Link href={`/profile/${npub}`} className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-[#333286]" data-testid="share-view-full">
+                View full profile <ArrowRight className="h-3.5 w-3.5" />
               </Link>
-            )}
+            </div>
           </div>
 
           {foundViaRelays && (
@@ -462,35 +476,6 @@ export default function SharePage() {
             A few highlights — open the full profile in an app to see everything.
           </p>
         )}
-        {noteEvents.length > 0 && (
-          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={scrollToOpenIn} testId="share-block-notes">
-            <div className="space-y-4">
-              {noteEvents.map((ev) => (
-                <div key={ev.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} />
-                </div>
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
-        {photoUrls.length > 0 && (
-          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={scrollToOpenIn} testId="share-block-photos">
-            <div className="grid grid-cols-3 gap-2">
-              {photoUrls.map((url) => (
-                <img
-                  key={url}
-                  src={url}
-                  alt=""
-                  loading="lazy"
-                  onError={() => setBrokenPhotos((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))}
-                  className="aspect-square w-full object-cover rounded-xl border border-slate-200"
-                />
-              ))}
-            </div>
-          </ContentTeaserBlock>
-        )}
-
         {articles.length > 0 && (
           <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={scrollToOpenIn} testId="share-block-articles">
             <div className="space-y-3">
@@ -505,25 +490,64 @@ export default function SharePage() {
           </ContentTeaserBlock>
         )}
 
+        {noteEvents.length > 0 && (
+          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={scrollToOpenIn} testId="share-block-notes">
+            <div className="space-y-4">
+              {noteEvents.map((ev) => (
+                <div key={ev.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} />
+                </div>
+              ))}
+            </div>
+          </ContentTeaserBlock>
+        )}
+
+        {photos.length > 0 && (
+          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={scrollToOpenIn} testId="share-block-photos">
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((photo) => (
+                <Link
+                  key={photo.url}
+                  href={eventPath({ id: photo.id, pubkey: photo.pubkey }, relayHints)}
+                  className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200"
+                  data-testid="share-photo-tile"
+                >
+                  <img
+                    src={photo.url}
+                    alt=""
+                    loading="lazy"
+                    onError={() => setBrokenPhotos((prev) => (prev.has(photo.url) ? prev : new Set(prev).add(photo.url)))}
+                    className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                  />
+                </Link>
+              ))}
+            </div>
+          </ContentTeaserBlock>
+        )}
+
         {videos.length > 0 && (
           <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={scrollToOpenIn} testId="share-block-videos">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {videos.map((v) => (
-                v.url ? (
-                  <ShareVideo key={v.id} url={v.url} poster={v.poster} title={v.title} />
-                ) : v.poster ? (
-                  <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 bg-black">
-                    <a href={nostrUriFor(pubkey, relayHints)} className="group relative block aspect-video bg-slate-900">
-                      <img src={v.poster} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="h-11 w-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                          <Play className="h-4 w-4 text-[#333286] ml-0.5" />
-                        </div>
-                      </div>
-                    </a>
-                    {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 truncate bg-white">{v.title}</p>}
-                  </div>
-                ) : null
+                <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 bg-black">
+                  <Link
+                    href={eventPath({ id: v.id, pubkey }, relayHints)}
+                    className="group relative block aspect-video bg-slate-900"
+                    data-testid="share-video-tile"
+                  >
+                    {v.poster ? (
+                      <img src={v.poster} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
+                    ) : v.url ? (
+                      <video src={`${v.url}#t=0.1`} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
+                    ) : null}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
+                      <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
+                        <Play className="h-5 w-5 text-[#333286] ml-0.5" />
+                      </span>
+                    </div>
+                  </Link>
+                  {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 truncate bg-white">{v.title}</p>}
+                </div>
               ))}
             </div>
           </ContentTeaserBlock>
@@ -533,7 +557,7 @@ export default function SharePage() {
           <ContentTeaserBlock icon={<MusicIcon className="h-4 w-4" />} title="Music" onViewAll={scrollToOpenIn} testId="share-block-music">
             <div className="space-y-2">
               {tracks.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5">
+                <Link key={t.id} href={eventPath({ id: t.id, pubkey }, relayHints)} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5 hover:border-slate-300 transition-colors">
                   {t.cover ? (
                     <img src={t.cover} alt="" loading="lazy" className="h-11 w-11 rounded-lg object-cover shrink-0" />
                   ) : (
@@ -543,7 +567,7 @@ export default function SharePage() {
                     <p className="text-sm font-semibold text-slate-900 truncate">{t.title}</p>
                     {t.artist && <p className="text-xs text-slate-500 truncate">{t.artist}</p>}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </ContentTeaserBlock>
@@ -573,30 +597,9 @@ export default function SharePage() {
         )}
       </div>
 
-      {/* Open in a Nostr client */}
-      <section ref={openInRef} className="mt-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-5" data-testid="share-open-in">
-        <p className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-3">See everything — open in an app</p>
-        <div className="grid grid-cols-2 gap-2.5">
-          <a
-            href={nostrUriFor(pubkey, relayHints)}
-            className="inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 bg-white hover:border-purple-300 hover:shadow-sm text-sm font-semibold text-slate-700 transition-all"
-            data-testid="open-amethyst"
-          >
-            <img src={amethystLogoImg} alt="" className="w-5 h-5 rounded-md" /> Amethyst
-          </a>
-          <a
-            href={npub ? `https://nostria.app/p/${npub}` : "https://www.nostria.app/"}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 bg-white hover:border-orange-300 hover:shadow-sm text-sm font-semibold text-slate-700 transition-all"
-            data-testid="open-nostria"
-          >
-            <img src={nostriaIconImg} alt="" className="w-5 h-5 rounded-md object-contain" /> Nostria
-          </a>
-        </div>
-        <a href={nostrUriFor(pubkey, relayHints)} className="mt-2.5 block text-center text-xs text-slate-400 hover:text-[#333286]" data-testid="open-default">
-          or open in your default app →
-        </a>
+      {/* Open in a Nostr client (shared component, consistent with /e and /a) */}
+      <section ref={openInRef} className="mt-6">
+        <OpenInApp entity={{ kind: "profile", bech32: npub, uri: nostrUriFor(pubkey, relayHints) }} />
       </section>
 
       {/* Learn more (Brainstorm public resources) + funnel */}
@@ -605,7 +608,6 @@ export default function SharePage() {
         <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/nostr" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-built-on-nostr">Built on Nostr</a>
           <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-about">About Brainstorm</a>
         </div>
         {!loggedIn && (
@@ -622,21 +624,30 @@ export default function SharePage() {
         </p>
       </div>
 
-      <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} />
+      <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       </ShareNavProvider>
     </ShareShell>
   );
 }
 
 function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?: () => void }) {
+  // In-app searchers arrive with ?fromSearch=1 and get a return path. External /
+  // shared-link visitors (no flag) see the pristine public header.
+  const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
       <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2" data-testid="share-brand">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
-          </Link>
+          {fromSearch ? (
+            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="share-back-to-search">
+              <ArrowLeft className="h-4 w-4" /> Back to search
+            </Link>
+          ) : (
+            <Link href="/" className="flex items-center gap-2" data-testid="share-brand">
+              <BrainLogo size={26} className="text-indigo-500" />
+              <span className="text-lg font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            </Link>
+          )}
           {onShare && (
             <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
               Share

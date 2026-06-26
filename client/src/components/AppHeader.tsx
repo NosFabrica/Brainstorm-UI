@@ -28,7 +28,19 @@ import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
-import type { NostrUser } from "@/services/nostr";
+import { hasPersistentKey, type NostrUser } from "@/services/nostr";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/services/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { type ReactNode, useState } from "react";
 
 interface AppHeaderProps {
@@ -59,9 +71,33 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const isAdmin = isAdminPubkey(user?.pubkey);
   const isLight = variant === "light";
   const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+
+  // Your own house Web-of-Trust score for the invite card — fetched only when the
+  // invite sheet opens (cached). Sharing your trust standing is a credible flex.
+  const houseScoreQuery = useQuery({
+    queryKey: ["self-house-influence", user?.pubkey],
+    queryFn: () => (user?.pubkey ? apiClient.getHouseInfluence(user.pubkey) : null),
+    enabled: !!user?.pubkey && inviteOpen,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  // In-app accounts hold their key locally, so signing out without a backup means
+  // the account is unrecoverable. Only intercept those (extension/nsec users keep
+  // their key elsewhere). The backup flag is set by the post-signup backup flow.
+  const backedUp = (() => {
+    try { return !user?.pubkey || localStorage.getItem(`brainstorm_backup_done:${user.pubkey}`) === "true"; }
+    catch { return true; }
+  })();
+  const needsBackupBeforeLogout = hasPersistentKey() && !backedUp;
+  const requestLogout = () => {
+    if (needsBackupBeforeLogout) setLogoutConfirmOpen(true);
+    else onLogout();
+  };
 
   return (
     <nav
@@ -223,7 +259,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 <DropdownMenuSeparator className="bg-indigo-100" />
                 <DropdownMenuItem
                   className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
-                  onClick={onLogout}
+                  onClick={requestLogout}
                   data-testid="dropdown-logout"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -244,7 +280,35 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
         picture={user.picture}
         nip05={user.profile?.nip05}
         canonicalUrl={inviteUrl}
+        score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
+
+      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
+        <AlertDialogContent data-testid="logout-backup-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save a backup before you sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This account lives in this browser. Without a backup file you can't sign back in
+              here or anywhere else — and it can't be recovered. It takes a few seconds.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="text-red-600 hover:text-red-700"
+              onClick={() => { setLogoutConfirmOpen(false); onLogout(); }}
+              data-testid="logout-anyway"
+            >
+              Sign out anyway
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setLogoutConfirmOpen(false); navigate("/settings?tab=profile&focus=backup"); }}
+              data-testid="logout-save-backup"
+            >
+              Save backup
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </nav>
   );
 }

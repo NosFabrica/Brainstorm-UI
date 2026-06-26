@@ -70,3 +70,30 @@ export function nostrUriFor(pubkey: string, relays: string[] = []): string {
     return "";
   }
 }
+
+/**
+ * A `nostr:` URI (NIP-21) for an EVENT — used by the event page's "open in your
+ * Nostr app". Encodes an `nevent` (id + relay hints + author) so the note is
+ * findable even if a given relay doesn't have it. Returns "" if encoding fails.
+ */
+export function nostrUriForEvent(id: string, relays: string[] = [], author?: string): string {
+  try {
+    return `nostr:${nip19.neventEncode({ id, relays: relays.slice(0, 4), author })}`;
+  } catch {
+    return "";
+  }
+}
+
+/** Bare `nevent` for an event id (carries author + relay hints), for clean /e links. */
+export function neventFor(id: string, relays: string[] = [], author?: string): string {
+  try {
+    return nip19.neventEncode({ id, relays: relays.slice(0, 4), author });
+  } catch {
+    return id;
+  }
+}
+
+/** On-site `/e/<nevent>` path for an event (falls back to the bare id). */
+export function eventPath(event: { id: string; pubkey?: string }, relays: string[] = []): string {
+  return `/e/${neventFor(event.id, relays, event.pubkey)}`;
+}

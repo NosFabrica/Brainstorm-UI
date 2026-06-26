@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge, BadgeCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
 import { getCurrentUser, fetchProfile, triggerScoringAndAnchor } from "@/services/nostr";
@@ -56,19 +56,17 @@ export default function ActivatePage() {
   const name = prof?.display_name || prof?.name || user?.displayName || (user?.npub ? user.npub.slice(0, 12) + "…" : "there");
   const picture = prof?.picture || user?.picture;
 
-  const calc = useMutation({
-    mutationFn: async () => { if (pubkey) await triggerScoringAndAnchor(pubkey); },
-    onSuccess: () => {
-      markSeen();
-      toast({ title: "Calculating your Web of Trust", description: "We're scoring your network — explore while it runs." });
-      navigate("/", { replace: true });
-    },
-    onError: () => {
-      markSeen();
-      toast({ variant: "destructive", title: "Couldn't start the calculation", description: "Please try again from your dashboard in a moment." });
-      navigate("/", { replace: true });
-    },
-  });
+  // Navigate to search immediately; trigger scoring in the background so the user
+  // never waits on the POST. The global ScoringStatusBar shows the calculating state.
+  const calc = () => {
+    markSeen();
+    if (pubkey) {
+      try { localStorage.setItem(`brainstorm_calc_triggered_at:${pubkey}`, String(Date.now())); } catch {}
+    }
+    toast({ title: "Calculating your Web of Trust", description: "We're scoring your network — explore while it runs." });
+    navigate("/", { replace: true });
+    if (pubkey) void triggerScoringAndAnchor(pubkey).catch(() => {});
+  };
 
   const VALUE = [
     { icon: <SearchIcon className="h-4 w-4" />, label: "Trust-ranked search" },
@@ -141,16 +139,12 @@ export default function ActivatePage() {
         {/* CTA */}
         <button
           type="button"
-          onClick={() => calc.mutate()}
-          disabled={calc.isPending || !pubkey}
+          onClick={calc}
+          disabled={!pubkey}
           className="mt-6 w-full h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
           data-testid="activate-calculate"
         >
-          {calc.isPending ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</>
-          ) : (
-            <>Calculate my Web of Trust <ArrowRight className="h-4 w-4" /></>
-          )}
+          Calculate my Web of Trust <ArrowRight className="h-4 w-4" />
         </button>
         <p className="mt-2 text-center text-xs text-slate-400">
           We read your existing follows — nothing to set up. This can take a few minutes; you can search while it runs.
