@@ -1,5 +1,29 @@
 import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb, signEventLocally } from "./nostr";
+import { apiClient, hasSessionToken } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
+
+/**
+ * Ingest a freshly-signed kind-3 follow list into the backend synchronously, so
+ * scoring runs against the real follows instead of waiting on relay propagation.
+ * Awaited by the follow flow so it completes BEFORE the caller triggers GrapeRank.
+ * Policy: requires a session token; respects 429 (rate-limit — never retry to
+ * avoid spamming); retries other transient errors a few times, then gives up.
+ * Best-effort — failure never blocks the follow (relays remain the source of truth).
+ */
+async function ingestFollowList(signed: Record<string, unknown>): Promise<void> {
+  if (!hasSessionToken()) return; // must be logged in
+  const backoffMs = [600, 1500, 3000];
+  for (let attempt = 0; attempt <= backoffMs.length; attempt++) {
+    try {
+      await apiClient.submitFollowList(signed);
+      return;
+    } catch (e: any) {
+      if (e?.status === 429) return; // intentional rate-limit — respect it, stop
+      if (attempt === backoffMs.length) return; // transient: gave up after retries
+      await new Promise((r) => setTimeout(r, backoffMs[attempt]));
+    }
+  }
+}
 
 export interface NostrEvent {
   id?: string;
@@ -134,7 +158,13 @@ async function publishContactList(
   try {
     const signed = await signEventLocally(event);
     const res = await publishToRelays(signed);
-    if (res.success) recordFollowList(user.pubkey, signed as any, { authoritative: true });
+    if (res.success) {
+      recordFollowList(user.pubkey, signed as any, { authoritative: true });
+      // GATE: ingest the follows server-side and WAIT for it before returning, so
+      // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
+      // relay-propagation state). Best-effort — never fails the follow.
+      await ingestFollowList(signed);
+    }
     return res;
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };

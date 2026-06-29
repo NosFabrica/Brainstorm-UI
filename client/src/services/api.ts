@@ -405,6 +405,30 @@ export const apiClient = {
     return await response.json();
   },
 
+  // Ingest a freshly-signed onboarding kind-3 follow list synchronously, so the
+  // backend has the user's follows BEFORE GrapeRank is triggered (no relay-
+  // propagation wait). Throws an Error carrying `.status` so the caller can
+  // branch on 429 (rate-limit — don't retry) vs transient errors (retry).
+  async submitFollowList(signedEvent: Record<string, unknown>) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/followList`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signed_event: signedEvent }),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      let detail = body?.detail || body?.message || `Failed to ingest follow list (${response.status})`;
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      const err = new Error(detail) as Error & { status?: number };
+      err.status = response.status;
+      throw err;
+    }
+    return await response.json(); // { code, message, data: { followCount } }
+  },
+
   async getGrapeRankResult() {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/graperankResult`,

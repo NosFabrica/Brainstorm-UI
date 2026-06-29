@@ -152,9 +152,10 @@ export default function WelcomePage() {
   // to the search home IMMEDIATELY, then publish the follow list and trigger
   // scoring in the background. The global ScoringStatusBar keeps the "calculating"
   // state visible after this page unmounts; the toast/chip are app-wide so they
-  // still render. (When the dev's "calculate with follow list" API lands, swap the
-  // background trigger to pass `pks` directly so scoring doesn't wait on relay
-  // propagation.)
+  // still render. (`followPubkeys` now synchronously ingests the signed follow
+  // list into the backend via POST /user/followList BEFORE returning, so the
+  // subsequent triggerScoringAndAnchor scores fresh follows — no relay-propagation
+  // wait.)
   // If they reached onboarding via a value gate (e.g. the "build your WoT to
   // filter this thread" nudge with ?next=/e/…), return them there afterward.
   const returnPath = (() => {
