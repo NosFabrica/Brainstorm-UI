@@ -15,6 +15,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -80,7 +81,10 @@ import {
   getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
+  setFirstPublishDone,
 } from "@/lib/assistantStorage";
+import { ensureAssistantPublished } from "@/lib/assistantPublish";
+import { ToastAction } from "@/components/ui/toast";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -107,6 +111,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -197,6 +202,19 @@ const NETWORK_METRICS = [
 ] as const;
 
 
+// "Maybe later" on the Select-Brainstorm card is remembered per-account so it
+// doesn't re-nag on every reload, but re-surfaces once after a cooldown.
+const NIP85_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+function nip85DismissedRecently(pubkey?: string): boolean {
+  if (!pubkey) return false;
+  try {
+    const at = Number(localStorage.getItem(`brainstorm_nip85_dismissed_at:${pubkey}`) || 0);
+    return at > 0 && Date.now() - at < NIP85_DISMISS_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -212,10 +230,25 @@ export default function DashboardPage() {
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
-  const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
-  const [nip85Dismissed, setNip85Dismissed] = useState(false);
+  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
+  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
+  // In-app-created accounts auto-activate Brainstorm silently (see
+  // AutoActivateBrainstorm) — they never get the consent card.
+  const nip85CreatedInApp = (() => {
+    try { return !!user?.pubkey && localStorage.getItem(`brainstorm_created_inapp:${user.pubkey}`) === "true"; } catch { return false; }
+  })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
   const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
+  // "Your network is live — invite friends" card: shown once, the first time the
+  // user's scores go ready (publishDone). Persisted per-account so it never nags.
+  const [inviteShareOpen, setInviteShareOpen] = useState(false);
+  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
+    try { const pk = getCurrentUser()?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
+  });
+  const markInviteCardSeen = () => {
+    try { const pk = getCurrentUser()?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    setInviteCardSeen(true);
+  };
   useEffect(() => {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
@@ -238,6 +271,34 @@ export default function DashboardPage() {
       window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
   }, []);
+
+  // Inline "Publish your assistant" prompt (existing users): publish in place
+  // rather than navigating to the wrong settings page. Explicit click = consent,
+  // so we DO follow the bot. Reuses the shared publish helper.
+  const publishAssistantMutation = useMutation({
+    mutationFn: () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    onSuccess: ({ name }) => {
+      setFirstPublishDone();
+      setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
+      toast({
+        title: `${name} is live on Nostr!`,
+        description: "Speaking your trust scores to compatible Nostr apps.",
+        action: (
+          <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=trust")}>
+            Customize
+          </ToastAction>
+        ),
+        duration: 6000,
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Couldn't publish your assistant",
+        description: err?.message || "Please try again in a moment.",
+      });
+    },
+  });
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -376,15 +437,15 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (trustServiceProvider.data === undefined) return;
-    const isBrainstorm = !!trustServiceProvider.data;
-    if (isBrainstorm && localStorage.getItem("brainstorm_nip85_activated") !== "true") {
-      localStorage.setItem("brainstorm_nip85_activated", "true");
-    }
-    if (nip85Activated !== isBrainstorm) {
-      setNip85Activated(isBrainstorm);
-    }
-  }, [trustServiceProvider.data]);
+    // Upgrade-only: a relay confirmation (isUsingBrainstorm === true) marks this
+    // account activated and shows the badge. A `false`/undefined is treated as
+    // "not propagated yet", NOT a deactivation — relays are eventually-consistent,
+    // so we never downgrade here (that caused the badge to flicker right after an
+    // auto-publish). Deactivation is explicit, via Settings.
+    if (trustServiceProvider.data !== true) return;
+    markNip85Activated(getCurrentUser()?.pubkey);
+    if (!nip85Activated) setNip85Activated(true);
+  }, [trustServiceProvider.data, nip85Activated]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -860,7 +921,7 @@ export default function DashboardPage() {
                   </div>
 
                   <AnimatePresence initial={false}>
-                    {!assistantDismissed && !assistantPubkey && (
+                    {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
                       <motion.div
                         key="assistant-inline-prompt"
                         initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
@@ -888,11 +949,19 @@ export default function DashboardPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => navigate("/settings")}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            onClick={() => publishAssistantMutation.mutate()}
+                            disabled={publishAssistantMutation.isPending}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
                             data-testid="button-assistant-inline-publish"
                           >
-                            Publish
+                            {publishAssistantMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                Publishing
+                              </>
+                            ) : (
+                              "Publish"
+                            )}
                           </button>
                           <button
                             type="button"
@@ -1086,6 +1155,70 @@ export default function DashboardPage() {
                 /welcome) so they can start their Web of Trust without leaving. */}
             {hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isPending && (
               <FollowToCalculateCard onDone={handleFollowDone} />
+            )}
+
+            {/* Scores just went live → the viral beat: invite people in. Shown
+                once per account (persisted), never on recalcs. */}
+            {user && publishDone && !inviteCardSeen && !isRecalculating && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="mb-6"
+              >
+                <div className="relative overflow-hidden rounded-2xl border border-[#7c86ff]/20 bg-gradient-to-br from-white/95 via-white/85 to-indigo-50/50 shadow-[0_0_15px_rgba(124,134,255,0.07)]" data-testid="card-invite-grow">
+                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                  <button
+                    type="button"
+                    onClick={markInviteCardSeen}
+                    className="absolute top-2.5 right-2.5 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    aria-label="Dismiss"
+                    data-testid="button-invite-grow-dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-invite-grow-title">
+                        Your trust network is live 🎉
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed pr-6">
+                        Invite friends — when they join through your link they start connected to you, and your Web of Trust gets stronger.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
+                      className="shrink-0 h-10 px-5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all flex items-center justify-center gap-2"
+                      data-testid="button-invite-grow"
+                    >
+                      <Users className="h-4 w-4" />
+                      Invite friends
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            {/* Rendered outside the card gate so it stays mounted after the card
+                collapses (clicking Invite marks the card seen). */}
+            {user && (
+              <ShareProfileModal
+                open={inviteShareOpen}
+                onOpenChange={setInviteShareOpen}
+                invite
+                npub={user.npub}
+                displayName={user.displayName || "You"}
+                picture={user.picture}
+                nip05={user.profile?.nip05}
+                canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
+                // No trust pill on an invite: the score is self-referential (your own POV
+                // ≈ 100) and meaningless for a brand-new account — the invite is about
+                // "join & start connected to you", not a score flex.
+                score01={null}
+              />
             )}
 
             {(showOnboarding || isRecalculating) && (
@@ -1467,7 +1600,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1507,7 +1640,13 @@ export default function DashboardPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNip85Dismissed(true)}
+                      onClick={() => {
+                        try {
+                          const pk = getCurrentUser()?.pubkey;
+                          if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
+                        } catch { /* ignore */ }
+                        setNip85Dismissed(true);
+                      }}
                       className="text-xs text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
                       data-testid="button-nip85-dismiss"
                     >

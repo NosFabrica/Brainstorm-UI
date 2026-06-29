@@ -62,6 +62,22 @@ export function getEncryptedBackupCredential(password: string): { npub: string; 
   };
 }
 
+/**
+ * Suggested download filename, personalized with the user's profile name so it's
+ * recognizable later and distinguishes multiple accounts: e.g.
+ * `brainstorm-account-backup-lira-flint.txt`. Slugified and length-capped; falls
+ * back to the bare `${base}.txt` when there's no usable name.
+ */
+function backupFileName(base: string): string {
+  const slug = (getCurrentUser()?.displayName ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // spaces/punctuation/emoji/non-ASCII → hyphen
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32)
+    .replace(/-+$/, ""); // re-trim if the slice cut mid-hyphen
+  return slug ? `${base}-${slug}.txt` : `${base}.txt`;
+}
+
 export function downloadAccountBackup(password: string): boolean {
   const { npub, ncryptsec } = getEncryptedBackupCredential(password);
   const content = buildAccountBackupFileContent(ncryptsec, npub);
@@ -70,7 +86,7 @@ export function downloadAccountBackup(password: string): boolean {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "brainstorm-account-backup.txt";
+  a.download = backupFileName("brainstorm-account-backup");
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -131,7 +147,7 @@ export function downloadRawKeyBackup(): boolean {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "brainstorm-account-key.txt";
+  a.download = backupFileName("brainstorm-account-key");
   document.body.appendChild(a);
   a.click();
   a.remove();

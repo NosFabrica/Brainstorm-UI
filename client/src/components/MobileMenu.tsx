@@ -179,8 +179,6 @@ export function MobileMenu({
                     key={item.path}
                     item={item}
                     active={currentPath === item.path}
-                    disabled={item.path === "/network" && !calcDone}
-                    disabledTitle="Available after calculation completes"
                     onClose={onClose}
                     navigate={navigate}
                   />

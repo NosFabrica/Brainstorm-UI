@@ -52,6 +52,7 @@ import { apiClient } from "./api";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
+import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { NostrEvent } from "applesauce-core/helpers";
 
 declare global {
@@ -1007,7 +1008,11 @@ export async function handleLogin(): Promise<NostrUser> {
   }
 
   clearSecretKey();
-  return completeLogin(pubkey, signedEvent);
+  const user = await completeLogin(pubkey, signedEvent);
+  // The extension holds the key → recoverable; mark backed up so a returning user
+  // isn't nagged to "back up" a key the extension already keeps.
+  try { localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true"); } catch { /* ignore */ }
+  return user;
 }
 
 /**
@@ -1044,7 +1049,12 @@ async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: b
 
   storeSecretKey(sk, opts);
   try {
-    return await completeLogin(pubkey, signedEvent);
+    const user = await completeLogin(pubkey, signedEvent);
+    // The user supplied their own nsec → they demonstrably hold the key, so the
+    // account is recoverable. Mark it backed up so onboarding/backup nudges don't
+    // nag a returning user about a key they already have.
+    try { localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true"); } catch { /* ignore */ }
+    return user;
   } catch (err) {
     clearSecretKey();
     throw err;
@@ -1114,16 +1124,20 @@ export function logout() {
 export async function publishToRelays(
   signedEvent: Record<string, unknown>,
   relays: string[] = PROFILE_RELAYS
-): Promise<{ success: boolean; relay?: string; error?: string }> {
+): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
   const writeRelays = loadOutboxRelayListFromDb((signedEvent as any).pubkey, PROFILE_RELAYS)
 
   try {
     const responses = await pool.publish(writeRelays, signedEvent as any);
+    // `accepted` lets callers judge how broadly the event propagated, rather than
+    // treating a single relay's "ok" as fully published.
+    const accepted = responses.filter(r => r.ok).length;
+    const total = responses.length || writeRelays.length;
     const succeeded = responses.find(r => r.ok);
-    if (succeeded) return { success: true, relay: succeeded.from };
-    return { success: false, error: responses[0]?.message || "All relays failed" };
+    if (succeeded) return { success: true, relay: succeeded.from, accepted, total };
+    return { success: false, error: responses[0]?.message || "All relays failed", accepted: 0, total };
   } catch {
-    return { success: false, error: "All relays failed" };
+    return { success: false, error: "All relays failed", accepted: 0, total: writeRelays.length };
   }
 }
 
@@ -1150,7 +1164,7 @@ const initialSetupFlag = (pubkey: string) => `brainstorm_initial_setup_done:${pu
 async function signAndPublish(
   template: { kind: number; tags: string[][]; content: string },
   expectedKind: number,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; relay?: string; accepted?: number; total?: number }> {
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (!window.nostr && !hasLocalSecretKey()) {
@@ -1172,17 +1186,34 @@ async function signAndPublish(
   }
 }
 
-/** Publish the user's profile metadata (kind 0) and reflect it in the header. */
+/**
+ * Publish the user's profile metadata (kind 0) and reflect it in the header.
+ * Retries while propagation is thin (only 0-1 relays accepted) so the avatar/bio
+ * actually reach the relays other clients read from, and (re)publishes the NIP-65
+ * outbox list so outbox-model clients can find this kind-0. Resolves failure only
+ * when zero relays accept after retries — so callers surface a real error instead
+ * of the local cache masking a publish that never landed.
+ */
+const PROFILE_PUBLISH_BACKOFF_MS = [800, 2000];
 export async function publishProfile(
   content: Record<string, unknown>,
 ): Promise<{ success: boolean; error?: string }> {
-  const res = await signAndPublish({ kind: 0, tags: [], content: JSON.stringify(content) }, 0);
+  const template = { kind: 0, tags: [] as string[][], content: JSON.stringify(content) };
+  let res = await signAndPublish(template, 0);
+  for (let attempt = 0; attempt < PROFILE_PUBLISH_BACKOFF_MS.length; attempt++) {
+    if ((res.accepted ?? (res.success ? 1 : 0)) >= 2) break; // broad enough
+    await new Promise((r) => setTimeout(r, PROFILE_PUBLISH_BACKOFF_MS[attempt]));
+    res = await signAndPublish(template, 0);
+  }
   if (res.success) {
     try {
       updateCurrentUser(applyProfileToUser(content as unknown as ProfileContent));
     } catch {}
+    // Keep the outbox list fresh (the signup publish may have silently failed),
+    // so other clients can locate this kind-0. Best-effort.
+    void publishRelayList(PROFILE_RELAYS).catch(() => {});
   }
-  return res;
+  return { success: res.success, error: res.error };
 }
 
 /** Publish a NIP-65 relay list (kind 10002). */
@@ -1194,27 +1225,64 @@ export async function publishRelayList(
 }
 
 /**
- * Kick off WoT scoring + the background trust-anchor publish. Called once the
- * user has actually followed ≥1 account (the onboarding "calculate my scores"
- * CTA) — NOT at account creation, since a follow-less account can't be scored.
+ * Kick off WoT scoring and, for in-app-created accounts only, the background
+ * trust-anchor publish. Called once the user has actually followed ≥1 account
+ * (the "calculate my scores" CTA) — NOT at account creation, since a follow-less
+ * account can't be scored.
+ *
+ * Computing scores (`triggerGrapeRank`) publishes nothing under the user's key
+ * and just populates their `ta_pubkey`, so it always runs. Publishing the NIP-85
+ * provider declaration (kind 10040) is a public act under their key, so we only
+ * auto-do it for accounts created here (signing up via Brainstorm = consent).
+ * Existing users select Brainstorm explicitly via the dashboard card / Settings
+ * (with a replace-warning) — we never overwrite a provider choice they didn't
+ * make here.
  */
 export async function triggerScoringAndAnchor(pubkey: string): Promise<void> {
   // Mark the start so the global status chip can show "Calculating…" immediately,
   // before the backend's graperankResult reflects an in-progress record.
   try { localStorage.setItem(`brainstorm_calc_triggered_at:${pubkey}`, String(Date.now())); } catch {}
   try { await apiClient.triggerGrapeRank(); } catch {}
-  void pollAndPublishTrustAnchor(pubkey);
+  let createdInApp = false;
+  try { createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pubkey}`) === "true"; } catch {}
+  if (createdInApp) void pollAndPublishTrustAnchor(pubkey);
+}
+
+/**
+ * Publish the user's NIP-85 declaration (kind 10040) selecting Brainstorm as
+ * their rank+followers provider, unless it's already in place. Idempotent and
+ * best-effort: a no-op once this account is marked activated or a Brainstorm
+ * 10040 already exists on relays; never throws. Shared by the post-score poll
+ * and the self-healing app-load effect (AutoActivateBrainstorm).
+ */
+export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: string): Promise<void> {
+  if (!pubkey || !taPubkey) return;
+  if (isNip85Activated(pubkey)) return;
+  // Already declared Brainstorm on relays (e.g. published from another device)?
+  // Record it locally and stop — nothing to publish.
+  try {
+    if (await isUsingBrainstorm(pubkey, taPubkey)) {
+      markNip85Activated(pubkey);
+      return;
+    }
+  } catch {}
+  try {
+    const signed = await signNip85(taPubkey, getNip85RelayUrl());
+    const res = await publishToRelays(signed);
+    if (res.success) {
+      markNip85Activated(pubkey);
+    }
+  } catch {}
 }
 
 /**
  * Background-poll for the user's trust anchor (assigned by the backend after
- * GrapeRank runs) and publish their NIP-85 declaration (kind 10040) once it
- * exists. Best-effort: never throws, gives up after the backoff schedule.
+ * GrapeRank runs) and publish their NIP-85 declaration once it exists.
+ * Best-effort: never throws, gives up after the backoff schedule. Only the
+ * immediate post-score path — cross-session reliability is the app-load effect.
  */
 async function pollAndPublishTrustAnchor(pubkey: string): Promise<void> {
-  try {
-    if (localStorage.getItem("brainstorm_nip85_activated") === "true") return;
-  } catch {}
+  if (isNip85Activated(pubkey)) return;
   const delaysMs = [15000, 20000, 30000, 45000, 60000, 60000, 60000, 60000, 60000, 60000];
   for (const delay of delaysMs) {
     await new Promise((r) => setTimeout(r, delay));
@@ -1226,13 +1294,7 @@ async function pollAndPublishTrustAnchor(pubkey: string): Promise<void> {
       continue;
     }
     if (!taPubkey) continue;
-    try {
-      const signed = await signNip85(taPubkey, getNip85RelayUrl());
-      const res = await publishToRelays(signed);
-      if (res.success) {
-        try { localStorage.setItem("brainstorm_nip85_activated", "true"); } catch {}
-      }
-    } catch {}
+    await ensureBrainstormTrustAnchor(pubkey, taPubkey);
     return; // TA resolved — stop polling regardless of publish outcome.
   }
 }
@@ -1316,6 +1378,11 @@ export async function createAccount(
     clearSecretKey();
     throw err;
   }
+
+  // Mark this as a brand-new in-app account (key generated by us, exists only in
+  // this browser) — the one signal that distinguishes a first-timer from a
+  // returning login-with-key user, so onboarding only targets genuine new accounts.
+  try { localStorage.setItem(`brainstorm_created_inapp:${pubkey}`, "true"); } catch { /* ignore */ }
 
   // Don't block the UI on relay/scoring work.
   void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});

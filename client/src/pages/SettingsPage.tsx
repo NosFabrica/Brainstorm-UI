@@ -63,6 +63,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec, type NostrUser } from "@/services/nostr";
+import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
@@ -200,7 +201,7 @@ export default function SettingsPage() {
     setPresetMutation.mutate(preset);
   }, [activePreset, setPresetMutation]);
 
-  const nip85Activated = localStorage.getItem("brainstorm_nip85_activated") === "true";
+  const nip85Activated = isNip85Activated(user?.pubkey);
 
   useEffect(() => {
     if (!getCurrentUser()) {
@@ -352,7 +353,7 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      localStorage.setItem("brainstorm_nip85_activated", "true");
+      markNip85Activated(currentUser.pubkey);
       setRepublishState("success");
       toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
       setTimeout(() => setRepublishState("idle"), 3000);
@@ -386,7 +387,7 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      localStorage.removeItem("brainstorm_nip85_activated");
+      clearNip85Activated(currentUser.pubkey);
       setDeactivateState("success");
       toast({ title: "Provider deactivated", description: "Brainstorm has been removed as your WoT service provider.", duration: 4000 });
       setTimeout(() => {

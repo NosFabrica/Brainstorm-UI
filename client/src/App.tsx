@@ -5,6 +5,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LightboxProvider } from "@/components/share/Lightbox";
+import { AutoScoreReturning } from "@/components/AutoScoreReturning";
+import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
+import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
@@ -17,6 +20,7 @@ import SharePage from "@/pages/SharePage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
+import OnboardingWizard from "@/pages/OnboardingWizard";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import FaqPage from "@/pages/FaqPage";
@@ -84,6 +88,7 @@ function Router() {
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/welcome" component={WelcomePage} />
+        <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
@@ -112,6 +117,9 @@ function App() {
         <PovAutoDefault />
         <MobileMenuHost />
         <ScoringStatusBar />
+        <AutoScoreReturning />
+        <AutoActivateBrainstorm />
+        <AutoPublishAssistant />
         <LightboxProvider>
           <Router />
         </LightboxProvider>

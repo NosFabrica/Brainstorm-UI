@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Upload, X, Loader2, ImageIcon, Camera } from "lucide-react";
+import { signEventLocally, getCurrentUser } from "@/services/nostr";
 
 interface ImageUploadProps {
   value?: string;
@@ -63,70 +64,76 @@ function resizeImage(file: File, maxW: number, maxH: number, quality: number): P
   });
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(blob);
-  });
+// Build an `Authorization: Nostr <base64-signed-event>` header (used by both
+// NIP-98 — nostr.build — and Blossom). Signs locally with the in-app key or the
+// extension, so uploads work without exposing the key.
+async function nostrAuthHeader(template: { kind: number; tags: string[][]; content: string }): Promise<string> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) throw new Error("Sign in to upload an image.");
+  const event = { ...template, created_at: Math.floor(Date.now() / 1000), pubkey: user.pubkey };
+  const signed = await signEventLocally(event);
+  return `Nostr ${btoa(JSON.stringify(signed))}`;
 }
 
+async function sha256Hex(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// nostr.build v2 now requires a NIP-98 (kind 27235) auth token.
 async function uploadToNostrBuild(blob: Blob): Promise<string> {
+  const url = "https://nostr.build/api/v2/upload/files";
+  const auth = await nostrAuthHeader({ kind: 27235, tags: [["u", url], ["method", "POST"]], content: "" });
+
   const formData = new FormData();
   formData.append("file", blob, "image.jpg");
 
-  const response = await fetch("https://nostr.build/api/v2/upload/files", {
-    method: "POST",
-    body: formData,
-  });
-
+  const response = await fetch(url, { method: "POST", headers: { Authorization: auth }, body: formData });
   if (response.ok) {
     const data = await response.json();
-    const url = data?.data?.[0]?.url;
-    if (url) return url;
+    const u = data?.data?.[0]?.url;
+    if (u) return u;
   }
   throw new Error("nostr.build failed");
 }
 
-async function uploadToVoidCat(blob: Blob): Promise<string> {
-  const response = await fetch("https://void.cat/upload", {
-    method: "POST",
-    body: blob,
-    headers: {
-      "Content-Type": "image/jpeg",
-      "V-Content-Type": "image/jpeg",
-    },
+// Blossom (BUD-02) fallback: PUT the raw blob with a kind-24242 auth event.
+const BLOSSOM_SERVER = "https://blossom.primal.net";
+async function uploadToBlossom(blob: Blob): Promise<string> {
+  const hash = await sha256Hex(blob);
+  const auth = await nostrAuthHeader({
+    kind: 24242,
+    tags: [["t", "upload"], ["x", hash], ["expiration", String(Math.floor(Date.now() / 1000) + 600)]],
+    content: "Upload image",
   });
 
+  const response = await fetch(`${BLOSSOM_SERVER}/upload`, {
+    method: "PUT",
+    headers: { Authorization: auth, "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+  });
   if (response.ok) {
     const data = await response.json();
-    if (data?.file?.url) return data.file.url;
-    if (data?.id) return `https://void.cat/d/${data.id}`;
+    if (data?.url) return data.url as string;
   }
-  throw new Error("void.cat failed");
+  throw new Error("blossom failed");
 }
 
 async function uploadImage(blob: Blob): Promise<string> {
-  const errors: string[] = [];
+  // Blossom (primal) is the reliable primary; nostr.build is the fallback (it was
+  // returning 500s under test even with valid NIP-98 auth). Both are signed.
+  try {
+    return await uploadToBlossom(blob);
+  } catch { /* try the fallback host */ }
 
   try {
     return await uploadToNostrBuild(blob);
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "nostr.build failed");
-  }
+  } catch { /* both hosts failed */ }
 
-  try {
-    return await uploadToVoidCat(blob);
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "void.cat failed");
-  }
-
-  const dataUrl = await blobToDataUrl(blob);
-  if (dataUrl.length > 2 * 1024 * 1024) {
-    throw new Error("Upload services unavailable and image too large for inline storage");
-  }
-  return dataUrl;
+  // No data:-URL fallback: an inline base64 avatar is valid in kind-0 but other
+  // Nostr clients can't render it, so it shows as "no picture" to everyone else.
+  // Fail loudly so the user retries instead of silently shipping a broken avatar.
+  throw new Error("Couldn't upload your image right now. Please try again in a moment.");
 }
 
 export function ImageUpload({ value, onChange, onRemove, aspect = "square", label, className = "", placeholder, containerClassName, readOnly }: ImageUploadProps) {

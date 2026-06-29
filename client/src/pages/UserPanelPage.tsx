@@ -14,6 +14,7 @@ import {
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
+import { isNip85Activated } from "@/lib/nip85Activation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -303,7 +304,7 @@ export default function UserPanelPage() {
     staleTime: Infinity,
   });
 
-  const nip85Activated = trustServiceProvider.data === true || localStorage.getItem("brainstorm_nip85_activated") === "true";
+  const nip85Activated = trustServiceProvider.data === true || isNip85Activated(user?.pubkey);
   const socialActions = useSocialActions(user?.pubkey);
 
   const followingList = useMemo(

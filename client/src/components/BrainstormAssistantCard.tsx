@@ -7,8 +7,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile, fetchAssistantPointer, publishAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { fetchProfile, fetchAssistantPointer, getCurrentUser } from "@/services/nostr";
 import { followUser } from "@/services/socialActions";
+import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -186,40 +187,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   }, [published?.pubkey, published?.publishedAt]);
 
   const publishMutation = useMutation({
-    mutationFn: async () => apiClient.publishDefaultAssistantProfile(),
-    onSuccess: (resp) => {
-      // Backend may return the payload either at the top level or wrapped under `data`.
-      const top = resp || {};
-      const wrapped = resp?.data || {};
-      const pubkey = top.assistant_pubkey || wrapped.assistant_pubkey;
-      const eventId = top.event_id || wrapped.event_id;
-      const assistantName = (top.name || wrapped.name || "Your Brainstorm Assistant").toString();
-      if (!pubkey || !eventId) {
-        setError("The assistant was published, but no identity was returned. Please try again.");
-        return;
-      }
-      const state: PublishedState = {
-        pubkey,
-        npub: (() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey; } })(),
-        eventId,
-        publishedAt: Date.now(),
-      };
-      writePublishedAssistant(state);
+    // Explicit user action: always (re)publish, and DO follow the bot (consent).
+    // Side-effects (persist + NIP-78 pointer + follow) live in the shared helper.
+    mutationFn: async () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    onSuccess: ({ state, name }) => {
       setPublished(state);
       setError(null);
-
-      // Cross-device sync (Task #86): publish a NIP-78 pointer under the
-      // user's own pubkey so other devices they sign in from can rediscover
-      // this assistant. Best-effort — local card stays usable on failure.
-      publishAssistantPointer({
-        pubkey: state.pubkey,
-        eventId: state.eventId,
-        publishedAt: state.publishedAt,
-      }).catch(() => {});
-
-      // Auto-follow the user's own assistant so it shows up in their network
-      // (merges into the existing contact list; no-op if already following).
-      followUser(state.pubkey).catch(() => {});
 
       const isFirst = !readFirstPublishDone();
       if (isFirst) {
@@ -227,12 +200,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3500);
         toast({
-          title: `${assistantName} is live on Nostr!`,
+          title: `${name} is live on Nostr!`,
           description: "Tap \"View on Nostr\" to say hi to your new sidekick.",
           duration: 6000,
         });
       } else {
-        toast({ title: `${assistantName} updated`, description: "Your assistant profile was republished." });
+        toast({ title: `${name} updated`, description: "Your assistant profile was republished." });
       }
     },
     onError: (err: Error) => {

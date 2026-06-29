@@ -7,7 +7,7 @@ import {
   KeyRound,
   ArrowRight,
 } from "lucide-react";
-import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser, hasPersistentKey } from "@/services/nostr";
+import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
@@ -84,22 +84,12 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Existing external accounts (extension/nsec) reaching Brainstorm for the first
-  // time and never scored → the one-time "Calculate your Web of Trust" step.
-  // Brand-new in-app accounts go through CreateAccountModal → /welcome instead.
+  // Returning users (extension/nsec) land where they intended (home, or ?next=) —
+  // no forced /activate wizard. An unscored-but-following account is scored in the
+  // background (the post-login auto-score effect); a no-follows user gets the
+  // contextual "follow → switch on scores" nudge on the home page. Brand-new in-app
+  // accounts go through CreateAccountModal → /welcome instead.
   const routeAfterLogin = () => {
-    try {
-      const pk = getCurrentUser()?.pubkey || "";
-      const explicitNext = new URLSearchParams(window.location.search).get("next");
-      // Per-pubkey only — NOT the global `brainstorm_calc_completed`, which would
-      // leak one account's state onto the next user on the same browser. The
-      // /activate page itself redirects already-scored accounts (via hasMywot).
-      const seen = pk ? localStorage.getItem(`brainstorm_activate_seen:${pk}`) === "true" : true;
-      if (pk && !hasPersistentKey() && !explicitNext && !seen) {
-        navigate("/activate", { replace: true });
-        return;
-      }
-    } catch { /* fall through */ }
     navigate(nextPath, { replace: true });
   };
 
@@ -338,8 +328,8 @@ export default function LoginPage() {
           setCreateOpen(false);
           // If they came from a value gate with ?next= (e.g. a thread on /e),
           // return them straight there — the thing that made them sign up.
-          // Otherwise go to the "Build your network" onboarding (/welcome).
-          navigate(nextPath !== "/" ? nextPath : "/welcome", { replace: true });
+          // Otherwise run the guided onboarding wizard (profile → follow → backup).
+          navigate(nextPath !== "/" ? nextPath : "/setup", { replace: true });
         }}
       />
     </div>
