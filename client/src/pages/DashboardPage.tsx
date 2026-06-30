@@ -230,6 +230,7 @@ export default function DashboardPage() {
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
+  const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
   // In-app-created accounts auto-activate Brainstorm silently (see
@@ -855,69 +856,50 @@ export default function DashboardPage() {
 
               {nip85Activated && publishDone ? (
               <div
-                className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative self-start md:self-end max-w-xs"
+                className="rounded-2xl bg-white border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
               >
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] rounded-t-2xl" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
-                <div className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="relative shrink-0">
-                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-sm">
-                          <div className="h-full w-full rounded-xl bg-white flex items-center justify-center">
-                            <BrainLogo size={16} className="text-[#333286]" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-900 tracking-tight block leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          WoT Service Provider
-                        </span>
-                        <span className="text-[10px] font-medium text-slate-500 block mt-0.5 leading-none">
-                          NIP-85 Declaration
-                        </span>
-                        {history?.last_time_calculated_graperank && (
-                          <span className="text-[9px] text-slate-400 mt-1 leading-none flex items-center gap-1.5 flex-wrap">
-                            <span>
-                              Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}
-                            </span>
-                            <PresetBadge
-                              preset={grapeRank?.graperank_preset_used}
-                              size="xs"
-                              testId="badge-dashboard-preset-used"
-                            />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                        </span>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
-                      </div>
-                      <button
-                        onClick={() => setRecalcConfirmOpen(true)}
-                        disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#333286]/8 text-[#333286] hover:bg-[#333286]/15 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none border border-[#7c86ff]/15 hover:border-[#7c86ff]/30"
-                        data-testid="button-recalculate-wot-card"
-                      >
-                        {triggerGrapeRankMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                            <span className="text-[9px] font-semibold tracking-wide">Calculating</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span className="text-[9px] font-semibold tracking-wide">Recalculate</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <button
+                  type="button"
+                  onClick={() => setWotExpanded((v) => !v)}
+                  aria-expanded={wotExpanded}
+                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 transition-colors"
+                  data-testid="button-wot-expand"
+                >
+                  <div className="h-7 w-7 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                    <BrainLogo size={14} className="text-[#333286]" />
+                  </div>
+                  <span className="text-[13px] font-semibold text-slate-900 shrink-0" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Web of Trust</span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700">Active</span>
+                  </span>
+                  <span className="flex-1" />
+                  <span className="flex items-center -space-x-1 shrink-0" aria-hidden="true">
+                    <img src={amethystLogoImg} alt="" className="w-5 h-5 rounded-md ring-1 ring-white" />
+                    <img src={nostriaIconImg} alt="" className="w-5 h-5 rounded-md bg-white object-contain ring-1 ring-white" />
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
+                </button>
+                {wotExpanded && (
+                <div className="px-3.5 pb-3.5 border-t border-slate-100">
+
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                    <span>Default provider</span>
+                    {history?.last_time_calculated_graperank && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
+                      </>
+                    )}
+                    <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
+                      <Info className="h-3 w-3 text-slate-300" />
+                    </span>
+                    <PresetBadge preset={grapeRank?.graperank_preset_used} size="xs" testId="badge-dashboard-preset-used" />
                   </div>
 
                   <AnimatePresence initial={false}>
@@ -944,7 +926,7 @@ export default function DashboardPage() {
                               Publish your assistant
                             </p>
                             <p className="text-[10px] text-slate-500 leading-tight truncate">
-                              Speak your trust scores to Nostr apps
+                              Speak your trust scores to compatible apps
                             </p>
                           </div>
                           <button
@@ -984,7 +966,7 @@ export default function DashboardPage() {
                     <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50">
                       <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
                         <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Readable in compatible apps</span>
                           <div className="relative group/info">
                             <button
                               type="button"
@@ -996,7 +978,7 @@ export default function DashboardPage() {
                               <Info className="h-2 w-2" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -1010,10 +992,23 @@ export default function DashboardPage() {
                             <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
                           </a>
                         </div>
+                        <button
+                          onClick={() => setRecalcConfirmOpen(true)}
+                          disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#333286]/[0.06] text-[#333286] hover:bg-[#333286]/[0.12] border border-[#7c86ff]/15 hover:border-[#7c86ff]/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                          data-testid="button-recalculate-wot-card"
+                        >
+                          {triggerGrapeRankMutation.isPending ? (
+                            <><Loader2 className="w-3 h-3 animate-spin" /><span className="text-[11px] font-semibold tracking-wide">Calculating</span></>
+                          ) : (
+                            <><RefreshCw className="w-3 h-3" /><span className="text-[11px] font-semibold tracking-wide">Recalculate</span></>
+                          )}
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
+                )}
               </div>
               ) : (
               <div
@@ -1166,39 +1161,32 @@ export default function DashboardPage() {
                 transition={{ duration: 0.4 }}
                 className="mb-6"
               >
-                <div className="relative overflow-hidden rounded-2xl border border-[#7c86ff]/20 bg-gradient-to-br from-white/95 via-white/85 to-indigo-50/50 shadow-[0_0_15px_rgba(124,134,255,0.07)]" data-testid="card-invite-grow">
-                  <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="relative flex items-center gap-3 rounded-xl border border-[#7c86ff]/20 bg-white shadow-[0_0_15px_rgba(124,134,255,0.07)] pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
+                  <div className="h-8 w-8 rounded-lg bg-[#3730a3]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
+                    <span className="font-semibold text-slate-900" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
+                    <span className="hidden sm:inline text-slate-500">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
+                    className="shrink-0 h-9 px-4 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    data-testid="button-invite-grow"
+                  >
+                    <Users className="h-4 w-4" />
+                    Invite friends
+                  </button>
                   <button
                     type="button"
                     onClick={markInviteCardSeen}
-                    className="absolute top-2.5 right-2.5 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                     aria-label="Dismiss"
                     data-testid="button-invite-grow-dismiss"
                   >
                     <X className="h-4 w-4" />
                   </button>
-                  <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="h-12 w-12 rounded-2xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
-                      <Users className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-invite-grow-title">
-                        Your trust network is live 🎉
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed pr-6">
-                        Invite friends — when they join through your link they start connected to you, and your Web of Trust gets stronger.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                      className="shrink-0 h-10 px-5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all flex items-center justify-center gap-2"
-                      data-testid="button-invite-grow"
-                    >
-                      <Users className="h-4 w-4" />
-                      Invite friends
-                    </button>
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -2328,7 +2316,7 @@ export default function DashboardPage() {
                               <Info className="h-3 w-3" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -2432,7 +2420,7 @@ export default function DashboardPage() {
                               <Info className="h-3 w-3" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>

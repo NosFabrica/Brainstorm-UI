@@ -40,6 +40,7 @@ import {
   Minus,
   Share2,
   Globe,
+  Eye,
 } from "lucide-react";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -1953,100 +1954,73 @@ export default function ProfilePage() {
     retry: false,
   });
 
+  // Viewing your OWN profile, the personalized score is always self-POV (you
+  // trust yourself → 100), which is meaningless. So on your own profile we show
+  // the network/house score instead — the same number others see on your
+  // shareable /p page — framed as "how others see you".
+  const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
+  const houseInfluence01 = useMemo(() => {
+    const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
+    if (typeof r !== "number" || !Number.isFinite(r)) return null;
+    const v01 = r > 1 ? r / 100 : r;
+    return Math.min(1, Math.max(0, v01));
+  }, [seed?.wotRankNosfabrica, nosfabricaRankQuery.data]);
+
   if (isAuthRedirecting()) return null;
 
   const isAnon = !user;
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
+  // X-style stat numbers: full under 10k ("1,234"), compact above ("114K").
+  const fmtStat = (n: number) =>
+    n >= 10000 ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString();
 
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
-    const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
-    const yourPct = Math.round(yourScore * 100);
-    // Prefer the search-click seed (already in scope from the user's
-    // navigation), then fall back to the Meili lookup fetched on Profile mount
-    // so the dual meter renders for Network / deep-link entry points too.
+
+    // House/network POV (for the tooltip comparison + own-profile score).
     const nfRank = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data ?? undefined;
-    const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
-    const nfRank01 = hasNf
-      ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))
-      : 0;
-    const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
-    const nfPct = Math.round(nfScore * 100);
-    const nfTier = hasNf
-      ? TIER_DISPLAY_CONFIG.find(t => nfScore >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1]
+    const nfScore = typeof nfRank === "number" && Number.isFinite(nfRank)
+      ? Math.min(1, Math.max(0, nfRank > 1 ? nfRank / 100 : nfRank))
       : null;
-    const circumference = 2 * Math.PI * 18;
-    const yourOffset = circumference - (yourScore * circumference);
-    const nfOffset = circumference - (nfScore * circumference);
-    const renderRing = (
-      offset: number,
-      ringClass: string,
-      trackClass: string,
-    ) => (
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-        <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className={trackClass} />
-        <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-          className={ringClass} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
-      </svg>
-    );
 
-    if (!hasNf) {
-      return (
-        <div className="flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[88px]" data-testid={`badge-trust-score${idSuffix}`}>
-          <div className="flex items-center gap-1">
-            <BrainLogo size={10} className="text-indigo-400" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-          </div>
-          <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
-            {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-            <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
-          </div>
-          <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        </div>
-      );
+    // Which score the ring shows: your own profile → the network's view of you
+    // (null = not yet scored → render nothing); anyone else → your personalized
+    // view of them.
+    let score01: number;
+    if (isOwnProfile) {
+      if (houseInfluence01 == null) return null;
+      score01 = houseInfluence01;
+    } else {
+      score01 = Math.min(1, Math.max(0, typeof profileResult.influence === "number" ? profileResult.influence : 0));
     }
+    const pct = Math.round(score01 * 100);
+    const tier = TIER_DISPLAY_CONFIG.find(t => score01 >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1];
+    const circumference = 2 * Math.PI * 18;
+    const offset = circumference - (score01 * circumference);
 
-    // V3 — PrimaryWithChip: keep the user's score as the primary ring (same
-    // compact footprint as the original single ring so the description stays
-    // glued to the profile block), with NosFabrica surfaced as a small
-    // comparison chip below. Honest about the asymmetry — the page's data is
-    // always personalized today, NosFabrica is shown as comparative context.
-    const diff = nfPct - yourPct;
-    const diffAbs = Math.abs(diff);
-    const TrendIcon = diffAbs <= 5 ? Minus : diff > 0 ? TrendingUp : TrendingDown;
-    const trendColor = diffAbs <= 5
-      ? "text-slate-500"
-      : diff > 0
-        ? "text-indigo-600"
-        : "text-emerald-600";
-    const diffPrefix = diffAbs <= 5 ? "" : diff > 0 ? "+" : "−";
+    const tooltip = isOwnProfile
+      ? "How the network (Brainstorm) sees you"
+      : nfScore != null
+        ? `Your view: ${pct} · Network (Brainstorm): ${Math.round(nfScore * 100)}`
+        : "Your web-of-trust score for this person";
+
+    // Brainstorm-branded badge: logo + "BRAINSTORM" header, the score ring, and
+    // the tier — no noisy self-vs-house compare chip (that lives in the tooltip).
     return (
-      <div className="flex flex-col items-center gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[96px] sm:min-w-[120px]" data-testid={`badge-trust-score${idSuffix}`}>
+      <div className="shrink-0 self-start flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2.5 sm:px-3 py-2 backdrop-blur-sm min-w-[68px] sm:min-w-[88px]" data-testid={`badge-trust-score${idSuffix}`} title={tooltip}>
         <div className="flex items-center gap-1">
           <BrainLogo size={10} className="text-indigo-400" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
+          <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
         </div>
         <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
-          {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-          <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
+          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
+            <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
+              className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
+          </svg>
+          <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{pct}</span>
         </div>
-        <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        {!isAnon && (
-          <div
-            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-            data-testid={`chip-nosfabrica-compare${idSuffix}`}
-            title={nfTier ? `Brainstorm perspective: ${nfPct} · ${nfTier.name}` : `Brainstorm perspective: ${nfPct}`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
-            <span className="text-indigo-500/80">Brainstorm</span>
-            <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-            <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
-              <TrendIcon className="h-3 w-3" />
-              {diffPrefix}{diffAbs}
-            </span>
-          </div>
-        )}
+        <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${tier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{tier.name}</span>
       </div>
     );
   };
@@ -2391,7 +2365,7 @@ export default function ProfilePage() {
                     );
                   })()}
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
@@ -2421,133 +2395,133 @@ export default function ProfilePage() {
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {/* Two co-equal actions: view the public/shareable page, or share it.
-                            Full-width split on mobile, auto-width on desktop. */}
-                        <div className="flex items-stretch gap-2 mt-3" data-testid="row-public-share-actions">
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/p/${displayNpub}`)}
-                            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
-                            data-testid="link-public-page"
-                            title="See the public, shareable version of this profile"
-                          >
-                            <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShareOpen(true)}
-                            className="inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
-                            data-testid="button-share-profile"
-                          >
-                            <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
-                          </button>
-                        </div>
-                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
-                          <div className="flex items-stretch gap-2 mt-2" data-testid="row-profile-actions">
-                            {social.listsLoading ? (
-                              <>
-                                <div className="h-7 sm:h-8 w-20 sm:w-24 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-follow-button" />
-                                <div className="h-7 sm:h-8 w-16 sm:w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-mute-button" />
-                              </>
-                            ) : (
-                            <>
-                            {(() => {
-                              const following = social.isFollowing(hexPubkey);
-                              const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={pending || social.isAnyPending}
-                                  onMouseEnter={() => following && setFollowHovered(true)}
-                                  onMouseLeave={() => setFollowHovered(false)}
-                                  onClick={async () => {
-                                    const result = following
-                                      ? await social.unfollow(hexPubkey)
-                                      : await social.follow(hexPubkey);
-                                    if (result.success) {
-                                      toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
-                                    } else {
-                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                                    }
-                                    setFollowHovered(false);
-                                  }}
-                                  className={`inline-flex flex-1 sm:flex-none justify-center items-center gap-1.5 h-8 px-3 sm:px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
-                                    following
-                                      ? followHovered
-                                        ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
-                                        : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                                      : "bg-[#3730a3] text-white hover:bg-[#312e81] shadow-sm"
-                                  }`}
-                                  data-testid="button-follow-toggle"
-                                >
-                                  {pending ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : following ? (
-                                    followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <UserPlus className="h-3.5 w-3.5" />
-                                  )}
-                                  <span>
-                                    {pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}
-                                  </span>
-                                </button>
-                              );
-                            })()}
-                            {(() => {
-                              const muted = social.isMuted(hexPubkey);
-                              const pending = social.isPending("mute", hexPubkey) || social.isPending("unmute", hexPubkey);
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={pending || social.isAnyPending}
-                                  onClick={async () => {
-                                    const result = muted
-                                      ? await social.unmute(hexPubkey)
-                                      : await social.mute(hexPubkey);
-                                    if (result.success) {
-                                      toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
-                                    } else {
-                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                                    }
-                                  }}
-                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
-                                    muted
-                                      ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                                  }`}
-                                  data-testid="button-mute-toggle"
-                                >
-                                  {pending ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : muted ? (
-                                    <Volume2 className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <VolumeX className="h-3.5 w-3.5" />
-                                  )}
-                                  <span className="hidden sm:inline">{pending ? "..." : muted ? "Unmute" : "Mute"}</span>
-                                </button>
-                              );
-                            })()}
-                            <button
-                              type="button"
-                              disabled={social.isAnyPending}
-                              onClick={() => setReportDialogOpen(true)}
-                              className="inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border bg-white border-slate-200 text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-50 disabled:pointer-events-none"
-                              data-testid="button-report"
-                            >
-                              <Flag className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Report</span>
-                            </button>
-                            </>
-                            )}
-                          </div>
-                        )}
                       </div>
-                      {/* Trust badge: stacks full-width below the identity on mobile
-                          (centered), sits to the right on desktop (display:contents). */}
-                      <div className="flex justify-center sm:contents">{renderTrustBadge()}</div>
+                      {/* Compact trust pill, top-right of the identity. Renders
+                          nothing on your own unscored profile. */}
+                      {renderTrustBadge()}
                     </div>
                   </div>
+                </div>
+                {/* X-style inline counts — full-width so they sit on one line. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[13px] sm:text-sm" data-testid="row-profile-stats">
+                  <span data-testid="stat-profile-following">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followingTotal)}</span>
+                    <span className="text-slate-500 ml-1">Following</span>
+                  </span>
+                  <span data-testid="stat-profile-followers">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followersTotal)}</span>
+                    <span className="text-slate-500 ml-1">Followers</span>
+                  </span>
+                  <span data-testid="stat-profile-mutual">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
+                    <span className="text-slate-500 ml-1">Mutual</span>
+                  </span>
+                </div>
+                {/* One tidy action bar — full-width, aligned with the stats above.
+                    Follow is primary; the rest tuck into a "more" menu. */}
+                <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="row-profile-actions">
+                  {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
+                    <>
+                      {social.listsLoading ? (
+                        <div className="h-8 w-24 rounded-lg bg-slate-100 animate-pulse" data-testid="skeleton-follow-button" />
+                      ) : (() => {
+                        const following = social.isFollowing(hexPubkey);
+                        const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
+                        return (
+                          <button
+                            type="button"
+                            disabled={pending || social.isAnyPending}
+                            onMouseEnter={() => following && setFollowHovered(true)}
+                            onMouseLeave={() => setFollowHovered(false)}
+                            onClick={async () => {
+                              const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
+                              if (result.success) {
+                                toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
+                              } else {
+                                toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                              }
+                              setFollowHovered(false);
+                            }}
+                            className={`inline-flex items-center justify-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                              following
+                                ? followHovered
+                                  ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                  : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                                : "bg-[#3730a3] text-white hover:bg-[#312e81] shadow-sm"
+                            }`}
+                            data-testid="button-follow-toggle"
+                          >
+                            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : following ? (followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />) : <UserPlus className="h-3.5 w-3.5" />}
+                            <span>{pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
+                          </button>
+                        );
+                      })()}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/p/${displayNpub}`)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                        data-testid="link-public-page"
+                        title="See the public, shareable version of this profile"
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors" aria-label="More actions" data-testid="button-profile-more">
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-44 bg-white/95 backdrop-blur-xl">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => setShareOpen(true)} data-testid="button-share-profile">
+                            <Share2 className="h-4 w-4 mr-2 text-slate-500" /> Share
+                          </DropdownMenuItem>
+                          {(() => {
+                            const muted = social.isMuted(hexPubkey);
+                            return (
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={async () => {
+                                  const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
+                                  if (result.success) {
+                                    toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
+                                  } else {
+                                    toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid="button-mute-toggle"
+                              >
+                                {muted ? <Volume2 className="h-4 w-4 mr-2 text-slate-500" /> : <VolumeX className="h-4 w-4 mr-2 text-slate-500" />}
+                                {muted ? "Unmute" : "Mute"}
+                              </DropdownMenuItem>
+                            );
+                          })()}
+                          <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-700" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
+                            <Flag className="h-4 w-4 mr-2" /> Report
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/p/${displayNpub}`)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                        data-testid="link-public-page"
+                        title="See the public, shareable version of this profile"
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShareOpen(true)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                        data-testid="button-share-profile"
+                      >
+                        <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
+                      </button>
+                    </>
+                  )}
                 </div>
                 {displayNostrProfile?.about && (
                   <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
@@ -2566,7 +2540,31 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {confidenceGuidance && (
+                {isOwnProfile ? (
+                  <div className="mb-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 border border-indigo-200/60 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                      <Eye className="h-4 w-4 text-indigo-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs sm:text-sm font-bold text-indigo-700">This is how others see you</span>
+                      <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        {houseInfluence01 != null
+                          ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
+                          : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so others can see your standing."}
+                      </p>
+                      {houseInfluence01 == null && (
+                        <button
+                          type="button"
+                          onClick={() => setShareOpen(true)}
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-700 hover:text-indigo-900 transition-colors"
+                          data-testid="button-own-profile-invite"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" /> Invite friends
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : confidenceGuidance && (
                   <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3`} data-testid="banner-confidence-guidance">
                     <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${confidenceGuidance.iconBg} flex items-center justify-center shrink-0`}>
                       {confidenceGuidance.icon === "check" && <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
@@ -2815,7 +2813,17 @@ export default function ProfilePage() {
                           </div>
                           );
                         })()}
-                        {profileResult.influence !== undefined && (
+                        {(() => {
+                          if (profileResult.influence === undefined) return null;
+                          // Own profile shows the NETWORK influence (how others see
+                          // you), not the self-POV 1.00. Null = not yet scored →
+                          // skip the row (the banner already explains).
+                          const inf = isOwnProfile
+                            ? houseInfluence01
+                            : (typeof profileResult.influence === "number" ? profileResult.influence : null);
+                          if (isOwnProfile && inf == null) return null;
+                          const infNum = typeof inf === "number" ? inf : 0;
+                          return (
                           <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-profile-influence">
                             <div className="flex items-center gap-2 sm:gap-3">
                               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
@@ -2829,14 +2837,15 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-2 sm:gap-2.5">
                               <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof profileResult.influence === "number" ? profileResult.influence : 0) * 100, 100)}%` }} />
+                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
                               </div>
                               <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
-                                {typeof profileResult.influence === "number" ? profileResult.influence.toFixed(2) : profileResult.influence}
+                                {typeof inf === "number" ? inf.toFixed(2) : "—"}
                               </p>
                             </div>
                           </div>
-                        )}
+                          );
+                        })()}
                         {followerTierBreakdown && followerTierBreakdown.total > 0 && (
                           <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30" data-testid="card-audience-quality">
                             <div className="flex items-center justify-between mb-2">

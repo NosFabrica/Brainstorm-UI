@@ -7,9 +7,6 @@ import {
   FileText,
   BadgeCheck,
   Globe,
-  Zap,
-  Copy,
-  Check,
   ArrowRight,
   ArrowLeft,
   Wifi,
@@ -17,6 +14,8 @@ import {
   Music as MusicIcon,
   Radio,
   Play,
+  AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { fetchProfileForShare, fetchRecentByKinds, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
@@ -25,13 +24,15 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { OpenInApp } from "@/components/share/OpenInApp";
-import { copyToClipboard } from "@/lib/clipboard";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { loadPersonalization } from "@/lib/personalization";
 import { ROLES } from "@/config/personalization";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { isFlaggedByReporters } from "@/lib/trustFlags";
+import { FlashIcon } from "@/components/FlashIcon";
+import { ZapModal } from "@/components/ZapModal";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { LinkedText } from "@/components/LinkedText";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
@@ -61,7 +62,7 @@ export default function SharePage() {
   const npub = pubkey ? safeNpub(pubkey) : "";
   const loggedIn = hasSessionToken();
   const [shareOpen, setShareOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [zapOpen, setZapOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["share-profile", pubkey],
@@ -92,12 +93,13 @@ export default function SharePage() {
     retry: false,
   });
 
-  // Per-section stats give VERIFIED (web-of-trust) follower/following counts —
-  // not the raw totals in the overview. Shared links show only the verified
-  // numbers so the social proof reflects trusted accounts, not spam.
+  // Per-section stats: total/verified counts per relationship. A shared link is
+  // public, so we always read the HOUSE (network) POV — the same numbers and the
+  // same "flagged" verdict every viewer sees, never the logged-in viewer's
+  // personalized perspective.
   const statsQuery = useQuery({
     queryKey: ["share-stats", pubkey],
-    queryFn: () => apiClient.getUserStats(pubkey, { verified_threshold: getVerifiedThreshold() }),
+    queryFn: () => apiClient.getUserStats(pubkey, { verified_threshold: getVerifiedThreshold(), house: true }),
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
@@ -157,12 +159,25 @@ export default function SharePage() {
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
   const score01 = typeof overview?.influence === "number" ? overview.influence : null;
-  // Verified (web-of-trust) counts from the per-section stats endpoint.
+  // Counts from the per-section stats endpoint (house POV). Followers/muters/
+  // reporters use the VERIFIED (web-of-trust) count; "following" uses the raw
+  // total (per CEO: total following is more meaningful than verified following).
   const stats = statsQuery.data?.data as
-    | { followed_by?: { verified?: number }; following?: { verified?: number } }
+    | {
+        followed_by?: { verified?: number };
+        following?: { total?: number };
+        muted_by?: { verified?: number };
+        reported_by?: { verified?: number };
+      }
     | undefined;
-  const verifiedFollowers = typeof stats?.followed_by?.verified === "number" ? stats.followed_by.verified : null;
-  const verifiedFollowing = typeof stats?.following?.verified === "number" ? stats.following.verified : null;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const verifiedFollowers = num(stats?.followed_by?.verified);
+  const followingTotal = num(stats?.following?.total);
+  const verifiedMuters = num(stats?.muted_by?.verified);
+  const verifiedReporters = num(stats?.reported_by?.verified);
+  // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
+  // verified followers (house POV → same verdict for every viewer).
+  const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
@@ -330,15 +345,6 @@ export default function SharePage() {
   const openInRef = useRef<HTMLElement>(null);
   const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
-  const copyLink = async () => {
-    if (!canonicalUrl) return;
-    const ok = await copyToClipboard(canonicalUrl);
-    if (ok) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }
-  };
-
   if (!decoded) {
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
   }
@@ -398,67 +404,119 @@ export default function SharePage() {
             </p>
           )}
 
-          {/* Compact stats line (Facebook/Twitter-style) with a blended trust chip */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500" data-testid="share-stats">
-            {primaryScore01 != null && (() => {
-              const tier = tierForScore(primaryScore01);
-              const pct = Math.round(primaryScore01 * 100);
-              return (
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full border pl-1.5 pr-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
-                  style={{ color: tier.color, backgroundColor: `${tier.color}14`, borderColor: `${tier.color}55` }}
-                  title="Network web-of-trust score"
-                  data-testid="share-trust-chip"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tier.color }} />
-                  {tier.name} · {pct}
-                </span>
-              );
-            })()}
-            {verifiedFollowers != null && <span title="Verified followers in the web of trust"><span className="font-semibold text-slate-700">{verifiedFollowers}</span> verified followers</span>}
-            {verifiedFollowing != null && <span title="Verified accounts this profile follows"><span className="font-semibold text-slate-700">{verifiedFollowing}</span> verified following</span>}
+          {/* Prominent, factual flag — when reported beyond the follower-scaled
+              threshold (house POV → same verdict for every viewer). */}
+          {isFlagged && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5" data-testid="share-flag-banner">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="min-w-0 text-xs leading-relaxed">
+                <span className="font-bold text-red-700">Flagged by the network</span>
+                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the Web of Trust.</span>{" "}
+                <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
+                <span className="text-red-700/60"> · </span>
+                {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
+                <Link href="/what-is-wot" className="font-medium text-red-700/80 underline underline-offset-2 hover:text-red-800">Why am I seeing this?</Link>
+              </div>
+            </div>
+          )}
+
+          {/* Stats — trust chip leads; positive signals, then a quieter risk line. */}
+          <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
+              {primaryScore01 != null && (() => {
+                const tier = tierForScore(primaryScore01);
+                const pct = Math.round(primaryScore01 * 100);
+                return (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50/80 pl-1.5 pr-2 py-1 text-[11px] font-semibold"
+                    title="Network Web of Trust score"
+                    data-testid="share-trust-chip"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" style={{ color: tier.color }} />
+                    <span className="text-slate-700">{tier.name}</span>
+                    <span className="text-slate-300">·</span>
+                    <span className="font-bold tabular-nums" style={{ color: tier.color }}>{pct}</span>
+                  </span>
+                );
+              })()}
+              {followingTotal != null && (
+                <Link href={`/p/${rawId}/following`} className="hover:text-slate-700 transition-colors" data-testid="share-stat-following">
+                  <span className="font-semibold text-slate-700">{followingTotal.toLocaleString()}</span> Following
+                </Link>
+              )}
+              {verifiedFollowers != null && (
+                <Link href={`/p/${rawId}/followers`} className="hover:text-slate-700 transition-colors" data-testid="share-stat-followers" title="Verified followers in the web of trust">
+                  <span className="font-semibold text-slate-700">{verifiedFollowers.toLocaleString()}</span> Verified Followers
+                </Link>
+              )}
+              {/* Phase 2: Degree (1st/2nd/3rd) — needs a backend `degree`/`hops` field on /overview or /stats. */}
+            </div>
+            {(verifiedMuters != null || verifiedReporters != null) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                {verifiedMuters != null && (
+                  <Link href={`/p/${rawId}/muters`} className="hover:text-slate-600 transition-colors" data-testid="share-stat-muters" title="Verified accounts that have muted this profile">
+                    <span className="font-semibold text-slate-500">{verifiedMuters.toLocaleString()}</span> Verified Muters
+                  </Link>
+                )}
+                {verifiedReporters != null && (
+                  <Link href={`/p/${rawId}/reporters`} className={`transition-colors ${isFlagged ? "text-red-500 hover:text-red-600" : "hover:text-slate-600"}`} data-testid="share-stat-reporters" title="Verified accounts that have reported this profile">
+                    <span className={`font-semibold ${isFlagged ? "text-red-600" : "text-slate-500"}`}>{verifiedReporters.toLocaleString()}</span> Verified Reporters
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Compact meta chips */}
-          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={copyLink}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-mono text-slate-600 transition-colors"
-              data-testid="share-copy-npub"
-            >
-              {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-              {npub ? npub.slice(0, 12) + "…" : ""}
-            </button>
-            {profile.website && (
-              <a href={normalizeUrl(profile.website)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-semibold text-slate-600">
-                <Globe className="h-3 w-3" /> {profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-              </a>
-            )}
-            {profile.lud16 && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[#7c86ff]/30 bg-white text-[11px] font-semibold text-[#333286]">
-                <Zap className="h-3 w-3" /> {profile.lud16}
-              </span>
-            )}
-          </div>
+          {/* Identity / contact — clean borderless inline row (LinkedIn-style).
+              Sharing lives in the header Share button + the Open-in-app section. */}
+          {(profile.website || profile.lud16) && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+              {profile.website && (
+                <a
+                  href={normalizeUrl(profile.website)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-medium text-[#3730a3] hover:underline"
+                  data-testid="share-website"
+                >
+                  <Globe className="h-3.5 w-3.5" /> {profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                </a>
+              )}
+              {profile.lud16 && (
+                <button
+                  type="button"
+                  onClick={() => setZapOpen(true)}
+                  className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition-colors"
+                  title="Send a zap"
+                  data-testid="share-lightning"
+                >
+                  <FlashIcon className="h-3.5 w-3.5 text-yellow-400" /> {profile.lud16}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Actions — lead with the one thing an account unlocks: this profile
               seen through YOUR web of trust. "View full profile" (free house POV)
               is the demoted secondary option. */}
           <div className="mt-4 flex flex-col items-start gap-2">
-            <Link
-              href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
-              className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
-              data-testid="share-wot-cta"
-            >
-              See {(displayName || "them").split(" ")[0]} through your Web of Trust <ArrowRight className="h-4 w-4" />
-            </Link>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-              {!loggedIn && <span className="text-slate-400">Sign in or create a free account — no email</span>}
-              <Link href={`/profile/${npub}`} className="inline-flex items-center gap-1 font-semibold text-slate-500 hover:text-[#333286]" data-testid="share-view-full">
-                View full profile <ArrowRight className="h-3.5 w-3.5" />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              <Link
+                href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
+                data-testid="share-wot-cta"
+              >
+                See in your Web of Trust <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href={`/profile/${npub}`}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors"
+                data-testid="share-view-full"
+              >
+                View full profile
               </Link>
             </div>
+            {!loggedIn && <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
           </div>
 
           {foundViaRelays && (
@@ -625,6 +683,9 @@ export default function SharePage() {
       </div>
 
       <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+      {profile.lud16 && (
+        <ZapModal open={zapOpen} onOpenChange={setZapOpen} recipientPubkey={pubkey} lud16={profile.lud16} displayName={displayName} picture={profile.picture} />
+      )}
       </ShareNavProvider>
     </ShareShell>
   );

@@ -1,4 +1,4 @@
-import { nip19, finalizeEvent, getPublicKey, generateSecretKey } from "nostr-tools";
+import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
 import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
@@ -651,6 +651,37 @@ async function fetchProfileFromRelays(
     } catch {}
   }
   return undefined;
+}
+
+/**
+ * Trusted lightning-address lookup for PAYMENT paths. Fetches the raw kind-0
+ * event, cryptographically verifies its signature AND that it was signed by the
+ * expected pubkey, then returns the `lud16` from that verified event. Returns
+ * `null` if the profile can't be verified (so callers must NOT pay an
+ * unverified / forged address). Use this — not a parsed `profile.lud16` — before
+ * resolving an LNURL to send sats.
+ */
+export async function getVerifiedProfileLud16(
+  pubkey: string,
+  timeoutMs = 10000,
+): Promise<{ lud16: string | null; verified: boolean }> {
+  const event = await fetchProfileEvent(pubkey, timeoutMs);
+  if (!event) return { lud16: null, verified: false };
+  try {
+    if (event.pubkey !== pubkey || !verifyEvent(event as any)) {
+      return { lud16: null, verified: false };
+    }
+  } catch {
+    return { lud16: null, verified: false };
+  }
+  if (typeof event.content !== "string") return { lud16: null, verified: true };
+  try {
+    const content = JSON.parse(event.content) as { lud16?: unknown };
+    const lud16 = typeof content?.lud16 === "string" ? content.lud16 : null;
+    return { lud16, verified: true };
+  } catch {
+    return { lud16: null, verified: true };
+  }
 }
 
 export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<ProfileContent | undefined> {

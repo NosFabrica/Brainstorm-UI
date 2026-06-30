@@ -297,6 +297,9 @@ export const apiClient = {
       tier_high?: number;
       tier_medium_high?: number;
       tier_medium?: number;
+      // Force the unauthenticated "house" POV (stable for every viewer) instead
+      // of the logged-in viewer's personalized perspective. Used by public pages.
+      house?: boolean;
     },
   ) {
     const params = new URLSearchParams();
@@ -310,7 +313,7 @@ export const apiClient = {
       params.set("tier_medium", String(opts.tier_medium));
     const qs = params.toString();
     const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
-    const response = await optionalAuthFetch(url, {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) {
@@ -346,6 +349,8 @@ export const apiClient = {
       tier_medium_high?: number;
       tier_medium?: number;
       with_total?: boolean;
+      // Force the unauthenticated "house" POV (stable for every viewer).
+      house?: boolean;
     },
   ) {
     const params = new URLSearchParams();
@@ -361,7 +366,7 @@ export const apiClient = {
     if (opts?.tier_medium != null) params.set("tier_medium", String(opts.tier_medium));
     if (opts?.with_total) params.set("with_total", "true");
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
-    const response = await optionalAuthFetch(url, {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) {
