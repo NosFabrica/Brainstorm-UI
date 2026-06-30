@@ -10,6 +10,7 @@ import { apiClient, hasSessionToken } from "@/services/api";
 import { collectRefs, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
+import { AudioHero } from "@/components/share/AudioHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -337,7 +338,9 @@ export default function EventPage() {
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm" data-testid="event-note">
-              {NOTE_KINDS.has(note.kind) ? (
+              {note.kind === 31337 ? (
+                <AudioHero event={note} />
+              ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
               ) : (
                 <div data-testid="event-media">

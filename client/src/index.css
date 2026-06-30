@@ -526,3 +526,13 @@ input:-webkit-autofill {
   animation-name: onAutoFillStart;
   animation-duration: 0.01s;
 }
+
+/* "Now playing" equalizer bars for the public-page music player. */
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.eq-bar {
+  transform-origin: bottom;
+  animation: eq-bar 0.9s ease-in-out infinite;
+}

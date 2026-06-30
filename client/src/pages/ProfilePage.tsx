@@ -41,8 +41,13 @@ import {
   Share2,
   Globe,
   Eye,
+  BadgeCheck,
 } from "lucide-react";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { ZapModal } from "@/components/ZapModal";
+import { FlashIcon } from "@/components/FlashIcon";
+import { WotStrengthCard } from "@/components/WotStrengthCard";
+import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
@@ -917,6 +922,7 @@ export default function ProfilePage() {
 
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [zapOpen, setZapOpen] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -1977,51 +1983,21 @@ export default function ProfilePage() {
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
 
-    // House/network POV (for the tooltip comparison + own-profile score).
-    const nfRank = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data ?? undefined;
-    const nfScore = typeof nfRank === "number" && Number.isFinite(nfRank)
-      ? Math.min(1, Math.max(0, nfRank > 1 ? nfRank / 100 : nfRank))
-      : null;
-
-    // Which score the ring shows: your own profile → the network's view of you
-    // (null = not yet scored → render nothing); anyone else → your personalized
-    // view of them.
-    let score01: number;
-    if (isOwnProfile) {
-      if (houseInfluence01 == null) return null;
-      score01 = houseInfluence01;
-    } else {
-      score01 = Math.min(1, Math.max(0, typeof profileResult.influence === "number" ? profileResult.influence : 0));
-    }
-    const pct = Math.round(score01 * 100);
-    const tier = TIER_DISPLAY_CONFIG.find(t => score01 >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1];
-    const circumference = 2 * Math.PI * 18;
-    const offset = circumference - (score01 * circumference);
-
-    const tooltip = isOwnProfile
-      ? "How the network (Brainstorm) sees you"
-      : nfScore != null
-        ? `Your view: ${pct} · Network (Brainstorm): ${Math.round(nfScore * 100)}`
-        : "Your web-of-trust score for this person";
-
-    // Brainstorm-branded badge: logo + "BRAINSTORM" header, the score ring, and
-    // the tier — no noisy self-vs-house compare chip (that lives in the tooltip).
+    // Own profile → the network's view of you (null = not yet scored, shown as
+    // such in the card); anyone else → your personalized view of them.
+    const score01 = isOwnProfile
+      ? houseInfluence01
+      : Math.min(1, Math.max(0, typeof profileResult.influence === "number" ? profileResult.influence : 0));
+    // Other profiles: primary = your personal POV, secondary = the network score
+    // (shown only when they differ → naturally hidden when logged out, where both
+    // resolve to the house score). Own profile: network primary, no secondary.
     return (
-      <div className="shrink-0 self-start flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2.5 sm:px-3 py-2 backdrop-blur-sm min-w-[68px] sm:min-w-[88px]" data-testid={`badge-trust-score${idSuffix}`} title={tooltip}>
-        <div className="flex items-center gap-1">
-          <BrainLogo size={10} className="text-indigo-400" />
-          <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-        </div>
-        <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
-          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
-            <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-              className={tier.ring} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
-          </svg>
-          <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{pct}</span>
-        </div>
-        <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${tier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{tier.name}</span>
-      </div>
+      <WotStrengthCard
+        score01={score01}
+        secondaryScore01={isOwnProfile ? null : houseInfluence01}
+        secondaryLabel="Network"
+        className="w-full md:w-64 md:shrink-0"
+      />
     );
   };
 
@@ -2068,6 +2044,17 @@ export default function ProfilePage() {
         canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
         score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
+
+      {hexPubkey && displayNostrProfile?.lud16 && (
+        <ZapModal
+          open={zapOpen}
+          onOpenChange={setZapOpen}
+          recipientPubkey={hexPubkey}
+          lud16={displayNostrProfile.lud16}
+          displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+          picture={displayNostrProfile?.picture}
+        />
+      )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
@@ -2188,7 +2175,6 @@ export default function ProfilePage() {
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
             <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
                   <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
@@ -2259,104 +2245,30 @@ export default function ProfilePage() {
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
             <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
 
-              <div className="p-5 sm:p-6 relative overflow-hidden"
-                style={{
-                  backgroundImage: [
-                    'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.12) 0%, transparent 50%)',
-                    'radial-gradient(circle at 5% 95%, rgba(99,102,241,0.06) 0%, transparent 40%)',
-                    'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)',
-                  ].join(', '),
-                  backgroundSize: '100% 100%, 100% 100%, 20px 20px',
-                  boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.12), inset 0 -1px 0 0 rgba(99,102,241,0.04)',
-                }}
-              >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" data-testid="svg-network-bg">
-                  {[
-                    { x1: 10, y1: 5, x2: 28, y2: 14 },
-                    { x1: 10, y1: 5, x2: 4, y2: 20 },
-                    { x1: 28, y1: 14, x2: 45, y2: 8 },
-                    { x1: 28, y1: 14, x2: 38, y2: 28 },
-                    { x1: 4, y1: 20, x2: 18, y2: 35 },
-                    { x1: 45, y1: 8, x2: 62, y2: 12 },
-                    { x1: 62, y1: 12, x2: 78, y2: 6 },
-                    { x1: 62, y1: 12, x2: 72, y2: 25 },
-                    { x1: 78, y1: 6, x2: 93, y2: 15 },
-                    { x1: 72, y1: 25, x2: 88, y2: 35 },
-                    { x1: 38, y1: 28, x2: 52, y2: 38 },
-                    { x1: 18, y1: 35, x2: 8, y2: 50 },
-                    { x1: 18, y1: 35, x2: 30, y2: 48 },
-                    { x1: 52, y1: 38, x2: 65, y2: 48 },
-                    { x1: 88, y1: 35, x2: 95, y2: 50 },
-                    { x1: 8, y1: 50, x2: 20, y2: 62 },
-                    { x1: 30, y1: 48, x2: 45, y2: 58 },
-                    { x1: 65, y1: 48, x2: 80, y2: 55 },
-                    { x1: 95, y1: 50, x2: 85, y2: 65 },
-                    { x1: 20, y1: 62, x2: 35, y2: 72 },
-                    { x1: 45, y1: 58, x2: 55, y2: 70 },
-                    { x1: 80, y1: 55, x2: 92, y2: 68 },
-                    { x1: 35, y1: 72, x2: 15, y2: 82 },
-                    { x1: 35, y1: 72, x2: 50, y2: 80 },
-                    { x1: 55, y1: 70, x2: 70, y2: 78 },
-                    { x1: 92, y1: 68, x2: 82, y2: 80 },
-                    { x1: 15, y1: 82, x2: 28, y2: 92 },
-                    { x1: 50, y1: 80, x2: 65, y2: 90 },
-                    { x1: 70, y1: 78, x2: 82, y2: 80 },
-                    { x1: 82, y1: 80, x2: 95, y2: 92 },
-                  ].map((l, i) => {
-                    const len = Math.sqrt(Math.pow(l.x2 - l.x1, 2) + Math.pow(l.y2 - l.y1, 2)) * 5;
-                    return (
-                      <line key={`cl-${i}`} x1={`${l.x1}%`} y1={`${l.y1}%`} x2={`${l.x2}%`} y2={`${l.y2}%`}
-                        stroke="rgb(99,102,241)" strokeWidth="0.5" opacity="0"
-                        style={{ strokeDasharray: len, strokeDashoffset: len, ['--dash' as string]: len, animation: `profileLineDraw 1.8s ${0.3 + i * 0.1}s ease-out forwards, profileLinePulse 6s ${2.5 + i * 0.25}s ease-in-out infinite` }} />
-                    );
-                  })}
-                  {[
-                    { cx: 10, cy: 5, r: 3.5, delay: 0.2 },
-                    { cx: 28, cy: 14, r: 2.5, delay: 0.4 },
-                    { cx: 4, cy: 20, r: 2, delay: 0.6 },
-                    { cx: 45, cy: 8, r: 2, delay: 0.5 },
-                    { cx: 62, cy: 12, r: 2.5, delay: 0.6 },
-                    { cx: 78, cy: 6, r: 1.5, delay: 0.5 },
-                    { cx: 93, cy: 15, r: 2, delay: 0.7 },
-                    { cx: 38, cy: 28, r: 2, delay: 0.8 },
-                    { cx: 72, cy: 25, r: 2.5, delay: 0.8 },
-                    { cx: 18, cy: 35, r: 2, delay: 0.9 },
-                    { cx: 88, cy: 35, r: 2, delay: 0.9 },
-                    { cx: 52, cy: 38, r: 2.5, delay: 1.0 },
-                    { cx: 8, cy: 50, r: 1.5, delay: 1.0 },
-                    { cx: 65, cy: 48, r: 2, delay: 1.1 },
-                    { cx: 95, cy: 50, r: 1.5, delay: 1.1 },
-                    { cx: 30, cy: 48, r: 2, delay: 1.0 },
-                    { cx: 20, cy: 62, r: 2, delay: 1.2 },
-                    { cx: 45, cy: 58, r: 1.5, delay: 1.2 },
-                    { cx: 80, cy: 55, r: 2, delay: 1.2 },
-                    { cx: 85, cy: 65, r: 1.5, delay: 1.3 },
-                    { cx: 35, cy: 72, r: 2, delay: 1.3 },
-                    { cx: 55, cy: 70, r: 2, delay: 1.4 },
-                    { cx: 92, cy: 68, r: 1.5, delay: 1.3 },
-                    { cx: 15, cy: 82, r: 2, delay: 1.5 },
-                    { cx: 50, cy: 80, r: 2, delay: 1.5 },
-                    { cx: 70, cy: 78, r: 1.5, delay: 1.5 },
-                    { cx: 82, cy: 80, r: 2, delay: 1.6 },
-                    { cx: 28, cy: 92, r: 1.5, delay: 1.7 },
-                    { cx: 65, cy: 90, r: 1.5, delay: 1.7 },
-                    { cx: 95, cy: 92, r: 2, delay: 1.8 },
-                  ].map((n, i) => (
-                    <circle key={`cn-${i}`} cx={`${n.cx}%`} cy={`${n.cy}%`} r={n.r} fill="rgb(99,102,241)" opacity="0"
-                      style={{ animation: `profileNodePop 0.6s ${n.delay}s ease-out forwards, profileNodeFloat ${5 + (i % 3) * 2}s ${2 + n.delay}s ease-in-out infinite` }} />
-                  ))}
-                </svg>
+              <div className="relative overflow-hidden">
+                {/* Cover banner — matches the public /p page; fills the top space. */}
+                <div className="relative w-full h-24 sm:h-32">
+                  {displayNostrProfile?.banner ? (
+                    <img src={displayNostrProfile.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
+                      <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+                    </div>
+                  )}
+                </div>
+                
 
-                <div className="relative z-10">
-                <div className="flex items-start gap-3 sm:gap-4 mb-5">
-                  {(() => {
+                <div className="px-5 sm:px-6 pb-5 sm:pb-6 relative z-10">
+                {/* Avatar overlaps the banner on its own line, so the name, npub,
+                    stats and actions below all share one left edge (like /p). */}
+                {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white shrink-0 -mt-12 sm:-mt-16">
                         {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
                         <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
@@ -2364,17 +2276,26 @@ export default function ProfilePage() {
                       </Avatar>
                     );
                   })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
+                {/* Two-column hero — identity + stats + actions on the left, the
+                    Web of Trust card as a top-aligned right sidebar (desktop),
+                    matching the public /p page. */}
+                <div className="mt-2.5 md:flex md:gap-6 md:items-start">
+                <div className="md:flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
+                          <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
+                          {displayNostrProfile?.nip05 && (
+                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
+                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-indigo-500" />
+                              <span className="truncate">{displayNostrProfile.nip05}</span>
+                            </span>
+                          )}
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30"
+                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30 self-center"
                               data-testid="badge-brainstorm-assistant"
                               title="This is your Brainstorm Assistant — a bot that publishes your trust scores to Nostr."
                             >
@@ -2382,26 +2303,16 @@ export default function ProfilePage() {
                               Brainstorm Assistant
                             </Badge>
                           )}
-                          <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-profile-found">
-                            Profile Found
-                          </Badge>
                         </div>
-                        {displayNostrProfile?.nip05 && (
-                          <p className="text-xs sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-profile-nip05">{displayNostrProfile.nip05}</p>
-                        )}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
                           <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                      </div>
-                      {/* Compact trust pill, top-right of the identity. Renders
-                          nothing on your own unscored profile. */}
-                      {renderTrustBadge()}
+                        {/* Web of Trust — mobile inline; on desktop it renders in the right sidebar. */}
+                        <div className="md:hidden mt-3">{renderTrustBadge()}</div>
                     </div>
-                  </div>
-                </div>
                 {/* X-style inline counts — full-width so they sit on one line. */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[13px] sm:text-sm" data-testid="row-profile-stats">
                   <span data-testid="stat-profile-following">
@@ -2465,6 +2376,17 @@ export default function ProfilePage() {
                       >
                         <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
                       </button>
+                      {displayNostrProfile?.lud16 && (
+                        <button
+                          type="button"
+                          onClick={() => setZapOpen(true)}
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          data-testid="button-zap"
+                          title="Send a zap"
+                        >
+                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                        </button>
+                      )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors" aria-label="More actions" data-testid="button-profile-more">
@@ -2512,6 +2434,17 @@ export default function ProfilePage() {
                       >
                         <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
                       </button>
+                      {!isOwnProfile && displayNostrProfile?.lud16 && (
+                        <button
+                          type="button"
+                          onClick={() => setZapOpen(true)}
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          data-testid="button-zap"
+                          title="Send a zap"
+                        >
+                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setShareOpen(true)}
@@ -2522,6 +2455,10 @@ export default function ProfilePage() {
                       </button>
                     </>
                   )}
+                </div>
+                </div>
+                {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
+                <div className="hidden md:block md:w-64 md:shrink-0 mt-1">{renderTrustBadge()}</div>
                 </div>
                 {displayNostrProfile?.about && (
                   <div className="mb-4 overflow-hidden" data-testid="text-profile-about">

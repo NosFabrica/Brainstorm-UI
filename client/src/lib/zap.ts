@@ -58,7 +58,10 @@ export async function lnurlpFromAddress(lud16: string): Promise<LnurlPayParams> 
   };
 }
 
-/** Build the unsigned NIP-57 kind-9734 zap request. The caller signs it. */
+/** Build the unsigned NIP-57 kind-9734 zap request. The caller signs it (with
+ *  the user's key when attributed, or a throwaway ephemeral key when anonymous —
+ *  for anonymous zaps pass `anon: true` so clients show the zapper as
+ *  "Anonymous" instead of the throwaway npub). */
 export function buildZapRequest(opts: {
   recipientPubkey: string;
   senderPubkey: string;
@@ -66,18 +69,21 @@ export function buildZapRequest(opts: {
   lnurl: string;
   relays: string[];
   comment?: string;
+  anon?: boolean;
 }): Record<string, unknown> {
+  const tags: string[][] = [
+    ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
+    ["amount", String(opts.amountMsat)], // millisats, string
+    ["lnurl", opts.lnurl],
+    ["p", opts.recipientPubkey], // hex
+  ];
+  if (opts.anon) tags.push(["anon", ""]); // anonymous-zap convention (Damus/Amethyst)
   return {
     kind: 9734,
     content: opts.comment ?? "",
     created_at: Math.floor(Date.now() / 1000),
     pubkey: opts.senderPubkey,
-    tags: [
-      ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
-      ["amount", String(opts.amountMsat)], // millisats, string
-      ["lnurl", opts.lnurl],
-      ["p", opts.recipientPubkey], // hex
-    ],
+    tags,
   };
 }
 

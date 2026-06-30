@@ -13,7 +13,7 @@ import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { initialsFor } from "@/lib/profileDefaults";
 import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, hasLocalSecretKey, signEventLocally, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
+import { getCurrentUser, hasLocalSecretKey, signEventLocally, signEventWithEphemeralKey, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
 import {
   lnurlpFromAddress,
   buildZapRequest,
@@ -55,7 +55,12 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
 
   const hasSigner = typeof window !== "undefined" && (!!window.nostr || hasLocalSecretKey());
   const senderPubkey = getCurrentUser()?.pubkey;
-  const canZap = !!(hasSessionToken() && hasSigner && senderPubkey && params?.allowsNostr && params?.nostrPubkey);
+  // If the recipient's provider supports zaps we ALWAYS send a NIP-57 zap (so it
+  // shows on nostr) — attributed to the viewer when signed in, otherwise an
+  // anonymous zap signed with a throwaway key. Plain wallet-only payment is the
+  // last resort, only when the provider doesn't support zaps.
+  const recipientSupportsZaps = !!(params?.allowsNostr && params?.nostrPubkey);
+  const isAttributed = recipientSupportsZaps && hasSessionToken() && hasSigner && !!senderPubkey;
   // Address shown / paid: the verified one once known, the prop only as a
   // pre-verification placeholder in the header.
   const displayAddr = verifiedLud16 ?? lud16;
@@ -106,21 +111,26 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     setErrorMsg(null);
     try {
       const amountMsat = satsToMsat(amountNum);
+      const relays = Array.from(new Set(PROFILE_RELAYS));
+      const commentText = comment.trim() || undefined;
+      const anonZap = () =>
+        signEventWithEphemeralKey(
+          buildZapRequest({ recipientPubkey, senderPubkey: "", amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true }),
+        );
       let signedZapRequest: Record<string, unknown> | undefined;
-      if (canZap && senderPubkey) {
-        try {
-          const unsigned = buildZapRequest({
-            recipientPubkey,
-            senderPubkey,
-            amountMsat,
-            lnurl: params.lnurlUrl,
-            relays: Array.from(new Set(PROFILE_RELAYS)),
-            comment: comment.trim() || undefined,
-          });
-          signedZapRequest = await signEventLocally(unsigned);
-        } catch {
-          // Signer rejected / unavailable → fall back to a plain LNURL payment.
-          signedZapRequest = undefined;
+      if (recipientSupportsZaps) {
+        if (isAttributed && senderPubkey) {
+          try {
+            signedZapRequest = await signEventLocally(
+              buildZapRequest({ recipientPubkey, senderPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
+            );
+          } catch {
+            // Signer rejected → still send it, anonymously, so it appears on nostr.
+            signedZapRequest = anonZap();
+          }
+        } else {
+          // Logged out / no signer → anonymous zap.
+          signedZapRequest = anonZap();
         }
       }
       const pr = await requestInvoice({
@@ -148,8 +158,8 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     else if (r.error && r.error !== "No browser wallet") setErrorMsg(r.error);
   };
 
-  const verb = canZap ? "Zap" : "Send";
-  const noun = canZap ? "Zap" : "sats";
+  const verb = recipientSupportsZaps ? "Zap" : "Send";
+  const noun = recipientSupportsZaps ? "Zap" : "sats";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,7 +170,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              <FlashIcon className="h-4 w-4 text-yellow-400" /> {canZap ? "Send a Zap" : "Send sats"}
+              <FlashIcon className="h-4 w-4 text-yellow-400" /> {recipientSupportsZaps ? "Send a Zap" : "Send sats"}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
               Pay {displayName} over the Lightning Network.
@@ -210,14 +220,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   </p>
                 )}
               </div>
-              {(canZap || params!.commentAllowed > 0) && (
+              {(recipientSupportsZaps || params!.commentAllowed > 0) && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Message <span className="font-normal text-slate-400">(optional)</span></label>
                   <textarea
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     rows={2}
-                    maxLength={canZap ? 280 : params!.commentAllowed || 280}
+                    maxLength={recipientSupportsZaps ? 280 : params!.commentAllowed || 280}
                     placeholder="Say something nice…"
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none resize-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
                     data-testid="zap-comment"
@@ -233,9 +243,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               >
                 <FlashIcon className="h-4 w-4" /> {verb} {amountValid ? `${amountNum.toLocaleString()} sats` : noun}
               </button>
-              {!canZap && (
+              {recipientSupportsZaps && !isAttributed && (
                 <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                  Sign in with a Nostr key to send this as a public zap.
+                  Sending anonymously — sign in to zap as yourself.
+                </p>
+              )}
+              {!recipientSupportsZaps && (
+                <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                  This wallet doesn't support zaps — it'll be a private Lightning payment.
                 </p>
               )}
             </div>
@@ -248,7 +263,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   <div className="h-12 w-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                     <Check className="h-6 w-6" />
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{canZap ? "Zap sent!" : "Payment sent!"}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{recipientSupportsZaps ? "Zap sent!" : "Payment sent!"}</p>
                 </div>
               ) : (
                 <>

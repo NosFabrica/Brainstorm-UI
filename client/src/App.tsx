@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
+import { pausePlayback } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -49,6 +50,19 @@ function ScrollToTop() {
   return null;
 }
 
+// Pause any inline audio when the route changes — inline media is tied to its
+// page (X / Facebook / LinkedIn), so leaving stops the sound. Position is kept,
+// so returning to the page resumes where it left off. Skips the first render.
+function PauseAudioOnNavigate() {
+  const [location] = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    pausePlayback();
+  }, [location]);
+  return null;
+}
+
 // The search experience now lives on the home page (`/`). Old `/search` links
 // (and `/search?q=...` deep links) redirect to `/` preserving the query so they
 // keep working.
@@ -78,6 +92,7 @@ function Router() {
   return (
     <>
       <ScrollToTop />
+      <PauseAudioOnNavigate />
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />

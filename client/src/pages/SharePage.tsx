@@ -16,12 +16,17 @@ import {
   Play,
   AlertTriangle,
   ShieldCheck,
+  Copy,
+  Check,
 } from "lucide-react";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { copyToClipboard } from "@/lib/clipboard";
 import { fetchProfileForShare, fetchRecentByKinds, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
 import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient, hasSessionToken } from "@/services/api";
@@ -32,6 +37,7 @@ import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/no
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { FlashIcon } from "@/components/FlashIcon";
+import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { ZapModal } from "@/components/ZapModal";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { LinkedText } from "@/components/LinkedText";
@@ -63,6 +69,7 @@ export default function SharePage() {
   const loggedIn = hasSessionToken();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
+  const [npubCopied, setNpubCopied] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["share-profile", pubkey],
@@ -241,10 +248,17 @@ export default function SharePage() {
     () =>
       (musicQuery.data ?? []).map((ev) => {
         const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1];
-        return { id: ev.id, title: tag("title") || tag("subject") || "Track", artist: tag("creator") || tag("c"), cover: tag("image") || tag("cover"), ts: ev.created_at };
+        const genres = ev.tags.filter((t) => t[0] === "t").map((t) => t[1]).filter((g) => g && g.toLowerCase() !== "music");
+        const genre = genres[0] ? genres[0].charAt(0).toUpperCase() + genres[0].slice(1) : undefined;
+        return { id: ev.id, title: tag("title") || tag("subject") || "Track", artist: tag("artist") || tag("creator") || tag("c"), cover: tag("image") || tag("cover"), audio: audioUrlFromEvent(ev), genre, ts: ev.created_at };
       }),
     [musicQuery.data],
   );
+
+  // Register the ordered, playable tracks so the shared player auto-advances.
+  useEffect(() => {
+    setPlaylist(tracks.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string })));
+  }, [tracks]);
 
   const live = useMemo(() => {
     const ev = (liveQuery.data ?? [])[0];
@@ -354,6 +368,12 @@ export default function SharePage() {
     (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 ||
     videos.length > 0 || tracks.length > 0 || !!live;
 
+  // The Web-of-Trust card — rendered twice (mobile inline / desktop sidebar).
+  // Primary = network/house score (what everyone sees); when logged in, your
+  // personal POV (`score01`) is the secondary "To you" line (shown only if it
+  // differs from the network score).
+  const wotCard = <WotStrengthCard score01={primaryScore01} secondaryScore01={loggedIn ? score01 : null} secondaryLabel="To you" />;
+
   return (
     <ShareShell onShare={() => setShareOpen(true)}>
       <ShareNavProvider>
@@ -377,7 +397,9 @@ export default function SharePage() {
             </AvatarFallback>
           </Avatar>
 
-          <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+          <div className="mt-2.5 md:flex md:gap-6 md:items-start">
+            <div className="md:flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
@@ -387,6 +409,24 @@ export default function SharePage() {
               </span>
             )}
           </div>
+          {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
+          {npub && (
+            <div className="flex items-center gap-1.5 mt-1" data-testid="share-npub">
+              <code className="text-xs text-slate-400 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
+              <button
+                type="button"
+                onClick={async () => { if (await copyToClipboard(npub)) { setNpubCopied(true); setTimeout(() => setNpubCopied(false), 1500); } }}
+                className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0"
+                title="Copy npub"
+                data-testid="share-copy-npub"
+              >
+                {npubCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+              </button>
+            </div>
+          )}
+
+          {/* Web of Trust — mobile inline (desktop shows it in the right sidebar). */}
+          <div className="md:hidden mt-3">{wotCard}</div>
 
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
@@ -423,22 +463,6 @@ export default function SharePage() {
           {/* Stats — trust chip leads; positive signals, then a quieter risk line. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-              {primaryScore01 != null && (() => {
-                const tier = tierForScore(primaryScore01);
-                const pct = Math.round(primaryScore01 * 100);
-                return (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50/80 pl-1.5 pr-2 py-1 text-[11px] font-semibold"
-                    title="Network Web of Trust score"
-                    data-testid="share-trust-chip"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" style={{ color: tier.color }} />
-                    <span className="text-slate-700">{tier.name}</span>
-                    <span className="text-slate-300">·</span>
-                    <span className="font-bold tabular-nums" style={{ color: tier.color }}>{pct}</span>
-                  </span>
-                );
-              })()}
               {followingTotal != null && (
                 <Link href={`/p/${rawId}/following`} className="hover:text-slate-700 transition-colors" data-testid="share-stat-following">
                   <span className="font-semibold text-slate-700">{followingTotal.toLocaleString()}</span> Following
@@ -496,26 +520,17 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Actions — lead with the one thing an account unlocks: this profile
-              seen through YOUR web of trust. "View full profile" (free house POV)
-              is the demoted secondary option. */}
+          {/* Action — the one thing an account unlocks: this profile seen through
+              YOUR web of trust. Single CTA (logged out → sign-in funnel; logged
+              in → the personalized profile). */}
           <div className="mt-4 flex flex-col items-start gap-2">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <Link
-                href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
-                data-testid="share-wot-cta"
-              >
-                See in your Web of Trust <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href={`/profile/${npub}`}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors"
-                data-testid="share-view-full"
-              >
-                View full profile
-              </Link>
-            </div>
+            <Link
+              href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
+              data-testid="share-wot-cta"
+            >
+              See in your Web of Trust <ArrowRight className="h-4 w-4" />
+            </Link>
             {!loggedIn && <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
           </div>
 
@@ -524,6 +539,10 @@ export default function SharePage() {
               <Wifi className="h-3.5 w-3.5" /> Fetched live from relays — not yet indexed by Brainstorm.
             </p>
           )}
+            </div>
+            {/* Web of Trust — desktop sidebar (mobile shows it inline above). */}
+            <div className="hidden md:block md:w-64 md:shrink-0 mt-1">{wotCard}</div>
+          </div>
         </div>
       </div>
 
@@ -615,17 +634,17 @@ export default function SharePage() {
           <ContentTeaserBlock icon={<MusicIcon className="h-4 w-4" />} title="Music" onViewAll={scrollToOpenIn} testId="share-block-music">
             <div className="space-y-2">
               {tracks.map((t) => (
-                <Link key={t.id} href={eventPath({ id: t.id, pubkey }, relayHints)} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5 hover:border-slate-300 transition-colors">
-                  {t.cover ? (
-                    <img src={t.cover} alt="" loading="lazy" className="h-11 w-11 rounded-lg object-cover shrink-0" />
-                  ) : (
-                    <div className="h-11 w-11 rounded-lg bg-[#333286]/10 flex items-center justify-center shrink-0"><MusicIcon className="h-5 w-5 text-[#333286]" /></div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{t.title}</p>
-                    {t.artist && <p className="text-xs text-slate-500 truncate">{t.artist}</p>}
-                  </div>
-                </Link>
+                <EmbeddedTrackCard
+                  key={t.id}
+                  id={t.id}
+                  title={t.title}
+                  artist={t.artist}
+                  cover={t.cover}
+                  audio={t.audio}
+                  genre={t.genre}
+                  href={eventPath({ id: t.id, pubkey }, relayHints)}
+                  onZap={profile.lud16 ? () => setZapOpen(true) : undefined}
+                />
               ))}
             </div>
           </ContentTeaserBlock>
@@ -698,7 +717,7 @@ function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
       <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           {fromSearch ? (
             <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="share-back-to-search">
               <ArrowLeft className="h-4 w-4" /> Back to search
@@ -716,7 +735,7 @@ function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?
           )}
         </div>
       </header>
-      <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">{children}</main>
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6">{children}</main>
     </div>
   );
 }

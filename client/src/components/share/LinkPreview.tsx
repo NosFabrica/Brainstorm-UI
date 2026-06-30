@@ -130,8 +130,6 @@ export function LinkPreviewCard({ url }: { url: string }) {
   const host = u.hostname.replace(/^www\./, "");
   const yt = youtubeId(u);
   const gh = githubRepo(u);
-  const cardCls =
-    "mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 bg-white no-underline overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all";
 
   if (yt) {
     return (
@@ -159,15 +157,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
     return <GithubCard url={url} owner={gh.owner} repo={gh.repo} host={host} />;
   }
 
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className={cardCls} data-testid="link-card-generic">
-      <div className="h-16 w-16 shrink-0 bg-slate-50 border-r border-slate-100 flex items-center justify-center">
-        <Favicon host={u.hostname} className="h-7 w-7 rounded object-contain" />
-      </div>
-      <div className="min-w-0 flex-1 py-2 pr-3 flex flex-col justify-center">
-        <span className="text-sm font-bold text-slate-900 truncate">{host}</span>
-        {prettyPath(u) && <span className="mt-0.5 text-xs text-slate-500 truncate">{prettyPath(u)}</span>}
-      </div>
-    </a>
-  );
+  // Plain links carry no real preview here (favicon + domain + path just repeats
+  // the inline chip), so we render nothing and let the chip speak for the link.
+  return null;
 }

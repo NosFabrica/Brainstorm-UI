@@ -87,7 +87,7 @@ export function EmbeddedNoteCard({
         </div>
       </div>
       <div className="line-clamp-5 text-[14px]">
-        <NoteContent content={event.content} compact profiles={profiles} />
+        <NoteContent content={event.content} compact profiles={profiles} imageOpensThread={!!href} />
       </div>
     </div>
   );

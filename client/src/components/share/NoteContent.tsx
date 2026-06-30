@@ -3,7 +3,23 @@ import { parseNoteContent } from "@/lib/noteContent";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
+import { wavlakeTrackId } from "@/lib/wavlake";
 import { useLightbox } from "@/components/share/Lightbox";
+
+/** Human-readable track name from a raw audio URL. Falls back to "Audio" for
+ *  non-descriptive filenames (numeric ids, hashes) like `…/32939084.mp3`. */
+function audioName(url: string): string {
+  try {
+    const last = (new URL(url).pathname.split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "");
+    const decoded = decodeURIComponent(last);
+    if (!decoded || /^\d+$/.test(decoded) || /^[0-9a-f]{12,}$/i.test(decoded)) return "Audio";
+    return decoded.replace(/[._-]+/g, " ").trim() || "Audio";
+  } catch {
+    return "Audio";
+  }
+}
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
@@ -18,12 +34,16 @@ export function NoteContent({
   compact = false,
   profiles,
   linkCard = false,
+  imageOpensThread = false,
 }: {
   content: string;
   compact?: boolean;
   profiles?: Map<string, ProfileLite>;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
+  /** In a clickable feed card: render images as cropped thumbnails whose click
+   *  bubbles up to open the thread (instead of a lightbox). */
+  imageOpensThread?: boolean;
 }) {
   const tokens = parseNoteContent(content);
   const requestNav = useShareNav();
@@ -42,9 +62,26 @@ export function NoteContent({
           case "text":
             return <span key={i}>{token.value}</span>;
           case "url":
+            if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
-          case "image":
+          case "audio":
             return (
+              <div key={i} className="mt-2">
+                <EmbeddedTrackCard id={`audio:${token.value}`} title={audioName(token.value)} audio={token.value} />
+              </div>
+            );
+          case "image":
+            return imageOpensThread ? (
+              // Clickable feed card: a tidy cropped thumbnail; the click bubbles
+              // up to the card and opens the thread (full image + zoom live there).
+              <img
+                key={i}
+                src={token.value}
+                alt=""
+                loading="lazy"
+                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 bg-slate-50 object-cover"
+              />
+            ) : (
               <img
                 key={i}
                 src={token.value}
@@ -109,7 +146,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && <LinkPreviewCard url={primaryUrl} />}
+      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
     </div>
   );
 }

@@ -13,11 +13,13 @@ export type NoteToken =
   | { type: "url"; value: string }
   | { type: "image"; value: string }
   | { type: "video"; value: string }
+  | { type: "audio"; value: string }
   | { type: "mention"; bech32: string }
   | { type: "hashtag"; value: string };
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)(\?.*)?$/i;
 
 // One pass: URLs, bech32 mentions (with or without the `nostr:` prefix), and
 // #hashtags. Everything else is text. The lookbehind keeps us from matching a
@@ -65,6 +67,7 @@ export function prettyUrlLabel(raw: string): string {
 function classifyUrl(url: string): NoteToken {
   if (IMAGE_EXT.test(url)) return { type: "image", value: url };
   if (VIDEO_EXT.test(url)) return { type: "video", value: url };
+  if (AUDIO_EXT.test(url)) return { type: "audio", value: url };
   // A web URL that wraps a nostr entity becomes a mention so it can render as a
   // rich card instead of a long ugly link.
   const bech = extractBech32FromUrl(url);

@@ -1,4 +1,5 @@
-import { Link } from "wouter";
+import { type MouseEvent } from "react";
+import { Link, useLocation } from "wouter";
 import { FileText, BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -32,11 +33,25 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
   const image = tagVal(event, "image");
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
+  const href = naddr ? `/a/${naddr}` : undefined;
+  const [, navigate] = useLocation();
+
+  // Whole card is clickable (matches EmbeddedNoteCard). Clicks on the inner
+  // "Read article" link / author link keep their own behavior, and
+  // stopPropagation keeps it safe when embedded inside a clickable note card.
+  const onCardClick = href
+    ? (e: MouseEvent) => {
+        if ((e.target as HTMLElement).closest("a, button, video, [data-noopen]")) return;
+        e.stopPropagation();
+        navigate(href);
+      }
+    : undefined;
 
   return (
     <div
-      className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70"
+      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70 ${href ? "cursor-pointer hover:border-slate-300 transition-colors" : ""}`}
       data-testid="embedded-article"
+      onClick={onCardClick}
     >
       <div className="flex flex-col sm:flex-row">
         {image ? (

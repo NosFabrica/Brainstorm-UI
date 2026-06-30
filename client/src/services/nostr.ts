@@ -175,6 +175,18 @@ export async function signEventLocally(
   throw new Error("No signer available. Please sign in again.");
 }
 
+/**
+ * Sign an event with a freshly-generated THROWAWAY key. Used for anonymous
+ * NIP-57 zaps from logged-out visitors: the key is ephemeral and discarded, so
+ * the zap still appears in nostr clients (as an anonymous npub) instead of only
+ * landing in the recipient's wallet. `finalizeEvent` sets pubkey/id/sig from the
+ * generated key.
+ */
+export function signEventWithEphemeralKey(event: Record<string, unknown>): Record<string, unknown> {
+  const sk = generateSecretKey();
+  return finalizeEvent(event as any, sk) as unknown as Record<string, unknown>;
+}
+
 export interface NostrUser {
   pubkey: string;
   npub: string;
