@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 
 const userFaqs = [
   {
@@ -97,25 +98,14 @@ export default function FaqPage() {
     <InfoPageLayout testId="page-faq" active="faq">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="space-y-6 animate-fade-up">
-            <div className="space-y-2" data-testid="section-faq-header">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="badge-faq">
-                <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Brainstorm FAQ</p>
-              </div>
-              <h1
-                className="font-brand text-3xl font-bold text-slate-900 tracking-tight"
-                data-testid="text-faq-title"
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Frequently Asked Questions
-                </span>
-              </h1>
-              <p className="text-slate-600 font-medium" data-testid="text-faq-subtitle">
-                {activeTab === "users"
-                  ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
-                  : "Technical details for client developers implementing NIP-85 Trust Attestations."}
-              </p>
-            </div>
+            <PageHeader
+              kicker="Brainstorm FAQ"
+              title={<>Frequently Asked <span className="text-[#333286]">Questions</span></>}
+              subtitle={activeTab === "users"
+                ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
+                : "Technical details for client developers implementing NIP-85 Trust Attestations."}
+              testId="section-faq-header"
+            />
 
             <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
               <button

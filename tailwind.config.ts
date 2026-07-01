@@ -3,6 +3,10 @@ import type { Config } from "tailwindcss";
 export default {
   darkMode: ["class"],
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  // The profile customizer reorders sections via dynamically-built `order-N`
+  // classes (order-1…order-8). JIT can't see runtime-built class names, so
+  // safelist them — otherwise reordering into slots 6–8 silently does nothing.
+  safelist: [{ pattern: /^order-([1-9]|1[0-2])$/ }],
   theme: {
     extend: {
       borderRadius: {

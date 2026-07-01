@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1464,22 +1465,12 @@ export default function SettingsPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
         <div className="space-y-6" data-testid="container-settings">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2" data-testid="section-settings-header">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="pill-settings-kicker">
-                <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-settings-kicker">Brainstorm Settings</p>
-              </div>
-              <h1 className="font-brand text-3xl font-bold text-slate-900 tracking-tight" data-testid="text-settings-title">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] drop-shadow-sm block pb-1">
-                  Settings
-                </span>
-              </h1>
-              <p className="text-slate-600 font-medium" data-testid="text-settings-subtitle">
-                Manage your profile, trust, and account — all in one place.
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            kicker="Brainstorm Settings"
+            title="Settings"
+            subtitle="Manage your profile, trust, and account — all in one place."
+            testId="section-settings-header"
+          />
 
           {/* Tab navigation — segmented pill, matching the FAQ page */}
           <div className="max-w-full overflow-x-auto scrollbar-hide" data-testid="settings-tab-bar">

@@ -151,7 +151,7 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} />
+        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
         {collapsed && (
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" />
         )}

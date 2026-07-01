@@ -371,7 +371,7 @@ export default function EventPage() {
                   )}
                   {note.content?.trim() && (
                     <div className="mt-1">
-                      <NoteContent content={note.content} profiles={profiles} linkCard />
+                      <NoteContent content={note.content} profiles={profiles} linkCard tags={note.tags} authorName={profile.display_name || profile.name} />
                     </div>
                   )}
                 </div>

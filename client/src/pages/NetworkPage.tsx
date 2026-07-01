@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
+import { PageHeader } from "@/components/PageHeader";
 import {
   getVerifiedThreshold,
   PRESET_THRESHOLDS,
@@ -1262,32 +1263,12 @@ export default function NetworkPage() {
             data-testid="section-network-header"
           >
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
-            <div className="flex flex-col items-start gap-3">
-              <div
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm"
-                data-testid="pill-network-kicker"
-              >
-                <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">
-                  Network Explorer
-                </span>
-              </div>
-              <h1
-                className="text-2xl md:text-3xl font-bold tracking-tight relative"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-network-title"
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
-                  Your Network
-                </span>
-              </h1>
-              <p
-                className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light"
-                data-testid="text-network-subtitle"
-              >
-                Browse and manage your social graph connections.
-              </p>
-            </div>
+            <PageHeader
+              kicker="Network Explorer"
+              title={<>Your <span className="text-[#333286]">Network</span></>}
+              subtitle="Browse and manage your social graph connections."
+              testId="section-network-header"
+            />
           </div>
 
           <Card

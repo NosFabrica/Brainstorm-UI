@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { PageHeader } from "@/components/PageHeader";
 import { getVerifiedThreshold, PRESET_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -833,25 +834,12 @@ export default function DashboardPage() {
 
           <div className="flex flex-col gap-6 mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-2" data-testid="section-dashboard-header-copy">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="pill-dashboard-kicker">
-                  <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" aria-hidden="true" />
-                  <p className="text-xs font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-dashboard-header-kicker">Brainstorm Dashboard</p>
-                </div>
-                <h1
-                  className="font-brand text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"
-                  data-testid="text-dashboard-header-title"
-                >
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                    Welcome back, {user.displayName || "Traveler"}
-                  </span>
-                </h1>
-                <div className="flex items-center gap-3">
-                  <p className="text-slate-600 font-medium" data-testid="text-dashboard-header-subtitle">
-                    {hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
-                  </p>
-                </div>
-              </div>
+              <PageHeader
+                kicker="Brainstorm Dashboard"
+                title={<>Welcome back, <span className="text-[#333286]">{user.displayName || "Traveler"}</span></>}
+                subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
+                testId="section-dashboard-header-copy"
+              />
 
               {nip85Activated && publishDone ? (
               <div

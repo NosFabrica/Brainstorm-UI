@@ -14,12 +14,44 @@ export type NoteToken =
   | { type: "image"; value: string }
   | { type: "video"; value: string }
   | { type: "audio"; value: string }
+  | { type: "live"; value: string }
   | { type: "mention"; bech32: string }
   | { type: "hashtag"; value: string };
 
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?.*)?$/i;
 const AUDIO_EXT = /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac)(\?.*)?$/i;
+// HLS manifests + hosts that only ever serve live/streamed video.
+const HLS_EXT = /\.m3u8(\?.*)?$/i;
+const LIVE_HOST = /(?:^|\.)(cloudflarestream\.com|livepeer\.(?:com|studio|monster)|lp-playback\.studio)$/i;
+
+/** A URL that should render as an inline HLS video player (live stream / m3u8). */
+export function isLiveUrl(url: string): boolean {
+  if (HLS_EXT.test(url)) return true;
+  try {
+    return LIVE_HOST.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Normalize a stream URL to something hls.js can actually load. Cloudflare Stream
+ * often shares a `/watch` or `/iframe` page URL, but the playable HLS manifest is
+ * `…/<videoId>/manifest/video.m3u8` — rewrite to that so the player just works.
+ */
+export function toPlayableStreamUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (/(?:^|\.)cloudflarestream\.com$/i.test(u.hostname) && !HLS_EXT.test(u.pathname)) {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      if (id) return `${u.protocol}//${u.hostname}/${id}/manifest/video.m3u8`;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
 
 // One pass: URLs, bech32 mentions (with or without the `nostr:` prefix), and
 // #hashtags. Everything else is text. The lookbehind keeps us from matching a
@@ -68,6 +100,7 @@ function classifyUrl(url: string): NoteToken {
   if (IMAGE_EXT.test(url)) return { type: "image", value: url };
   if (VIDEO_EXT.test(url)) return { type: "video", value: url };
   if (AUDIO_EXT.test(url)) return { type: "audio", value: url };
+  if (isLiveUrl(url)) return { type: "live", value: url };
   // A web URL that wraps a nostr entity becomes a mention so it can render as a
   // rich card instead of a long ugly link.
   const bech = extractBech32FromUrl(url);
@@ -190,6 +223,30 @@ export function extractVideoPoster(content: string, tags: string[][] = []): stri
     }
   }
   return extractImageUrls(content, tags)[0];
+}
+
+/**
+ * A human title for an event's media (audio/video) — the `title` or `subject`
+ * tag if present (NIP-14 / podcast conventions), else the first non-empty line of
+ * the note's text with media/mention noise stripped. Returns undefined when
+ * there's nothing meaningful, so callers can fall back to a filename.
+ */
+export function extractNoteTitle(content: string, tags: string[][] = []): string | undefined {
+  for (const tag of tags) {
+    if ((tag[0] === "title" || tag[0] === "subject") && tag[1]?.trim()) return tag[1].trim();
+  }
+  const firstLine = (content || "")
+    .split("\n")
+    .map((l) =>
+      l
+        .replace(/https?:\/\/\S+/g, "")
+        .replace(/nostr:[a-z0-9]+/gi, "")
+        .replace(/[📊✨🎙️📻🎧]/gu, "")
+        .trim(),
+    )
+    .find((l) => l.length > 1);
+  if (!firstLine) return undefined;
+  return firstLine.length > 80 ? firstLine.slice(0, 79).trimEnd() + "…" : firstLine;
 }
 
 /** Strip media/mention noise to a short plain-text preview (for OG description). */
