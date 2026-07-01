@@ -1405,8 +1405,9 @@ async function signAndPublish(
 const PROFILE_PUBLISH_BACKOFF_MS = [800, 2000];
 export async function publishProfile(
   content: Record<string, unknown>,
+  tags: string[][] = [],
 ): Promise<{ success: boolean; error?: string }> {
-  const template = { kind: 0, tags: [] as string[][], content: JSON.stringify(content) };
+  const template = { kind: 0, tags, content: JSON.stringify(content) };
   let res = await signAndPublish(template, 0);
   for (let attempt = 0; attempt < PROFILE_PUBLISH_BACKOFF_MS.length; attempt++) {
     if ((res.accepted ?? (res.success ? 1 : 0)) >= 2) break; // broad enough

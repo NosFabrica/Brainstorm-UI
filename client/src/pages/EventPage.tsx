@@ -22,6 +22,7 @@ import { npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -248,20 +249,10 @@ export default function EventPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      {/* Top bar — pristine for shared-link visitors, "Back to search" for in-app searchers. */}
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/70 backdrop-blur-sm">
-        <div className="mx-auto max-w-2xl flex items-center justify-between px-4 sm:px-6 h-14">
-          {fromSearch ? (
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="event-back-to-search">
-              <ArrowLeft className="h-4 w-4" /> Back to search
-            </Link>
-          ) : (
-            <Link href="/" className="flex items-center gap-2" data-testid="event-brand">
-              <BrainLogo size={26} className="text-indigo-500" />
-              <span className="font-brand text-lg font-bold tracking-tight text-indigo-500">Brainstorm</span>
-            </Link>
-          )}
-          <div className="flex items-center gap-3">
+      <PublicPageHeader
+        maxWidthClass="max-w-2xl"
+        actions={
+          <>
             {authorNpub && (
               <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-[#333286]">
                 View profile <ArrowRight className="h-4 w-4" />
@@ -275,9 +266,9 @@ export default function EventPage() {
             >
               {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
             </button>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
         {!ptr ? (

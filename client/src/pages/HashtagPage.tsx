@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -151,27 +152,19 @@ export default function HashtagPage() {
   return (
     <ShareNavProvider>
       <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
-        <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="hashtag-back">
-              <ArrowLeft className="h-4 w-4" /> Back to search
-            </Link>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onShare}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
-                data-testid="hashtag-share"
-              >
-                {copied ? <><Check className="h-4 w-4 text-emerald-600" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
-              </button>
-              <Link href="/" className="flex items-center gap-2" data-testid="hashtag-brand">
-                <BrainLogo size={24} className="text-indigo-500" />
-                <span className="font-brand text-lg font-bold tracking-tight text-indigo-500">Brainstorm</span>
-              </Link>
-            </div>
-          </div>
-        </header>
+        <PublicPageHeader
+          maxWidthClass="max-w-2xl"
+          actions={
+            <button
+              type="button"
+              onClick={onShare}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+              data-testid="hashtag-share"
+            >
+              {copied ? <><Check className="h-4 w-4 text-emerald-600" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
+            </button>
+          }
+        />
 
         <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 flex-1" data-testid="hashtag-page">
           <PageHeader

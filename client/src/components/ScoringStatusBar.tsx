@@ -3,6 +3,8 @@ import { useLocation } from "wouter";
 import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { hasSessionToken } from "@/services/api";
+import { toast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 const CALC_ACTIVE_KEY = "brainstorm_calc_active";
 const READY_NUDGE_KEY = "brainstorm_scores_ready_nudge";
@@ -23,30 +25,63 @@ const STALL_MS = 6 * 60_000;
  */
 export function ScoringStatusBar() {
   const [location, navigate] = useLocation();
-  const { isCalculating, isReady, status, elapsedMs } = useScoringStatus();
+  const { isCalculating, isReady, status, elapsedMs, triggeredAt, pubkey } = useScoringStatus();
   const wasCalculating = useRef(false);
   const [, force] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [standDownDismissed, setStandDownDismissed] = useState(false);
+  // Inline confirm shown when the user clicks X on the active "Calculating…" pill.
+  const [confirming, setConfirming] = useState(false);
+  // Immediate, guaranteed hide of the calculating pill this session; the
+  // localStorage marker below persists it across reloads for the same run.
+  const [calcHidden, setCalcHidden] = useState(false);
 
   useEffect(() => {
     try {
       if (isCalculating) {
         localStorage.setItem(CALC_ACTIVE_KEY, "1");
       } else if (localStorage.getItem(CALC_ACTIVE_KEY) === "1" && isReady) {
-        // Just finished — raise a persistent "ready" nudge and clear any
-        // stand-down dismissal so the good news isn't suppressed.
+        // Just finished — raise a persistent "ready" nudge, clear any stand-down
+        // dismissal so the good news isn't suppressed, and fire a one-shot toast.
+        // Removing CALC_ACTIVE_KEY here makes this branch fire exactly once per run,
+        // so the toast never repeats on reload/remount even if the user dismissed
+        // the "Calculating…" pill.
         localStorage.removeItem(CALC_ACTIVE_KEY);
         localStorage.setItem(READY_NUDGE_KEY, String(Date.now()));
         setDismissed(false);
         setStandDownDismissed(false);
         force((n) => n + 1);
+        toast({
+          title: "Your Web of Trust is ready ✓",
+          description: "We've finished scoring your network — see your results on the dashboard.",
+          action: (
+            <ToastAction
+              altText="View dashboard"
+              onClick={() => navigate("/dashboard")}
+              className="bg-[#6366f1] text-white border-transparent hover:bg-[#4f46e5] hover:text-white"
+            >
+              View dashboard
+            </ToastAction>
+          ),
+        });
       }
     } catch {
       /* ignore */
     }
+    // Calc just stopped (a real active→inactive transition, not the initial
+    // not-yet-loaded render) — clear this run's hide so the next run re-shows.
+    if (wasCalculating.current && !isCalculating) {
+      setCalcHidden(false);
+      try { if (pubkey) localStorage.removeItem(`brainstorm_calc_pill_dismissed:${pubkey}`); } catch { /* ignore */ }
+    }
     wasCalculating.current = isCalculating;
-  }, [isCalculating, isReady]);
+  }, [isCalculating, isReady, navigate, pubkey]);
+
+  // Never let the dismiss-confirm linger past the active calc (e.g. it completes
+  // while the note is open, or a later run starts) — reset it when calc stops.
+  useEffect(() => {
+    if (!isCalculating && confirming) setConfirming(false);
+  }, [isCalculating, confirming]);
 
   if (!hasSessionToken()) return null;
   // The dashboard already surfaces calculating/score state inline (and every
@@ -66,6 +101,22 @@ export function ScoringStatusBar() {
   const elapsed = elapsedMs ?? 0;
   const showReady = !isCalculating && isReady && readyNudgeFresh && !dismissed;
 
+  // Did the user hide the active "Calculating…" pill for *this* run (persisted so
+  // it survives reload)? Keyed to the trigger timestamp — which is "0" for an
+  // existing account whose calc is backend-driven, so we compare the raw string
+  // rather than gating on `> 0`. The marker is cleared when the calc stops, so a
+  // genuinely new run re-shows the pill.
+  const calcPillDismissed = (() => {
+    try {
+      if (!pubkey) return false;
+      const v = localStorage.getItem(`brainstorm_calc_pill_dismissed:${pubkey}`);
+      return v !== null && v === String(triggeredAt);
+    } catch {
+      return false;
+    }
+  })();
+  const calcPillHidden = calcHidden || calcPillDismissed;
+
   // Pick the single phase to render.
   type Phase = "spinner" | "soft" | "standdown" | "ready" | null;
   let phase: Phase = null;
@@ -74,6 +125,9 @@ export function ScoringStatusBar() {
   else if (showReady) phase = "ready";
 
   if (phase === "standdown" && standDownDismissed) return null;
+  // User chose to hide the active calculating pill for this run — stay hidden.
+  // The completion toast + ready pill still fire, so the promise is kept.
+  if ((phase === "spinner" || phase === "soft") && calcPillHidden && !confirming) return null;
   if (!phase) return null;
 
   const dismissReady = () => {
@@ -81,20 +135,69 @@ export function ScoringStatusBar() {
     try { localStorage.removeItem(READY_NUDGE_KEY); } catch {}
   };
 
+  const hideCalcPill = () => {
+    // Persist for reload (marker = this run's triggeredAt, "0" when backend-driven)
+    // AND hide immediately via state, so it disappears regardless of storage.
+    try {
+      if (pubkey) localStorage.setItem(`brainstorm_calc_pill_dismissed:${pubkey}`, String(triggeredAt));
+    } catch { /* ignore */ }
+    setCalcHidden(true);
+    setConfirming(false);
+  };
+
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] px-4 w-full max-w-md pointer-events-none">
       {phase === "spinner" || phase === "soft" ? (
-        <div
-          className="pointer-events-auto mx-auto w-fit flex items-center gap-2.5 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-3.5 pr-4 py-2"
-          data-testid="scoring-status-calculating"
-        >
-          <Loader2 className="h-4 w-4 animate-spin text-indigo-300 shrink-0" />
-          <span className="text-sm font-medium">
-            {phase === "soft"
-              ? "Still building your Web of Trust — new accounts can take a few minutes."
-              : "Calculating your Web of Trust…"}
-          </span>
-        </div>
+        confirming ? (
+          <div
+            className="pointer-events-auto mx-auto flex items-start gap-3 rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-4 pr-3 py-3"
+            data-testid="scoring-status-confirm"
+          >
+            <div className="max-w-[16rem]">
+              <p className="text-[13px] font-semibold leading-snug">You can close this — we'll let you know the moment it's ready.</p>
+              <p className="mt-0.5 text-xs text-slate-300 leading-snug">Scoring keeps running in the background.</p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+              <button
+                type="button"
+                onClick={hideCalcPill}
+                className="rounded-full bg-white text-slate-900 hover:bg-slate-100 text-xs font-semibold px-3 py-1.5 transition-colors"
+                data-testid="scoring-status-confirm-hide"
+              >
+                Hide
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="rounded-full text-slate-300 hover:text-white hover:bg-white/10 text-xs font-medium px-2.5 py-1.5 transition-colors"
+                data-testid="scoring-status-confirm-keep"
+              >
+                Keep showing
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="pointer-events-auto mx-auto w-fit flex items-center gap-2.5 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-3.5 pr-2 py-2"
+            data-testid="scoring-status-calculating"
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-indigo-300 shrink-0" />
+            <span className="text-sm font-medium">
+              {phase === "soft"
+                ? "Still building your Web of Trust — new accounts can take a few minutes."
+                : "Calculating your Web of Trust…"}
+            </span>
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded-full p-1 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              data-testid="scoring-status-calculating-dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )
       ) : phase === "standdown" ? (
         <div
           className="pointer-events-auto mx-auto flex items-center gap-2.5 rounded-2xl bg-white border border-slate-200 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-2"

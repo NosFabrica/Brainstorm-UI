@@ -57,6 +57,7 @@ import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -1126,30 +1127,16 @@ export default function SharePage() {
 }
 
 function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?: () => void }) {
-  // In-app searchers arrive with ?fromSearch=1 and get a return path. External /
-  // shared-link visitors (no flag) see the pristine public header.
-  const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
-      <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          {fromSearch ? (
-            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="share-back-to-search">
-              <ArrowLeft className="h-4 w-4" /> Back to search
-            </Link>
-          ) : (
-            <Link href="/" className="flex items-center gap-2" data-testid="share-brand">
-              <BrainLogo size={26} className="text-indigo-500" />
-              <span className="font-brand text-lg font-bold tracking-tight text-indigo-500">Brainstorm</span>
-            </Link>
-          )}
-          {onShare && (
-            <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
-              Share
-            </button>
-          )}
-        </div>
-      </header>
+      <PublicPageHeader
+        maxWidthClass="max-w-4xl"
+        actions={onShare ? (
+          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
+            Share
+          </button>
+        ) : undefined}
+      />
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6">{children}</main>
     </div>
   );

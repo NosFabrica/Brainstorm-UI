@@ -20,6 +20,8 @@ export function useScoringStatus(): {
   isCalculating: boolean;
   isReady: boolean;
   elapsedMs: number | null;
+  triggeredAt: number;
+  pubkey?: string;
 } {
   const user = getCurrentUser();
   const enabled = hasSessionToken() && !!user?.pubkey;
@@ -67,5 +69,7 @@ export function useScoringStatus(): {
     isCalculating: status === "calculating" || status === "publishing",
     isReady: status === "ready",
     elapsedMs,
+    triggeredAt,
+    pubkey: user?.pubkey,
   };
 }

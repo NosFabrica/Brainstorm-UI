@@ -1,6 +1,6 @@
 import { useState, useMemo, type MouseEvent } from "react";
 import { useLocation } from "wouter";
-import { Repeat2, MessageSquare } from "lucide-react";
+import { Repeat2, MessageSquare, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -210,7 +210,19 @@ export function ShareNoteCard({
               </HoverCardContent>
             )}
           </HoverCard>
-          <span className="ml-auto shrink-0 text-xs text-slate-400">{ago(event.created_at)}</span>
+          {authorTier && typeof authorScore === "number" && (
+            <span
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums"
+              style={{ color: authorTier.color, backgroundColor: `${authorTier.color}14`, borderWidth: 1, borderStyle: "solid", borderColor: `${authorTier.color}33` }}
+              title={`Web of Trust score — ${authorTier.name}`}
+              aria-label={`Web of Trust score ${Math.round(authorScore * 100)}, ${authorTier.name}`}
+              data-testid="note-author-score-chip"
+            >
+              <ShieldCheck className="h-3 w-3" />
+              {Math.round(authorScore * 100)}
+            </span>
+          )}
+          <span className="shrink-0 text-xs text-slate-400">{ago(event.created_at)}</span>
         </div>
       )}
       {a.isReply && replyTargets.length > 0 && (

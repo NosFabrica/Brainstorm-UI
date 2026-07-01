@@ -18,6 +18,7 @@ import { EventThread } from "@/components/share/EventThread";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { BrainLogo } from "@/components/BrainLogo";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
 
 type AddressPointer = { kind: number; pubkey: string; identifier: string; relays?: string[] };
 
@@ -109,20 +110,14 @@ export default function ArticlePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      {/* Top bar */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
-          <Link href="/" className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
+      <PublicPageHeader
+        maxWidthClass="max-w-3xl"
+        actions={authorNpub ? (
+          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline">
+            <ArrowLeft className="h-4 w-4" /> Profile
           </Link>
-          {authorNpub && (
-            <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline">
-              <ArrowLeft className="h-4 w-4" /> Profile
-            </Link>
-          )}
-        </div>
-      </header>
+        ) : undefined}
+      />
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
         {!ptr ? (

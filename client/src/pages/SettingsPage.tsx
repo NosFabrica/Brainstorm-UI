@@ -1500,6 +1500,7 @@ export default function SettingsPage() {
           {activeTab === "profile" && (
             <div className="space-y-6" data-testid="tab-content-profile">
               {profileCard}
+              {personalizationCard}
               {accountCard}
             </div>
           )}
@@ -1507,7 +1508,6 @@ export default function SettingsPage() {
           {activeTab === "trust" && (
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
-              {personalizationCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
               {advancedSection}
             </div>
