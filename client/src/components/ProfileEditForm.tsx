@@ -297,7 +297,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-11 px-6 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="h-11 px-6 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     data-testid="button-edit-save"
                   >
                     {busy ? (<><Loader2 className="h-5 w-5 animate-spin" /> Saving…</>) : submitLabel}

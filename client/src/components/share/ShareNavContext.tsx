@@ -73,21 +73,27 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   const tier = score01 != null ? tierForScore(score01) : null;
   const povCaption = usePersonal ? "Through your Web of Trust" : "Brainstorm network score";
 
+  // Hashtags go straight to their trust-ranked content feed (no confirm — it's an
+  // internal navigation). Profile mentions still show the confirm dialog below.
+  const requestNav = (i: NavIntent) => {
+    if (i.kind === "hashtag") {
+      const tag = i.target.replace(/^#/, "").toLowerCase().trim();
+      if (tag) navigate(`/t/${encodeURIComponent(tag)}`);
+      return;
+    }
+    setIntent(i);
+  };
+
   const confirm = () => {
     if (!intent) return;
-    if (intent.kind === "profile") {
-      navigate(`/p/${intent.target}`);
-    } else {
-      const q = intent.target.replace(/^#/, "");
-      navigate(`/?q=${encodeURIComponent(q)}`);
-    }
+    navigate(`/p/${intent.target}`);
     setIntent(null);
   };
 
   const isProfile = intent?.kind === "profile";
 
   return (
-    <ShareNavContext.Provider value={setIntent}>
+    <ShareNavContext.Provider value={requestNav}>
       {children}
       <Dialog open={!!intent} onOpenChange={(o) => !o && setIntent(null)}>
         <DialogContent
@@ -144,7 +150,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={confirm}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
               data-testid="button-share-nav-continue"
             >
               {isProfile ? "View profile" : "Search Brainstorm"} <ArrowRight className="h-4 w-4" />

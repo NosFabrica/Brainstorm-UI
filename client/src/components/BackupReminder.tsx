@@ -56,7 +56,7 @@ export function BackupReminder() {
       <button
         type="button"
         onClick={() => navigate("/settings?tab=profile&focus=backup")}
-        className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold px-3.5 py-2 transition-colors"
+        className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold px-3.5 py-2 transition-colors"
         data-testid="backup-reminder-cta"
       >
         Back up now <ArrowRight className="h-3.5 w-3.5" />

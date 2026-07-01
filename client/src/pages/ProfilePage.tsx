@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { GlossBackground } from "@/components/GlossBackground";
 import { getVerifiedThreshold, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -645,7 +646,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                 <button
                   key={opt.value}
                   onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#6366f1] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
                   data-testid={`sort-${opt.value}-${key}`}
                 >
                   {opt.label}
@@ -889,7 +890,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="px-3 py-2">
             <button
               onClick={(e) => { e.stopPropagation(); onShowMore(key, processed, visibleCount); }}
-              className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+              className="w-full py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
               Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
@@ -2006,12 +2007,7 @@ export default function ProfilePage() {
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-profile"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]" style={{ animation: "profileBlobA 28s ease-in-out infinite" }} />
-        <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]" style={{ animation: "profileBlobB 32s ease-in-out infinite 2s" }} />
-      </div>
+      <GlossBackground />
 
       {isAnon ? (
         <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
@@ -2160,7 +2156,7 @@ export default function ProfilePage() {
                     <Button
                       type="button"
                       onClick={() => navigate("/")}
-                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#3730a3] hover:bg-[#312e81] text-white"
+                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#6366f1] hover:bg-[#4f46e5] text-white"
                       data-testid="button-profile-new-search"
                     >
                       New Search
@@ -2358,7 +2354,7 @@ export default function ProfilePage() {
                                 ? followHovered
                                   ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
                                   : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                                : "bg-[#3730a3] text-white hover:bg-[#312e81] shadow-sm"
+                                : "bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-sm"
                             }`}
                             data-testid="button-follow-toggle"
                           >

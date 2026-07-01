@@ -640,7 +640,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                               ? cardFollowHovered
                                 ? "bg-red-50 border border-red-200 text-red-600"
                                 : "bg-white border border-slate-200 text-slate-600"
-                              : "bg-[#3730a3] text-white hover:bg-[#312e81]"
+                              : "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
                           }`}
                           data-testid={`button-follow-${pkShort}`}
                         >
@@ -705,7 +705,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   </div>
                 )}
                 <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
+                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#6366f1] text-white shadow-md hover:shadow-lg hover:bg-[#4f46e5] transition-all duration-200"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNavigate(

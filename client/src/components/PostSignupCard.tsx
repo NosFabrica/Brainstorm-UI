@@ -183,7 +183,7 @@ export function PostSignupCard() {
             data-testid="tile-build-network"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#3730a3] flex items-center justify-center text-white shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
                 <Users className="h-5 w-5" />
               </div>
               <div className="min-w-0">
@@ -273,7 +273,7 @@ export function PostSignupCard() {
               data-testid="tile-build-network"
             >
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#3730a3] flex items-center justify-center text-white shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
                   <Users className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -372,7 +372,7 @@ export function PostSignupCard() {
                   type="button"
                   onClick={handleDownload}
                   disabled={!canBackup}
-                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   data-testid="button-download-backup"
                 >
                   <Download className="h-4 w-4" /> Download backup

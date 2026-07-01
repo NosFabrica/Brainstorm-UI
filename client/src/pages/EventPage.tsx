@@ -258,7 +258,7 @@ export default function EventPage() {
           ) : (
             <Link href="/" className="flex items-center gap-2" data-testid="event-brand">
               <BrainLogo size={26} className="text-indigo-500" />
-              <span className="text-lg font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+              <span className="font-brand text-lg font-bold tracking-tight text-indigo-500">Brainstorm</span>
             </Link>
           )}
           <div className="flex items-center gap-3">
@@ -270,7 +270,7 @@ export default function EventPage() {
             <button
               type="button"
               onClick={onShare}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
               data-testid="event-share"
             >
               {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
@@ -295,7 +295,7 @@ export default function EventPage() {
             <MessageSquare className="h-10 w-10 text-slate-300 mx-auto" />
             <p className="mt-3 text-slate-600 font-medium">We couldn't find this note on the relays.</p>
             {openInApp && (
-              <a href={openInApp} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-4 py-2 text-sm font-semibold text-white">
+              <a href={openInApp} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white">
                 <Smartphone className="h-4 w-4" /> Try opening in an app
               </a>
             )}
@@ -394,7 +394,7 @@ export default function EventPage() {
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
-                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="event-cta"
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />

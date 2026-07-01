@@ -115,7 +115,7 @@ export default function OnboardingWizard() {
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
             <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
           </div>
           <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-exit">
             Skip setup
@@ -123,7 +123,7 @@ export default function OnboardingWizard() {
         </div>
         <div className="mx-auto max-w-xl px-4 sm:px-6 pb-3 flex items-center gap-2" data-testid="onboarding-progress">
           {STEPS.map((s, i) => (
-            <div key={s.key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-[#3730a3]" : "bg-slate-200"}`} />
+            <div key={s.key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-[#6366f1]" : "bg-slate-200"}`} />
           ))}
         </div>
       </header>
@@ -207,7 +207,7 @@ export default function OnboardingWizard() {
                 type="button"
                 onClick={saveProfileAndNext}
                 disabled={!name.trim() || savingProfile}
-                className="h-12 px-6 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+                className="h-12 px-6 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
                 data-testid="onboarding-profile-continue"
               >
                 {savingProfile ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <>Continue <ArrowRight className="h-4 w-4" /></>}
@@ -263,7 +263,7 @@ export default function OnboardingWizard() {
                 type="button"
                 onClick={handleDownloadBackup}
                 disabled={!canBackup}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 data-testid="onboarding-backup-download"
               >
                 <Download className="h-4 w-4" /> Download backup &amp; finish

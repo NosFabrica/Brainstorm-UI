@@ -245,7 +245,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             type="button"
             onClick={() => onContinue(Array.from(selected))}
             disabled={count === 0 || busy}
-            className="w-full h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
             data-testid="welcome-finish"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

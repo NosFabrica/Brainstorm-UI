@@ -198,7 +198,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           type="button"
           onClick={commit}
           disabled={count === 0 || busy}
-          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 disabled:cursor-not-allowed h-11 text-sm font-semibold text-white transition-colors"
+          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed h-11 text-sm font-semibold text-white transition-colors"
           data-testid="follow-card-commit"
         >
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}

@@ -61,7 +61,7 @@ export default function WelcomePage() {
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
             <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
           </div>
           <button
             type="button"

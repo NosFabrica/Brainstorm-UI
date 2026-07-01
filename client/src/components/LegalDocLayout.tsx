@@ -420,7 +420,7 @@ export function LegalDocLayout({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[#7c86ff]/30 bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30 transition-colors hover:bg-[#333286]"
+            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-[#7c86ff]/30 bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30 transition-colors hover:bg-[#333286]"
             aria-label="Back to top"
             data-testid={`button-back-to-top-${docKind}`}
           >

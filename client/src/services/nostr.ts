@@ -303,6 +303,15 @@ export const PROFILE_RELAYS = [
   "wss://nostr.wine/",
 ];
 
+/** Relays that actually carry note/article content (dropping purplepag.es, which
+ *  is a profile-only relay). Used for hashtag / content queries. */
+export const CONTENT_RELAYS = [
+  "wss://relay.damus.io/",
+  "wss://nos.lol/",
+  "wss://relay.primal.net/",
+  "wss://nostr.wine/",
+];
+
 const pool = new RelayPool();
 
 export function fetchProfiles(
@@ -962,6 +971,26 @@ export async function fetchEventsByFilter(
       complete: () => finish(),
     });
   });
+}
+
+/**
+ * Fetch notes + long-form articles carrying a `#t` hashtag tag, newest first.
+ * Powers the `/t/:hashtag` content feed. Queries content relays only (not the
+ * profile-only relay). The tag is lowercased — Nostr `t` tags are lowercase by
+ * convention.
+ */
+export async function fetchNotesByHashtag(
+  tag: string,
+  opts: { limit?: number; timeoutMs?: number } = {},
+): Promise<NostrEvent[]> {
+  const t = tag.toLowerCase().replace(/^#/, "").trim();
+  if (!t) return [];
+  const events = await fetchEventsByFilter(
+    { kinds: [1, 30023], "#t": [t], limit: opts.limit ?? 100 },
+    CONTENT_RELAYS,
+    opts.timeoutMs ?? 6000,
+  );
+  return events.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
 }
 
 /**

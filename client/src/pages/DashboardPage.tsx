@@ -865,27 +865,24 @@ export default function DashboardPage() {
                     <span className="text-[10px] font-semibold text-emerald-700">Active</span>
                   </span>
                   <span className="flex-1" />
-                  <span className="flex items-center -space-x-1 shrink-0" aria-hidden="true">
-                    <img src={amethystLogoImg} alt="" className="w-5 h-5 rounded-md ring-1 ring-white" />
-                    <img src={nostriaIconImg} alt="" className="w-5 h-5 rounded-md bg-white object-contain ring-1 ring-white" />
-                  </span>
                   <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
                 </button>
                 {wotExpanded && (
                 <div className="px-3.5 pb-3.5 border-t border-slate-100">
 
                   <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
-                    <span>Default provider</span>
                     {history?.last_time_calculated_graperank && (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
-                      </>
+                      <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
                     )}
                     <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
                       <Info className="h-3 w-3 text-slate-300" />
                     </span>
-                    <PresetBadge preset={grapeRank?.graperank_preset_used} size="xs" testId="badge-dashboard-preset-used" />
+                    {grapeRank?.graperank_preset_used && (
+                      <span className="inline-flex items-center gap-1">
+                        <span>Trust</span>
+                        <PresetBadge preset={grapeRank.graperank_preset_used} size="xs" testId="badge-dashboard-preset-used" />
+                      </span>
+                    )}
                   </div>
 
                   <AnimatePresence initial={false}>
@@ -948,10 +945,8 @@ export default function DashboardPage() {
                     )}
                   </AnimatePresence>
 
-                  <div className="pt-1.5">
-                    <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50">
-                      <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
-                        <div className="flex items-center gap-1.5 mb-2">
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 mb-2.5">
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Readable in compatible apps</span>
                           <div className="relative group/info">
                             <button
@@ -968,8 +963,8 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-[#7c86ff] hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-[#7c86ff] hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
                             <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-[#333286] transition-colors">Amethyst</span>
                           </a>
@@ -990,8 +985,6 @@ export default function DashboardPage() {
                             <><RefreshCw className="w-3 h-3" /><span className="text-[11px] font-semibold tracking-wide">Recalculate</span></>
                           )}
                         </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 )}
@@ -1148,7 +1141,7 @@ export default function DashboardPage() {
                 className="mb-6"
               >
                 <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
-                  <div className="h-8 w-8 rounded-lg bg-[#3730a3]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
+                  <div className="h-8 w-8 rounded-lg bg-[#6366f1]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
                   <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
@@ -1158,7 +1151,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                    className="shrink-0 h-9 px-4 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    className="shrink-0 h-9 px-4 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
                     data-testid="button-invite-grow"
                   >
                     <Users className="h-4 w-4" />
@@ -1602,7 +1595,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => setNip85ModalOpen(true)}
-                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                       data-testid="button-nip85-cta"
                     >
                       <BrainLogo size={14} className="text-white/80" />
@@ -2116,8 +2109,8 @@ export default function DashboardPage() {
                           </div>
                           {isHop1 && (
                             <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
                             </div>
                           )}
                         </div>

@@ -110,7 +110,7 @@ export default function ConnectionListPage() {
           </Link>
           <Link href="/" className="ml-auto flex items-center gap-2" data-testid="conn-brand">
             <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-base font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <span className="text-base font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
           </Link>
         </div>
       </header>
@@ -190,7 +190,7 @@ export default function ConnectionListPage() {
             type="button"
             onClick={() => connQuery.fetchNextPage()}
             disabled={connQuery.isFetchingNextPage}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
             data-testid="conn-load-more"
           >
             {connQuery.isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
+import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
 import {
   getVerifiedThreshold,
@@ -1161,7 +1162,7 @@ export default function NetworkPage() {
           </p>
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
             onClick={() => navigate("/dashboard")}
             data-testid="button-back-to-dashboard"
           >
@@ -1180,74 +1181,7 @@ export default function NetworkPage() {
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-network"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]"
-          style={{ animation: "networkBlobA 28s ease-in-out infinite" }}
-        />
-        <div
-          className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]"
-          style={{ animation: "networkBlobB 32s ease-in-out infinite 2s" }}
-        />
-        <div
-          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-[#7c86ff]/15 blur-[110px]"
-          style={{ animation: "networkBlobC 24s ease-in-out infinite 5s" }}
-        />
-      </div>
-
-      <div className="absolute top-0 left-0 right-0 h-[600px] overflow-hidden pointer-events-none z-0">
-        <svg className="absolute inset-0 w-full h-full">
-          {connectionPairs.map(([a, b], i) => (
-            <line
-              key={i}
-              x1={`${floatingNodes[a].x}%`}
-              y1={`${floatingNodes[a].y}%`}
-              x2={`${floatingNodes[b].x}%`}
-              y2={`${floatingNodes[b].y}%`}
-              stroke="url(#networkLineGrad)"
-              strokeWidth="0.5"
-              strokeDasharray={connectionLineDashArrays[i]}
-              strokeDashoffset={connectionLineDashArrays[i]}
-              style={connectionLineStyles[i]}
-            />
-          ))}
-          <defs>
-            <linearGradient
-              id="networkLineGrad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0.14" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {floatingNodes.map((node, i) => (
-          <div
-            key={node.id}
-            className="absolute rounded-full bg-white/80 border border-slate-200/40"
-            style={floatingNodeStyles[i]}
-          />
-        ))}
-      </div>
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[5]">
-        {decorativeText.map((text, i) => (
-          <div
-            key={i}
-            className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
-            style={decorativeTextStyles[i]}
-            data-testid={`text-network-bg-decorative-${i}`}
-          >
-            {text}
-          </div>
-        ))}
-      </div>
+      <GlossBackground />
 
       <AppHeader
         user={user}

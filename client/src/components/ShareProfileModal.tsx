@@ -115,7 +115,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             <button
               type="button"
               onClick={copy}
-              className="shrink-0 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
               data-testid="share-copy-link"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

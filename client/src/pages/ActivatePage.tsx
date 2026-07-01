@@ -80,7 +80,7 @@ export default function ActivatePage() {
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
             <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
           </div>
           <button
             type="button"
@@ -141,7 +141,7 @@ export default function ActivatePage() {
           type="button"
           onClick={calc}
           disabled={!pubkey}
-          className="mt-6 w-full h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+          className="mt-6 w-full h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
           data-testid="activate-calculate"
         >
           Calculate my Web of Trust <ArrowRight className="h-4 w-4" />

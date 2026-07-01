@@ -464,7 +464,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={() => navigate(`/profile/${published.npub}`)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
                   data-testid={`button-assistant-view-profile-${variant}`}
                 >
                   <BrainLogo size={12} className="text-white/95" />
@@ -584,7 +584,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   type="button"
                   onClick={handlePublish}
                   disabled={isPending}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#3730a3]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#6366f1]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   data-testid={`button-assistant-publish-${variant}`}
                 >
                   {isPending ? (

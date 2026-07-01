@@ -12,7 +12,7 @@ function Equalizer({ playing }: { playing: boolean }) {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className={`w-[2px] flex-1 origin-bottom rounded-full bg-[#3730a3] ${playing ? "eq-bar" : ""}`}
+          className={`w-[2px] flex-1 origin-bottom rounded-full bg-[#6366f1] ${playing ? "eq-bar" : ""}`}
           style={{ height: "100%", animationDelay: `${i * 0.18}s`, ...(playing ? {} : { transform: "scaleY(0.4)" }) }}
         />
       ))}
@@ -135,9 +135,9 @@ export function EmbeddedTrackCard({
               }}
               className="group/bar relative h-1.5 flex-1 cursor-pointer rounded-full bg-slate-200"
             >
-              <div className="absolute inset-y-0 left-0 rounded-full bg-[#3730a3]" style={{ width: `${pct}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-full bg-[#6366f1]" style={{ width: `${pct}%` }} />
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full bg-[#3730a3] opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
+                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full bg-[#6366f1] opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
                 style={{ left: `${pct}%` }}
               />
             </div>

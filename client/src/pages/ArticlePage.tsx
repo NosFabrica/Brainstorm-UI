@@ -114,7 +114,7 @@ export default function ArticlePage() {
         <div className="mx-auto max-w-3xl flex items-center justify-between px-4 sm:px-6 h-14">
           <Link href="/" className="flex items-center gap-2">
             <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
           </Link>
           {authorNpub && (
             <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline">
@@ -142,7 +142,7 @@ export default function ArticlePage() {
             <button
               type="button"
               onClick={() => openArticleInApp(naddr)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-4 py-2 text-sm font-semibold text-white"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white"
             >
               <Smartphone className="h-4 w-4" /> Try opening in an app
             </button>
@@ -208,7 +208,7 @@ export default function ArticlePage() {
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
-                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="article-cta"
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />

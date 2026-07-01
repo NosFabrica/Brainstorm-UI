@@ -72,7 +72,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             href={googleCalendarUrl(e)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#312e81]"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
             data-testid="event-add-calendar"
           >
             <CalendarPlus className="h-4 w-4" /> Add to calendar
@@ -83,7 +83,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             href={e.recordingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#312e81]"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
             data-testid="event-watch-recording"
           >
             <PlayCircle className="h-4 w-4" /> Watch recording

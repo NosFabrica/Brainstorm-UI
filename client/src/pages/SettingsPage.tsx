@@ -508,7 +508,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleBackupDownload}
                     disabled={!canBackup}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="button-account-download-backup"
                   >
                     <Download className="h-4 w-4" /> Download backup
@@ -701,7 +701,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => setNip85ConfirmOpen(true)}
                   disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   data-testid="button-sp-republish"
                 >
                   {republishState === "signing" || republishState === "publishing" ? (
@@ -743,7 +743,7 @@ export default function SettingsPage() {
                     <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-nip85-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-[#3730a3] hover:bg-[#312e81]"
+                        className="rounded-xl bg-[#6366f1] hover:bg-[#4f46e5]"
                         onClick={() => {
                           setNip85ConfirmOpen(false);
                           handleRepublishNip85();
@@ -851,7 +851,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => navigate("/dashboard")}
                 disabled={hasNoFollowing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                 data-testid="button-sp-go-to-dashboard"
               >
                 Go to Dashboard
@@ -988,7 +988,7 @@ export default function SettingsPage() {
                   type="button"
                   disabled={triggerGrapeRankMutation.isPending || isRecalcInProgress || hasNoFollowing}
                   onClick={() => setRecalcConfirmOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   data-testid="button-gr-recalculate"
                 >
                   {triggerGrapeRankMutation.isPending || isRecalcInProgress ? (
@@ -1036,7 +1036,7 @@ export default function SettingsPage() {
                     <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-settings-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-[#3730a3] hover:bg-[#312e81]"
+                        className="rounded-xl bg-[#6366f1] hover:bg-[#4f46e5]"
                         onClick={() => {
                           setRecalcConfirmOpen(false);
                           triggerGrapeRankMutation.mutate();
@@ -1146,7 +1146,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => navigate(`/p/${user.npub}`)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#312e81]"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
             data-testid="link-customize-profile"
           >
             <SlidersHorizontal className="h-4 w-4" /> Customize your public profile
@@ -1241,7 +1241,7 @@ export default function SettingsPage() {
                 onClick={() => setAgentPath(opt.key)}
                 aria-current={active ? "true" : undefined}
                 className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${
-                  active ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30" : "text-slate-500 hover:text-[#333286]"
+                  active ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30" : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid={`agent-path-${opt.key}`}
               >
@@ -1288,7 +1288,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => navigate("/developers")}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors"
               data-testid="button-agent-view-guide"
             >
               View the guide <ArrowRight className="h-3.5 w-3.5" />
@@ -1484,7 +1484,7 @@ export default function SettingsPage() {
                     aria-current={active ? "page" : undefined}
                     className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${
                       active
-                        ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30"
+                        ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
                         : "text-slate-500 hover:text-[#333286]"
                     }`}
                     data-testid={`tab-${tab.key}`}

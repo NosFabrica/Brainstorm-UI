@@ -883,7 +883,7 @@ export default function SharePage() {
           <div className="mt-4 flex flex-col items-start gap-2">
             <Link
               href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold shadow-sm transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
               data-testid="share-wot-cta"
             >
               See in your Web of Trust <ArrowRight className="h-4 w-4" />
@@ -1088,7 +1088,7 @@ export default function SharePage() {
           <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-about">About Brainstorm</a>
         </div>
         {!loggedIn && (
-          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
+          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
         )}
@@ -1111,7 +1111,7 @@ export default function SharePage() {
         <button
           type="button"
           onClick={startCustomize}
-          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-[#3730a3] px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#312e81]"
+          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-[#6366f1] px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#4f46e5]"
           data-testid="customize-open"
         >
           <SlidersHorizontal className="h-4 w-4" /> Customize
@@ -1140,11 +1140,11 @@ function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?
           ) : (
             <Link href="/" className="flex items-center gap-2" data-testid="share-brand">
               <BrainLogo size={26} className="text-indigo-500" />
-              <span className="text-lg font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+              <span className="font-brand text-lg font-bold tracking-tight text-indigo-500">Brainstorm</span>
             </Link>
           )}
           {onShare && (
-            <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
+            <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
               Share
             </button>
           )}

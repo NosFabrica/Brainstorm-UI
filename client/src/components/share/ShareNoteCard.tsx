@@ -2,6 +2,8 @@ import { useState, useMemo, type MouseEvent } from "react";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -75,6 +77,8 @@ export function ShareNoteCard({
   addrByCoord,
   href,
   forceExpanded = false,
+  showAuthor = false,
+  authorScore,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
@@ -84,6 +88,12 @@ export function ShareNoteCard({
   href?: string;
   /** Show the full note with no "Show more" (used on the /e single-post view). */
   forceExpanded?: boolean;
+  /** Show a clickable author header (avatar + name) — for multi-author feeds
+   *  like the hashtag/topic page, where the poster isn't otherwise implied. */
+  showAuthor?: boolean;
+  /** Author's Web-of-Trust score (0..1) — drives the avatar's tier ring and the
+   *  trust hovercard in the author header. */
+  authorScore?: number | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
@@ -137,8 +147,72 @@ export function ShareNoteCard({
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
+  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
+  const authorProfile = profiles.get(event.pubkey);
+  const authorName = authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
+  const authorHandle = authorProfile?.nip05
+    ? authorProfile.nip05.replace(/^_@/, "@")
+    : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
+  const authorTier = typeof authorScore === "number" ? tierForScore(authorScore) : null;
+  const ringStyle = authorTier ? { boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${authorTier.ring}` } : undefined;
+
   return (
     <div data-testid="note-card" onClick={onCardClick} className={clickable}>
+      {showAuthor && (
+        <div className="mb-2.5 flex items-center gap-2.5" data-testid="note-author">
+          <HoverCard openDelay={150} closeDelay={80}>
+            <HoverCardTrigger asChild>
+              <div
+                role="link"
+                tabIndex={0}
+                data-noopen
+                onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
+                className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
+              >
+                <Avatar className="h-9 w-9 shrink-0 border border-slate-200" style={ringStyle}>
+                  {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline" data-testid="note-author-name">{authorName}</p>
+                  {authorHandle && <p className="truncate text-xs text-slate-500">{authorHandle}</p>}
+                </div>
+              </div>
+            </HoverCardTrigger>
+            {authorTier && typeof authorScore === "number" && (
+              <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" data-testid="note-author-trust">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10 shrink-0" style={ringStyle}>
+                    {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-900">{authorName}</p>
+                    {authorHandle && <p className="truncate text-xs text-slate-500">{authorHandle}</p>}
+                  </div>
+                </div>
+                <div
+                  className="mt-3 flex items-center gap-3 rounded-xl border p-2.5"
+                  style={{ borderColor: `${authorTier.color}40`, backgroundColor: `${authorTier.color}0d` }}
+                >
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-mono text-base font-bold tabular-nums"
+                    style={{ color: authorTier.color, backgroundColor: `${authorTier.color}1a` }}
+                  >
+                    {Math.round(authorScore * 100)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
+                    <p className="text-[11px] text-slate-500">Web of Trust score</p>
+                  </div>
+                </div>
+                <p className="mt-2.5 text-[11px] leading-snug text-slate-400">Ranked into this topic by trusted accounts — not follower counts.</p>
+              </HoverCardContent>
+            )}
+          </HoverCard>
+          <span className="ml-auto shrink-0 text-xs text-slate-400">{ago(event.created_at)}</span>
+        </div>
+      )}
       {a.isReply && replyTargets.length > 0 && (
         <p className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-xs text-slate-500 mb-1.5" data-testid="note-reply-context">
           <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
@@ -175,7 +249,7 @@ export function ShareNoteCard({
         <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
       ))}
 
-      <p className="mt-1.5 text-xs text-slate-400">{ago(event.created_at)}</p>
+      {!showAuthor && <p className="mt-1.5 text-xs text-slate-400">{ago(event.created_at)}</p>}
     </div>
   );
 }

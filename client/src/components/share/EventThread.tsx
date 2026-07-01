@@ -197,7 +197,7 @@ export function EventThread({
                 key={f.key}
                 type="button"
                 onClick={() => setMinTrust(f.min)}
-                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-[#3730a3] text-white" : "text-slate-500 hover:text-slate-800"}`}
+                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-[#6366f1] text-white" : "text-slate-500 hover:text-slate-800"}`}
                 data-testid={`thread-filter-${f.key}`}
               >
                 {f.label}
@@ -261,7 +261,7 @@ export function EventThread({
           </p>
           <Link
             href={loginHref}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
             data-testid="thread-gate-cta"
           >
             Create your free account <ArrowRight className="h-4 w-4" />

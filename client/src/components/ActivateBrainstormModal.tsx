@@ -289,7 +289,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -307,7 +307,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -336,7 +336,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     type="button"
                     onClick={handleActivate}
                     disabled={activateState === "signing" || activateState === "publishing"}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-confirm"
                   >
                   {activateState === "signing" ? (

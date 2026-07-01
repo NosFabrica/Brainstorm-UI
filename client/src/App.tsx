@@ -31,6 +31,7 @@ import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import DevelopersPage from "@/pages/DevelopersPage";
 import NostrPage from "@/pages/NostrPage";
+import HashtagPage from "@/pages/HashtagPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -105,6 +106,7 @@ function Router() {
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
+        <Route path="/t/:tag" component={HashtagPage} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />

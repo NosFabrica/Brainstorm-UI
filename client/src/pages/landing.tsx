@@ -15,7 +15,7 @@ import {
   Radar,
   Copy,
 } from "lucide-react";
-import { ComputingBackground } from "@/components/ComputingBackground";
+import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
@@ -371,6 +371,16 @@ export default function Landing() {
       return;
     }
 
+    // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a
+    // profile search). Everything else falls through to profile search.
+    if (q.startsWith("#")) {
+      const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
+      if (tag) {
+        setLocation(`/t/${encodeURIComponent(tag)}`);
+        return;
+      }
+    }
+
     if (isLikelyNpub(q)) {
       try {
         const decoded = nip19.decode(q);
@@ -558,8 +568,8 @@ export default function Landing() {
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
-      <ComputingBackground variant="light" />
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
+      <GlossBackground />
 
       {user ? (
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
@@ -588,14 +598,12 @@ export default function Landing() {
 
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-2 mb-1.5">
-              <BrainLogo size={32} clickable className="text-indigo-600" />
+              <BrainLogo size={32} clickable className="text-indigo-500" />
               <h1
-                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight"
+                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight text-indigo-500"
                 data-testid="text-home-title"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800">
-                  Brainstorm
-                </span>
+                Brainstorm
               </h1>
             </div>
             <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
@@ -605,7 +613,7 @@ export default function Landing() {
 
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/0 via-indigo-400/15 to-indigo-500/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="absolute -inset-1 bg-gradient-to-r from-[#7c86ff]/0 via-[#7c86ff]/15 to-[#7c86ff]/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 shrink-0" />
                 <div className="relative flex-1 min-w-0">
@@ -682,7 +690,7 @@ export default function Landing() {
                 <button
                   type="submit"
                   disabled={isSearching || !query.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-[#6366f1] hover:bg-[#4f46e5] rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (

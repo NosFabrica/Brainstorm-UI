@@ -128,7 +128,7 @@ export function ProfileCustomizer({
                   <span className="flex-1 truncate text-sm font-medium text-slate-800">{SECTION_LABELS[k]}</span>
                   <button type="button" onClick={() => moveActive(i, i - 1)} disabled={i === 0} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${k}`}><ChevronUp className="h-4 w-4" /></button>
                   <button type="button" onClick={() => moveActive(i, i + 1)} disabled={i === activeSections.length - 1} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${k}`}><ChevronDown className="h-4 w-4" /></button>
-                  <Switch checked={!isHidden(k)} onCheckedChange={(on) => setHidden(k, !on)} className="data-[state=checked]:bg-[#3730a3]" data-testid={`customize-toggle-${k}`} />
+                  <Switch checked={!isHidden(k)} onCheckedChange={(on) => setHidden(k, !on)} className="data-[state=checked]:bg-[#6366f1]" data-testid={`customize-toggle-${k}`} />
                 </div>
               ))}
               {emptySections.map((k) => (
@@ -152,7 +152,7 @@ export function ProfileCustomizer({
                   <div key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 bg-slate-50/60" : "border-slate-200 bg-white"}`} data-testid={`customize-row-${k}`}>
                     <span className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400" : "text-slate-800"}`}>{HERO_LABELS[k]}</span>
                     {empty && <span className="shrink-0 text-[11px] text-slate-400">Not set yet</span>}
-                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-[#3730a3]"} data-testid={`customize-toggle-${k}`} />
+                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-[#6366f1]"} data-testid={`customize-toggle-${k}`} />
                   </div>
                 );
               })}
@@ -215,7 +215,7 @@ export function ProfileCustomizer({
           {error ? <span className="truncate text-xs text-red-500">{error}</span> : <span className="text-xs text-slate-400">Saved to Nostr — you own it.</span>}
           <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#312e81] disabled:opacity-60" data-testid="customize-save">
+            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5] disabled:opacity-60" data-testid="customize-save">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
             </button>
           </div>

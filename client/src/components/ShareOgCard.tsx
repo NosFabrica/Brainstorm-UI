@@ -38,8 +38,8 @@ export function ShareOgCard({
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BrainLogo size={22} className="text-[#333286]" />
-            <span className="text-[3.2cqw] font-bold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
+            <BrainLogo size={22} className="text-indigo-500" />
+            <span className="text-[3.2cqw] font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
           </div>
           <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Web of Trust</span>
         </div>
