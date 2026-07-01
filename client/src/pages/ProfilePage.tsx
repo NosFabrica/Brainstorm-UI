@@ -636,7 +636,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 
   return (
     <div className="border-t border-slate-100 bg-slate-50/50">
-      <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-gradient-to-r from-white/80 via-indigo-50/20 to-white/80 backdrop-blur-sm">
+      <div className="px-3 py-2 space-y-2 border-b border-slate-200 bg-slate-50">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 mr-1">
             <ArrowUpDown className="h-3 w-3 text-slate-400" />
@@ -2113,7 +2113,7 @@ export default function ProfilePage() {
 
         {isLoading && (
           <div data-testid="panel-profile-skeleton">
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden">
               <div className="p-6 sm:p-8 animate-pulse">
                 <div className="flex items-start gap-4">
                   <div className="h-14 w-14 rounded-full bg-slate-200 shrink-0" />
@@ -2142,7 +2142,7 @@ export default function ProfilePage() {
 
         {!isLoading && loadError && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-profile-error">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden relative" data-testid="card-profile-error">
               <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-indigo-500/40 to-indigo-800/25" />
@@ -2174,7 +2174,7 @@ export default function ProfilePage() {
 
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
-            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
                   <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
@@ -2244,7 +2244,7 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
 
               <div className="relative overflow-hidden">
                 {/* Cover banner — matches the public /p page; fills the top space. */}
@@ -2635,7 +2635,7 @@ export default function ProfilePage() {
                   return (
                   <div className="space-y-5">
                     <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>

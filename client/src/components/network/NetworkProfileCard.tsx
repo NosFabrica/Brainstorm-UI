@@ -336,10 +336,9 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     const isRefreshing = expandedLoading && !detail;
     return (
       <div
-        className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl rounded-2xl border border-[#7c86ff]/20 shadow-[0_8px_30px_-12px_rgba(124,134,255,0.15)] overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
+        className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
         data-testid={`detail-panel-${pkShort}`}
       >
-        <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">

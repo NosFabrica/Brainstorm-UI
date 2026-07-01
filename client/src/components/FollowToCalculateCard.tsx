@@ -7,7 +7,7 @@ import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { getCurrentUser, fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -185,7 +185,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
                 >
                   <Avatar className="h-4 w-4 rounded-full">
                     {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-                    <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-bold">{initialsFor(name)}</AvatarFallback>
+                    <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
                   {name} <X className="h-3 w-3 text-slate-400" />
                 </button>

@@ -49,9 +49,8 @@ export default function OnboardingPage() {
             style={{ animation: 'fadeInUp 0.5s ease-out 0.1s both' }}
           >
             <h1
-              className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent leading-tight"
+              className="font-brand text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white via-indigo-200 to-indigo-300 bg-clip-text text-transparent leading-tight"
               data-testid="text-onboarding-title"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Get Started with Brainstorm
             </h1>

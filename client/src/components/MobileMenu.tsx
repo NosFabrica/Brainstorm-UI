@@ -93,7 +93,7 @@ function NavButton({
         }
       />
       {item.special ? (
-        <span className="bg-gradient-to-r from-cyan-300 to-indigo-300 bg-clip-text text-transparent">{item.label}</span>
+        <span className="bg-gradient-to-r from-[#7c86ff] to-indigo-300 bg-clip-text text-transparent">{item.label}</span>
       ) : item.label}
     </Button>
   );

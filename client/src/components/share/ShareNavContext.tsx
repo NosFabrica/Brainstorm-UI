@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -99,14 +99,14 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
               {isProfile && intent?.picture ? (
                 <Avatar className="h-10 w-10 rounded-xl border border-[#7c86ff]/20 mb-3">
                   <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
-                  <AvatarFallback className="rounded-xl bg-[#7c86ff]/10 text-[#333286] text-sm font-bold">{initialsFor(intent.label)}</AvatarFallback>
+                  <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
               ) : (
                 <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] mb-3">
                   {isProfile ? <UserRound className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </div>
               )}
-              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                 {isProfile ? "View this profile on Brainstorm?" : "Explore on Brainstorm?"}
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">

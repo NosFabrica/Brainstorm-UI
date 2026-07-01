@@ -55,7 +55,7 @@ export function ShareOgCard({
           <div className="min-w-0">
             <div className="text-[6.5cqw] font-bold leading-tight truncate text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{displayName}</div>
             {nip05 && (
-              <div className="flex items-center gap-1 text-[3.4cqw] text-sky-600 font-medium mt-[0.6cqw]">
+              <div className="flex items-center gap-1 text-[3.4cqw] text-[#3730a3] font-medium mt-[0.6cqw]">
                 <BadgeCheck className="h-[3.4cqw] w-[3.4cqw]" /> {nip05.replace(/^_@/, "")}
               </div>
             )}

@@ -200,7 +200,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                 <div className="min-w-0 flex-1">
                   <DialogTitle
                     className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "var(--font-display)" }}
                     data-testid="text-activate-title"
                   >
                     Select Brainstorm as your Web of Trust Service Provider
@@ -252,7 +252,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
               <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors" data-testid="link-modal-amethyst">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-[#3730a3] text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Play } from "lucide-react";
+import { usePipAwareAutoStop } from "@/lib/audioPlayer";
 
 /**
  * A teaser video tile: shows the poster/first frame with a clean play overlay
@@ -9,6 +10,7 @@ import { Play } from "lucide-react";
 export function ShareVideo({ url, poster, title }: { url: string; poster?: string; title?: string }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
+  usePipAwareAutoStop(ref);
 
   const start = () => {
     setPlaying(true);

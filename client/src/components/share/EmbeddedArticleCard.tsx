@@ -1,9 +1,10 @@
-import { type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { FileText, BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { naddrForEvent } from "@/lib/articleLinks";
+import articleDefault from "@/assets/article-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
@@ -31,6 +32,10 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
   const title = tagVal(event, "title") || "Untitled article";
   const summary = tagVal(event, "summary") || "";
   const image = tagVal(event, "image");
+  // Fall back to the branded Brainstorm cover when an article has no image or
+  // its image URL fails to load (dead host, hotlink block, etc.).
+  const [imgBroken, setImgBroken] = useState(false);
+  const coverSrc = !image || imgBroken ? articleDefault : image;
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
@@ -54,18 +59,13 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
       onClick={onCardClick}
     >
       <div className="flex flex-col sm:flex-row">
-        {image ? (
-          <img
-            src={image}
-            alt=""
-            loading="lazy"
-            className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0"
-          />
-        ) : (
-          <div className="h-24 w-full sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-indigo-50 border-b sm:border-b-0 sm:border-r border-slate-200 flex items-center justify-center">
-            <FileText className="h-7 w-7 text-indigo-400" />
-          </div>
-        )}
+        <img
+          src={coverSrc}
+          alt=""
+          loading="lazy"
+          onError={() => setImgBroken(true)}
+          className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100"
+        />
 
         <div className="min-w-0 flex-1 p-3">
           <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-indigo-500">
@@ -77,7 +77,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
             <Avatar className="h-4 w-4 rounded-full bg-white border border-slate-200">
               {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
-              <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-bold">{initialsFor(name)}</AvatarFallback>
+              <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
             </Avatar>
             <span className="font-medium text-slate-600 truncate">{name}</span>
             {author?.nip05 && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}

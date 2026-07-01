@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByFilter, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
-import type { MinimalEvent } from "@/lib/noteRefs";
+import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -56,8 +56,31 @@ export function MoreFromAuthor({
     return pick.sort((a, b) => b.created_at - a.created_at).slice(0, 4);
   }, [q.data, excludeId]);
 
+  // Resolve any @-mentioned pubkeys in these notes so they render as names, not
+  // raw npubs (the author themselves is already in the map below).
+  const mentionPks = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of notes) mentionPubkeysFromContent(n.content || "").forEach((pk) => set.add(pk));
+    set.delete(pubkey);
+    return Array.from(set);
+  }, [notes, pubkey]);
+
+  const mentionProfilesQuery = useQuery({
+    queryKey: ["more-from-mentions", mentionPks.join(",")],
+    queryFn: () => fetchProfileMap(mentionPks),
+    enabled: mentionPks.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const profiles = useMemo(() => {
+    const m = new Map<string, ProfileLite>([[pubkey, author ?? {}]]);
+    const resolved = mentionProfilesQuery.data;
+    if (resolved) for (const [pk, p] of resolved) m.set(pk, p as ProfileLite);
+    return m;
+  }, [pubkey, author, mentionProfilesQuery.data]);
+
   if (!notes.length) return null;
-  const profiles = new Map<string, ProfileLite>([[pubkey, author ?? {}]]);
 
   return (
     <section className="mt-8" data-testid="more-from-author">

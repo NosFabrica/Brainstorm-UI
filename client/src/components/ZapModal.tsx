@@ -169,7 +169,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       >
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
               <FlashIcon className="h-4 w-4 text-yellow-400" /> {recipientSupportsZaps ? "Send a Zap" : "Send sats"}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">

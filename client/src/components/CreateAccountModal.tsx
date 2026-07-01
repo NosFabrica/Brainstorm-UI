@@ -74,7 +74,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
           <DialogHeader>
             <DialogTitle
               className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-create-title"
             >
               {state === "success" ? "You're all set!" : "Let's set up your account"}

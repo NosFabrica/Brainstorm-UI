@@ -55,7 +55,7 @@ export default function PageBackground() {
           style={{ animation: "pageBlobB 32s ease-in-out infinite 2s" }}
         />
         <div
-          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/15 blur-[110px]"
+          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-[#7c86ff]/15 blur-[110px]"
           style={{ animation: "pageBlobC 24s ease-in-out infinite 5s" }}
         />
       </div>

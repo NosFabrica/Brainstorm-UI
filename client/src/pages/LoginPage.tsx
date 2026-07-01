@@ -156,7 +156,7 @@ export default function LoginPage() {
             </div>
             <span
               className="text-2xl font-bold tracking-tight text-white"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Brainstorm
             </span>
@@ -164,7 +164,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative z-10 max-w-md">
-          <h1 className="text-4xl font-semibold mb-6 leading-tight text-white/90">
+          <h1 className="font-brand text-4xl font-semibold mb-6 leading-tight text-white/90">
             Trust is earned. <br />
             <span className="text-white">Now it's visible.</span>
           </h1>
@@ -184,7 +184,7 @@ export default function LoginPage() {
             <BrainLogo size={30} className="text-indigo-600" />
             <span
               className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 to-indigo-500"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "var(--font-display)" }}
             >
               Brainstorm
             </span>

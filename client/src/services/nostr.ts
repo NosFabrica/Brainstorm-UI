@@ -627,6 +627,68 @@ export async function publishAssistantPointer(
   }
 }
 
+// NIP-78 application-specific data: a user's PUBLIC-PROFILE personalization —
+// what to hide, the section order, hand-picked "Followed by" people, and roles —
+// stored under their own pubkey so they own it and it's portable across clients.
+export const PROFILE_PREFS_D_TAG = "brainstorm.world/profile-prefs";
+
+/** Fetch the latest published profile-prefs JSON for a pubkey (or null). The
+ *  caller coerces it via `parseProfilePrefs`. Readable by anyone — drives what
+ *  every visitor sees on the owner's /p page. */
+export async function fetchProfilePrefs(
+  pubkey: string,
+  timeoutMs = 8000,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const newest = await new Promise<any | null>((resolve) => {
+      let best: any = null;
+      const sub = pool.request(relays, {
+        kinds: [30078],
+        authors: [pubkey],
+        "#d": [PROFILE_PREFS_D_TAG],
+      }).subscribe({
+        next: (event: any) => {
+          try { eventStore.add(event); } catch {}
+          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) best = event;
+        },
+        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
+        complete: () => resolve(best),
+      });
+      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
+    });
+    if (!newest) return null;
+    try { return JSON.parse((newest as any).content || "{}"); } catch { return null; }
+  } catch {
+    return null;
+  }
+}
+
+/** Publish (sign + relay) the logged-in user's profile-prefs as a kind-30078
+ *  event under their own key. */
+export async function publishProfilePrefs(
+  prefs: unknown,
+): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  if (!window.nostr && !hasLocalSecretKey()) {
+    return { success: false, error: "No signer available" };
+  }
+  const event = {
+    kind: 30078,
+    tags: [["d", PROFILE_PREFS_D_TAG]],
+    content: JSON.stringify(prefs),
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+  try {
+    const signed = await signEventLocally(event);
+    return await publishToRelays(signed);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+  }
+}
+
 export async function fetchProfileEvent(
   pubkey: string,
   timeoutMs = 10000,
@@ -715,6 +777,23 @@ export async function fetchProfileForShare(
 }
 
 /**
+ * NIP-39 external identity claims from a kind-0 event — the `i` tags, e.g.
+ * `["i", "github:alice", "<proof>"]`. Returns the raw `platform:identity`
+ * claim strings (parsed for display by `lib/externalIdentity`). Reuses the
+ * cached kind-0 event, so it piggybacks on the share-page profile fetch.
+ */
+export async function fetchExternalIdentities(
+  pubkey: string,
+  opts: { relayHints?: string[]; timeoutMs?: number } = {},
+): Promise<string[]> {
+  const event = await fetchProfileEvent(pubkey, opts.timeoutMs ?? 10000, opts.relayHints ?? []);
+  if (!event) return [];
+  return (event.tags || [])
+    .filter((t) => t[0] === "i" && typeof t[1] === "string" && t[1].includes(":"))
+    .map((t) => t[1] as string);
+}
+
+/**
  * Fetch the most recent events of the given kinds for an author, newest first.
  * Generic relay query feeding the share page's content "teaser" blocks (notes,
  * photos, articles, …). Merges the author's outbox relays with optional
@@ -756,6 +835,63 @@ export async function fetchRecentByKinds(
       error: () => finish(),
       complete: () => finish(),
     });
+  });
+}
+
+/**
+ * Fetch a profile's NIP-53 live events (kind 30311). Unlike other content these
+ * are usually authored by the streaming PLATFORM (zap.stream, etc.) with the
+ * streamer referenced via a `p`-tag "host" — so we query BOTH `authors` and
+ * `#p`, and add the zap.stream relay where most live events live. De-duped to
+ * the latest per addressable coordinate.
+ */
+export async function fetchLiveStreams(
+  pubkey: string,
+  opts: { relayHints?: string[]; timeoutMs?: number } = {},
+): Promise<NostrEvent[]> {
+  const timeoutMs = opts.timeoutMs ?? 8000;
+  // Live events are authored by the streaming PLATFORM, so they live on common
+  // relays + the streaming relay — NOT (only) the streamer's own outbox. Always
+  // include the big shared relays so a platform-hosted stream is found.
+  const relays = Array.from(new Set([
+    ...PROFILE_RELAYS,
+    ...loadOutboxRelayListFromDb(pubkey, []),
+    ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
+    "wss://relay.zap.stream/",
+    "wss://relay.nostr.band/",
+  ]));
+
+  return new Promise<NostrEvent[]>((resolve) => {
+    const collected = new Map<string, NostrEvent>();
+    let done = false;
+    let completed = 0;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { subA.unsubscribe(); } catch {}
+      try { subP.unsubscribe(); } catch {}
+      // Keep the latest version per addressable coordinate (kind:pubkey:d).
+      const byCoord = new Map<string, NostrEvent>();
+      for (const ev of collected.values()) {
+        const d = ev.tags.find((t) => t[0] === "d")?.[1] || "";
+        const coord = `${ev.kind}:${ev.pubkey}:${d}`;
+        const prev = byCoord.get(coord);
+        if (!prev || (ev.created_at || 0) > (prev.created_at || 0)) byCoord.set(coord, ev);
+      }
+      resolve(Array.from(byCoord.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 8));
+    };
+
+    const onComplete = () => { if (++completed >= 2) finish(); };
+    const handler = {
+      next: (event: unknown) => { try { eventStore.add(event as NostrEvent); } catch {} collected.set((event as NostrEvent).id, event as NostrEvent); },
+      error: onComplete,
+      complete: onComplete,
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const subA = pool.request(relays, { kinds: [30311], authors: [pubkey], limit: 8 }).subscribe(handler);
+    const subP = pool.request(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }).subscribe(handler);
   });
 }
 

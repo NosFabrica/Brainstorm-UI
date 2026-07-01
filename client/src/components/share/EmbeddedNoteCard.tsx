@@ -5,7 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { npubFromPubkey } from "@/lib/shareId";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
@@ -66,7 +66,7 @@ export function EmbeddedNoteCard({
         <a href={npub ? `/p/${npub}` : undefined} className="flex items-center gap-2 min-w-0 hover:opacity-80">
           <Avatar className="h-6 w-6 rounded-full bg-white border border-slate-200">
             {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">{initialsFor(name)}</AvatarFallback>
+            <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
           <span className="text-sm font-semibold text-slate-900 truncate">{name}</span>
           {author?.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}

@@ -43,7 +43,7 @@ export function FaqSection({ mode }: { mode: UserMode }) {
               <div className="relative z-10 text-center mb-8">
                 <h2 
                   className="text-2xl font-bold bg-gradient-to-r from-white via-indigo-200 to-violet-200 bg-clip-text text-transparent mb-3"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Frequently Asked Questions
                 </h2>

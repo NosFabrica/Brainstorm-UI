@@ -11,6 +11,8 @@ import { collectRefs, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AudioHero } from "@/components/share/AudioHero";
+import { EventHero } from "@/components/share/EventHero";
+import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -105,7 +107,12 @@ export default function EventPage() {
     retry: false,
   });
   const note = eventQuery.data as MinimalEvent | null | undefined;
-  const authorPk = note?.pubkey || ptr?.author || "";
+  // Live events (kind 30311) are authored by the streaming platform — the WoT
+  // row should be the streamer (the `p`-tagged host), not the platform.
+  const liveHost = note?.kind === 30311
+    ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
+    : undefined;
+  const authorPk = liveHost || note?.pubkey || ptr?.author || "";
   const isArticle = note?.kind === 30023;
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
@@ -338,8 +345,12 @@ export default function EventPage() {
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm" data-testid="event-note">
-              {note.kind === 31337 ? (
+              {note.kind === 30311 ? (
+                <LiveHero event={note} />
+              ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
+              ) : note.kind === 31922 || note.kind === 31923 ? (
+                <EventHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
               ) : (

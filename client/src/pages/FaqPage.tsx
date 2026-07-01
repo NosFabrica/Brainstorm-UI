@@ -103,8 +103,7 @@ export default function FaqPage() {
                 <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Brainstorm FAQ</p>
               </div>
               <h1
-                className="text-3xl font-bold text-slate-900 tracking-tight"
-                style={{ fontFamily: "var(--font-display)" }}
+                className="font-brand text-3xl font-bold text-slate-900 tracking-tight"
                 data-testid="text-faq-title"
               >
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
@@ -144,12 +143,9 @@ export default function FaqPage() {
             </div>
 
             <div
-              className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative group"
+              className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative group"
             >
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
-
-              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+              <div className="bg-slate-50 border-b border-slate-200 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                     <HelpCircle className="h-4 w-4 text-[#333286]" />

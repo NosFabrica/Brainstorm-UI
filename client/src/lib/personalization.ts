@@ -1,4 +1,4 @@
-import { EMPTY_PERSONALIZATION, type PersonalizationPrefs } from "@/config/personalization";
+import { EMPTY_PERSONALIZATION, EMPTY_PROFILE_PREFS, type PersonalizationPrefs, type ProfilePrefs } from "@/config/personalization";
 
 /**
  * Local (per-account) persistence for the Personalization preview. Pure
@@ -30,5 +30,54 @@ export function savePersonalization(pubkey: string, prefs: PersonalizationPrefs)
     localStorage.setItem(personalizationKey(pubkey), JSON.stringify(prefs));
   } catch {
     // storage unavailable; ignore (preview-only)
+  }
+}
+
+// --- Public-profile prefs (user-owned, published to Nostr) -----------------
+
+const arrOfStrings = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+
+/** Coerce arbitrary JSON (from a kind-30078 event or a draft) into ProfilePrefs. */
+export function parseProfilePrefs(raw: unknown): ProfilePrefs {
+  if (!raw || typeof raw !== "object") return { ...EMPTY_PROFILE_PREFS };
+  const p = raw as Partial<ProfilePrefs>;
+  return {
+    v: 1,
+    hidden: arrOfStrings(p.hidden),
+    order: arrOfStrings(p.order),
+    pinnedFollowers: arrOfStrings(p.pinnedFollowers),
+    roles: arrOfStrings(p.roles),
+  };
+}
+
+// A local DRAFT cache so the inline editor stays snappy and survives a refresh
+// before the user hits Save (which is what actually publishes to Nostr).
+const prefsDraftKey = (pubkey: string) => `brainstorm_profile_prefs_draft:${pubkey}`;
+
+export function loadProfilePrefsDraft(pubkey: string): ProfilePrefs | null {
+  if (!pubkey) return null;
+  try {
+    const raw = localStorage.getItem(prefsDraftKey(pubkey));
+    return raw ? parseProfilePrefs(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveProfilePrefsDraft(pubkey: string, prefs: ProfilePrefs): void {
+  if (!pubkey) return;
+  try {
+    localStorage.setItem(prefsDraftKey(pubkey), JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearProfilePrefsDraft(pubkey: string): void {
+  try {
+    localStorage.removeItem(prefsDraftKey(pubkey));
+  } catch {
+    // ignore
   }
 }

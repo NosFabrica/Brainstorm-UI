@@ -1,5 +1,6 @@
 import { Music as MusicIcon, Play, Pause, Loader2, AlertCircle } from "lucide-react";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime, audioUrlFromEvent } from "@/lib/audioPlayer";
+import audioDefault from "@/assets/audio-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 const tagVal = (ev: MinimalEvent, k: string) => ev.tags.find((t) => t[0] === k)?.[1];
@@ -35,13 +36,13 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         {/* Cover */}
         <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-[#333286]/10 sm:h-44 sm:w-44">
-          {cover ? (
-            <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <MusicIcon className="h-10 w-10 text-[#333286]" />
-            </div>
-          )}
+          <img
+            src={cover || audioDefault}
+            alt=""
+            loading="lazy"
+            onError={(e) => { if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault; }}
+            className="h-full w-full object-cover"
+          />
         </div>
 
         {/* Title, artist, genre, player */}

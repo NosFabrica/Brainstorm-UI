@@ -4,7 +4,7 @@
 // it" via useSyncExternalStore. Framework-free; the React layer is the hook at
 // the bottom.
 
-import { useSyncExternalStore, useState, useEffect } from "react";
+import { useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 export type TrackStatus = "idle" | "loading" | "playing" | "paused" | "error";
@@ -116,6 +116,62 @@ export function toggleTrack(id: string, src: string) {
  *  route changes — inline media is tied to its page (X / Facebook / LinkedIn). */
 export function pausePlayback() {
   if (audio && !audio.paused) audio.pause(); // the 'pause' listener sets status + emits
+}
+
+/**
+ * Hard-stop every kind of inline media at once: the shared audio track, any
+ * `<video>`/`<audio>` element still in the DOM, and an active Picture-in-Picture
+ * window. PiP (and, in some browsers, a detached media element) keeps playing
+ * across a client-side route change unless it's explicitly closed — so this is
+ * called on every navigation to guarantee leaving a page stops the sound, the
+ * way X and YouTube behave when there's no dedicated mini-player.
+ */
+export function stopAllMedia() {
+  pausePlayback();
+  if (typeof document === "undefined") return;
+  // A Picture-in-Picture video is a deliberate mini-player: it persists across
+  // the app (YouTube / Google standard) until the user closes it. So we never
+  // exit PiP here — we just pause every OTHER playing media element.
+  try {
+    const pip = document.pictureInPictureElement;
+    document.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => {
+      if (m !== pip && !m.paused) m.pause();
+    });
+  } catch { /* ignore */ }
+}
+
+/**
+ * Picture-in-Picture-aware cleanup for a `<video>`. On unmount (navigation): if
+ * the video is playing in PiP, LEAVE IT RUNNING so the user can keep watching +
+ * hearing it with full controls while they browse the rest of the app (YouTube /
+ * Google standard); otherwise pause it so leaving the page stops the sound.
+ * Closing the PiP window always stops playback — even after navigation, when the
+ * element is detached from this page (the listener rides along with the element).
+ * `onClose` runs extra teardown on PiP close (e.g. destroying an HLS instance).
+ */
+export function usePipAwareAutoStop(ref: RefObject<HTMLVideoElement | null>, onClose?: () => void) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const v = ref.current; // captured at mount
+    if (!v) return;
+    const onLeavePiP = () => {
+      // "Back to tab" returns the video to a page that's still open — let it keep
+      // playing inline. Closing PiP after navigating away leaves the element
+      // detached from any page, so stop it (and tear down e.g. HLS).
+      if (document.contains(v)) return;
+      try { if (!v.paused) v.pause(); } catch { /* ignore */ }
+      try { onCloseRef.current?.(); } catch { /* ignore */ }
+    };
+    v.addEventListener("leavepictureinpicture", onLeavePiP);
+    return () => {
+      // Persist across navigation while in PiP: keep the element + its
+      // leavepictureinpicture listener alive so closing PiP later still stops it.
+      if (document.pictureInPictureElement === v) return;
+      v.removeEventListener("leavepictureinpicture", onLeavePiP);
+      try { if (!v.paused) v.pause(); } catch { /* ignore */ }
+    };
+  }, [ref]);
 }
 
 /** Seek the active track to a 0–1 fraction of its duration. */

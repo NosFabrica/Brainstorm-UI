@@ -284,8 +284,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
       <div
         className={`${containerClass} border border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
           dragOver
-            ? "border-cyan-400 bg-cyan-500/10"
-            : "border-white/15 hover:border-cyan-500/40 hover:bg-white/[0.03]"
+            ? "border-[#7c86ff] bg-[#7c86ff]/10"
+            : "border-white/15 hover:border-[#7c86ff]/40 hover:bg-white/[0.03]"
         }`}
         onClick={() => !uploading && inputRef.current?.click()}
         onDrop={handleDrop}
@@ -294,7 +294,7 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
         data-testid={`upload-${aspect}`}
       >
         {uploading ? (
-          <Loader2 className="h-4 w-4 text-cyan-400 animate-spin" />
+          <Loader2 className="h-4 w-4 text-[#7c86ff] animate-spin" />
         ) : (
           <>
             <ImageIcon className="h-4 w-4 text-slate-500" />

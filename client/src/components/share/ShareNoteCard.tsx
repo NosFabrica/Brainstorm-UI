@@ -1,14 +1,15 @@
-import { useState, type MouseEvent } from "react";
+import { useState, useMemo, type MouseEvent } from "react";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
+import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
 import { npubFromPubkey, eventPath } from "@/lib/shareId";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 /**
  * Click anywhere on a card to open it, EXCEPT on real interactive descendants
@@ -54,7 +55,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
     >
       <Avatar className="h-4 w-4 rounded-full bg-white border border-slate-200">
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-bold">{initialsFor(name)}</AvatarFallback>
+        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
       <span className="text-indigo-600 font-medium">@{name}</span>
     </button>
@@ -126,7 +127,14 @@ export function ShareNoteCard({
   const replyTargets = a.replyToPubkeys.filter((pk) => pk !== event.pubkey);
   const quoted = a.quoteIds.map((id) => eventsById.get(id)).filter(Boolean) as MinimalEvent[];
 
-  const isLong = (event.content?.length ?? 0) > LONG_NOTE_CHARS;
+  // Notes with media (video/image/audio) always render expanded — collapsing a
+  // post behind "Show more" would cut off its video/image. Only long text-only
+  // notes get the height clamp.
+  const hasMedia = useMemo(
+    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    [event.content],
+  );
+  const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
   return (

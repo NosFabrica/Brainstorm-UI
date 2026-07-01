@@ -230,8 +230,7 @@ export default function HowSearchWorksPage() {
               <div className="h-px w-12 bg-[#7c86ff]/40" />
             </div>
             <h1
-              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
-              style={{ fontFamily: "var(--font-display)" }}
+              className="font-brand text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               data-testid="text-hsw-title"
             >
               How Brainstorm finds the <span className="text-[#333286]">real people</span>.

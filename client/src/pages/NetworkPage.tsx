@@ -1191,7 +1191,7 @@ export default function NetworkPage() {
           style={{ animation: "networkBlobB 32s ease-in-out infinite 2s" }}
         />
         <div
-          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/15 blur-[110px]"
+          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-[#7c86ff]/15 blur-[110px]"
           style={{ animation: "networkBlobC 24s ease-in-out infinite 5s" }}
         />
       </div>
@@ -1291,12 +1291,10 @@ export default function NetworkPage() {
           </div>
 
           <Card
-            className="bg-white/90 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative"
+            className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
             data-testid="card-network-filters"
           >
-            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
-
-            <CardHeader className="relative bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
+            <CardHeader className="relative bg-slate-50 border-b border-slate-200 py-4 px-5">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">

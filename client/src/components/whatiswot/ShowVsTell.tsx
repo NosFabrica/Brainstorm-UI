@@ -98,7 +98,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                 </motion.div>
                 <h2 
                   className="text-2xl md:text-3xl lg:text-4xl font-bold text-white"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Show <span className="text-slate-500 font-normal mx-1 md:mx-2">vs</span> Tell
                 </h2>

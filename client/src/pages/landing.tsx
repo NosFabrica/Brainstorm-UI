@@ -20,6 +20,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { queryClient } from "@/lib/queryClient";
@@ -589,8 +590,7 @@ export default function Landing() {
             <div className="flex items-center gap-2 mb-1.5">
               <BrainLogo size={32} clickable className="text-indigo-600" />
               <h1
-                className="text-3xl sm:text-4xl font-bold tracking-tight"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight"
                 data-testid="text-home-title"
               >
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800">
@@ -729,8 +729,8 @@ export default function Landing() {
                         >
                           <Avatar className="h-8 w-8 border border-slate-200/80 shrink-0">
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
-                            <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-xs">
-                              {(s.name || s.displayName || "?").charAt(0).toUpperCase()}
+                            <AvatarFallback className="overflow-hidden">
+                              <DefaultAvatarImg />
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
@@ -903,8 +903,8 @@ export default function Landing() {
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
                       <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
-                          {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
+                        <AvatarFallback className="overflow-hidden">
+                          <DefaultAvatarImg />
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">

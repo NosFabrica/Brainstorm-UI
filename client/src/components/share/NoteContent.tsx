@@ -4,6 +4,7 @@ import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { AutoStopVideo } from "@/components/share/AutoStopVideo";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -94,7 +95,7 @@ export function NoteContent({
             );
           case "video":
             return (
-              <video key={i} src={token.value} controls preload="metadata" className={`mt-2 rounded-xl border border-slate-200 bg-black object-contain w-full ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`} />
+              <AutoStopVideo key={i} src={token.value} controls preload="metadata" className={`mt-2 rounded-xl border border-slate-200 bg-black object-contain w-full ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`} />
             );
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);

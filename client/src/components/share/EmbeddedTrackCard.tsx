@@ -1,8 +1,9 @@
 import { type MouseEvent } from "react";
 import { useLocation } from "wouter";
-import { Music as MusicIcon, Play, Pause, Loader2, AlertCircle } from "lucide-react";
+import { Play, Pause, Loader2, AlertCircle } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
+import audioDefault from "@/assets/audio-default.webp";
 
 /** A small "now playing" equalizer — bars bounce while playing, freeze on pause. */
 function Equalizer({ playing }: { playing: boolean }) {
@@ -90,13 +91,13 @@ export function EmbeddedTrackCard({
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"
       >
-        {cover ? (
-          <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[#333286]/10">
-            <MusicIcon className="h-5 w-5 text-[#333286]" />
-          </div>
-        )}
+        <img
+          src={cover || audioDefault}
+          alt=""
+          loading="lazy"
+          onError={(e) => { if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault; }}
+          className="h-full w-full bg-[#333286]/10 object-cover"
+        />
         {playable && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#3730a3] shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105">

@@ -129,7 +129,7 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
               <div className="relative z-10 text-center">
                 <h2 
                   className="text-xl font-bold text-white mb-2"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Ready to explore your trust network?
                 </h2>

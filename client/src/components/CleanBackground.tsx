@@ -13,7 +13,7 @@ export function CleanBackground() {
 
       {/* Quiet color depth at the lower corners */}
       <div className="absolute -bottom-[25%] -left-[15%] w-[60%] h-[60%] rounded-full bg-indigo-200/25 blur-[150px]" />
-      <div className="absolute top-[15%] -right-[20%] w-[55%] h-[55%] rounded-full bg-violet-200/20 blur-[150px]" />
+      <div className="absolute top-[15%] -right-[20%] w-[55%] h-[55%] rounded-full bg-[#7c86ff]/20 blur-[150px]" />
 
       {/* Gentle bottom fade to keep content grounded */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/70" />

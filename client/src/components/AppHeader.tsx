@@ -145,8 +145,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
               >
                 <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
                 <span
-                  className="text-lg sm:text-xl font-bold tracking-tight text-white"
-                  style={{ fontFamily: "var(--font-display)" }}
+                  className="font-brand text-lg sm:text-xl font-bold tracking-tight text-white"
                   data-testid="text-logo"
                 >
                   Brainstorm
@@ -171,7 +170,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
-                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-indigo-500 via-violet-500 to-fuchsia-500 shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-indigo-400 group-hover:via-violet-400 group-hover:to-fuchsia-400 group-hover:shadow-[0_0_16px_2px_rgba(139,92,246,0.55)]">
+                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-[#333286] via-[#7c86ff] to-[#333286] shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-[#3730a3] group-hover:via-[#7c86ff] group-hover:to-[#3730a3] group-hover:shadow-[0_0_16px_2px_rgba(124,134,255,0.5)]">
                       <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC]" : "bg-slate-950")}>
                         <Avatar className="h-9 w-9 shadow-sm" data-testid="img-user-avatar">
                           {user.picture ? (

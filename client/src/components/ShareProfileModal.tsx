@@ -60,7 +60,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
       >
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
               {invite ? "Invite to Brainstorm" : "Share this profile"}
             </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">

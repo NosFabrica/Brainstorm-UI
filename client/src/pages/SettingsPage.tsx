@@ -56,6 +56,7 @@ import {
   Key,
   AlertTriangle,
   IdCard,
+  SlidersHorizontal,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
@@ -68,8 +69,6 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
-import { CONTENT_TYPES, ROLES, type PersonalizationPrefs } from "@/config/personalization";
-import { loadPersonalization, savePersonalization } from "@/lib/personalization";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
@@ -217,18 +216,6 @@ export default function SettingsPage() {
   const pubkey = user?.pubkey ?? "";
   const backupFlag = pubkey ? `brainstorm_backup_done:${pubkey}` : "";
 
-  // Personalization (preview): saved per-account in localStorage; multi-select.
-  const [personalization, setPersonalization] = useState<PersonalizationPrefs>(() => loadPersonalization(pubkey));
-  const togglePersonalization = (field: "contentTypes" | "roles", key: string) => {
-    setPersonalization((prev) => {
-      const set = new Set(prev[field]);
-      if (set.has(key)) set.delete(key);
-      else set.add(key);
-      const next = { ...prev, [field]: Array.from(set) };
-      savePersonalization(pubkey, next);
-      return next;
-    });
-  };
   const [backupMode, setBackupMode] = useState(false);
   const [backupPass, setBackupPass] = useState("");
   const [backupConfirm, setBackupConfirm] = useState("");
@@ -423,7 +410,7 @@ export default function SettingsPage() {
   // PROFILE TAB
   // ─────────────────────────────────────────────────────────────────────────
   const profileCard = (
-    <div className="rounded-2xl bg-white border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="card-settings-profile">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-profile">
       <ProfileEditForm
         onSaved={() => toast({ title: "Profile saved", description: "Your profile has been published.", duration: 3000 })}
       />
@@ -431,9 +418,7 @@ export default function SettingsPage() {
   );
 
   const accountCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="card-settings-account">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-account">      <div className="border-b border-slate-200 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-[#333286]" />
@@ -620,9 +605,7 @@ export default function SettingsPage() {
   // TRUST TAB
   // ─────────────────────────────────────────────────────────────────────────
   const serviceProviderCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative h-full flex flex-col" data-testid="card-settings-service-provider">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-service-provider">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
             <BrainLogo size={18} className="text-[#333286]" />
@@ -692,7 +675,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 transition-colors">Amethyst</a>
+                  <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors">Amethyst</a>
                   <span className="text-[10px] text-slate-500">&middot;</span>
                   <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
                 </div>
@@ -881,9 +864,7 @@ export default function SettingsPage() {
   );
 
   const trustCalcCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative h-full flex flex-col" data-testid="card-settings-graperank">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-graperank">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#333286]">
@@ -1075,9 +1056,7 @@ export default function SettingsPage() {
   );
 
   const presetsCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="card-settings-presets">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-presets">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#333286]">
@@ -1147,9 +1126,7 @@ export default function SettingsPage() {
   );
 
   const personalizationCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="card-settings-personalization">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-personalization">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
             <IdCard className="h-4 w-4 text-[#333286]" />
@@ -1157,76 +1134,28 @@ export default function SettingsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-personalization-title">Personalization</h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[9px] font-bold uppercase tracking-widest text-[#333286]" data-testid="badge-personalization-preview">
-                <span className="h-1 w-1 rounded-full bg-[#7c86ff]" /> Preview · coming soon
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-bold uppercase tracking-widest text-emerald-700" data-testid="badge-personalization-preview">
+                <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
               </span>
             </div>
             <p className="text-xs text-slate-500" data-testid="text-personalization-subtitle">Highlight what you share and what you do</p>
           </div>
         </div>
+        {user?.npub && (
+          <button
+            type="button"
+            onClick={() => navigate(`/p/${user.npub}`)}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#3730a3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#312e81]"
+            data-testid="link-customize-profile"
+          >
+            <SlidersHorizontal className="h-4 w-4" /> Customize your public profile
+          </button>
+        )}
       </div>
 
-      <div className="p-5 space-y-5">
+      <div className="p-5">
         <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-personalization-desc">
-          Choose the content you want to surface and the roles you play — this shapes your public profile and helps people find you. You can highlight what's relevant; nothing is hidden from Brainstorm's transparency layer.
-        </p>
-
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What you share</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" data-testid="row-personalization-content">
-            {CONTENT_TYPES.map((ct) => {
-              const active = personalization.contentTypes.includes(ct.key);
-              return (
-                <button
-                  key={ct.key}
-                  type="button"
-                  onClick={() => togglePersonalization("contentTypes", ct.key)}
-                  aria-pressed={active}
-                  className={
-                    "inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 " +
-                    (active
-                      ? "border-[#7c86ff]/40 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20 text-[#333286]"
-                      : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-slate-100")
-                  }
-                  data-testid={`chip-content-${ct.key}`}
-                >
-                  {active && <Check className="h-3.5 w-3.5" />}
-                  {ct.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">What you do</p>
-          <div className="flex flex-wrap gap-2" data-testid="row-personalization-roles">
-            {ROLES.map((role) => {
-              const active = personalization.roles.includes(role.key);
-              return (
-                <button
-                  key={role.key}
-                  type="button"
-                  onClick={() => togglePersonalization("roles", role.key)}
-                  aria-pressed={active}
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 " +
-                    (active
-                      ? "border-[#7c86ff]/40 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20 text-[#333286]"
-                      : "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-slate-100")
-                  }
-                  data-testid={`chip-role-${role.key}`}
-                >
-                  {active && <Check className="h-3.5 w-3.5" />}
-                  {role.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-500" data-testid="text-personalization-note">
-          Saved on this device for now — these will power your public profile pages and search once we roll them out.
+          Choose exactly what appears on your public profile — which sections show, the order they're in, who's featured, and the roles you play. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client.
         </p>
       </div>
     </div>
@@ -1265,13 +1194,11 @@ export default function SettingsPage() {
   // ABOUT TAB
   // ─────────────────────────────────────────────────────────────────────────
   const agentSetupCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="section-agent-setup">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <button
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-agent-setup">      <button
         type="button"
         onClick={() => setAgentSetupOpen((v) => !v)}
         aria-expanded={agentSetupOpen}
-        className={`w-full text-left bg-gradient-to-b from-[#7c86ff]/10 to-white/60 px-5 py-4 transition-colors hover:from-[#7c86ff]/15 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${agentSetupOpen ? "border-b border-[#7c86ff]/10" : ""}`}
+        className={`w-full text-left bg-slate-50 px-5 py-4 transition-colors hover:bg-slate-100 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${agentSetupOpen ? "border-b border-slate-200" : ""}`}
         data-testid="button-agent-setup-toggle"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -1385,9 +1312,7 @@ export default function SettingsPage() {
   );
 
   const contactCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="section-contact-support">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-contact-support">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
             <Mail className="h-4 w-4 text-[#333286]" />
@@ -1453,9 +1378,7 @@ export default function SettingsPage() {
   );
 
   const aboutCard = (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative" data-testid="section-about">
-      <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-      <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-about">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 shadow-sm ring-1 ring-slate-100 shrink-0 bg-slate-900">
             <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
@@ -1547,7 +1470,7 @@ export default function SettingsPage() {
                 <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-settings-kicker">Brainstorm Settings</p>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-settings-title">
+              <h1 className="font-brand text-3xl font-bold text-slate-900 tracking-tight" data-testid="text-settings-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] drop-shadow-sm block pb-1">
                   Settings
                 </span>

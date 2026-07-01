@@ -7,7 +7,7 @@ import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 function readInviterHex(): string {
   try {
@@ -231,7 +231,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
                     >
                       <Avatar className="h-5 w-5 rounded-full bg-white border border-slate-200">
                         {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-                        <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-[8px] font-bold">{initialsFor(name)}</AvatarFallback>
+                        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                       </Avatar>
                       <span className="font-medium text-slate-700 truncate max-w-[90px]">{name}</span>
                       <X className="h-3 w-3 text-slate-400 group-hover:text-rose-500" />

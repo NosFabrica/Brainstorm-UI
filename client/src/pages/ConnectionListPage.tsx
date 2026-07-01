@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Loader2, Users } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileForShare, fetchProfileMap } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -10,19 +10,25 @@ import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelp
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
-import { initialsFor } from "@/lib/profileDefaults";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
 const TYPE_MAP: Record<
   string,
-  { kind: ConnKind; verifiedOnly: boolean; title: (name: string) => string; empty: string }
+  { kind: ConnKind; verifiedOnly: boolean; title: (name: string) => string; subtitle: (name: string) => string; empty: string }
 > = {
-  followers: { kind: "followed_by", verifiedOnly: true, title: (n) => `Verified followers of ${n}`, empty: "No verified followers yet." },
-  following: { kind: "following", verifiedOnly: false, title: (n) => `${n} is following`, empty: "Not following anyone yet." },
-  muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, empty: "No verified muters." },
-  reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, empty: "No verified reporters." },
+  followers: { kind: "followed_by", verifiedOnly: true, title: (n) => `Verified followers of ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust who follow ${n}, strongest first.`, empty: "No verified followers yet." },
+  following: { kind: "following", verifiedOnly: false, title: (n) => `${n} is following`, subtitle: (n) => `Accounts ${n} follows, ranked by Web-of-Trust score.`, empty: "Not following anyone yet." },
+  muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust that have muted ${n}.`, empty: "No verified muters." },
+  reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust that have reported ${n}.`, empty: "No verified reporters." },
 };
+
+/** Drop placeholder handles ("null"/"undefined"/empty) and the NIP-05 root prefix. */
+function cleanNip05(v?: string): string | undefined {
+  const s = (v || "").replace(/^_@/, "").trim();
+  return s && s.toLowerCase() !== "null" && s.toLowerCase() !== "undefined" ? s : undefined;
+}
 
 const PAGE = 20;
 
@@ -110,11 +116,18 @@ export default function ConnectionListPage() {
       </header>
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="h-4 w-4 text-[#7c86ff]" />
-          <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
-            {cfg.title(subjectName)}
-          </h1>
+        <div className="mb-5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#7c86ff]/30 bg-[#333286]/5 text-[#333286]">
+              <Users className="h-4 w-4" />
+            </span>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
+              {cfg.title(subjectName)}
+            </h1>
+          </div>
+          {!loading && items.length > 0 && (
+            <p className="mt-1.5 text-sm text-slate-500" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
@@ -139,23 +152,33 @@ export default function ConnectionListPage() {
               let rowNpub = "";
               try { rowNpub = npubFromPubkey(pk); } catch { /* skip bad key */ }
               const name = p?.display_name || p?.name || (rowNpub ? rowNpub.slice(0, 12) + "…" : pk.slice(0, 12) + "…");
+              const handle = cleanNip05(p?.nip05);
+              const score = typeof inf === "number" ? Math.min(1, Math.max(0, inf)) : null;
+              const tier = score != null ? tierForScore(score) : null;
               return (
                 <Link
                   key={pk}
                   href={rowNpub ? `/p/${rowNpub}` : "#"}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 transition-colors"
+                  className="group flex items-center gap-3.5 px-4 py-3 hover:bg-slate-50 transition-colors"
                   data-testid={`conn-row-${pk.slice(0, 8)}`}
                 >
-                  <TrustRing influence={inf} />
-                  <Avatar className="h-10 w-10 shrink-0 rounded-full border border-slate-200 bg-white">
-                    {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-                    <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(name)}</AvatarFallback>
-                  </Avatar>
+                  <TrustAvatar picture={p?.picture} name={name} score={score} tier={tier} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
-                    {p?.nip05 && <p className="text-xs text-sky-600 truncate">{p.nip05.replace(/^_@/, "")}</p>}
+                    <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
+                    {handle ? (
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
+                        <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
+                      </p>
+                    ) : (
+                      rowNpub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400">{rowNpub.slice(0, 16)}…</p>
+                    )}
                   </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 shrink-0" />
+                  {tier && (
+                    <span className="hidden shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex" style={{ backgroundColor: `${tier.color}14`, color: tier.color }} data-testid="conn-tier">
+                      {tier.name}
+                    </span>
+                  )}
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400" />
                 </Link>
               );
             })
@@ -179,20 +202,23 @@ export default function ConnectionListPage() {
   );
 }
 
-function TrustRing({ influence }: { influence: number | null }) {
-  const score = typeof influence === "number" ? Math.min(1, Math.max(0, influence)) : null;
-  if (score == null) return <div className="w-9 h-9 shrink-0 rounded-full bg-slate-100 border border-slate-200" />;
-  const tier = tierForScore(score);
-  const pct = Math.round(score * 100);
-  const C = 2 * Math.PI * 15;
-  const offset = C - score * C;
+/** Avatar wrapped in a tier-coloured trust ring with a small score badge — one
+ *  premium "person" token (LinkedIn/Facebook feel) instead of two side-by-side
+ *  circles. */
+function TrustAvatar({ picture, name, score, tier }: { picture?: string; name: string; score: number | null; tier: { name: string; color: string } | null }) {
+  const pct = score != null ? Math.round(score * 100) : null;
   return (
-    <div className="relative w-9 h-9 shrink-0 flex items-center justify-center" title={`${tier.name} · ${pct}`}>
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 36 36">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-        <circle cx="18" cy="18" r="15" fill="none" stroke={tier.color} strokeWidth="3" strokeLinecap="round" style={{ strokeDasharray: C, strokeDashoffset: offset }} />
-      </svg>
-      <span className="text-[10px] font-bold font-mono tabular-nums" style={{ color: tier.color }}>{pct}</span>
+    <div className="relative shrink-0" title={tier && pct != null ? `${tier.name} · ${pct}` : undefined}>
+      <Avatar
+        className="h-12 w-12 rounded-full bg-white"
+        style={{ boxShadow: tier ? `0 0 0 2px #fff, 0 0 0 4px ${tier.color}` : "0 0 0 1px #e2e8f0" }}
+      >
+        {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
+        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+      </Avatar>
+      {pct != null && tier && (
+        <span className="absolute -bottom-1 -right-1 rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums text-white shadow-sm ring-2 ring-white" style={{ backgroundColor: tier.color }}>{pct}</span>
+      )}
     </div>
   );
 }
