@@ -133,8 +133,15 @@ export default function SharePage() {
     setDraft(loadProfilePrefsDraft(pubkey) ?? publishedPrefs);
     setEditing(true);
   };
-  const updateDraft = (next: ProfilePrefs) => { setDraft(next); saveProfilePrefsDraft(pubkey, next); };
-  const cancelCustomize = () => { clearProfilePrefsDraft(pubkey); setEditing(false); setPrefsError(null); };
+  // Live preview updates immediately (setDraft); the localStorage backup write is
+  // debounced so rapid drags/toggles don't hit disk every tick (kills the jank).
+  const draftSaveTimer = useRef<number>();
+  const updateDraft = (next: ProfilePrefs) => {
+    setDraft(next);
+    window.clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = window.setTimeout(() => saveProfilePrefsDraft(pubkey, next), 300);
+  };
+  const cancelCustomize = () => { window.clearTimeout(draftSaveTimer.current); clearProfilePrefsDraft(pubkey); setEditing(false); setPrefsError(null); };
   const saveCustomize = async () => {
     setSavingPrefs(true);
     setPrefsError(null);

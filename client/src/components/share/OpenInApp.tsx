@@ -1,5 +1,7 @@
 import amethystLogoImg from "@/assets/amethyst-logo.png";
 import nostriaIconImg from "@/assets/nostria-icon.png";
+import dittoLogoImg from "@/assets/ditto-logo.png";
+import primalLogoImg from "@/assets/primal-logo.png";
 
 /**
  * Shared "open in a Nostr app" block — a SECONDARY escape hatch on the public
@@ -15,39 +17,6 @@ export type OpenEntity = {
   /** The `nostr:` URI for the OS default handler (covers Damus, etc.). */
   uri: string;
 };
-
-/**
- * Primal & Ditto marks recreated inline (no binary asset) — each on the dark
- * rounded tile of the real app icon, sized to match the Amethyst/Nostria logos.
- * Swap in official PNGs by dropping them in assets/ and rendering an <img>.
- */
-function PrimalLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="primalg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6ab3ff" />
-          <stop offset="1" stopColor="#2f6bff" />
-        </linearGradient>
-      </defs>
-      <rect width="24" height="24" rx="5.5" fill="#0c1230" />
-      <circle cx="12" cy="12" r="7.2" fill="url(#primalg)" />
-      <path d="M9.2 15.4a4.1 4.1 0 1 1 5.7-3.2" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DittoLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <rect width="24" height="24" rx="5.5" fill="#1a1233" />
-      <ellipse cx="12" cy="12.5" rx="9.2" ry="3.3" fill="none" stroke="#8f6bff" strokeWidth="1.5" transform="rotate(-20 12 12.5)" />
-      <circle cx="12" cy="11.6" r="5.1" fill="#7c5cff" />
-      <circle cx="12" cy="9.5" r="0.95" fill="#fff" />
-      <rect x="11.25" y="11" width="1.5" height="4" rx="0.75" fill="#fff" />
-    </svg>
-  );
-}
 
 function primalUrl(e: OpenEntity): string {
   const seg = e.kind === "profile" ? "p" : e.kind === "article" ? "a" : "e";
@@ -68,9 +37,9 @@ export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; clas
   // Alphabetical.
   const clients: { name: string; href: string; external: boolean; logo: JSX.Element; testId: string }[] = [
     { name: "Amethyst", href: uri, external: false, testId: "open-amethyst", logo: <img src={amethystLogoImg} alt="" className={logoCls} /> },
-    { name: "Ditto", href: `https://ditto.pub/${entity.bech32}`, external: true, testId: "open-ditto", logo: <DittoLogo className={logoCls} /> },
+    { name: "Ditto", href: `https://ditto.pub/${entity.bech32}`, external: true, testId: "open-ditto", logo: <img src={dittoLogoImg} alt="" className={logoCls} /> },
     { name: "Nostria", href: nostriaHref, external: entity.kind === "profile", testId: "open-nostria", logo: <img src={nostriaIconImg} alt="" className={logoCls} /> },
-    { name: "Primal", href: primalUrl(entity), external: true, testId: "open-primal", logo: <PrimalLogo className={logoCls} /> },
+    { name: "Primal", href: primalUrl(entity), external: true, testId: "open-primal", logo: <img src={primalLogoImg} alt="" className={logoCls} /> },
   ];
 
   return (

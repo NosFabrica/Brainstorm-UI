@@ -40,6 +40,8 @@ import {
   isNip05Handle,
   type SearchResult,
 } from "@/lib/profileSearch";
+import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
+import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
@@ -50,9 +52,10 @@ const ANON_POV = "nosfabrica" as const;
 // visitors what they can search for. The first entry is the static
 // fallback (used as-is when the user prefers reduced motion).
 const PLACEHOLDER_EXAMPLES = [
-  "Search by name, bio, website…",
+  "Search people and topics…",
   'Search "Jack"',
   'Search "Prague"',
+  'Try a topic like "#bitcoin"',
   'Search a handle like "odell@primal.net"',
   "Search a public key…",
 ];
@@ -203,6 +206,14 @@ export default function Landing() {
     // Any edit to the query invalidates a prior keyboard selection so Enter
     // falls back to a full search until the user arrow-navigates again.
     kbdNavRef.current = false;
+    // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
+    if (parseTopicQuery(value).isTopic) {
+      typedSinceSearchRef.current = true;
+      setSuggestions([]);
+      setIsSuggesting(false);
+      setShowSuggestions(true);
+      return;
+    }
     if (q.length < 2 || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
       typedSinceSearchRef.current = false;
       setSuggestions([]);
@@ -527,7 +538,8 @@ export default function Landing() {
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
-  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting);
+  const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
+  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
   useLayoutEffect(() => {
@@ -713,7 +725,14 @@ export default function Landing() {
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-suggestions"
               >
-                {isSuggesting && suggestions.length === 0 ? (
+                {topicMatch.isTopic ? (
+                  <TopicSuggestionRow
+                    tag={topicMatch.tag}
+                    active
+                    onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
+                    testId="home-topic"
+                  />
+                ) : isSuggesting && suggestions.length === 0 ? (
                   <div className="px-4 py-3 flex items-center gap-2 text-slate-400 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>

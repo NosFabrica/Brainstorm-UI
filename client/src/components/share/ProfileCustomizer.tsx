@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Reorder, useDragControls } from "framer-motion";
 import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +18,51 @@ import {
 
 const MAX_FOLLOWERS = 5;
 type Candidate = { pubkey: string; name?: string; picture?: string };
+
+/**
+ * One reorderable section row. Drag is bound to the grip handle only (via
+ * `useDragControls` + `dragListener={false}`) so the toggle, arrows, and panel
+ * scroll stay fully responsive on touch. The parent commits the new order on
+ * `onDragEnd` (not per drag tick), keeping the live preview smooth.
+ */
+function SectionRow({
+  sectionKey, label, index, total, hidden, onToggle, onMoveUp, onMoveDown, onCommit,
+}: {
+  sectionKey: SectionKey;
+  label: string;
+  index: number;
+  total: number;
+  hidden: boolean;
+  onToggle: (on: boolean) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onCommit: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      as="div"
+      value={sectionKey}
+      dragListener={false}
+      dragControls={controls}
+      onDragEnd={onCommit}
+      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2"
+      data-testid={`customize-section-${sectionKey}`}
+    >
+      <span
+        onPointerDown={(e) => controls.start(e)}
+        className="shrink-0 cursor-grab touch-none p-0.5 text-slate-300"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span className="flex-1 truncate text-sm font-medium text-slate-800">{label}</span>
+      <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${sectionKey}`}><ChevronUp className="h-4 w-4" /></button>
+      <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${sectionKey}`}><ChevronDown className="h-4 w-4" /></button>
+      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-[#6366f1]" data-testid={`customize-toggle-${sectionKey}`} />
+    </Reorder.Item>
+  );
+}
 
 /**
  * The owner-only "Customize" drawer for a public profile. A settings-style panel
@@ -61,19 +107,31 @@ export function ProfileCustomizer({
   }, [draft.order]);
   // Sections you actually have content for lead; empty ones sink to a grayed
   // group below (display-only — saved order keeps every section's slot).
-  const activeSections = orderedSections.filter((k) => !emptyKeys.has(k));
-  const emptySections = orderedSections.filter((k) => emptyKeys.has(k));
-  // Reorder among the ACTIVE sections only; empties keep their saved slots.
-  const moveActive = (fromIdx: number, toIdx: number) => {
-    if (toIdx < 0 || toIdx >= activeSections.length || fromIdx === toIdx) return;
-    const reordered = [...activeSections];
-    const [m] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, m);
+  const activeSections = useMemo(() => orderedSections.filter((k) => !emptyKeys.has(k)), [orderedSections, emptyKeys]);
+  const emptySections = useMemo(() => orderedSections.filter((k) => emptyKeys.has(k)), [orderedSections, emptyKeys]);
+
+  // framer-motion Reorder drives a LOCAL order while dragging (smooth, touch +
+  // mouse, no live-preview churn); we commit to the draft only when the gesture
+  // settles. Re-synced whenever the saved order changes (arrows / external).
+  const [localOrder, setLocalOrder] = useState<SectionKey[]>(activeSections);
+  useEffect(() => { setLocalOrder(activeSections); }, [activeSections]);
+
+  // Write a new active-section order into the full saved order (empties keep
+  // their slots) and push it to the draft.
+  const commitOrder = (active: SectionKey[]) => {
     let ai = 0;
-    const full = orderedSections.map((k) => (emptyKeys.has(k) ? k : reordered[ai++]));
+    const full = orderedSections.map((k) => (emptyKeys.has(k) ? k : active[ai++]));
     onChange({ ...draft, order: full });
   };
-  const dragIdx = useRef<number | null>(null);
+  // Arrow reorder (accessible path) — update local order and commit immediately.
+  const moveLocal = (fromIdx: number, toIdx: number) => {
+    if (toIdx < 0 || toIdx >= localOrder.length || fromIdx === toIdx) return;
+    const next = [...localOrder];
+    const [m] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, m);
+    setLocalOrder(next);
+    commitOrder(next);
+  };
 
   // Follower picker — search filters the owner's followers; up to 5 selected.
   const candMap = useMemo(() => new Map(followerCandidates.map((c) => [c.pubkey, c])), [followerCandidates]);
@@ -113,33 +171,34 @@ export function ProfileCustomizer({
           {/* Sections */}
           <section>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sections · drag or arrows to reorder</p>
-            <div className="space-y-1.5">
-              {activeSections.map((k, i) => (
-                <div
+            <Reorder.Group as="div" axis="y" values={localOrder} onReorder={setLocalOrder} className="space-y-1.5">
+              {localOrder.map((k, i) => (
+                <SectionRow
                   key={k}
-                  draggable
-                  onDragStart={() => { dragIdx.current = i; }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { if (dragIdx.current != null) moveActive(dragIdx.current, i); dragIdx.current = null; }}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2"
-                  data-testid={`customize-section-${k}`}
-                >
-                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-slate-300" />
-                  <span className="flex-1 truncate text-sm font-medium text-slate-800">{SECTION_LABELS[k]}</span>
-                  <button type="button" onClick={() => moveActive(i, i - 1)} disabled={i === 0} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${k}`}><ChevronUp className="h-4 w-4" /></button>
-                  <button type="button" onClick={() => moveActive(i, i + 1)} disabled={i === activeSections.length - 1} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${k}`}><ChevronDown className="h-4 w-4" /></button>
-                  <Switch checked={!isHidden(k)} onCheckedChange={(on) => setHidden(k, !on)} className="data-[state=checked]:bg-[#6366f1]" data-testid={`customize-toggle-${k}`} />
-                </div>
+                  sectionKey={k}
+                  label={SECTION_LABELS[k]}
+                  index={i}
+                  total={localOrder.length}
+                  hidden={isHidden(k)}
+                  onToggle={(on) => setHidden(k, !on)}
+                  onMoveUp={() => moveLocal(i, i - 1)}
+                  onMoveDown={() => moveLocal(i, i + 1)}
+                  onCommit={() => commitOrder(localOrder)}
+                />
               ))}
-              {emptySections.map((k) => (
-                <div key={k} className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2" data-testid={`customize-section-${k}`}>
-                  <GripVertical className="h-4 w-4 shrink-0 text-slate-200" />
-                  <span className="flex-1 truncate text-sm font-medium text-slate-400">{SECTION_LABELS[k]}</span>
-                  <span className="shrink-0 text-[11px] text-slate-400">Nothing to show yet</span>
-                  <Switch checked={false} disabled className="opacity-50" data-testid={`customize-toggle-${k}`} />
-                </div>
-              ))}
-            </div>
+            </Reorder.Group>
+            {emptySections.length > 0 && (
+              <div className="mt-1.5 space-y-1.5">
+                {emptySections.map((k) => (
+                  <div key={k} className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2" data-testid={`customize-section-${k}`}>
+                    <GripVertical className="h-4 w-4 shrink-0 text-slate-200" aria-hidden="true" />
+                    <span className="flex-1 truncate text-sm font-medium text-slate-400">{SECTION_LABELS[k]}</span>
+                    <span className="shrink-0 text-[11px] text-slate-400">Nothing to show yet</span>
+                    <Switch checked={false} disabled className="opacity-50" data-testid={`customize-toggle-${k}`} />
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Profile details */}

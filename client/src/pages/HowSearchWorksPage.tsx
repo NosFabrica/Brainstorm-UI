@@ -121,7 +121,7 @@ const METRICS: { value: string; label: string }[] = [
 
 const POWERED_BY: { name: string; note: string; href: string }[] = [
   { name: "Vespa", note: "Search engine", href: "https://vespa.ai/" },
-  { name: "GrapeRank", note: "Trust scoring", href: "https://primal.net/straycat/graperank" },
+  { name: "GrapeRank", note: "Trust scoring", href: "https://github.com/NosFabrica" },
   { name: "Nostr", note: "Open protocol", href: "https://github.com/nostr-protocol/nips" },
 ];
 
@@ -396,7 +396,7 @@ export default function HowSearchWorksPage() {
                   the screen in front of your eyes. Currently we rely upon follows, mutes, and reports, processed
                   using a method called{" "}
                   <a
-                    href="https://primal.net/straycat/graperank"
+                    href="https://github.com/NosFabrica"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
