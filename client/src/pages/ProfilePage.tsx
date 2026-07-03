@@ -104,7 +104,7 @@ interface AdminHistoryItem {
   status: string;
   ta_status: string | null;
   internal_publication_status: string | null;
-  result: string | null;
+  error: { code: string; message: string | null } | null;
   count_values: string | null;
   password: string | null;
   algorithm: string | null;
@@ -275,7 +275,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
     ? "publication"
     : null;
   const failureInfo = failureStage ? ADMIN_HISTORY_FAILURE_HINTS[failureStage] : null;
-  const errorText = (item.result && item.result.trim()) || "";
+  const errorText = item.error?.message?.trim() || "";
   return (
     <>
       <tr
@@ -311,10 +311,10 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
-              {item.result && (
+              {item.error?.message && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
                 </div>
               )}
               {item.count_values && (

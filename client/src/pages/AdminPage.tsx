@@ -197,6 +197,11 @@ interface AdminUsersPage {
   pages: number;
 }
 
+interface GrapeRankError {
+  code: string;
+  message: string | null;
+}
+
 interface BrainstormRequestInstance {
   created_at: string;
   updated_at: string;
@@ -204,7 +209,7 @@ interface BrainstormRequestInstance {
   status: string;
   ta_status: string | null;
   internal_publication_status: string | null;
-  result: string | null;
+  error: GrapeRankError | null;
   count_values: string | null;
   password: string;
   algorithm: string;
@@ -823,7 +828,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                       const taFailed = taLower === "failure";
                       const pubFailed = pubLower === "failure" || pubLower === "failed";
                       const hasFail = statusFailed || taFailed || pubFailed;
-                      const errorText = (item.result && item.result.trim()) || "";
+                      const errorText = item.error?.message?.trim() || "";
                       const tooltipText = errorText || "No error details captured.";
                       const rowKey = item.private_id ?? idx;
                       return (
@@ -996,7 +1001,7 @@ function getFailureStage(item: BrainstormRequestInstance): "Calculation" | "Trus
 }
 
 function extractErrorMessage(item: BrainstormRequestInstance): string {
-  const raw = item.result?.trim();
+  const raw = item.error?.message?.trim();
   if (raw) return raw;
   const stage = getFailureStage(item);
   if (stage) return `No error details recorded for the ${stage} stage. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.`;
@@ -1448,10 +1453,10 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                       <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
                     </div>
                   )}
-                  {item.result && (
+                  {item.error?.message && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
                     </div>
                   )}
                   {item.count_values && (

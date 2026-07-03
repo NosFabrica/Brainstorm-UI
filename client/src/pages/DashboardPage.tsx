@@ -481,7 +481,6 @@ export default function DashboardPage() {
         (grapeRank as any).average,
         (grapeRank as any).score,
         (grapeRank as any).graperank,
-        (grapeRank as any).result,
         (grapeRank as any).confidence,
         (grapeRank as any).value,
       ].find((v) => typeof v === "number") ?? null
