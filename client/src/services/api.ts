@@ -214,6 +214,59 @@ async function optionalAuthFetch(
   return fetch(url, options);
 }
 
+/**
+ * Pull the backend's `detail`/`message` off a non-ok JSON response so 4xx/5xx
+ * (incl. 409/422) surface a human error. Returns "" if the body isn't JSON.
+ */
+async function extractApiError(response: Response): Promise<string> {
+  const data = await response.json().catch(() => null);
+  return data?.detail || data?.message || "";
+}
+
+export interface SchedulingItem {
+  id: number;
+  name: string;
+  schedule_interval_seconds: number;
+  priority: number;
+  enabled: boolean;
+  is_default: boolean;
+  manual_quota_limit: number;
+  manual_quota_window_seconds: number;
+}
+
+export interface CreateSchedulingBody {
+  name: string;
+  schedule_interval_seconds: number;
+  priority?: number;
+  enabled?: boolean;
+  is_default?: boolean;
+  manual_quota_limit?: number;
+  manual_quota_window_seconds?: number;
+}
+
+export type UpdateSchedulingBody = Partial<CreateSchedulingBody>;
+
+export interface SchedulerStats {
+  throughput_per_day: number;
+  demand_per_day: number;
+  median_publish_seconds: number | null;
+  lane_depths: Record<string, number>;
+  tier_slip_seconds: Record<string, number>;
+}
+
+export interface SchedulingUserItem {
+  pubkey: string;
+  last_time_published_graperank: string | null;
+}
+
+export interface SchedulingUsersPage {
+  items: SchedulingUserItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
@@ -257,6 +310,174 @@ export const apiClient = {
       throw new Error(`Failed to fetch user history (${response.status})`);
     }
     return await response.json();
+  },
+
+  async getSchedulingPolicies(): Promise<SchedulingItem[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch scheduling policies (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async createSchedulingPolicy(
+    body: CreateSchedulingBody,
+  ): Promise<SchedulingItem> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to create scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async updateSchedulingPolicy(
+    id: number,
+    body: UpdateSchedulingBody,
+  ): Promise<SchedulingItem> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to update scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async deleteSchedulingPolicy(id: number): Promise<void> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}`,
+      { method: "DELETE", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to delete scheduling policy (${response.status})`,
+      );
+    }
+  },
+
+  async resyncObserver(pubkey: string, target: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
+      { method: "POST", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to resync observer (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async assignUserScheduling(pubkey: string, schedulingId: number) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/users/${pubkey}/scheduling`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduling_id: schedulingId }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to assign scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getSchedulingStats(): Promise<SchedulerStats> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/stats`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch scheduler stats (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getSchedulingPolicyUsers(
+    id: number,
+    params: { page?: number; size?: number } = {},
+  ): Promise<SchedulingUsersPage> {
+    const qs = new URLSearchParams();
+    if (params.page != null) qs.set("page", String(params.page));
+    if (params.size != null) qs.set("size", String(params.size));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}/users${suffix}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch policy users (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async assignPolicyUsers(
+    id: number,
+    pubkeys: string[],
+  ): Promise<{ assigned: number }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}/users`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkeys }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to assign users (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
   },
 
   async getUserByPubkey(pubkey: string) {

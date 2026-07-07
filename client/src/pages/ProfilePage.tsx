@@ -111,6 +111,7 @@ interface AdminHistoryItem {
   parameters: string | null;
   how_many_others_with_priority: number;
   pubkey: string;
+  trigger_source: string | null;
 }
 
 const FollowersIcon = ({ className }: { className?: string }) => (
@@ -206,6 +207,21 @@ function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: 
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
 }
 
+// Why this run was queued: manual (user asked), scheduled (tier auto-scheduler),
+// admin (admin action), periodic (cron). Colored distinctly from status badges.
+function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-slate-300">—</span>;
+  const lower = value.toLowerCase();
+  const colors = lower === "scheduled"
+    ? "bg-violet-50 text-violet-700 border-violet-200"
+    : lower === "periodic"
+    ? "bg-sky-50 text-sky-700 border-sky-200"
+    : lower === "admin"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-slate-50 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`}>{value}</span>;
+}
+
 type AdminHistoryFailureStage = "calculation" | "ta" | "publication";
 
 const ADMIN_HISTORY_FAILURE_HINTS: Record<AdminHistoryFailureStage, { label: string; hint: string }> = {
@@ -284,6 +300,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         data-testid={`row-admin-history-${item.private_id || idx}`}
       >
         <td className="px-2 py-2 font-mono text-slate-600">{item.private_id}</td>
+        <td className="px-2 py-2"><AdminHistoryTriggerBadge value={item.trigger_source} /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.status} type="status" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.ta_status} type="ta" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
@@ -294,7 +311,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
       </tr>
       {expanded && (
         <tr className="bg-amber-50/30">
-          <td colSpan={8} className="px-4 py-3">
+          <td colSpan={9} className="px-4 py-3">
             {failureInfo && (
               <div
                 className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2"
@@ -3088,6 +3105,7 @@ export default function ProfilePage() {
                               <thead>
                                 <tr className="border-b border-amber-200/40">
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">ID</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Source</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Status</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">TA Status</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Pub Status</th>
