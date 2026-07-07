@@ -995,11 +995,18 @@ export default function ProfilePage() {
   }, [calcDoneNow]);
 
   useEffect(() => {
-    // Anonymous-friendly: full profiles are public (NosFabrica "house" POV).
-    // Capture the user when present so personalized sections + the account menu
-    // render, but never redirect anon visitors away.
+    // Capture the signed-in user so personalized sections + the account menu render.
     setUser(getCurrentUser());
   }, [navigate]);
+
+  // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
+  // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
+  // view — no matter how they arrived (search, a shared link, a bookmark).
+  useEffect(() => {
+    if (npubParam && !hasSessionToken()) {
+      navigate(`/p/${npubParam}`, { replace: true });
+    }
+  }, [npubParam, navigate]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

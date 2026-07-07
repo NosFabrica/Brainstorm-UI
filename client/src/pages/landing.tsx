@@ -392,11 +392,15 @@ export default function Landing() {
       }
     }
 
+    // Direct identifiers resolve to a profile — logged-out visitors get the public
+    // /p page, members get the personalized /profile view (mirrors goToProfile).
+    const profileDest = (np: string) => (user ? `/profile/${np}?pov=${effectivePov}` : `/p/${np}`);
+
     if (isLikelyNpub(q)) {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          setLocation(`/profile/${q}?pov=${effectivePov}`);
+          setLocation(profileDest(q));
           return;
         }
       } catch {}
@@ -404,7 +408,7 @@ export default function Landing() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      setLocation(`/profile/${npub}?pov=${effectivePov}`);
+      setLocation(profileDest(npub));
       return;
     }
 
@@ -415,7 +419,7 @@ export default function Landing() {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        setLocation(`/profile/${npub}?pov=${effectivePov}`);
+        setLocation(profileDest(npub));
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { useLocation } from "wouter";
 import { Search, Loader2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { BrainLogo } from "@/components/BrainLogo";
+import { hasSessionToken } from "@/services/api";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
@@ -75,7 +77,9 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
   const goProfile = (r: SearchResult) => {
     setOpen(false);
     setActive(-1);
-    navigate(`/profile/${r.npub}?pov=${POV}`);
+    // Logged-out visitors get the public share page (/p); members get the
+    // personalized /profile view. Matches the landing search convention.
+    navigate(hasSessionToken() ? `/profile/${r.npub}?pov=${POV}` : `/p/${r.npub}`);
   };
 
   const goTopic = (tag: string) => {
@@ -147,10 +151,19 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
                   {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
                   <AvatarFallback className="bg-indigo-50 text-[11px] font-bold text-[#6366f1]">{initialsFor(nameOf(r))}</AvatarFallback>
                 </Avatar>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-900">{nameOf(r)}</p>
                   {r.nip05 && <p className="truncate text-xs text-slate-500">{r.nip05}</p>}
                 </div>
+                {r.wotRank != null && (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-indigo-100 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600"
+                    data-testid={`header-search-rank-${i}`}
+                  >
+                    <BrainLogo size={10} className="shrink-0" />
+                    {r.wotRank}
+                  </span>
+                )}
               </button>
             ))
           )}
