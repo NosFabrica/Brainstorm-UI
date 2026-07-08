@@ -462,6 +462,40 @@ export const apiClient = {
   },
 
   /**
+   * The logged-in user's subscription (tier + status), keyed by pubkey
+   * server-side. Requires auth. Only called when the VITE_FEATURE_SUBSCRIPTION_API
+   * flag is on; otherwise services/subscription.ts uses a local mock. Returns the
+   * raw `data` object (snake_case), normalized by the caller.
+   */
+  async getSubscription(timeoutMs: number = 15000): Promise<{
+    tier: string;
+    status: string;
+    current_period_end: string | null;
+    rail: string | null;
+  }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/subscription`,
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch subscription (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data;
+  },
+
+  /** Cancel the logged-in user's subscription (Flash cancellation). Requires auth. */
+  async cancelSubscription(timeoutMs: number = 15000): Promise<void> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/subscription`,
+      { method: "DELETE", signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to cancel subscription (${response.status})`);
+    }
+  },
+
+  /**
    * Free-text profile search via the Brainstorm backend `/search/byText`.
    * When `ownPubkey` is true the search is run from the logged-in user's own
    * trust perspective and the request is authenticated (session token sent);

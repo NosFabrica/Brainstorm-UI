@@ -15,6 +15,7 @@ import {
   UserCircle,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { PricingIcon } from "@/components/PricingIcon";
 import { SignInButton } from "@/components/SignInButton";
 import { FEATURES } from "@/config/featureFlags";
 
@@ -43,7 +44,9 @@ const primaryNav = [
     : []),
 ];
 
+// Help / commerce links shown in the mobile menu's secondary section.
 const helpNav = [
+  { path: "/pricing", label: "Pricing", icon: PricingIcon },
   { path: "/faq", label: "FAQ", icon: HelpCircle },
   { path: "/what-is-wot", label: "What is WoT?", icon: BookOpen },
 ];

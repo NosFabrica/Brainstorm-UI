@@ -58,8 +58,10 @@ import {
   AlertTriangle,
   IdCard,
   SlidersHorizontal,
+  CreditCard,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
+import { BillingPanel } from "@/components/BillingPanel";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
@@ -82,7 +84,7 @@ import nostrLogo from "@assets/download_1774042580188.png";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 
-type SettingsTab = "profile" | "trust" | "about";
+type SettingsTab = "profile" | "trust" | "billing" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -113,6 +115,7 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  { key: "billing", label: "Billing", icon: CreditCard },
   { key: "about", label: "About & support", icon: Info },
 ];
 
@@ -120,7 +123,8 @@ export default function SettingsPage() {
   const [location, navigate] = useLocation();
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
-  const activeTab: SettingsTab = tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+  const activeTab: SettingsTab =
+    tabParam === "trust" || tabParam === "billing" || tabParam === "about" ? tabParam : "profile";
   // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
   // /settings?focus=backup scrolls straight to the Account > Back up section.
   const focusParam = new URLSearchParams(search).get("focus");
@@ -1510,6 +1514,12 @@ export default function SettingsPage() {
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "billing" && (
+            <div className="space-y-6" data-testid="tab-content-billing">
+              <BillingPanel />
             </div>
           )}
 

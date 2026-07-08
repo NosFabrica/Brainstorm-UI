@@ -37,6 +37,12 @@ import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
+import PricingPage from "@/pages/PricingPage";
+import CheckoutPage from "@/pages/CheckoutPage";
+import CheckoutSuccessPage from "@/pages/CheckoutSuccessPage";
+import BillingPage from "@/pages/BillingPage";
+import RefundPolicyPage from "@/pages/RefundPolicyPage";
+import { DevSubscriptionSwitcher } from "@/components/DevSubscriptionSwitcher";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
@@ -120,7 +126,12 @@ function Router() {
         <Route path="/nostr" component={NostrPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
+        <Route path="/refund-policy" component={RefundPolicyPage} />
         <Route path="/faq" component={FaqPage} />
+        <Route path="/pricing" component={PricingPage} />
+        <Route path="/checkout/success">{() => <RequireAuth component={CheckoutSuccessPage} />}</Route>
+        <Route path="/checkout">{() => <RequireAuth component={CheckoutPage} />}</Route>
+        <Route path="/billing">{() => <RequireAuth component={BillingPage} />}</Route>
         {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
         <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>
         <Route component={NotFound} />
@@ -137,6 +148,7 @@ function App() {
         <PovAutoDefault />
         <MobileMenuHost />
         <ScoringStatusBar />
+        {!FEATURES.subscriptionApi && <DevSubscriptionSwitcher />}
         <AutoScoreReturning />
         <AutoActivateBrainstorm />
         <AutoPublishAssistant />

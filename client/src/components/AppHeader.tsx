@@ -1,6 +1,8 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { PricingIcon } from "@/components/PricingIcon";
+import { BillingIcon } from "@/components/BillingIcon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -236,6 +238,14 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 <DropdownMenuItem className="cursor-pointer" onClick={() => setInviteOpen(true)} data-testid="dropdown-invite">
                   <UserPlus className="mr-2 h-4 w-4" />
                   <span>Invite friends</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/pricing")} data-testid="dropdown-pricing">
+                  <PricingIcon className="mr-2 h-4 w-4" />
+                  <span>Pricing</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/billing")} data-testid="dropdown-billing">
+                  <BillingIcon className="mr-2 h-4 w-4" />
+                  <span>Billing</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                   <HelpCircle className="mr-2 h-4 w-4" />
