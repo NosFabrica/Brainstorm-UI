@@ -1,4 +1,4 @@
-import { TIER_THRESHOLDS } from "@/services/trustThreshold";
+import { TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 
 /**
  * Lean trust-score ring for the public share page. Takes a 0–1 influence score
@@ -9,12 +9,14 @@ import { TIER_THRESHOLDS } from "@/services/trustThreshold";
 
 // Fixed public-page bands (low bound 0.02 = the default verified threshold;
 // not preset-driven, since the viewer is usually anonymous).
+// Colors come from the shared TRUST_TIER_COLORS palette (services/trustThreshold)
+// so this bar and the dashboard's Network Composition never drift.
 const SHARE_TIERS = [
-  { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#059669", text: "text-emerald-700", ring: "#059669" },
-  { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#0ea5e9", text: "text-sky-700", ring: "#0ea5e9" },
-  { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#6366f1", text: "text-indigo-600", ring: "#6366f1" },
-  { key: "low", name: "Low Trust", min: 0.02, color: "#f59e0b", text: "text-amber-700", ring: "#f59e0b" },
-  { key: "unverified", name: "Unverified", min: 0, color: "#a1a1aa", text: "text-zinc-600", ring: "#a1a1aa" },
+  { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
+  { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
+  { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-indigo-600", ring: TRUST_TIER_COLORS.neutral },
+  { key: "low", name: "Low Trust", min: 0.02, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
+  { key: "unverified", name: "Unverified", min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
 ];
 
 export function tierForScore(score01: number) {

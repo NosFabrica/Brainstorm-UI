@@ -9,19 +9,23 @@ import { tierForScore } from "@/components/share/TrustScoreBadge";
  *
  * The meter shows the PRIMARY score. When `secondaryScore01` is provided AND
  * differs from the primary (after rounding), a muted second line shows the other
- * POV with a trend arrow + the gap — e.g. "/p" leads with the network score and
- * adds "To you · …"; "/profile" leads with your score and adds "Network · …".
- * `score01 === null` renders a graceful "not yet scored" state.
+ * POV — e.g. "/p" leads with the network score and adds "To you · …"; "/profile"
+ * leads with your score and adds "Network · …". In that two-POV state the primary
+ * also gets `primaryLabel` (e.g. "Brainstorm" / "To you") so it's unambiguous
+ * which POV the big number is. When only one score shows, the primary stays an
+ * unlabelled hero. `score01 === null` renders a graceful "not yet scored" state.
  */
 export function WotStrengthCard({
   score01,
   secondaryScore01 = null,
   secondaryLabel = "",
+  primaryLabel = "",
   className = "",
 }: {
   score01: number | null;
   secondaryScore01?: number | null;
   secondaryLabel?: string;
+  primaryLabel?: string;
   className?: string;
 }) {
   return (
@@ -33,23 +37,36 @@ export function WotStrengthCard({
       {score01 != null ? (() => {
         const tier = tierForScore(score01);
         const pct = Math.round(score01 * 100);
-        const SEGMENTS = 5;
-        const filled = Math.max(1, Math.round((pct / 100) * SEGMENTS));
+        // Continuous bar filled to the actual score (dashboard-style) so the bar
+        // agrees with the number — 27 fills 27%, not "4 of 5". A small floor keeps
+        // very low scores visible as a tier-colored nub rather than nothing.
+        const fillPct = Math.min(100, Math.max(4, pct));
         // Secondary (other-POV) score — shown only when it differs from primary.
         const secPct = secondaryScore01 != null ? Math.round(secondaryScore01 * 100) : null;
         const showSecondary = secPct != null && secPct !== pct && secondaryScore01 != null;
+        // Only disambiguate the primary POV when a second POV is on screen too.
+        const showPrimaryLabel = showSecondary && !!primaryLabel;
         return (
           <>
-            <div className="flex items-center gap-1 mb-2">
-              {Array.from({ length: SEGMENTS }).map((_, i) => (
-                <div key={i} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: i < filled ? tier.color : "#e2e8f0" }} />
-              ))}
+            <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-2">
+              <div className="h-full rounded-full" style={{ width: `${fillPct}%`, backgroundColor: tier.color }} />
             </div>
-            <div className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
-              <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-              <span className="text-sm font-bold text-slate-900 tabular-nums">{pct}</span>
-            </div>
+            {showPrimaryLabel ? (
+              <div className="flex items-center justify-between gap-2" data-testid="wot-primary">
+                <span className="text-xs font-semibold text-slate-700">{primaryLabel}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
+                  <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">{pct}</span>
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5" data-testid="wot-primary">
+                <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
+                <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
+                <span className="text-sm font-bold text-slate-900 tabular-nums">{pct}</span>
+              </div>
+            )}
             {showSecondary && (() => {
               const secTier = tierForScore(secondaryScore01!);
               return (
@@ -66,9 +83,7 @@ export function WotStrengthCard({
         );
       })() : (
         <>
-          <div className="flex items-center gap-1 mb-2.5">
-            {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-1.5 flex-1 rounded-full bg-slate-100" />)}
-          </div>
+          <div className="h-1.5 w-full rounded-full bg-slate-100 mb-2.5" />
           <p className="text-xs text-slate-400">Not yet scored by the network.</p>
         </>
       )}

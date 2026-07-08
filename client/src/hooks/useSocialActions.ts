@@ -10,6 +10,7 @@ import {
   muteUser,
   unmuteUser,
   reportUser,
+  unreportUser,
   type NostrEvent,
 } from "@/services/socialActions";
 
@@ -138,6 +139,16 @@ export function useSocialActions(myPubkey: string | undefined) {
     }
   }, [myPubkey]);
 
+  const doUnreport = useCallback(async (targetPk: string) => {
+    if (!myPubkey || myPubkey === targetPk) return { success: false, error: "Invalid action" };
+    setPendingAction(`unreport-${targetPk}`);
+    try {
+      return await unreportUser(targetPk);
+    } finally {
+      setPendingAction(null);
+    }
+  }, [myPubkey]);
+
   const isPending = useCallback((action: string, targetPk: string) => {
     return pendingAction === `${action}-${targetPk}`;
   }, [pendingAction]);
@@ -153,6 +164,7 @@ export function useSocialActions(myPubkey: string | undefined) {
     mute: doMute,
     unmute: doUnmute,
     report: doReport,
+    unreport: doUnreport,
     isPending,
     isAnyPending,
     listsLoading,

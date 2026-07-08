@@ -308,3 +308,75 @@ export async function reportUser(targetPubkey: string, reason: string): Promise<
     return { success: false, error: e?.message || "Signing failed" };
   }
 }
+
+export interface MyReport {
+  /** Most-recent report event id. */
+  id: string;
+  reportType: string;
+  reason: string;
+  timestamp: number;
+  /** Every one of my kind-1984 report events on this target (all get deleted on undo). */
+  eventIds: string[];
+}
+
+/**
+ * Fetch the current user's own NIP-56 (kind 1984) report(s) targeting `targetPubkey`.
+ * Returns the most-recent report's details plus all report event ids, or null if the
+ * user hasn't reported them — drives the "you reported this" state + unreport.
+ */
+export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Promise<MyReport | null> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return null;
+  const events: any[] = [];
+  const seen = new Set<string>();
+  const collected = await new Promise<any[]>((resolve) => {
+    const timer = setTimeout(() => resolve(events), timeoutMs);
+    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [user.pubkey], "#p": [targetPubkey] }).subscribe({
+      next: (ev: any) => { const id = ev?.id; if (id && !seen.has(id)) { seen.add(id); events.push(ev); } },
+      error: () => { clearTimeout(timer); resolve(events); },
+      complete: () => { clearTimeout(timer); resolve(events); },
+    });
+  });
+  if (!collected.length) return null;
+  collected.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  const latest = collected[0];
+  let reportType = "other";
+  for (const tag of latest.tags || []) {
+    if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) { reportType = tag[2]; break; }
+  }
+  return {
+    id: latest.id,
+    reportType,
+    reason: latest.content || "",
+    timestamp: latest.created_at || 0,
+    eventIds: collected.map((e) => e.id).filter(Boolean),
+  };
+}
+
+/**
+ * "Unreport" — publish a NIP-09 (kind 5) deletion of the user's own kind-1984
+ * report(s) targeting `targetPubkey`. The deletion propagates to relays; the
+ * trust-score effect may lag until the backend re-ingests it (surfaced in copy).
+ */
+export async function unreportUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  const mine = await fetchMyReport(targetPubkey);
+  if (!mine || !mine.eventIds.length) return { success: true }; // nothing to undo
+  const event: Record<string, unknown> = {
+    kind: 5,
+    tags: [
+      ...mine.eventIds.map((id) => ["e", id]),
+      ["k", "1984"],
+    ],
+    content: "",
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+  try {
+    const signed = await signEventLocally(event);
+    return await publishToRelays(signed);
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Signing failed" };
+  }
+}

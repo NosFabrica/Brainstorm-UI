@@ -50,6 +50,7 @@ import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { copyToClipboard } from "@/lib/clipboard";
+import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { FEATURES } from "@/config/featureFlags";
@@ -65,7 +66,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -95,6 +96,7 @@ import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
+import { fetchContactList, getFollowedPubkeys, fetchMyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminHistoryItem {
@@ -458,15 +460,6 @@ const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
   { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
 ];
-
-const REPORT_TYPE_BADGE_COLORS: Record<string, string> = {
-  spam: "bg-amber-50 text-amber-700 border-amber-200",
-  impersonation: "bg-red-50 text-red-700 border-red-200",
-  nudity: "bg-pink-50 text-pink-700 border-pink-200",
-  illegal: "bg-red-50 text-red-800 border-red-300",
-  profanity: "bg-orange-50 text-orange-700 border-orange-200",
-  other: "bg-slate-50 text-slate-600 border-slate-200",
-};
 
 const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
   { value: "all", label: "All Types", dotColor: "bg-slate-300" },
@@ -968,6 +961,28 @@ export default function ProfilePage() {
   }, [npubParam]);
 
   const social = useSocialActions(user?.pubkey);
+  const relQueryClient = useQueryClient();
+
+  // "Follows you": does the target follow ME? (my pubkey ∈ their kind-3 contact list)
+  const theyFollowMeQuery = useQuery({
+    queryKey: ["they-follow-me", user?.pubkey, hexPubkey],
+    queryFn: async () => getFollowedPubkeys(await fetchContactList(hexPubkey)).has(user!.pubkey),
+    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const theyFollowMe = theyFollowMeQuery.data === true;
+
+  // "You reported this": have I published a kind-1984 report targeting them?
+  const myReportQuery = useQuery({
+    queryKey: ["my-report", user?.pubkey, hexPubkey],
+    queryFn: () => fetchMyReport(hexPubkey),
+    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const myReport = myReportQuery.data ?? null;
+  const invalidateMyReport = () => relQueryClient.invalidateQueries({ queryKey: ["my-report", user?.pubkey, hexPubkey] });
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -1516,21 +1531,7 @@ export default function ProfilePage() {
     return matching.reduce((latest, r) => r.timestamp > latest.timestamp ? r : latest, matching[0]);
   }, [hexPubkey]);
 
-  const formatRelativeTime = useCallback((timestamp: number) => {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    let relative: string;
-    if (diff < 60) relative = "just now";
-    else if (diff < 3600) relative = `${Math.floor(diff / 60)}m ago`;
-    else if (diff < 86400) relative = `${Math.floor(diff / 3600)}h ago`;
-    else if (diff < 2592000) relative = `${Math.floor(diff / 86400)}d ago`;
-    else if (diff < 31536000) relative = `${Math.floor(diff / 2592000)}mo ago`;
-    else relative = `${Math.floor(diff / 31536000)}y ago`;
-
-    const date = new Date(timestamp * 1000);
-    const absolute = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    return `${relative} · ${absolute}`;
-  }, []);
+  const formatRelativeTime = useCallback((timestamp: number) => formatReportTime(timestamp), []);
 
 
   const mutualPubkeys = useMemo(() => {
@@ -2003,7 +2004,8 @@ export default function ProfilePage() {
       <WotStrengthCard
         score01={score01}
         secondaryScore01={isOwnProfile ? null : houseInfluence01}
-        secondaryLabel="Network"
+        primaryLabel="To you"
+        secondaryLabel="Brainstorm"
         className="w-full md:w-64 md:shrink-0"
       />
     );
@@ -2330,6 +2332,11 @@ export default function ProfilePage() {
                     <span className="font-bold text-slate-900 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
                     <span className="text-slate-500 ml-1">Mutual</span>
                   </span>
+                  {theyFollowMe && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-[#3730a3]" data-testid="badge-follows-you">
+                      <ArrowLeft className="h-3 w-3" /> Follows you
+                    </span>
+                  )}
                 </div>
                 {/* One tidy action bar — full-width, aligned with the stats above.
                     Follow is primary; the rest tuck into a "more" menu. */}
@@ -2420,11 +2427,38 @@ export default function ProfilePage() {
                               </DropdownMenuItem>
                             );
                           })()}
-                          <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-700" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
-                            <Flag className="h-4 w-4 mr-2" /> Report
-                          </DropdownMenuItem>
+                          {myReport ? (
+                            <DropdownMenuItem
+                              className="cursor-pointer text-amber-700 focus:text-amber-800"
+                              onClick={async () => {
+                                const result = await social.unreport(hexPubkey);
+                                if (result.success) {
+                                  invalidateMyReport();
+                                  toast({ title: "Report removed", description: "Trust scores may take a little while to reflect this." });
+                                } else {
+                                  toast({ title: "Error", description: result.error || "Couldn't remove report", variant: "destructive" });
+                                }
+                              }}
+                              data-testid="button-unreport"
+                            >
+                              <Flag className="h-4 w-4 mr-2" /> Undo report
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-700" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
+                              <Flag className="h-4 w-4 mr-2" /> Report
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      {myReport && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                          title="Your report is published. Undo it from the ⋯ menu. Trust scores may take a little while to reflect changes."
+                          data-testid="chip-you-reported"
+                        >
+                          <Flag className="h-3 w-3" /> You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -3220,6 +3254,7 @@ export default function ProfilePage() {
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
                 if (result.success) {
+                  invalidateMyReport();
                   toast({ title: "Reported", description: "Report published to Nostr relays" });
                   setReportDialogOpen(false);
                 } else {

@@ -28,6 +28,18 @@ export const TIER_THRESHOLDS = {
   medium: 0.07,
 } as const;
 
+// Single source of truth for trust-tier colors — shared by the dashboard's
+// Network Composition breakdown and the public-page Web of Trust bar so the two
+// can never drift. Keep these in sync with nothing else: everything reads here.
+export const TRUST_TIER_COLORS = {
+  highlyTrusted: "#059669", // emerald
+  trusted: "#0ea5e9", // sky
+  neutral: "#6366f1", // indigo
+  lowTrust: "#f59e0b", // amber
+  unverified: "#a1a1aa", // zinc
+  flagged: "#ef4444", // red (public pages surface this as the flag banner, not a bar segment)
+} as const;
+
 const BACKEND_TO_PRESET: Record<string, TrustPreset> = {
   PERMISSIVE: "relax",
   DEFAULT: "default",

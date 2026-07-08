@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PageHeader } from "@/components/PageHeader";
-import { getVerifiedThreshold, PRESET_THRESHOLDS } from "@/services/trustThreshold";
+import { getVerifiedThreshold, PRESET_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -589,12 +589,12 @@ export default function DashboardPage() {
   };
 
   const TIER_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: "#059669" },
-    { key: "medium_high", name: "Trusted", color: "#0ea5e9" },
-    { key: "medium", name: "Neutral", color: "#6366f1" },
-    { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
-    { key: "low", name: "Unverified", color: "#a1a1aa" },
-    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: "#ef4444" },
+    { key: "high", name: "Highly Trusted", color: TRUST_TIER_COLORS.highlyTrusted },
+    { key: "medium_high", name: "Trusted", color: TRUST_TIER_COLORS.trusted },
+    { key: "medium", name: "Neutral", color: TRUST_TIER_COLORS.neutral },
+    { key: "medium_low", name: "Low Trust", color: TRUST_TIER_COLORS.lowTrust },
+    { key: "low", name: "Unverified", color: TRUST_TIER_COLORS.unverified },
+    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
   ] as const;
 
   const countValues = useMemo(() => {
@@ -685,12 +685,12 @@ export default function DashboardPage() {
       }).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
-      { label: "Highly Trusted", count: followersCount, color: "#059669" },
-      { label: "Trusted", count: followingCount, color: "#0ea5e9" },
-      { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#6366f1" },
-      { label: "Low Trust", count: mutedByCount + mutingCount, color: "#f59e0b" },
-      { label: "Unverified", count: Math.max(10, mutedByCount), color: "#a1a1aa" },
-      { label: "Flagged", count: flaggedCount, color: "#ef4444" },
+      { label: "Highly Trusted", count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
+      { label: "Trusted", count: followingCount, color: TRUST_TIER_COLORS.trusted },
+      { label: "Neutral", count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
+      { label: "Low Trust", count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
+      { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
+      { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {

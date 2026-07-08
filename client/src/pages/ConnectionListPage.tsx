@@ -3,14 +3,16 @@ import { useRoute, Redirect, Link } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap } from "@/services/nostr";
-import { apiClient } from "@/services/api";
+import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
+import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { InfoHint } from "@/components/InfoHint";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -41,6 +43,13 @@ export default function ConnectionListPage() {
   const relayHints = decoded?.relays || [];
   const cfg = TYPE_MAP[type];
 
+  // POV: logged-out (or not-yet-calculated) viewers get NosFabrica's "house"
+  // perspective; a signed-in member with calculated scores sees their OWN Web of
+  // Trust — dropping `house` lets optionalAuthFetch send their token (observer POV).
+  const signedIn = hasSessionToken();
+  const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
+  const myPov = signedIn && calcDone;
+
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
   const subjectQuery = useQuery({
     queryKey: ["share-profile", pubkey],
@@ -57,7 +66,7 @@ export default function ConnectionListPage() {
     readonly unknown[],
     string | undefined
   >({
-    queryKey: ["share-conn", pubkey, cfg?.kind, type],
+    queryKey: ["share-conn", pubkey, cfg?.kind, type, myPov],
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const res = await apiClient.getUserConnections(pubkey, cfg!.kind, {
         limit: PAGE,
@@ -65,7 +74,7 @@ export default function ConnectionListPage() {
         order: "desc",
         verified_threshold: getVerifiedThreshold(),
         min_influence: cfg!.verifiedOnly ? getVerifiedThreshold() : undefined,
-        house: true,
+        house: !myPov,
       });
       return {
         items: (res?.data?.items ?? []) as GraphEntry[],
@@ -91,6 +100,26 @@ export default function ConnectionListPage() {
     retry: false,
   });
 
+  // For the "reporters" view, fetch the actual NIP-56 (kind 1984) reports from
+  // relays so each row can show the report's type, time, and reason — the same
+  // data the profile page surfaces. Progressive: rows render from the API first,
+  // then annotate as reports resolve. Rows with no matched report stay plain.
+  const reportsQuery = useQuery({
+    queryKey: ["conn-reports", pubkey],
+    queryFn: () => fetchReportsForPubkey(pubkey),
+    enabled: !!pubkey && cfg?.kind === "reported_by",
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const reportMap = useMemo(() => {
+    const m = new Map<string, ReportMetadata>();
+    for (const r of reportsQuery.data ?? []) {
+      const prev = m.get(r.reporterPubkey);
+      if (!prev || r.timestamp > prev.timestamp) m.set(r.reporterPubkey, r);
+    }
+    return m;
+  }, [reportsQuery.data]);
+
   // Guard rails — bad share id or unknown list type.
   if (!decoded) return <Redirect to="/" />;
   if (!cfg) return <Redirect to={`/p/${rawId}`} />;
@@ -100,6 +129,31 @@ export default function ConnectionListPage() {
     subject.display_name || subject.name || (pubkey ? npubFromPubkey(pubkey).slice(0, 12) + "…" : "this profile");
   const profileMap = profilesQuery.data;
   const loading = connQuery.isLoading;
+
+  // "What does verified mean?" popover — POV-aware so it nudges the right next
+  // step: sign in (logged out) → watch calculation (calculating) → tune it (yours).
+  const povLink = "font-medium text-[#6366f1] hover:text-[#4f46e5]";
+  const currentPath = `/p/${rawId}/${type}`;
+  const verifiedPopover = !signedIn ? (
+    <>
+      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account the Web of Trust vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
+      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> Web of Trust — once your scores are calculated.</p>
+      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
+    </>
+  ) : !calcDone ? (
+    <>
+      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account the Web of Trust vouches for — bots and unknown accounts don't count.</p>
+      <p className="mt-1.5">You're signed in, but <strong className="font-semibold text-slate-700">your scores are still being calculated</strong>. Until they're ready, this shows Brainstorm's point of view.</p>
+      <Link href="/dashboard" className={`mt-1 inline-block ${povLink}`}>Check your dashboard →</Link>
+      <Link href="/what-is-wot" className={`mt-2 block ${povLink}`}>Learn how it works →</Link>
+    </>
+  ) : (
+    <>
+      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account <em>your</em> Web of Trust vouches for — the accounts <strong className="font-semibold text-slate-700">you</strong> trust decide who counts.</p>
+      <p className="mt-1.5">You're seeing your own point of view. Tune the threshold in <Link href="/settings?tab=trust" className={povLink}>Settings</Link> — Relax, Default, or Strict.</p>
+      <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
@@ -124,6 +178,9 @@ export default function ConnectionListPage() {
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
               {cfg.title(subjectName)}
             </h1>
+            {cfg.verifiedOnly && (
+              <InfoHint label="What does verified mean?">{verifiedPopover}</InfoHint>
+            )}
           </div>
           {!loading && items.length > 0 && (
             <p className="mt-1.5 text-sm text-slate-500" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
@@ -172,6 +229,17 @@ export default function ConnectionListPage() {
                     ) : (
                       rowNpub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400">{rowNpub.slice(0, 16)}…</p>
                     )}
+                    {cfg.kind === "reported_by" && (() => {
+                      const rm = reportMap.get(pk);
+                      if (!rm) return null;
+                      return (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`conn-report-${pk.slice(0, 8)}`}>
+                          <span className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}>{rm.reportType}</span>
+                          <span className="text-[10px] text-slate-400">{formatReportTime(rm.timestamp)}</span>
+                          {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400" title={rm.reason}>"{rm.reason}"</span>}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {tier && (
                     <span className="hidden shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex" style={{ backgroundColor: `${tier.color}14`, color: tier.color }} data-testid="conn-tier">

@@ -8,7 +8,6 @@ import {
   BadgeCheck,
   Globe,
   ArrowRight,
-  ArrowLeft,
   Wifi,
   Video as VideoIcon,
   Headphones,
@@ -20,6 +19,12 @@ import {
   Copy,
   Check,
   SlidersHorizontal,
+  Users,
+  UserCheck,
+  UserPlus,
+  VolumeX,
+  Flag,
+  type LucideIcon,
 } from "lucide-react";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -47,6 +52,7 @@ import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearP
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -121,6 +127,9 @@ export default function SharePage() {
   // Owner = the logged-in user IS this profile and can sign (publish prefs).
   const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
     (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
+  // viewer — drives the at-a-glance badges above the CTA. Actions live on /profile/.
+  const rel = useRelationshipBadges(pubkey);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
@@ -708,10 +717,23 @@ export default function SharePage() {
   if (!status.general && !status.music) emptyKeys.add("status");
 
   // The Web-of-Trust card — rendered twice (mobile inline / desktop sidebar).
-  // Primary = network/house score (what everyone sees); when logged in, your
-  // personal POV (`score01`) is the secondary "To you" line (shown only if it
-  // differs from the network score).
-  const wotCard = <WotStrengthCard score01={primaryScore01} secondaryScore01={loggedIn ? score01 : null} secondaryLabel="To you" />;
+  // Logged OUT: the network/house score leads (the same number every recipient
+  // sees — the shareable artifact). Logged IN with a personal POV: LEAD with
+  // "To you" (the meter + verdict reflect the score that's relevant to the
+  // viewer, so an account they trust never shows an empty network bar), and
+  // "Brainstorm" becomes the reference row. The secondary shows only if it
+  // differs from the primary after rounding.
+  const leadWithMine = loggedIn && score01 != null;
+  const cardPrimaryScore = leadWithMine ? score01 : primaryScore01;
+  const cardSecondaryScore = leadWithMine ? houseScore01 : null;
+  const wotCard = (
+    <WotStrengthCard
+      score01={cardPrimaryScore}
+      secondaryScore01={cardSecondaryScore}
+      primaryLabel={leadWithMine ? "To you" : ""}
+      secondaryLabel="Brainstorm"
+    />
+  );
 
   return (
     <ShareShell onShare={() => setShareOpen(true)}>
@@ -889,6 +911,29 @@ export default function SharePage() {
               YOUR web of trust. Single CTA (logged out → sign-in funnel; logged
               in → the personalized profile). */}
           <div className="mt-4 flex flex-col items-start gap-2">
+            {/* Your relationship — read-only, at-a-glance state for a logged-in
+                viewer (not your own profile). A quiet meta line matching the
+                page's other muted lines; actions live on the full profile. */}
+            {rel.enabled && !isOwner && !rel.loading && (rel.followsYou || rel.isFollowing || rel.isMuted || rel.report) && (() => {
+              const parts: { key: string; text: string; Icon: LucideIcon; className?: string }[] = [];
+              if (rel.isFollowing && rel.followsYou) parts.push({ key: "mutual", text: "You follow each other", Icon: Users });
+              else if (rel.isFollowing) parts.push({ key: "following", text: "You follow them", Icon: UserCheck });
+              else if (rel.followsYou) parts.push({ key: "follows-you", text: "They follow you", Icon: UserPlus });
+              if (rel.isMuted) parts.push({ key: "muted", text: "You've muted them", Icon: VolumeX });
+              if (rel.report) parts.push({ key: "reported", text: "You reported this", Icon: Flag, className: "text-amber-600" });
+              return (
+                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400" data-testid="share-relationship-summary">
+                  {parts.map((p, i) => (
+                    <span key={p.key} className="inline-flex items-center">
+                      {i > 0 && <span className="text-slate-300 mr-2.5">·</span>}
+                      <span className={`inline-flex items-center gap-1 ${p.className ?? ""}`}>
+                        <p.Icon className="h-3 w-3" /> {p.text}
+                      </span>
+                    </span>
+                  ))}
+                </p>
+              );
+            })()}
             <Link
               href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
@@ -896,7 +941,9 @@ export default function SharePage() {
             >
               See in your Web of Trust <ArrowRight className="h-4 w-4" />
             </Link>
-            {!loggedIn && <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
+            {loggedIn
+              ? !isOwner && <span className="text-xs text-slate-400">Follow, mute or report from your full view</span>
+              : <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
           </div>
 
           {foundViaRelays && (
