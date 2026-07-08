@@ -96,7 +96,7 @@ import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
-import { fetchContactList, getFollowedPubkeys, fetchMyReport } from "@/services/socialActions";
+import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminHistoryItem {
@@ -982,7 +982,10 @@ export default function ProfilePage() {
     retry: false,
   });
   const myReport = myReportQuery.data ?? null;
-  const invalidateMyReport = () => relQueryClient.invalidateQueries({ queryKey: ["my-report", user?.pubkey, hexPubkey] });
+  // Write the "you reported this" state straight into the cache instead of
+  // re-fetching kind-1984 from relays (which lags 8s / until propagation) — so
+  // the chip appears/clears instantly. Shared key, so the /p line updates too.
+  const setMyReport = (value: MyReport | null) => relQueryClient.setQueryData(["my-report", user?.pubkey, hexPubkey], value);
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -2372,8 +2375,8 @@ export default function ProfilePage() {
                             }`}
                             data-testid="button-follow-toggle"
                           >
-                            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : following ? (followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />) : <UserPlus className="h-3.5 w-3.5" />}
-                            <span>{pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
+                            {following ? (followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />) : <UserPlus className="h-3.5 w-3.5" />}
+                            <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
                           </button>
                         );
                       })()}
@@ -2431,11 +2434,13 @@ export default function ProfilePage() {
                             <DropdownMenuItem
                               className="cursor-pointer text-amber-700 focus:text-amber-800"
                               onClick={async () => {
+                                const snapshot = myReport;
+                                setMyReport(null); // optimistic: chip + menu flip instantly
                                 const result = await social.unreport(hexPubkey);
                                 if (result.success) {
-                                  invalidateMyReport();
                                   toast({ title: "Report removed", description: "Trust scores may take a little while to reflect this." });
                                 } else {
+                                  setMyReport(snapshot); // rollback
                                   toast({ title: "Error", description: result.error || "Couldn't remove report", variant: "destructive" });
                                 }
                               }}
@@ -3254,7 +3259,9 @@ export default function ProfilePage() {
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
                 if (result.success) {
-                  invalidateMyReport();
+                  // Show the "you reported this" state immediately — the dialog's
+                  // own spinner already covered the publish; don't wait on a relay refetch.
+                  setMyReport({ id: "", reportType: reportReason, reason: "", timestamp: Math.floor(Date.now() / 1000), eventIds: [] });
                   toast({ title: "Reported", description: "Report published to Nostr relays" });
                   setReportDialogOpen(false);
                 } else {
