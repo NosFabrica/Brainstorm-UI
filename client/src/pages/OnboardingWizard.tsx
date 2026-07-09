@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, ArrowRight, Check, Download } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -9,13 +9,53 @@ import { followPubkeys } from "@/services/socialActions";
 import { downloadAccountBackup } from "@/lib/accountBackup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
+import { TIERS, deltaFeaturesForTier } from "@/lib/plans";
+import { FlashIcon } from "@/components/FlashIcon";
 
-type Step = "profile" | "follow" | "backup";
+type Step = "profile" | "follow" | "backup" | "plans";
 const STEPS: { key: Step; label: string }[] = [
   { key: "profile", label: "Profile" },
   { key: "follow", label: "Network" },
   { key: "backup", label: "Backup" },
+  { key: "plans", label: "Plans" },
 ];
+
+// Persist wizard progress per-account so stepping out (e.g. to /pricing) and
+// back resumes exactly where you were instead of resetting to step 1 with empty
+// fields — which reads as "the product ate my data" even though it's all saved.
+interface OnboardingState {
+  step: Step;
+  name: string;
+  about: string;
+  picture: string;
+  banner: string;
+}
+const onboardingKey = (pubkey: string) => `brainstorm_onboarding_state:${pubkey}`;
+
+function loadOnboardingState(pubkey: string): Partial<OnboardingState> | null {
+  if (!pubkey) return null;
+  try {
+    const raw = localStorage.getItem(onboardingKey(pubkey));
+    return raw ? (JSON.parse(raw) as Partial<OnboardingState>) : null;
+  } catch {
+    return null;
+  }
+}
+function saveOnboardingState(pubkey: string, state: OnboardingState): void {
+  if (!pubkey) return;
+  try {
+    localStorage.setItem(onboardingKey(pubkey), JSON.stringify(state));
+  } catch {
+    /* storage unavailable — degrade to in-memory only */
+  }
+}
+function clearOnboardingState(pubkey: string): void {
+  try {
+    localStorage.removeItem(onboardingKey(pubkey));
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * Guided post-signup onboarding: name (captured at signup) → profile (photo/bio,
@@ -38,15 +78,27 @@ export default function OnboardingWizard() {
     return "/";
   }, []);
 
-  const [step, setStep] = useState<Step>("profile");
+  const pubkey = user?.pubkey ?? "";
+  const persisted = useMemo(() => loadOnboardingState(pubkey), [pubkey]);
+  const isValidStep = (s: unknown): s is Step => STEPS.some((st) => st.key === s);
+
+  const [step, setStep] = useState<Step>(() => (isValidStep(persisted?.step) ? persisted!.step : "profile"));
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
-  // --- Profile step (prefilled with the name entered at signup) ---
-  const [name, setName] = useState(() => getCurrentUser()?.displayName || "");
-  const [about, setAbout] = useState("");
-  const [picture, setPicture] = useState("");
-  const [banner, setBanner] = useState("");
+  // --- Profile step — restore from a saved draft, else the account's real
+  //     published values, so the form is never blank on a remount (and a
+  //     re-continue can never overwrite a good kind-0 with empty fields). ---
+  const [name, setName] = useState(() => persisted?.name ?? user?.displayName ?? "");
+  const [about, setAbout] = useState(() => persisted?.about ?? user?.about ?? "");
+  const [picture, setPicture] = useState(() => persisted?.picture ?? user?.picture ?? "");
+  const [banner, setBanner] = useState(() => persisted?.banner ?? "");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Persist progress on every step / field change so navigating away and back
+  // resumes exactly here instead of resetting to a blank step 1.
+  useEffect(() => {
+    if (pubkey) saveOnboardingState(pubkey, { step, name, about, picture, banner });
+  }, [pubkey, step, name, about, picture, banner]);
 
   const saveProfileAndNext = async () => {
     const trimmed = name.trim();
@@ -86,6 +138,7 @@ export default function OnboardingWizard() {
   const canBackup = pass.length >= 8 && pass === confirm;
 
   const finish = () => {
+    clearOnboardingState(pubkey); // onboarding done — don't resume the wizard later
     toast({ title: "You're all set!", description: "Your trust network is calculating — explore while it works." });
     navigate(returnPath, { replace: true });
   };
@@ -101,7 +154,7 @@ export default function OnboardingWizard() {
       toast({ variant: "destructive", title: "Couldn't create your backup", description: "Please try again." });
       return;
     }
-    finish();
+    setStep("plans");
   };
 
   if (!user) {
@@ -271,10 +324,57 @@ export default function OnboardingWizard() {
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-backup-skip">
+              <button type="button" onClick={() => setStep("plans")} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-backup-skip">
                 Skip for now
               </button>
               <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700"><Check className="h-3.5 w-3.5" /> Scores are calculating</span>
+            </div>
+          </div>
+        )}
+
+        {step === "plans" && (
+          <div data-testid="onboarding-step-plans">
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+              You're all set on <span className="text-[#333286]">Grapevine</span> — free forever.
+            </h1>
+            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+              Everything you need is free. When you want fresher scores and to truly own your data, {TIERS.sovereign.name} is there — no rush.
+            </p>
+
+            {/* Sovereign at-a-glance — awareness only, nothing to buy here */}
+            <div className="mt-6 rounded-2xl border border-[#7c86ff]/40 bg-white p-5 shadow-sm" data-testid="onboarding-plans-sovereign">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-brand text-lg font-bold text-slate-900">{TIERS.sovereign.name}</div>
+                  <div className="text-xs text-slate-400">{TIERS.sovereign.usdApprox} — {TIERS.sovereign.tagline}</div>
+                </div>
+                <div className="flex items-baseline gap-1 shrink-0">
+                  <span className="text-2xl font-bold text-slate-900 tabular-nums">{TIERS.sovereign.satsPerMonth.toLocaleString()}</span>
+                  <span className="text-sm font-semibold text-amber-600 inline-flex items-center gap-0.5"><FlashIcon className="h-3.5 w-3.5" />sats</span>
+                  <span className="text-xs text-slate-400">/ mo</span>
+                </div>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
+                {deltaFeaturesForTier("sovereign").slice(0, 3).map((f) => (
+                  <li key={f.key} className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" /> {f.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-3">
+              <button type="button" onClick={() => navigate("/pricing")} className="text-sm font-semibold text-slate-500 hover:text-[#333286]" data-testid="onboarding-plans-see-all">
+                Compare all plans
+              </button>
+              <button
+                type="button"
+                onClick={finish}
+                className="h-12 px-6 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+                data-testid="onboarding-plans-continue"
+              >
+                Start exploring <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
