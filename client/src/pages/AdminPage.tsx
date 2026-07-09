@@ -994,6 +994,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-slate-100 border-b-2 border-slate-200">
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Date</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600" title="What triggered this run">Source</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Status</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Algorithm</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">TA Status</th>
@@ -1020,6 +1021,9 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                           <tr className={`border-b ${hasFail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className="text-[11px] font-medium text-slate-700">{formatTimestamp(item.created_at)}</span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <TriggerSourceBadge value={item.trigger_source} />
                             </td>
                             <td className="px-3 py-2.5">
                               {statusFailed ? (
@@ -1105,7 +1109,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                             const stageInfo = stage ? FAILURE_STAGE_HINTS[stage] : null;
                             return (
                               <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
-                                <td colSpan={7} className="px-4 py-2">
+                                <td colSpan={8} className="px-4 py-2">
                                   <div className="flex items-start gap-2">
                                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                     <div className="flex-1 space-y-1">
