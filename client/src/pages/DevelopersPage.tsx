@@ -63,7 +63,7 @@ const ConnectionIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const RELAY_URL = "wss://brainstorm.world/relay";
+const RELAY_URL = "wss://search.brainstorm.world/";
 
 const QUICK_START_SNIPPET = `["REQ", "search-1", {
   "kinds": [0],

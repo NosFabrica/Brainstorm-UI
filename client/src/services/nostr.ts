@@ -1779,7 +1779,7 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = "wss://brainstorm.world/relay";
+const WOT_SEARCH_RELAY = "wss://search.brainstorm.world/";
 
 export interface NostrSearchResult {
   pubkey: string;
