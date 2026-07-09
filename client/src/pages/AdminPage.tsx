@@ -641,7 +641,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
       </div>
       <div className="flex items-end justify-between gap-2 relative">
         <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-        {!unsupported && (
+        {!unsupported && hasSparkline && (
           <div className="flex items-center gap-1">
             <MiniSparkline
               data={sparklineData ?? []}
@@ -2313,6 +2313,24 @@ export default function AdminPage() {
     return map;
   }, [overviewAllActivity, activityItems]);
 
+  // Fixed 24h glance-trend for the top KPI-card sparklines — independent of the
+  // Overview trend-window filter (the header cards show "right now" state).
+  const fixedTrends24h = useMemo(() => {
+    const now = Date.now();
+    const cfg = getWindowConfig("24h");
+    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
+    return {
+      bucketTimestamps: buckets.map((b) => b.t),
+      totalSeries: buckets.map((b) => b.total),
+      successSeries: buckets.map((b) => b.success),
+      failedSeries: buckets.map((b) => b.failed),
+      rateSeries: buckets.map((b) => {
+        const d = b.success + b.failed;
+        return d === 0 ? 0 : Math.round((b.success / d) * 100);
+      }),
+    };
+  }, [overviewAllActivity]);
+
   const trends = useMemo(() => {
     const now = Date.now();
     const HOUR = 3600000;
@@ -2636,6 +2654,17 @@ export default function AdminPage() {
             </div>
           </div>
 
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current system state</span>
+            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              live now
+            </span>
+            <span className="text-[9px] text-slate-400">· mini-charts show the last 24h · window filters affect the charts below, not these</span>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
@@ -2645,26 +2674,10 @@ export default function AdminPage() {
               tooltip="Click to view scored users"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
-              sparklineData={trends.successSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.successSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="successes"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    label={trends.cfg.priorLabel}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curSuccess - trends.cmp1h.prevSuccess) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      label="vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
             <KpiCard
               label="SP Adopters"
@@ -2674,7 +2687,6 @@ export default function AdminPage() {
               tooltip="Click to view SP adopters"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
               label="Queue Depth"
@@ -2684,97 +2696,44 @@ export default function AdminPage() {
               tooltip="Click to view queued users"
               scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
               label="Total Calcs"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
               icon={Activity}
-              subtitle={`${formatNumber(trends.cmp.curTotal)} in ${trends.cfg.windowPhrase}`}
-              tooltip={`Cumulative calculation attempts across all users; ${trends.cfg.shortLabel} trend shown`}
+              subtitle="Cumulative attempts, all users"
+              tooltip="Cumulative calculation attempts across all users"
               scope="system"
-              sparklineData={trends.totalSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.totalSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#7c86ff"
-              sparklineValueLabel={trends.cfg.bucketUnitLabel}
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
+              sparklineValueLabel="calcs / hr"
             />
             <KpiCard
               label="Success Rate"
               value={pipelineMetrics ? `${pipelineMetrics.successRate}%` : (trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—")}
               icon={CheckCircle2}
-              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in ${trends.cfg.windowPhrase}` : "Cumulative success rate"}
-              tooltip={`Successful calculations as % of attempted; ${trends.cfg.shortLabel} trend shown`}
+              subtitle="Cumulative success rate"
+              tooltip="Successful calculations as % of attempted"
               scope="system"
-              sparklineData={trends.rateSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.rateSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="success rate"
               sparklineValueSuffix="%"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
-                    insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
-                    suffix=" pts"
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null ? (trends.cmp1h.curSR - trends.cmp1h.prevSR) : null}
-                      insufficient={!(trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null)}
-                      suffix=" pts"
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
             <KpiCard
               label="Failed Count"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
-              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in ${trends.cfg.windowPhrase}`}
+              subtitle="Users with a failed run"
               tooltip="Click to view users with failures"
               scope="system"
               onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
-              sparklineData={trends.failedSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.failedSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#f87171"
               sparklineValueLabel="failures"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curFailed - trends.cmp.prevFailed) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    inverted
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curFailed - trends.cmp1h.prevFailed) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      inverted
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
           </div>
 
@@ -4327,16 +4286,6 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
-                </div>
-                <div className="px-5 py-4">
-                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
-                </div>
-              </div>
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-policies">
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
@@ -4345,6 +4294,16 @@ export default function AdminPage() {
                 </div>
                 <div className="px-5 py-4">
                   <SchedulingCard active={activeTab === "scheduling"} />
+                </div>
+              </div>
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
+                </div>
+                <div className="px-5 py-4">
+                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
                 </div>
               </div>
             </div>
