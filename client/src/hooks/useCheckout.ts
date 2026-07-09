@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveCheckout } from "@/lib/checkout";
-import type { TierId, Rail } from "@/lib/plans";
+import { isPurchasable, type TierId, type Rail } from "@/lib/plans";
 
 /**
  * Returns `startCheckout(tier, rail?)` — the single entry every "Subscribe" /
@@ -13,7 +13,9 @@ export function useCheckout(): (tier: TierId, rail?: Rail) => void {
   const [currentUser] = useCurrentUser();
 
   return (tier: TierId, rail?: Rail) => {
-    if (tier === "grapevine") return; // free — no checkout
+    // Only paid, currently-available tiers can be checked out (free tier and
+    // "coming soon" tiers like Guardian are no-ops).
+    if (!isPurchasable(tier)) return;
     const target = resolveCheckout(tier, { rail, pubkey: currentUser?.pubkey });
     if (target.external) {
       window.location.assign(target.url);

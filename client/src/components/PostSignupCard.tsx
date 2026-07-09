@@ -408,6 +408,17 @@ export function PostSignupCard() {
               </button>
             )}
           </div>
+
+          {/* Non-blocking plans awareness — everyone starts free on Grapevine;
+              this just points to the paid plan, it never gates onboarding. */}
+          <button
+            type="button"
+            onClick={() => navigate("/pricing")}
+            className="mt-4 w-full border-t border-slate-100 pt-3 text-center text-[12px] font-medium text-slate-400 hover:text-indigo-600 transition-colors"
+            data-testid="link-postsignup-plans"
+          >
+            You're on Grapevine — free forever. Meet the plans →
+          </button>
         </div>
       </div>
     </>

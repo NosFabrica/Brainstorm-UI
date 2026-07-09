@@ -1,5 +1,6 @@
 import { Link, useSearch, Redirect } from "wouter";
-import { Zap, ArrowLeft, ShieldCheck, Repeat } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Repeat } from "lucide-react";
+import { FlashIcon } from "@/components/FlashIcon";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ComplianceStrip } from "@/components/ComplianceStrip";
 import { env } from "@/lib/runtimeEnv";
@@ -48,7 +49,7 @@ export default function CheckoutPage() {
             <div className="text-right">
               <div className="inline-flex items-baseline gap-1 text-xl font-bold text-slate-900 tabular-nums">
                 {tier.satsPerMonth.toLocaleString()}
-                <span className="text-xs font-semibold text-amber-600 inline-flex items-center gap-0.5"><Zap className="h-3 w-3" />sats</span>
+                <span className="text-xs font-semibold text-amber-600 inline-flex items-center gap-0.5"><FlashIcon className="h-3 w-3" />sats</span>
                 <span className="text-xs font-normal text-slate-400">/ mo</span>
               </div>
               <div className="text-xs text-slate-400">{tier.usdApprox}</div>
@@ -76,7 +77,7 @@ export default function CheckoutPage() {
             className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#6366f1] px-4 py-2.5 text-sm font-semibold text-white opacity-60 cursor-not-allowed"
             data-testid="button-checkout-subscribe"
           >
-            <Zap className="h-4 w-4" /> Subscribe — {tier.satsPerMonth.toLocaleString()} sats/mo
+            <FlashIcon className="h-4 w-4" /> Subscribe — {tier.satsPerMonth.toLocaleString()} sats/mo
           </button>
           <p className="mt-2 text-center text-[11px] text-slate-400">Payment integration coming soon — no charge will be made.</p>
         </div>

@@ -34,6 +34,11 @@ export interface TierInfo {
   tagline: string;
   /** Optional pill on the card (e.g. Guardian "Creators + brands"). */
   badge?: string;
+  /** Whether this tier can be purchased today. `false` → shown as "coming soon"
+   *  (in the vision, not yet buyable). The free base tier is always `true`. */
+  available: boolean;
+  /** Optional supporting line under the price (framing, e.g. early-supporter). */
+  note?: string;
   /** Gating keys unlocked AT this tier (delta only; tiers are cumulative). */
   featureKeys: string[];
   /** Customer-facing CTA labels. */
@@ -87,6 +92,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     satsPerMonth: 0,
     usdApprox: "Free",
     tagline: "forever — the flywheel",
+    available: true,
     featureKeys: [
       "wot-feed", "deep-scores", "spam-filter", "report-impersonators", "report-impact",
       "vouch", "trust-path", "is-this-real", "profile-badges", "dm-gate",
@@ -101,6 +107,8 @@ export const TIERS: Record<TierId, TierInfo> = {
     satsPerMonth: 2100,
     usdApprox: "≈ $2/mo",
     tagline: "own your data",
+    available: true,
+    note: "Early supporter — lock in this price as more features roll out",
     featureKeys: [
       "fresh-scores", "full-history", "semantic-search", "wot-alerts", "custom-roots",
       "algorithm-knobs", "personal-archive", "portable-credential", "no-ads",
@@ -115,11 +123,13 @@ export const TIERS: Record<TierId, TierInfo> = {
     usdApprox: "≈ $20/mo",
     tagline: "protect your name",
     badge: "Creators + brands",
+    available: false,
+    note: "Coming soon — unlocks as identity-protection features ship",
     featureKeys: [
       "identity-watch", "clone-alerts", "verified-human-badge", "audience-trust-api",
       "team-seats", "reach-analytics", "published-vouch-list", "data-api",
     ],
-    cta: { current: "Current plan", upgrade: "Upgrade to Guardian" },
+    cta: { current: "Current plan", upgrade: "Join the waitlist" },
   },
 };
 
@@ -128,6 +138,12 @@ export const TIER_ORDER: TierId[] = ["grapevine", "sovereign", "guardian"];
 
 export function tierRank(id: TierId): number {
   return TIERS[id].order;
+}
+
+/** A tier that can actually be purchased right now (paid AND available). */
+export function isPurchasable(id: TierId): boolean {
+  const t = TIERS[id];
+  return t.available && t.satsPerMonth > 0;
 }
 
 /** True when `userTier` is at or above `required` (the gating check). */

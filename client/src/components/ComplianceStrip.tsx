@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { Lock, Zap } from "lucide-react";
+import { Lock } from "lucide-react";
+import { FlashIcon } from "@/components/FlashIcon";
 
 /**
  * Trust + legal strip shown under the pricing / checkout surfaces. Brainstorm
@@ -24,7 +25,7 @@ export function ComplianceStrip() {
           <div className="w-px h-4 bg-slate-200" />
           <div className="flex items-center gap-2.5 text-xs" data-testid="row-pay-methods">
             <span className="inline-flex items-center gap-1 font-semibold text-amber-600">
-              <Zap className="h-3.5 w-3.5" /> Bitcoin · Lightning
+              <FlashIcon className="h-3.5 w-3.5" /> Bitcoin · Lightning
             </span>
             <span className="text-slate-400">Cards coming soon</span>
           </div>

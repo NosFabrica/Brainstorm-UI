@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Zap, Calendar, Repeat, Loader2, Receipt } from "lucide-react";
+import { Calendar, Repeat, Loader2, Receipt } from "lucide-react";
+import { FlashIcon } from "@/components/FlashIcon";
 import { useSubscription } from "@/hooks/useSubscription";
 import { cancelSubscription } from "@/services/subscription";
 import { TIERS, type SubscriptionStatus } from "@/lib/plans";
@@ -46,7 +47,7 @@ export function BillingPanel() {
   return (
     <div className="space-y-4" data-testid="billing-panel">
       {/* Current plan */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[#7c86ff]/15 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Current plan</div>
@@ -62,7 +63,7 @@ export function BillingPanel() {
               <>
                 <div className="inline-flex items-baseline gap-1 text-lg font-bold text-slate-900 tabular-nums">
                   {info.satsPerMonth.toLocaleString()}
-                  <span className="text-xs font-semibold text-amber-600 inline-flex items-center gap-0.5"><Zap className="h-3 w-3" />sats</span>
+                  <span className="text-xs font-semibold text-amber-600 inline-flex items-center gap-0.5"><FlashIcon className="h-3 w-3" />sats</span>
                   <span className="text-xs font-normal text-slate-400">/ mo</span>
                 </div>
                 <div className="text-xs text-slate-400">{info.usdApprox}</div>
@@ -138,7 +139,7 @@ export function BillingPanel() {
       </div>
 
       {/* Receipts — populated by the backend later */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[#7c86ff]/15 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
           <Receipt className="h-4 w-4 text-slate-400" /> Payment history
         </div>

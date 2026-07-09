@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, FileText, ShieldCheck, HelpCircle, List, ChevronDown, Link2 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 
 export type Block =
   | { type: "p"; text: string }
@@ -170,34 +171,22 @@ export function LegalDocLayout({
   return (
     <InfoPageLayout testId={testId}>
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-8 sm:py-12">
-        {/* Header */}
-        <header className="mb-8 animate-fade-up" data-testid={`header-${docKind}`}>
+        {/* Header — the shared PageHeader masthead (same as About / What-is-WoT /
+            Personalization), plus a small "last revised" line legal docs need. */}
+        <div className="mb-8 animate-fade-up">
+          <PageHeader
+            kicker={eyebrow}
+            title={<span data-testid={`text-${docKind}-title`}>{title}</span>}
+            testId={`header-${docKind}`}
+          />
           <div
-            className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border border-[#7c86ff]/12 bg-white/70 px-2.5 py-0.5 shadow-sm backdrop-blur-sm"
-            data-testid={`badge-${docKind}`}
-          >
-            <div className="h-1 w-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#333286]">
-              {eyebrow}
-            </p>
-          </div>
-          <h1
-            className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl"
-            style={{ fontFamily: "var(--font-display)" }}
-            data-testid={`text-${docKind}-title`}
-          >
-            <span className="block bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] bg-clip-text pb-1 text-transparent drop-shadow-sm animate-gradient-x">
-              {title}
-            </span>
-          </h1>
-          <div
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-500 backdrop-blur-sm"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-500"
             data-testid={`text-${docKind}-revised`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             {lastRevised}
           </div>
-        </header>
+        </div>
 
         <div className="lg:grid lg:grid-cols-[248px_1fr] lg:gap-8">
           {/* Desktop TOC */}
@@ -257,9 +246,9 @@ export function LegalDocLayout({
               </AnimatePresence>
             </div>
 
-            {/* Document panel */}
-            <div className="relative overflow-hidden rounded-2xl border border-[#7c86ff]/20 bg-gradient-to-br from-white/95 via-white/85 to-indigo-50/40 shadow-[0_0_15px_rgba(124,134,255,0.07)] backdrop-blur-xl">
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+            {/* Document panel — flat brand card to match the other content pages. */}
+            <div className="relative overflow-hidden rounded-2xl border border-[#7c86ff]/25 bg-white shadow-sm">
+              <div className="h-1 w-full bg-[#7c86ff]" />
 
               <div className="px-5 py-7 sm:px-9 sm:py-10">
                 {/* Preamble */}

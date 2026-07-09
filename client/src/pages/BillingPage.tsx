@@ -1,34 +1,27 @@
-import { Link } from "wouter";
-import { ArrowLeft } from "lucide-react";
-import { BrainLogo } from "@/components/BrainLogo";
+import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 import { BillingPanel } from "@/components/BillingPanel";
 
 /**
- * Standalone billing page (auth-gated via RequireAuth). Thin shell around the
- * shared BillingPanel, which is also embedded in Settings → Billing.
+ * Standalone billing page (auth-gated via RequireAuth). Uses the shared
+ * InfoPageLayout + PageHeader so it reads on the same sheet of music as the
+ * About / How-Search / Personalization pages. The current-plan content is the
+ * shared BillingPanel, also embedded in Settings → Billing.
  */
 export default function BillingPage() {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      <header className="border-b border-slate-200 bg-white/70 backdrop-blur-sm">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-indigo-600" data-testid="link-billing-back">
-            <ArrowLeft className="h-4 w-4" /> Dashboard
-          </Link>
-          <Link href="/" className="inline-flex items-center gap-2">
-            <BrainLogo size={20} className="text-indigo-500" />
-            <span className="text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>Brainstorm</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold">Billing &amp; plan</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage your Brainstorm subscription.</p>
-        <div className="mt-6">
+    <InfoPageLayout testId="page-billing">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        <div className="space-y-8 animate-fade-up">
+          <PageHeader
+            kicker="Billing"
+            title={<>Billing <span className="text-[#333286]">&amp; plan</span></>}
+            subtitle="Manage your Brainstorm subscription — your current plan, renewal, and payment history."
+            testId="section-billing-header"
+          />
           <BillingPanel />
         </div>
-      </main>
-    </div>
+      </div>
+    </InfoPageLayout>
   );
 }
