@@ -105,7 +105,7 @@ import { useToast } from "@/hooks/use-toast";
 type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
-type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all";
+type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
 
 function formatTimestamp(dateStr?: string): string {
   if (!dateStr) return "";
@@ -315,13 +315,14 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
 
 type HourlyBucket = { t: number; success: number; failed: number; total: number };
 
-type TrendWindow = "1h" | "24h" | "7d" | "30d";
+type TrendWindow = "1h" | "24h" | "7d" | "all";
 
 type WindowConfig = {
   windowMs: number;
   bucketCount: number;
   bucketSizeMs: number;
   shortLabel: string;
+  windowPhrase: string;
   longLabel: string;
   priorLabel: string;
   bucketLabelFn: (ts: number) => string;
@@ -340,6 +341,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 12,
         bucketSizeMs: 5 * 60000,
         shortLabel: "1h",
+        windowPhrase: "the last hour",
         longLabel: "Last hour",
         priorLabel: "vs prior 1h",
         bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -353,6 +355,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 24,
         bucketSizeMs: HOUR,
         shortLabel: "24h",
+        windowPhrase: "the last 24h",
         longLabel: "Last 24 hours",
         priorLabel: "vs prior 24h",
         bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit" }),
@@ -366,6 +369,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 7,
         bucketSizeMs: DAY,
         shortLabel: "7d",
+        windowPhrase: "the last 7d",
         longLabel: "Last 7 days",
         priorLabel: "vs prior 7d",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short" }),
@@ -373,18 +377,19 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 0,
         bucketUnitLabel: "calcs / day",
       };
-    case "30d":
+    case "all":
       return {
-        windowMs: 30 * DAY,
-        bucketCount: 30,
-        bucketSizeMs: DAY,
-        shortLabel: "30d",
-        longLabel: "Last 30 days",
-        priorLabel: "vs prior 30d",
+        windowMs: Number.POSITIVE_INFINITY,
+        bucketCount: 12,
+        bucketSizeMs: DAY, // overridden dynamically from the loaded-data span
+        shortLabel: "All",
+        windowPhrase: "all loaded",
+        longLabel: "All loaded activity",
+        priorLabel: "vs prior period",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
-        bucketTooltipFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
-        xAxisInterval: 4,
-        bucketUnitLabel: "calcs / day",
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        xAxisInterval: 2,
+        bucketUnitLabel: "calcs",
       };
   }
 }
@@ -610,7 +615,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
@@ -925,7 +930,7 @@ function FailureBreakdownCard({
   );
 }
 
-function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: string; taPubkey: string | null }) {
+function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: string; npub: string; taPubkey: string | null; schedulingName?: string }) {
   const historyQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/users", pubkey, "history"],
     queryFn: () => apiClient.getAdminUserHistory(pubkey, { page: 1, size: 10 }),
@@ -965,13 +970,19 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
             </div>
           </div>
 
-          <NostrHealthCard pubkey={pubkey} taPubkey={taPubkey} />
-
           <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-[#333286]" />
                 <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
+                {schedulingName && (
+                  <span
+                    className="text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full"
+                    title="This user's current scheduling tier — how often scheduled runs recalculate them"
+                  >
+                    {schedulingName} schedule
+                  </span>
+                )}
               </div>
               {historyQuery.data && historyQuery.data.total > 0 && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{historyQuery.data.total} records</span>
@@ -1146,6 +1157,8 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
               </div>
             )}
           </div>
+
+          <NostrHealthCard pubkey={pubkey} taPubkey={taPubkey} />
         </div>
       </td>
     </tr>
@@ -1465,7 +1478,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, queuePosition }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; queuePosition?: number | "active" }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, queuePosition, schedulingName }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; queuePosition?: number | "active"; schedulingName?: string }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1547,6 +1560,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           </div>
         </td>
         <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px] tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</td>
         <td className="px-2 py-2 text-[10px]">
           {item.pubkey ? (() => {
             let npub: string;
@@ -1585,7 +1599,12 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             );
           })() : <span className="font-mono text-slate-400">—</span>}
         </td>
-        <td className="px-2 py-2"><TriggerSourceBadge value={item.trigger_source} /></td>
+        <td className="px-2 py-2">
+          <TriggerSourceBadge value={item.trigger_source} />
+          {schedulingName && (
+            <div className="text-[8px] font-medium text-violet-600 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
+          )}
+        </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
@@ -1649,7 +1668,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={12} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -1663,7 +1682,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
       )}
       {expanded && (
         <tr className={style.expanded}>
-          <td colSpan={11} className="px-4 py-3">
+          <td colSpan={12} className="px-4 py-3">
             {isFailed ? (
               <FailureDetailCard
                 item={item}
@@ -1899,7 +1918,15 @@ export default function AdminPage() {
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity/overview"],
-    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
+    // Pull more history so the 7d/30d trends are meaningful; fall back to a
+    // smaller page if the endpoint caps the size.
+    queryFn: async () => {
+      try {
+        return await apiClient.getAdminActivity({ page: 1, size: 500 });
+      } catch {
+        return await apiClient.getAdminActivity({ page: 1, size: 100 });
+      }
+    },
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
@@ -2130,7 +2157,24 @@ export default function AdminPage() {
   const lastCreated = grapeRank?.created_at ?? null;
 
   const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
+  // pubkey → current scheduling tier, for Platform Activity rows (best-effort:
+  // only covers users in the loaded set; activity records don't carry the tier).
+  const schedulingTierByPubkey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of overviewAllUsers) {
+      if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
+    }
+    return m;
+  }, [overviewAllUsers]);
   const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
+  // Coverage of the loaded activity feed — surfaced so admins know how far the
+  // trend windows actually reach (7d/30d may exceed the loaded records).
+  const activityCoverage = useMemo(() => {
+    const times = overviewAllActivity
+      .map((a) => parseActivityTs(a.updated_at))
+      .filter((t): t is number => !!t);
+    return { count: overviewAllActivity.length, oldest: times.length ? Math.min(...times) : null };
+  }, [overviewAllActivity]);
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
@@ -2271,7 +2315,6 @@ export default function AdminPage() {
 
   const trends = useMemo(() => {
     const now = Date.now();
-    const cfg = getWindowConfig(trendWindow);
     const HOUR = 3600000;
     const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
       const t = parseActivityTs(a.updated_at);
@@ -2279,8 +2322,15 @@ export default function AdminPage() {
       return min === 0 ? t : Math.min(min, t);
     }, 0);
     const dataAgeMs = oldestActivityTs > 0 ? (now - oldestActivityTs) : 0;
-    const dataCoversWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
-    const dataCoversPriorWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
+    let cfg = getWindowConfig(trendWindow);
+    if (trendWindow === "all") {
+      // Bucket the whole loaded span so "All" reads well no matter the range.
+      const spanMs = Math.max(dataAgeMs, HOUR);
+      const bucketCount = 12;
+      cfg = { ...cfg, bucketCount, bucketSizeMs: Math.ceil(spanMs / bucketCount) };
+    }
+    const dataCoversWindow = trendWindow === "all" ? true : (oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95);
+    const dataCoversPriorWindow = trendWindow === "all" ? false : (oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95);
     const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
     const cmp = compareActivityWindows(overviewAllActivity, cfg.windowMs, now);
     const cmp1h = compareActivityWindows(overviewAllActivity, HOUR, now);
@@ -2640,7 +2690,7 @@ export default function AdminPage() {
               label="Total Calcs"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
               icon={Activity}
-              subtitle={`${formatNumber(trends.cmp.curTotal)} in last ${trends.cfg.shortLabel}`}
+              subtitle={`${formatNumber(trends.cmp.curTotal)} in ${trends.cfg.windowPhrase}`}
               tooltip={`Cumulative calculation attempts across all users; ${trends.cfg.shortLabel} trend shown`}
               scope="system"
               sparklineData={trends.totalSeries}
@@ -2668,7 +2718,7 @@ export default function AdminPage() {
               label="Success Rate"
               value={pipelineMetrics ? `${pipelineMetrics.successRate}%` : (trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—")}
               icon={CheckCircle2}
-              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in last ${trends.cfg.shortLabel}` : "Cumulative success rate"}
+              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in ${trends.cfg.windowPhrase}` : "Cumulative success rate"}
               tooltip={`Successful calculations as % of attempted; ${trends.cfg.shortLabel} trend shown`}
               scope="system"
               sparklineData={trends.rateSeries}
@@ -2699,7 +2749,7 @@ export default function AdminPage() {
               label="Failed Count"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
-              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last ${trends.cfg.shortLabel}`}
+              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in ${trends.cfg.windowPhrase}`}
               tooltip="Click to view users with failures"
               scope="system"
               onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
@@ -2806,10 +2856,15 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" data-testid="trend-window-selector-row">
                 <div>
                   <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Trend window</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">All Overview sparklines, deltas, and charts use this window{!trends.dataCoversWindow && trends.hasAnyActivity ? " · limited data available" : ""}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    All Overview sparklines, deltas, and charts use this window
+                    {activityCoverage.count > 0 && ` · last ${activityCoverage.count} records`}
+                    {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
+                    {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
+                  </p>
                 </div>
                 <div className="inline-flex rounded-lg border-2 border-[#7c86ff]/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
-                  {(["1h", "24h", "7d", "30d"] as TrendWindow[]).map(w => (
+                  {(["1h", "24h", "7d", "all"] as TrendWindow[]).map(w => (
                     <button
                       key={w}
                       type="button"
@@ -2819,7 +2874,7 @@ export default function AdminPage() {
                       className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md ring-1 ring-[#7c86ff]/40" : "text-slate-600 bg-slate-50 hover:bg-[#7c86ff]/10 hover:text-[#333286] hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
-                      {w}
+                      {w === "all" ? "All" : w}
                     </button>
                   ))}
                 </div>
@@ -2948,7 +3003,7 @@ export default function AdminPage() {
 
                     <div className="border-t border-slate-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput (last {trends.cfg.shortLabel})</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput · {trends.cfg.windowPhrase}</p>
                         <DeltaIndicator
                           delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
                           insufficient={!trends.hasPriorWindow}
@@ -2957,7 +3012,7 @@ export default function AdminPage() {
                       </div>
                       <div className="rounded-xl border border-slate-100 bg-white/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
                         {!trends.hasAnyActivity ? (
-                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in last {trends.cfg.shortLabel}</div>
+                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in {trends.cfg.windowPhrase}</div>
                         ) : (
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={trends.buckets.map(b => ({
@@ -3028,15 +3083,15 @@ export default function AdminPage() {
                     </div>
 
                     <div className="border-t border-slate-100 pt-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Last 24h Throughput</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Throughput · {trends.cfg.windowPhrase}</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
                           <p className="text-[10px] font-semibold text-emerald-600">Successful</p>
-                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{pipelineMetrics.recentSuccess}</p>
+                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-100">
                           <p className="text-[10px] font-semibold text-red-600">Failed</p>
-                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{pipelineMetrics.recentFailed}</p>
+                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
                         </div>
                       </div>
                     </div>
@@ -3078,7 +3133,15 @@ export default function AdminPage() {
               </div>
 
               {(() => {
-                const failedItems = overviewAllActivity.filter(isItemFailed);
+                const failureWindowMs = trends.cfg.windowMs;
+                const failureNow = Date.now();
+                const failedItems = overviewAllActivity.filter((item) => {
+                  if (!isItemFailed(item)) return false;
+                  const t = parseActivityTs(item.updated_at);
+                  if (!t) return false;
+                  const age = failureNow - t;
+                  return age >= 0 && age < failureWindowMs;
+                });
                 const groups = new Map<string, { count: number; latest: BrainstormRequestInstance; pubkeys: Set<string> }>();
                 for (const item of failedItems) {
                   const key = normalizeErrorKey(extractErrorMessage(item)) + "|" + (getFailureStage(item) ?? "");
@@ -3113,8 +3176,8 @@ export default function AdminPage() {
                           </h3>
                           <p className="text-xs text-slate-500 mt-0.5">
                             {totalFailures === 0
-                              ? "No failures detected in recent activity."
-                              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
+                              ? `No failures in ${trends.cfg.windowPhrase}.`
+                              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
                           </p>
                         </div>
                         <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`} data-testid="badge-failure-count">
@@ -4042,7 +4105,7 @@ export default function AdminPage() {
                               </tr>
                             )}
                             {isExpanded && (
-                              <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} />
+                              <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} schedulingName={u.scheduling_name} />
                             )}
                           </Fragment>
                         );
@@ -4413,32 +4476,24 @@ export default function AdminPage() {
                 const now = Date.now();
 
                 const rangeLabels: Record<ActivityTimeRange, string> = {
+                  "1h": "Last Hour",
                   "24h": "Last 24 Hours",
-                  "week": "This Week",
-                  "month": "This Month",
-                  "quarter": "This Quarter",
-                  "all": "All Time",
+                  "7d": "Last 7 Days",
+                  "all": "All Loaded",
                 };
                 const rangeShort: Record<ActivityTimeRange, string> = {
+                  "1h": "1h",
                   "24h": "24h",
-                  "week": "Week",
-                  "month": "Month",
-                  "quarter": "Quarter",
+                  "7d": "7d",
                   "all": "All",
                 };
 
                 const getStartMs = (range: ActivityTimeRange): number => {
-                  if (range === "all") return 0;
-                  const d = new Date();
                   switch (range) {
+                    case "1h": return now - 3600000;
                     case "24h": return now - 86400000;
-                    case "week": { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d.getTime(); }
-                    case "month": { d.setDate(1); d.setHours(0,0,0,0); return d.getTime(); }
-                    case "quarter": {
-                      const qMonth = Math.floor(d.getMonth() / 3) * 3;
-                      d.setMonth(qMonth, 1); d.setHours(0,0,0,0);
-                      return d.getTime();
-                    }
+                    case "7d": return now - 7 * 86400000;
+                    case "all": return 0;
                     default: return 0;
                   }
                 };
@@ -4470,7 +4525,7 @@ export default function AdminPage() {
                 const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
                 const uniquePubkeys = new Set(filteredItems.map(a => a.pubkey).filter(Boolean)).size;
 
-                const presets: ActivityTimeRange[] = ["24h", "week", "month", "quarter", "all"];
+                const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
                   <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
@@ -4520,7 +4575,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       {activityTimeRange !== "24h" && (
-                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on latest 100 activity records. Broader ranges may not reflect full history.</p>
+                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may not reflect full history.</p>
                       )}
                     </div>
                     <div className="p-4 sm:p-5">
@@ -4751,6 +4806,7 @@ export default function AdminPage() {
                               </th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500" title="Time from created to updated">Duration</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
@@ -4773,6 +4829,7 @@ export default function AdminPage() {
                                   item={item}
                                   idx={idx}
                                   profile={item.pubkey ? userProfiles.get(item.pubkey) : undefined}
+                                  schedulingName={item.pubkey ? schedulingTierByPubkey.get(item.pubkey) : undefined}
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}
