@@ -40,7 +40,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
               />
               
               <div className="relative z-10 text-center mb-4">
-                <h2 className="font-bold text-white mb-2 text-[24px]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <h2 className="font-bold text-white mb-2 text-[24px]" style={{ fontFamily: "var(--font-display)" }}>
                   You Are In Control
                 </h2>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">

@@ -9,8 +9,7 @@ export function WotHero({ mode }: { mode: UserMode }) {
             className="text-center mb-10 sm:mb-16"
           >
             <h1 
-              className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-white via-indigo-200 to-violet-300 bg-clip-text text-transparent"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              className="font-brand text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-white via-indigo-200 to-indigo-300 bg-clip-text text-transparent"
             >
               What is Web of Trust?
             </h1>

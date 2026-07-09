@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,8 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
-import { loginWithNsec, type LoginErrorCode } from "@/services/nostr";
+import { loginWithNsec, loginWithEncryptedBackup, type LoginErrorCode } from "@/services/nostr";
+import { looksLikeEncryptedKey } from "@/lib/credentialManager";
 import {
   Tooltip,
   TooltipContent,
@@ -57,14 +58,39 @@ export function LoginFailureModal({
   onRetryExtension,
 }: LoginFailureModalProps) {
   const [secretKey, setSecretKey] = useState("");
+  const [backupPassword, setBackupPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [secretKeyError, setSecretKeyError] = useState("");
   const [showSecretKeyForm, setShowSecretKeyForm] = useState(false);
 
+  // An encrypted backup key (NIP-49) needs a password to unlock.
+  const isEncryptedKey = looksLikeEncryptedKey(secretKey);
+  const canSubmitKey = !!secretKey.trim() && (!isEncryptedKey || !!backupPassword);
+
+  // Password-manager autofill often does NOT fire React's onChange, so the
+  // controlled `secretKey` would stay empty and the ncryptsec branch never
+  // trigger. Reconcile the DOM value into state on autofill + on mount.
+  const keyInputRef = useRef<HTMLInputElement>(null);
+  const syncKeyFromDom = () => {
+    const v = keyInputRef.current?.value;
+    if (v != null && v !== secretKey) {
+      setSecretKey(v);
+      setSecretKeyError("");
+    }
+  };
+  useEffect(() => {
+    if (!showSecretKeyForm) return;
+    const t = setTimeout(syncKeyFromDom, 80); // catch values prefilled before paint
+    return () => clearTimeout(t);
+  }, [showSecretKeyForm]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!open) {
       setSecretKey("");
+      setBackupPassword("");
+      setRememberMe(true);
       setShowSecretKey(false);
       setSubmitting(false);
       setSecretKeyError("");
@@ -85,7 +111,11 @@ export function LoginFailureModal({
     setSecretKeyError("");
     setSubmitting(true);
     try {
-      await loginWithNsec(secretKey);
+      if (isEncryptedKey) {
+        await loginWithEncryptedBackup(secretKey, backupPassword, { persistent: rememberMe });
+      } else {
+        await loginWithNsec(secretKey, { persistent: rememberMe });
+      }
       onLoginSuccess();
     } catch (err) {
       const msg =
@@ -117,7 +147,7 @@ export function LoginFailureModal({
               <DialogHeader>
                 <DialogTitle
                   className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-login-failure-title"
                 >
                   {showSecretKeyForm
@@ -239,7 +269,23 @@ export function LoginFailureModal({
             )}
 
             {showSecretKeyForm && (
-              <>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!submitting && canSubmitKey) handleSecretKeyLogin();
+                }}
+              >
+                {/* Hidden username so the password manager can match/offer the saved
+                    credential (username = npub). Value is filled by the PM; we ignore it. */}
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className="sr-only"
+                  data-testid="input-login-username"
+                />
                 <div className="px-5 sm:px-6 pt-1 pb-3 space-y-3">
                   <div
                     className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600"
@@ -254,19 +300,21 @@ export function LoginFailureModal({
                   <div className="relative">
                     <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                     <input
+                      ref={keyInputRef}
                       type={showSecretKey ? "text" : "password"}
+                      name="password"
                       value={secretKey}
                       onChange={(e) => {
                         setSecretKey(e.target.value);
                         setSecretKeyError("");
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !submitting && secretKey.trim()) {
-                          handleSecretKeyLogin();
-                        }
+                      onAnimationStart={(e) => {
+                        // Chrome fires this on :-webkit-autofill (see index.css) —
+                        // the moment the password manager fills the field.
+                        if (e.animationName === "onAutoFillStart") syncKeyFromDom();
                       }}
-                      placeholder="Paste your key"
-                      autoComplete="off"
+                      placeholder="Paste your recovery key or backup"
+                      autoComplete="current-password"
                       spellCheck={false}
                       disabled={submitting}
                       autoFocus
@@ -288,6 +336,32 @@ export function LoginFailureModal({
                     </button>
                   </div>
 
+                  {isEncryptedKey && (
+                    <p className="text-xs text-slate-500" data-testid="text-backup-detected">
+                      Looks like a backup file — enter its password below.
+                    </p>
+                  )}
+
+                  {isEncryptedKey && (
+                    <div className="relative" data-testid="row-backup-password">
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <input
+                        type="password"
+                        name="backup-password"
+                        value={backupPassword}
+                        onChange={(e) => {
+                          setBackupPassword(e.target.value);
+                          setSecretKeyError("");
+                        }}
+                        placeholder="Backup password"
+                        autoComplete="off"
+                        disabled={submitting}
+                        className="w-full h-11 pl-9 pr-3 rounded-xl bg-white border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm text-slate-900 placeholder:text-slate-400 transition-all disabled:opacity-60"
+                        data-testid="input-backup-password"
+                      />
+                    </div>
+                  )}
+
                   {secretKeyError && (
                     <div
                       className="flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700"
@@ -301,18 +375,36 @@ export function LoginFailureModal({
                   )}
                 </div>
 
-                <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-1 space-y-2">
+                <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-1 space-y-2.5">
+                  <label
+                    className="flex items-start gap-2.5 cursor-pointer select-none px-0.5"
+                    data-testid="row-remember-me"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      disabled={submitting}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-indigo-600 cursor-pointer disabled:opacity-60"
+                      data-testid="checkbox-remember-me"
+                    />
+                    <span className="text-xs text-slate-600 leading-relaxed">
+                      <span className="font-semibold text-slate-700">Remember me on this device</span>
+                      <br />
+                      Stay signed in on this browser. Your key is stored only here — never sent to us.
+                    </span>
+                  </label>
                   <p
                     className="text-[11px] text-slate-400 leading-relaxed text-center px-1"
                     data-testid="text-nsec-session-note"
                   >
-                    You'll stay signed in until you close this tab or your session
-                    expires.
+                    {rememberMe
+                      ? "You'll stay signed in on this device until you sign out."
+                      : "You'll be signed out when you close this tab."}
                   </p>
                   <button
-                    type="button"
-                    onClick={handleSecretKeyLogin}
-                    disabled={submitting || !secretKey.trim()}
+                    type="submit"
+                    disabled={submitting || !canSubmitKey}
                     className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
                     data-testid="button-nsec-signin"
                   >
@@ -333,6 +425,7 @@ export function LoginFailureModal({
                     onClick={() => {
                       setShowSecretKeyForm(false);
                       setSecretKey("");
+                      setBackupPassword("");
                       setSecretKeyError("");
                     }}
                     disabled={submitting}
@@ -342,7 +435,7 @@ export function LoginFailureModal({
                     Back to sign-in options
                   </button>
                 </div>
-              </>
+              </form>
             )}
           </div>
         </div>

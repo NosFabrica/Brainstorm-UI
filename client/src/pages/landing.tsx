@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import {
@@ -14,12 +15,12 @@ import {
   Radar,
   Copy,
 } from "lucide-react";
-import { ComputingBackground } from "@/components/ComputingBackground";
+import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ProfileCardIcon } from "@/components/ProfileCardIcon";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { queryClient } from "@/lib/queryClient";
@@ -27,6 +28,8 @@ import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { PostSignupCard } from "@/components/PostSignupCard";
+import { BackupReminder } from "@/components/BackupReminder";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -37,6 +40,9 @@ import {
   isNip05Handle,
   type SearchResult,
 } from "@/lib/profileSearch";
+import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
+import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
 // stay on this search-first home and search from their active trust perspective.
@@ -46,9 +52,10 @@ const ANON_POV = "nosfabrica" as const;
 // visitors what they can search for. The first entry is the static
 // fallback (used as-is when the user prefers reduced motion).
 const PLACEHOLDER_EXAMPLES = [
-  "Search by name, bio, website…",
+  "Search people and topics…",
   'Search "Jack"',
   'Search "Prague"',
+  'Try a topic like "#bitcoin"',
   'Search a handle like "odell@primal.net"',
   "Search a public key…",
 ];
@@ -98,11 +105,6 @@ export default function Landing() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
-  const [filterRank, setFilterRank] = useState<[number, number] | null>(null);
-  const [filterMinFollowers, setFilterMinFollowers] = useState<number | null>(null);
-  const [filterHasLightning, setFilterHasLightning] = useState(false);
-  const [filterHasWebsite, setFilterHasWebsite] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
 
   const suggestAbortRef = useRef(0);
   const searchAbortRef = useRef(0);
@@ -204,6 +206,14 @@ export default function Landing() {
     // Any edit to the query invalidates a prior keyboard selection so Enter
     // falls back to a full search until the user arrow-navigates again.
     kbdNavRef.current = false;
+    // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
+    if (parseTopicQuery(value).isTopic) {
+      typedSinceSearchRef.current = true;
+      setSuggestions([]);
+      setIsSuggesting(false);
+      setShowSuggestions(true);
+      return;
+    }
     if (q.length < 2 || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
       typedSinceSearchRef.current = false;
       setSuggestions([]);
@@ -308,9 +318,17 @@ export default function Landing() {
         povFromSearch: effectivePov,
       });
     }
+    // Context-aware destination: anonymous searchers go to the clean public /p
+    // page (our njump replacement + join funnel), logged-in members get the
+    // personalized /profile analysis. The Public-page / View-full-profile
+    // cross-links cover anyone who wants the other view.
+    if (!user) {
+      setLocation(`/p/${result.npub}?fromSearch=1`);
+      return;
+    }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
     setLocation(`/profile/${result.npub}?fromSearch=1&pov=${effectivePov}${suffix}`);
-  }, [seedAndPrefetchProfile, setLocation, effectivePov]);
+  }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
@@ -345,13 +363,6 @@ export default function Landing() {
     setIsSuggesting(false);
   }, []);
 
-  const resetFilters = useCallback(() => {
-    setFilterRank(null);
-    setFilterMinFollowers(null);
-    setFilterHasLightning(false);
-    setFilterHasWebsite(false);
-  }, []);
-
   const handleSearch = useCallback(async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
@@ -362,13 +373,34 @@ export default function Landing() {
     typedSinceSearchRef.current = false;
     setShowSuggestions(false);
     setIsSuggesting(false);
-    resetFilters();
+
+    // Pasted note/event or long-form article link → on-site landing page
+    // (njump parity: "paste anything → it just works").
+    const ent = resolveEntityToPath(q);
+    if (ent && (ent.kind === "note" || ent.kind === "article")) {
+      setLocation(`${ent.path}?fromSearch=1`);
+      return;
+    }
+
+    // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a
+    // profile search). Everything else falls through to profile search.
+    if (q.startsWith("#")) {
+      const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
+      if (tag) {
+        setLocation(`/t/${encodeURIComponent(tag)}`);
+        return;
+      }
+    }
+
+    // Direct identifiers resolve to a profile — logged-out visitors get the public
+    // /p page, members get the personalized /profile view (mirrors goToProfile).
+    const profileDest = (np: string) => (user ? `/profile/${np}?pov=${effectivePov}` : `/p/${np}`);
 
     if (isLikelyNpub(q)) {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          setLocation(`/profile/${q}?pov=${effectivePov}`);
+          setLocation(profileDest(q));
           return;
         }
       } catch {}
@@ -376,7 +408,7 @@ export default function Landing() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      setLocation(`/profile/${npub}?pov=${effectivePov}`);
+      setLocation(profileDest(npub));
       return;
     }
 
@@ -387,7 +419,7 @@ export default function Landing() {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        setLocation(`/profile/${npub}?pov=${effectivePov}`);
+        setLocation(profileDest(npub));
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
@@ -426,7 +458,7 @@ export default function Landing() {
         setIsSearching(false);
       }
     }
-  }, [query, effectivePov, user?.pubkey, setLocation, resetFilters, toast]);
+  }, [query, effectivePov, user?.pubkey, setLocation, toast]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
@@ -507,7 +539,11 @@ export default function Landing() {
   // The suggestions dropdown is open whenever we have something to show.
   // We lift the search box toward the top when it opens (or once a search is
   // under way) so the list/results have room.
-  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting);
+  // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
+  // the dropdown's action row resolves it straight to the right landing page.
+  const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
+  const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
+  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
   useLayoutEffect(() => {
@@ -548,8 +584,8 @@ export default function Landing() {
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
-      <ComputingBackground variant="light" />
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
+      <GlossBackground />
 
       {user ? (
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
@@ -578,15 +614,12 @@ export default function Landing() {
 
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-2 mb-1.5">
-              <BrainLogo size={32} clickable className="text-indigo-600" />
+              <BrainLogo size={32} clickable className="text-indigo-500" />
               <h1
-                className="text-3xl sm:text-4xl font-bold tracking-tight"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight text-indigo-500"
                 data-testid="text-home-title"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800">
-                  Brainstorm
-                </span>
+                Brainstorm
               </h1>
             </div>
             <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
@@ -596,7 +629,7 @@ export default function Landing() {
 
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/0 via-indigo-400/15 to-indigo-500/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="absolute -inset-1 bg-gradient-to-r from-[#7c86ff]/0 via-[#7c86ff]/15 to-[#7c86ff]/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 shrink-0" />
                 <div className="relative flex-1 min-w-0">
@@ -673,7 +706,7 @@ export default function Landing() {
                 <button
                   type="submit"
                   disabled={isSearching || !query.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-[#6366f1] hover:bg-[#4f46e5] rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (
@@ -696,7 +729,14 @@ export default function Landing() {
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-suggestions"
               >
-                {isSuggesting && suggestions.length === 0 ? (
+                {topicMatch.isTopic ? (
+                  <TopicSuggestionRow
+                    tag={topicMatch.tag}
+                    active
+                    onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
+                    testId="home-topic"
+                  />
+                ) : isSuggesting && suggestions.length === 0 ? (
                   <div className="px-4 py-3 flex items-center gap-2 text-slate-400 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
@@ -720,8 +760,8 @@ export default function Landing() {
                         >
                           <Avatar className="h-8 w-8 border border-slate-200/80 shrink-0">
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
-                            <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-xs">
-                              {(s.name || s.displayName || "?").charAt(0).toUpperCase()}
+                            <AvatarFallback className="overflow-hidden">
+                              <DefaultAvatarImg />
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
@@ -753,8 +793,11 @@ export default function Landing() {
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
                       data-testid="home-suggestion-see-all"
                     >
-                      <Search className="h-3.5 w-3.5 shrink-0" />
-                      See all results for "{query.trim()}"
+                      {entityMatch ? (
+                        <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
+                      ) : (
+                        <><Search className="h-3.5 w-3.5 shrink-0" />See all results for "{query.trim()}"</>
+                      )}
                     </button>
                   </>
                 )}
@@ -847,6 +890,9 @@ export default function Landing() {
           )}
         </div>
 
+        <PostSignupCard />
+        <BackupReminder />
+
         {isSearching && (
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
@@ -863,112 +909,15 @@ export default function Landing() {
           </div>
         )}
 
-        {!isSearching && hasSearched && results.length > 0 && (() => {
-          const hasActiveFilters = filterRank !== null || filterMinFollowers !== null || filterHasLightning || filterHasWebsite;
-          const filteredResults = results.filter((r) => {
-            if (filterRank !== null) {
-              if (r.wotRank == null) return false;
-              if (r.wotRank < filterRank[0] || r.wotRank > filterRank[1]) return false;
-            }
-            if (filterMinFollowers !== null && (r.wotFollowers == null || r.wotFollowers < filterMinFollowers)) return false;
-            if (filterHasLightning && !r.lud16) return false;
-            if (filterHasWebsite && !r.website) return false;
-            return true;
-          });
-          return (
+        {!isSearching && hasSearched && results.length > 0 && (
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
-            <div className="flex items-center justify-between mb-2 sm:mb-3 px-1">
+            <div className="mb-2 sm:mb-3 px-1">
               <p className="text-[10px] sm:text-[11px] text-slate-400" data-testid="text-search-stats">
-                {hasActiveFilters
-                  ? `Showing ${filteredResults.length} of ${results.length} result${results.length !== 1 ? "s" : ""}`
-                  : `About ${results.length} result${results.length !== 1 ? "s" : ""}`
-                } ({(searchTime / 1000).toFixed(2)} seconds)
+                About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
-              <button
-                className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full transition-colors ${showFilters || hasActiveFilters ? "bg-indigo-50 text-indigo-600 border border-indigo-100" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50 border border-transparent"}`}
-                onClick={() => setShowFilters(!showFilters)}
-                data-testid="button-toggle-filters"
-              >
-                <SlidersHorizontal className="h-2.5 w-2.5" />
-                Filters{hasActiveFilters ? " ●" : ""}
-              </button>
             </div>
-            {showFilters && (
-              <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-white/80 border border-slate-100 rounded-xl space-y-2.5 relative" data-testid="container-filters">
-                {hasActiveFilters && (
-                  <button
-                    className="absolute bottom-2 right-2 sm:top-2.5 sm:bottom-auto sm:right-2.5 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] sm:text-[11px] font-medium rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 transition-colors border border-slate-200"
-                    onClick={resetFilters}
-                    data-testid="button-clear-filters"
-                  >
-                    Clear all
-                  </button>
-                )}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><BrainLogo size={10} className="shrink-0 text-slate-400" />Trust</span>
-                  {([["All", null], ["100–76", [76, 100]], ["75–51", [51, 75]], ["50–26", [26, 50]], ["25–0", [0, 25]]] as [string, [number, number] | null][]).map(([label, val]) => {
-                    const isActive = filterRank === null ? val === null : val !== null && filterRank[0] === val[0] && filterRank[1] === val[1];
-                    return (
-                    <button
-                      key={label}
-                      className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${isActive ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
-                      onClick={() => setFilterRank(val)}
-                      data-testid={`filter-rank-${label.toLowerCase().replace(/[–\s]/g, "")}`}
-                    >
-                      {label}
-                    </button>
-                    );
-                  })}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><Users className="h-2.5 w-2.5 shrink-0 text-slate-400" />Followers</span>
-                  {([["Any", null], ["1K+", 1000], ["5K+", 5000], ["10K+", 10000]] as [string, number | null][]).map(([label, val]) => (
-                    <button
-                      key={label}
-                      className={`px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterMinFollowers === val ? "bg-indigo-500 text-white border-indigo-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
-                      onClick={() => setFilterMinFollowers(val)}
-                      data-testid={`filter-followers-${label.toLowerCase().replace(/[+\s]/g, "")}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] text-slate-500 font-medium w-14 sm:w-16 shrink-0"><ProfileCardIcon className="h-2.5 w-2.5 shrink-0 text-slate-400" />Profile</span>
-                  <button
-                    className={`inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterHasLightning ? "bg-amber-500 text-white border-amber-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
-                    onClick={() => setFilterHasLightning(!filterHasLightning)}
-                    data-testid="filter-has-lightning"
-                  >
-                    <Zap className="h-2.5 w-2.5" />
-                    Lightning
-                  </button>
-                  <button
-                    className={`inline-flex items-center gap-0.5 px-2 sm:px-2.5 py-0.5 text-[10px] sm:text-[11px] font-medium rounded-full border transition-colors ${filterHasWebsite ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"}`}
-                    onClick={() => setFilterHasWebsite(!filterHasWebsite)}
-                    data-testid="filter-has-website"
-                  >
-                    <Globe className="h-2.5 w-2.5" />
-                    Website
-                  </button>
-                </div>
-              </div>
-            )}
-            {hasActiveFilters && filteredResults.length === 0 && (
-              <div className="text-center py-6 sm:py-8" data-testid="container-no-filter-results">
-                <p className="text-sm text-slate-500 font-medium">No profiles match these filters</p>
-                <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or search for different terms</p>
-                <button
-                  className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-100"
-                  onClick={resetFilters}
-                  data-testid="button-clear-filters-empty"
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
             <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
-              {filteredResults.map((result, idx) => {
+              {results.map((result, idx) => {
                 const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                 const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                 return (
@@ -985,8 +934,8 @@ export default function Landing() {
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
                       <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-600 font-bold text-sm">
-                          {(result.name || result.displayName || "?").charAt(0).toUpperCase()}
+                        <AvatarFallback className="overflow-hidden">
+                          <DefaultAvatarImg />
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
@@ -1046,7 +995,7 @@ export default function Landing() {
                               tabIndex={0}
                               className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
                               data-testid={`button-copy-npub-${idx}`}
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(result.npub); }}
+                              onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
                             >
                               <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
                             </span>
@@ -1062,8 +1011,7 @@ export default function Landing() {
               })}
             </div>
           </div>
-          );
-        })()}
+        )}
 
         {showNoResults && (
           <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12 text-center" data-testid="container-no-results">

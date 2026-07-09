@@ -141,8 +141,7 @@ export default function AboutPage() {
 
             <div className="min-h-[150px] sm:min-h-[190px] order-2" key={slide} aria-live="polite">
               <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
-                style={{ fontFamily: "var(--font-display)" }}
+                className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
                 data-testid="text-about-title"
               >
                 <span className="text-[#333286] block pb-1">

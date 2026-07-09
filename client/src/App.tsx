@@ -1,9 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
+import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { LightboxProvider } from "@/components/share/Lightbox";
+import { AutoScoreReturning } from "@/components/AutoScoreReturning";
+import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
+import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
@@ -12,12 +17,21 @@ import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
+import SharePage from "@/pages/SharePage";
+import ConnectionListPage from "@/pages/ConnectionListPage";
+import ArticlePage from "@/pages/ArticlePage";
+import EventPage from "@/pages/EventPage";
+import WelcomePage from "@/pages/WelcomePage";
+import OnboardingWizard from "@/pages/OnboardingWizard";
+import ActivatePage from "@/pages/ActivatePage";
+import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import FaqPage from "@/pages/FaqPage";
 import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import DevelopersPage from "@/pages/DevelopersPage";
 import NostrPage from "@/pages/NostrPage";
+import HashtagPage from "@/pages/HashtagPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -33,6 +47,20 @@ function ScrollToTop() {
   const [location] = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
+// Stop inline media when the route changes — the shared audio track and any
+// playing <video>. A Picture-in-Picture video is deliberately EXEMPT: it keeps
+// playing across the app like a YouTube mini-player until the user closes it.
+// Audio keeps its position so returning resumes. Skips the first render.
+function StopMediaOnNavigate() {
+  const [location] = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    stopAllMedia();
   }, [location]);
   return null;
 }
@@ -66,6 +94,7 @@ function Router() {
   return (
     <>
       <ScrollToTop />
+      <StopMediaOnNavigate />
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
@@ -73,6 +102,14 @@ function Router() {
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         <Route path="/profile/:npub" component={ProfilePage} />
+        <Route path="/p/:id/:type" component={ConnectionListPage} />
+        <Route path="/p/:id" component={SharePage} />
+        <Route path="/a/:id" component={ArticlePage} />
+      <Route path="/e/:id" component={EventPage} />
+        <Route path="/t/:tag" component={HashtagPage} />
+        <Route path="/welcome" component={WelcomePage} />
+        <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
+        <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
@@ -99,7 +136,13 @@ function App() {
         <Toaster />
         <PovAutoDefault />
         <MobileMenuHost />
-        <Router />
+        <ScoringStatusBar />
+        <AutoScoreReturning />
+        <AutoActivateBrainstorm />
+        <AutoPublishAssistant />
+        <LightboxProvider>
+          <Router />
+        </LightboxProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

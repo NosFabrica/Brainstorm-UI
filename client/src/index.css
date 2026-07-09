@@ -45,7 +45,10 @@
   --chart-5: 340 82% 52%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Space Grotesk', 'Inter', sans-serif;
+  /* Headings use the neutral workhorse (Inter) for a calm, corporate hierarchy. */
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Brand signature — reserved for the top-level page title and the logo wordmark only. */
+  --font-brand: 'Space Grotesk', 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   --radius: 0.75rem;
 
@@ -163,6 +166,11 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     @apply tracking-tight;
+  }
+
+  /* Opt back into the Space Grotesk brand signature — hero page titles + logo wordmark. */
+  .font-brand {
+    font-family: var(--font-brand);
   }
 
   h1 { font-size: 1.5rem; line-height: 1.15; }
@@ -404,6 +412,19 @@
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* One-shot "look here" cue — a soft brand ring that pulses twice then settles.
+   Used to draw the eye to a deep-linked control (e.g. the backup CTA) without a
+   perpetual animation. */
+@keyframes attention-ring {
+  0% { box-shadow: 0 0 0 0 rgba(124, 134, 255, 0); }
+  15% { box-shadow: 0 0 0 4px rgba(124, 134, 255, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 134, 255, 0.12); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 134, 255, 0); }
+}
+.animate-attention-ring {
+  animation: attention-ring 1.5s ease-out 2;
+}
+
 @keyframes aurora-shift {
   0%, 100% {
     background-position: 0% 50%;
@@ -497,4 +518,29 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * Password-manager autofill detection. Chrome applies :-webkit-autofill the
+ * instant a field is filled but does NOT fire a React onChange, so controlled
+ * inputs miss the value. This no-op keyframe fires an `animationstart` event we
+ * listen for (see LoginFailureModal) to reconcile the DOM value into state.
+ */
+@keyframes onAutoFillStart {
+  from { /* noop */ }
+  to { /* noop */ }
+}
+input:-webkit-autofill {
+  animation-name: onAutoFillStart;
+  animation-duration: 0.01s;
+}
+
+/* "Now playing" equalizer bars for the public-page music player. */
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.eq-bar {
+  transform-origin: bottom;
+  animation: eq-bar 0.9s ease-in-out infinite;
 }

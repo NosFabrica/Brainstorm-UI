@@ -16,15 +16,32 @@ import {
   HelpCircle,
   Shield,
   Copy,
+  UserCircle,
+  Share2,
+  UserPlus,
 } from "lucide-react";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { copyToClipboard } from "@/lib/clipboard";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
-import type { NostrUser } from "@/services/nostr";
-import type { ReactNode } from "react";
+import { hasPersistentKey, type NostrUser } from "@/services/nostr";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/services/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { type ReactNode, useState } from "react";
 
 interface AppHeaderProps {
   user: NostrUser;
@@ -53,8 +70,34 @@ interface AppHeaderProps {
 export function AppHeader({ user, onLogout, calcDone = false, active, variant = "dark", actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const isAdmin = isAdminPubkey(user?.pubkey);
   const isLight = variant === "light";
+  const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+
+  // Your own house Web-of-Trust score for the invite card — fetched only when the
+  // invite sheet opens (cached). Sharing your trust standing is a credible flex.
+  const houseScoreQuery = useQuery({
+    queryKey: ["self-house-influence", user?.pubkey],
+    queryFn: () => (user?.pubkey ? apiClient.getHouseInfluence(user.pubkey) : null),
+    enabled: !!user?.pubkey && inviteOpen,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  // In-app accounts hold their key locally, so signing out without a backup means
+  // the account is unrecoverable. Only intercept those (extension/nsec users keep
+  // their key elsewhere). The backup flag is set by the post-signup backup flow.
+  const backedUp = (() => {
+    try { return !user?.pubkey || localStorage.getItem(`brainstorm_backup_done:${user.pubkey}`) === "true"; }
+    catch { return true; }
+  })();
+  const needsBackupBeforeLogout = hasPersistentKey() && !backedUp;
+  const requestLogout = () => {
+    if (needsBackupBeforeLogout) setLogoutConfirmOpen(true);
+    else onLogout();
+  };
 
   return (
     <nav
@@ -102,8 +145,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
               >
                 <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
                 <span
-                  className="text-lg sm:text-xl font-bold tracking-tight text-white"
-                  style={{ fontFamily: "var(--font-display)" }}
+                  className="font-brand text-lg sm:text-xl font-bold tracking-tight text-white"
                   data-testid="text-logo"
                 >
                   Brainstorm
@@ -128,7 +170,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
-                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-indigo-500 via-violet-500 to-fuchsia-500 shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-indigo-400 group-hover:via-violet-400 group-hover:to-fuchsia-400 group-hover:shadow-[0_0_16px_2px_rgba(139,92,246,0.55)]">
+                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-[#333286] via-[#7c86ff] to-[#333286] shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-[#3730a3] group-hover:via-[#7c86ff] group-hover:to-[#3730a3] group-hover:shadow-[0_0_16px_2px_rgba(124,134,255,0.5)]">
                       <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC]" : "bg-slate-950")}>
                         <Avatar className="h-9 w-9 shadow-sm" data-testid="img-user-avatar">
                           {user.picture ? (
@@ -171,8 +213,8 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                     </p>
                     <button
                       className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors"
-                      onClick={() => {
-                        navigator.clipboard.writeText(user.npub);
+                      onClick={async () => {
+                        await copyToClipboard(user.npub);
                         toast({ title: "Copied!", description: "npub copied to clipboard" });
                       }}
                       data-testid="button-copy-npub"
@@ -183,6 +225,18 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-indigo-100" />
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate(`/profile/${user.npub}`)} data-testid="dropdown-view-profile">
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  <span>View profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => navigate(`/p/${user.npub}`)} data-testid="dropdown-share-profile">
+                  <Share2 className="mr-2 h-4 w-4" />
+                  <span>Share profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => setInviteOpen(true)} data-testid="dropdown-invite">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  <span>Invite friends</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/faq")} data-testid="dropdown-faq">
                   <HelpCircle className="mr-2 h-4 w-4" />
                   <span>FAQ</span>
@@ -204,7 +258,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 <DropdownMenuSeparator className="bg-indigo-100" />
                 <DropdownMenuItem
                   className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
-                  onClick={onLogout}
+                  onClick={requestLogout}
                   data-testid="dropdown-logout"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
@@ -215,6 +269,45 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
           </div>
         </div>
       </div>
+
+      <ShareProfileModal
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        invite
+        npub={user.npub}
+        displayName={user.displayName || "You"}
+        picture={user.picture}
+        nip05={user.profile?.nip05}
+        canonicalUrl={inviteUrl}
+        score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
+      />
+
+      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
+        <AlertDialogContent data-testid="logout-backup-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save a backup before you sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This account lives in this browser. Without a backup file you can't sign back in
+              here or anywhere else — and it can't be recovered. It takes a few seconds.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="text-red-600 hover:text-red-700"
+              onClick={() => { setLogoutConfirmOpen(false); onLogout(); }}
+              data-testid="logout-anyway"
+            >
+              Sign out anyway
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setLogoutConfirmOpen(false); navigate("/settings?tab=profile&focus=backup"); }}
+              data-testid="logout-save-backup"
+            >
+              Save backup
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </nav>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
-import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl } from "@/services/nostr";
+import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { markNip85Activated } from "@/lib/nip85Activation";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
@@ -25,6 +26,27 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [activateState, setActivateState] = useState<ActivateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  // When the modal opens, check whether the user already declared a DIFFERENT
+  // WoT provider (a kind-10040 whose rank target isn't Brainstorm's). If so, we
+  // warn that continuing replaces it — informed consent, not a silent overwrite.
+  const [hasOtherProvider, setHasOtherProvider] = useState(false);
+
+  useEffect(() => {
+    if (!open) { setHasOtherProvider(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = getCurrentUser();
+        if (!user?.pubkey) return;
+        const event = await fetchTrustProviderList(user.pubkey);
+        if (cancelled || !event) return;
+        const rankTag = event.tags.find((t: string[]) => t[0] === "30382:rank");
+        const target = rankTag?.[1];
+        if (target && serviceKey && target !== serviceKey) setHasOtherProvider(true);
+      } catch { /* best-effort — fall back to the generic disclaimer */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, serviceKey]);
 
   const toggleSection = (key: string) => {
     setExpandedSection((prev) => (prev === key ? null : key));
@@ -64,7 +86,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      localStorage.setItem("brainstorm_nip85_activated", "true");
+      markNip85Activated(user.pubkey);
       setActivateState("success");
       setTimeout(() => {
         onActivated();
@@ -178,7 +200,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                 <div className="min-w-0 flex-1">
                   <DialogTitle
                     className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                    style={{ fontFamily: "var(--font-display)" }}
                     data-testid="text-activate-title"
                   >
                     Select Brainstorm as your Web of Trust Service Provider
@@ -230,7 +252,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
               <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-100 text-purple-700 text-xs font-semibold hover:bg-purple-100 transition-colors" data-testid="link-modal-amethyst">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-[#3730a3] text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
@@ -267,7 +289,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -285,7 +307,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -294,18 +316,27 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               ) : (
                 <>
                   {activateState === "idle" && (
-                    <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
-                      <p className="text-[11px] leading-relaxed text-slate-500">
-                        If you have an active Web of Trust service provider, proceeding will override existing trusted assertion calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
-                      </p>
-                    </div>
+                    hasOtherProvider ? (
+                      <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200" data-testid="text-activate-replace-warning">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-px" />
+                        <p className="text-[12px] leading-relaxed text-amber-800">
+                          You already have a different Web of Trust provider selected. Continuing will <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going forward.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
+                        <p className="text-[11px] leading-relaxed text-slate-500">
+                          If you have an active Web of Trust service provider, proceeding will override existing trusted assertion calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
+                        </p>
+                      </div>
+                    )
                   )}
                   <button
                     type="button"
                     onClick={handleActivate}
                     disabled={activateState === "signing" || activateState === "publishing"}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#3730a3] hover:bg-[#312e81] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-confirm"
                   >
                   {activateState === "signing" ? (

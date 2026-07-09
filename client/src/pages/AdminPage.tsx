@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
 import { useLocation } from "wouter";
 import { env } from "@/lib/runtimeEnv";
@@ -9,6 +10,11 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
+import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
+import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
+import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
+import { ResyncControl } from "@/components/admin/ResyncControl";
+import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -84,16 +90,18 @@ import {
   Minus,
   Maximize2,
   Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, searchProfilesMeili, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 
-type AdminTab = "overview" | "users" | "health" | "activity" | "assistants";
+type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all";
@@ -185,6 +193,8 @@ interface AdminUserListItem {
   latest_status: string | null;
   latest_ta_status: string | null;
   latest_algorithm: string | null;
+  scheduling_id: number | null;
+  scheduling_name: string;
 }
 
 interface AdminUsersPage {
@@ -195,6 +205,11 @@ interface AdminUsersPage {
   pages: number;
 }
 
+interface GrapeRankError {
+  code: string;
+  message: string | null;
+}
+
 interface BrainstormRequestInstance {
   created_at: string;
   updated_at: string;
@@ -202,13 +217,14 @@ interface BrainstormRequestInstance {
   status: string;
   ta_status: string | null;
   internal_publication_status: string | null;
-  result: string | null;
+  error: GrapeRankError | null;
   count_values: string | null;
   password: string;
   algorithm: string;
   parameters: string;
   how_many_others_with_priority: number;
   pubkey: string | null;
+  trigger_source: string | null;
 }
 
 interface AdminUserHistoryPage {
@@ -701,7 +717,7 @@ function CopyButton({ text }: { text: string }) {
       className="p-1 rounded hover:bg-slate-100 transition-colors"
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
+        copyToClipboard(text);
         toast({ title: "Copied", description: text.slice(0, 20) + "...", duration: 1500 });
       }}
       data-testid="button-copy-npub"
@@ -821,7 +837,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                       const taFailed = taLower === "failure";
                       const pubFailed = pubLower === "failure" || pubLower === "failed";
                       const hasFail = statusFailed || taFailed || pubFailed;
-                      const errorText = (item.result && item.result.trim()) || "";
+                      const errorText = item.error?.message?.trim() || "";
                       const tooltipText = errorText || "No error details captured.";
                       const rowKey = item.private_id ?? idx;
                       return (
@@ -968,6 +984,24 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
 
+// Origin of a run: why it was queued (manual = user asked, scheduled = tier
+// auto-scheduler, admin = admin action, periodic = cron). Colored distinctly
+// from the status badges so origin reads at a glance.
+function TriggerSourceBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-slate-300">—</span>;
+  const lower = value.toLowerCase();
+  const colors = lower === "scheduled"
+    ? "bg-violet-50 text-violet-700 border-violet-200"
+    : lower === "periodic"
+    ? "bg-sky-50 text-sky-700 border-sky-200"
+    : lower === "admin"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : lower === "manual"
+    ? "bg-slate-50 text-slate-600 border-slate-200"
+    : "bg-slate-50 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`} data-testid="badge-trigger-source">{value}</span>;
+}
+
 function getActivityPipelineState(item: BrainstormRequestInstance) {
   const s = item.status?.toLowerCase() ?? "";
   if (s === "ongoing" || s === "in_progress" || s === "processing") return "active" as const;
@@ -994,7 +1028,7 @@ function getFailureStage(item: BrainstormRequestInstance): "Calculation" | "Trus
 }
 
 function extractErrorMessage(item: BrainstormRequestInstance): string {
-  const raw = item.result?.trim();
+  const raw = item.error?.message?.trim();
   if (raw) return raw;
   const stage = getFailureStage(item);
   if (stage) return `No error details recorded for the ${stage} stage. Re-trigger this user to capture a fresh error message, or open the full request to inspect server logs.`;
@@ -1350,6 +1384,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             );
           })() : <span className="font-mono text-slate-400">—</span>}
         </td>
+        <td className="px-2 py-2"><TriggerSourceBadge value={item.trigger_source} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
@@ -1413,7 +1448,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={11} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={12} className="px-4 py-1.5 border-t border-red-100/50">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -1446,10 +1481,10 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                       <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
                     </div>
                   )}
-                  {item.result && (
+                  {item.error?.message && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                      <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
+                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
                     </div>
                   )}
                   {item.count_values && (
@@ -1637,6 +1672,14 @@ export default function AdminPage() {
     refetchInterval: activeTab === "users" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_USERS_MS) : false,
     refetchOnWindowFocus: "always",
   });
+
+  const schedulingPoliciesQuery = useQuery<SchedulingItem[]>({
+    queryKey: ["/api/admin/scheduling"],
+    queryFn: () => apiClient.getSchedulingPolicies(),
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+  const schedulingPolicies = schedulingPoliciesQuery.data ?? [];
 
   const adminUsersData = adminUsersQuery.data;
   const adminUsersList = adminUsersData?.items ?? [];
@@ -2184,7 +2227,18 @@ export default function AdminPage() {
     try {
       let results: NostrSearchResult[] = [];
       try {
-        results = await searchProfilesMeili(q, { limit: 10, timeoutMs: 8000 });
+        // Backend search (NosFabrica/house POV, unauthenticated) — same endpoint
+        // the public search uses. Falls back to a direct relay search on failure.
+        const { results: byText } = await searchByText(q, "nosfabrica", undefined, 10);
+        results = byText.map((r) => ({
+          pubkey: r.pubkey,
+          npub: r.npub,
+          name: r.name,
+          displayName: r.displayName,
+          picture: r.picture,
+          about: r.about,
+          nip05: r.nip05,
+        }));
       } catch {
         results = await searchNostrProfiles(q, { limit: 10, timeoutMs: 5000 });
       }
@@ -2295,6 +2349,7 @@ export default function AdminPage() {
   const tabs: { key: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
+    { key: "scheduling", label: "Scheduling", icon: CalendarClock },
     { key: "users", label: "Users", icon: Users },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
@@ -3550,32 +3605,33 @@ export default function AdminPage() {
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tier</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
                           <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
                           Loading users...
                         </td>
                       </tr>
                     ) : adminUsersQuery.isError ? (
                       <tr>
-                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-red-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-red-400">
                           Failed to load users. Check your admin access.
                         </td>
                       </tr>
                     ) : adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
                           {userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : filteredUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
                           No users match the current filter
                         </td>
                       </tr>
@@ -3716,6 +3772,18 @@ export default function AdminPage() {
                                   {timeAgo(u.last_updated) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_updated)}</span>}
                                 </div>
                               </td>
+                              <td className="px-2 py-2.5 border-r border-slate-100" onClick={(e) => e.stopPropagation()}>
+                                {schedulingPolicies.length > 0 ? (
+                                  <UserTierPicker
+                                    pubkey={u.pubkey}
+                                    schedulingId={u.scheduling_id}
+                                    schedulingName={u.scheduling_name}
+                                    policies={schedulingPolicies}
+                                  />
+                                ) : (
+                                  <span className="text-[9px] text-slate-500">{u.scheduling_name}</span>
+                                )}
+                              </td>
                               <td className="px-2 py-2.5 text-center">
                                 <div className="flex items-center gap-1 justify-center">
                                   <Button
@@ -3743,12 +3811,13 @@ export default function AdminPage() {
                                   >
                                     <Eye className="h-3 w-3 mr-1" /> View
                                   </Button>
+                                  <ResyncControl pubkey={u.pubkey} />
                                 </div>
                               </td>
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
                               <tr className="bg-red-50/40 border-b border-red-100" data-testid={`row-failure-summary-${i}`}>
-                                <td colSpan={12} className="px-3 py-1.5">
+                                <td colSpan={13} className="px-3 py-1.5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
                                     <span className="text-[10px] text-red-800 font-medium">
@@ -3886,6 +3955,31 @@ export default function AdminPage() {
             </Dialog>
 
             </>
+          )}
+
+          {activeTab === "scheduling" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
+                </div>
+                <div className="px-5 py-4">
+                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
+                </div>
+              </div>
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-policies">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Tier cadences for automatic GrapeRank recalculation</p>
+                </div>
+                <div className="px-5 py-4">
+                  <SchedulingCard active={activeTab === "scheduling"} />
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === "health" && (
@@ -4336,6 +4430,7 @@ export default function AdminPage() {
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>

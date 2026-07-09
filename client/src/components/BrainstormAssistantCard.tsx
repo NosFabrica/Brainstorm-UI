@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -6,7 +7,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile, fetchAssistantPointer, publishAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { fetchProfile, fetchAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { followUser } from "@/services/socialActions";
+import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -123,6 +126,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       };
       writePublishedAssistant(state);
       setPublished(state);
+      // Ensure the user follows their own (already-published) assistant.
+      followUser(state.pubkey).catch(() => {});
     })();
     return () => { cancelled = true; };
   }, [userPubkey, published]);
@@ -182,36 +187,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   }, [published?.pubkey, published?.publishedAt]);
 
   const publishMutation = useMutation({
-    mutationFn: async () => apiClient.publishDefaultAssistantProfile(),
-    onSuccess: (resp) => {
-      // Backend may return the payload either at the top level or wrapped under `data`.
-      const top = resp || {};
-      const wrapped = resp?.data || {};
-      const pubkey = top.assistant_pubkey || wrapped.assistant_pubkey;
-      const eventId = top.event_id || wrapped.event_id;
-      const assistantName = (top.name || wrapped.name || "Your Brainstorm Assistant").toString();
-      if (!pubkey || !eventId) {
-        setError("The assistant was published, but no identity was returned. Please try again.");
-        return;
-      }
-      const state: PublishedState = {
-        pubkey,
-        npub: (() => { try { return nip19.npubEncode(pubkey); } catch { return pubkey; } })(),
-        eventId,
-        publishedAt: Date.now(),
-      };
-      writePublishedAssistant(state);
+    // Explicit user action: always (re)publish, and DO follow the bot (consent).
+    // Side-effects (persist + NIP-78 pointer + follow) live in the shared helper.
+    mutationFn: async () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    onSuccess: ({ state, name }) => {
       setPublished(state);
       setError(null);
-
-      // Cross-device sync (Task #86): publish a NIP-78 pointer under the
-      // user's own pubkey so other devices they sign in from can rediscover
-      // this assistant. Best-effort — local card stays usable on failure.
-      publishAssistantPointer({
-        pubkey: state.pubkey,
-        eventId: state.eventId,
-        publishedAt: state.publishedAt,
-      }).catch(() => {});
 
       const isFirst = !readFirstPublishDone();
       if (isFirst) {
@@ -219,12 +200,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
         setShowCelebration(true);
         setTimeout(() => setShowCelebration(false), 3500);
         toast({
-          title: `${assistantName} is live on Nostr!`,
+          title: `${name} is live on Nostr!`,
           description: "Tap \"View on Nostr\" to say hi to your new sidekick.",
           duration: 6000,
         });
       } else {
-        toast({ title: `${assistantName} updated`, description: "Your assistant profile was republished." });
+        toast({ title: `${name} updated`, description: "Your assistant profile was republished." });
       }
     },
     onError: (err: Error) => {
@@ -239,7 +220,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
   const handleCopyNpub = useCallback(() => {
     if (!published?.npub) return;
-    navigator.clipboard.writeText(published.npub).then(
+    copyToClipboard(published.npub).then(
       () => toast({ title: "Copied!", description: "Assistant npub copied to clipboard." }),
       () => toast({ title: "Copy failed", description: "Could not copy to clipboard. Please copy manually.", variant: "destructive" }),
     );
@@ -378,7 +359,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </Popover>
         </div>
         <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
-          {isActive ? "Your sidekick is publishing your trust scores to Nostr." : "Give your trust scores a voice on Nostr — one click."}
+          {isActive ? "Your sidekick is publishing your trust scores." : "Give your trust scores a voice — one click."}
         </p>
 
         {isActive ? (
@@ -483,7 +464,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={() => navigate(`/profile/${published.npub}`)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
                   data-testid={`button-assistant-view-profile-${variant}`}
                 >
                   <BrainLogo size={12} className="text-white/95" />
@@ -603,7 +584,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   type="button"
                   onClick={handlePublish}
                   disabled={isPending}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#3730a3]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#6366f1]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   data-testid={`button-assistant-publish-${variant}`}
                 >
                   {isPending ? (

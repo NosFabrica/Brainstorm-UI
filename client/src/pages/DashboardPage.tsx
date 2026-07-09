@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { getVerifiedThreshold, PRESET_THRESHOLDS } from "@/services/trustThreshold";
+import { PageHeader } from "@/components/PageHeader";
+import { getVerifiedThreshold, PRESET_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -14,6 +15,8 @@ import brainstormHeroImg from "@assets/image_1773159756760.png";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -79,7 +82,10 @@ import {
   getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
+  setFirstPublishDone,
 } from "@/lib/assistantStorage";
+import { ensureAssistantPublished } from "@/lib/assistantPublish";
+import { ToastAction } from "@/components/ui/toast";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
@@ -106,6 +112,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -150,7 +157,7 @@ const ONBOARDING_SLIDES = [
     title: "Computation In Progress",
     subtitle: "Your scores are being prepared",
     content: "We're calculating your trust graph and generating explainable scores you can use across the Brainstorm experience.",
-    detail: "This usually takes a few minutes \u2014 you can keep browsing while we build your view of the network.",
+    detail: "You can use Brainstorm right now \u2014 this finishes in the background, no waiting. It usually takes a few minutes.",
     tone: "from-cyan-500/20 via-sky-500/10 to-transparent",
   },
   {
@@ -181,8 +188,8 @@ const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLower
 const INTEREST_CLUSTERS = [
   { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
   { id: "btc", label: "Bitcoiners", icon: Bitcoin, count: 8500, color: "bg-orange-500", unit: "peers", image: bitcoinImg },
-  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-pink-500", unit: "creators", image: digitalArtImg },
-  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-purple-500", unit: "artists", image: musicSceneImg },
+  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-[#333286]", unit: "creators", image: digitalArtImg },
+  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-[#7c86ff]", unit: "artists", image: musicSceneImg },
 ];
 
 
@@ -195,6 +202,19 @@ const NETWORK_METRICS = [
   { key: "reporting", label: "Reporting", icon: ShieldAlert, color: "text-orange-500", bgColor: "bg-orange-500" },
 ] as const;
 
+
+// "Maybe later" on the Select-Brainstorm card is remembered per-account so it
+// doesn't re-nag on every reload, but re-surfaces once after a cooldown.
+const NIP85_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+function nip85DismissedRecently(pubkey?: string): boolean {
+  if (!pubkey) return false;
+  try {
+    const at = Number(localStorage.getItem(`brainstorm_nip85_dismissed_at:${pubkey}`) || 0);
+    return at > 0 && Date.now() - at < NIP85_DISMISS_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
 
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
@@ -211,10 +231,26 @@ export default function DashboardPage() {
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
-  const [nip85Activated, setNip85Activated] = useState(() => localStorage.getItem("brainstorm_nip85_activated") === "true");
-  const [nip85Dismissed, setNip85Dismissed] = useState(false);
+  const [wotExpanded, setWotExpanded] = useState(false);
+  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
+  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
+  // In-app-created accounts auto-activate Brainstorm silently (see
+  // AutoActivateBrainstorm) — they never get the consent card.
+  const nip85CreatedInApp = (() => {
+    try { return !!user?.pubkey && localStorage.getItem(`brainstorm_created_inapp:${user.pubkey}`) === "true"; } catch { return false; }
+  })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
   const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
+  // "Your network is live — invite friends" card: shown once, the first time the
+  // user's scores go ready (publishDone). Persisted per-account so it never nags.
+  const [inviteShareOpen, setInviteShareOpen] = useState(false);
+  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
+    try { const pk = getCurrentUser()?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
+  });
+  const markInviteCardSeen = () => {
+    try { const pk = getCurrentUser()?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    setInviteCardSeen(true);
+  };
   useEffect(() => {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
@@ -237,6 +273,34 @@ export default function DashboardPage() {
       window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
   }, []);
+
+  // Inline "Publish your assistant" prompt (existing users): publish in place
+  // rather than navigating to the wrong settings page. Explicit click = consent,
+  // so we DO follow the bot. Reuses the shared publish helper.
+  const publishAssistantMutation = useMutation({
+    mutationFn: () => ensureAssistantPublished({ follow: true, skipIfPublished: false }),
+    onSuccess: ({ name }) => {
+      setFirstPublishDone();
+      setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
+      toast({
+        title: `${name} is live on Nostr!`,
+        description: "Speaking your trust scores to compatible Nostr apps.",
+        action: (
+          <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=trust")}>
+            Customize
+          </ToastAction>
+        ),
+        duration: 6000,
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Couldn't publish your assistant",
+        description: err?.message || "Please try again in a moment.",
+      });
+    },
+  });
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -332,13 +396,16 @@ export default function DashboardPage() {
         queryClient.setQueryData(["/user/graperankResult"], data);
       }
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
-      const isAutoTrigger = wasAutoTriggeredRef.current;
       wasAutoTriggeredRef.current = false;
+      // First-time calc vs a true recalculation reads very differently — don't
+      // tell a never-scored user we're "refreshing" / "recalculating".
+      let hadPrev = false;
+      try { hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
       toast({
-        title: isAutoTrigger ? "Refreshing your trust scores" : "Calculation started",
-        description: isAutoTrigger
-          ? "Your GrapeRank scores are being recalculated automatically. This may take a moment."
-          : "Your trust scores are being recalculated. Results will update shortly.",
+        title: hadPrev ? "Refreshing your trust scores" : "Calculating your Web of Trust",
+        description: hadPrev
+          ? "Your scores are being recalculated — results will update shortly."
+          : "We're scoring your network for the first time. You can keep exploring while it runs.",
         duration: 5000,
       });
       setTimeout(() => triggerGrapeRankMutation.reset(), 5000);
@@ -372,15 +439,15 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (trustServiceProvider.data === undefined) return;
-    const isBrainstorm = !!trustServiceProvider.data;
-    if (isBrainstorm && localStorage.getItem("brainstorm_nip85_activated") !== "true") {
-      localStorage.setItem("brainstorm_nip85_activated", "true");
-    }
-    if (nip85Activated !== isBrainstorm) {
-      setNip85Activated(isBrainstorm);
-    }
-  }, [trustServiceProvider.data]);
+    // Upgrade-only: a relay confirmation (isUsingBrainstorm === true) marks this
+    // account activated and shows the badge. A `false`/undefined is treated as
+    // "not propagated yet", NOT a deactivation — relays are eventually-consistent,
+    // so we never downgrade here (that caused the badge to flicker right after an
+    // auto-publish). Deactivation is explicit, via Settings.
+    if (trustServiceProvider.data !== true) return;
+    markNip85Activated(getCurrentUser()?.pubkey);
+    if (!nip85Activated) setNip85Activated(true);
+  }, [trustServiceProvider.data, nip85Activated]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -414,7 +481,6 @@ export default function DashboardPage() {
         (grapeRank as any).average,
         (grapeRank as any).score,
         (grapeRank as any).graperank,
-        (grapeRank as any).result,
         (grapeRank as any).confidence,
         (grapeRank as any).value,
       ].find((v) => typeof v === "number") ?? null
@@ -444,6 +510,18 @@ export default function DashboardPage() {
     : false;
 
   const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
+
+  // The no-follows user just used the inline follow-picker → bridge to the
+  // "calculating" state and suppress any stale "failed" status until the fresh
+  // GrapeRank result replaces it.
+  const [justFollowed, setJustFollowed] = useState(false);
+  const handleFollowDone = () => {
+    setJustFollowed(true);
+    queryClient.invalidateQueries({ queryKey: ["/user/overview"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/history"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/stats"] });
+    queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
+  };
 
   const prevCalcDoneRef = useRef(false);
   useEffect(() => {
@@ -510,12 +588,12 @@ export default function DashboardPage() {
   };
 
   const TIER_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: "#059669" },
-    { key: "medium_high", name: "Trusted", color: "#0ea5e9" },
-    { key: "medium", name: "Neutral", color: "#6366f1" },
-    { key: "medium_low", name: "Low Trust", color: "#f59e0b" },
-    { key: "low", name: "Unverified", color: "#a1a1aa" },
-    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: "#ef4444" },
+    { key: "high", name: "Highly Trusted", color: TRUST_TIER_COLORS.highlyTrusted },
+    { key: "medium_high", name: "Trusted", color: TRUST_TIER_COLORS.trusted },
+    { key: "medium", name: "Neutral", color: TRUST_TIER_COLORS.neutral },
+    { key: "medium_low", name: "Low Trust", color: TRUST_TIER_COLORS.lowTrust },
+    { key: "low", name: "Unverified", color: TRUST_TIER_COLORS.unverified },
+    { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
   ] as const;
 
   const countValues = useMemo(() => {
@@ -606,12 +684,12 @@ export default function DashboardPage() {
       }).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
-      { label: "Highly Trusted", count: followersCount, color: "#059669" },
-      { label: "Trusted", count: followingCount, color: "#0ea5e9" },
-      { label: "Neutral", count: Math.max(100, followersCount * 2), color: "#6366f1" },
-      { label: "Low Trust", count: mutedByCount + mutingCount, color: "#f59e0b" },
-      { label: "Unverified", count: Math.max(10, mutedByCount), color: "#a1a1aa" },
-      { label: "Flagged", count: flaggedCount, color: "#ef4444" },
+      { label: "Highly Trusted", count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
+      { label: "Trusted", count: followingCount, color: TRUST_TIER_COLORS.trusted },
+      { label: "Neutral", count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
+      { label: "Low Trust", count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
+      { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
+      { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
@@ -714,21 +792,35 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate, user]);
 
+  // Per-pubkey — a global flag would leak one account's "has scores" state onto
+  // the next account on the same browser (making a brand-new user look like a
+  // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
+    const k = user?.pubkey ? `brainstorm_calc_completed:${user.pubkey}` : "";
     if (calcDone) {
-      try { localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
+      try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
       return true;
     }
-    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
-  }, [calcDone]);
+    try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
+  }, [calcDone, user?.pubkey]);
 
   if (!user || isAuthRedirecting()) return null;
 
   const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
-  const isErrorState = isGrapeRankFailed || isPublishFailed || (hasNoFollowing && !triggerGrapeRankMutation.isPending);
-  const isRecalculation = !publishDone && !!(grapeRankScore || nip85Activated || grapeRank);
+  // No-follows is NOT an error — it's the "start here" state (handled by the
+  // inline follow-picker). Only real GrapeRank/publish failures are errors, and
+  // we suppress those right after a fresh follow+calculate.
+  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed;
+  // A "recalculation" requires PRIOR completed scores — not merely an in-progress
+  // result object (which exists during a first-time calc too). Using `grapeRank`
+  // here made a never-scored user's first calc read as "Refreshing / previous
+  // scores will be replaced".
+  // A recalculation requires PRIOR completed scores for THIS account. `grapeRankScore`
+  // can be present on a failed/in-progress result, and `nip85Activated` is a global
+  // flag — both caused brand-new accounts to read as "Recalculating".
+  const isRecalculation = !publishDone && hadPreviousScores;
 
   return (
     <TooltipProvider>
@@ -741,96 +833,59 @@ export default function DashboardPage() {
 
           <div className="flex flex-col gap-6 mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-2" data-testid="section-dashboard-header-copy">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="pill-dashboard-kicker">
-                  <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" aria-hidden="true" />
-                  <p className="text-xs font-bold tracking-[0.15em] text-[#333286] uppercase" data-testid="text-dashboard-header-kicker">Brainstorm Dashboard</p>
-                </div>
-                <h1
-                  className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  data-testid="text-dashboard-header-title"
-                >
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                    Welcome back, {user.displayName || "Traveler"}
-                  </span>
-                </h1>
-                <div className="flex items-center gap-3">
-                  <p className="text-slate-600 font-medium" data-testid="text-dashboard-header-subtitle">
-                    {hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
-                  </p>
-                </div>
-              </div>
+              <PageHeader
+                kicker="Brainstorm Dashboard"
+                title={<>Welcome back, <span className="text-[#333286]">{user.displayName || "Traveler"}</span></>}
+                subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
+                testId="section-dashboard-header-copy"
+              />
 
               {nip85Activated && publishDone ? (
               <div
-                className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 relative self-start md:self-end max-w-xs"
+                className="rounded-2xl bg-white border border-slate-200 shadow-sm relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
               >
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] rounded-t-2xl" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
-                <div className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="relative shrink-0">
-                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#7c86ff] via-[#333286] to-[#7c86ff] p-[1.5px] shadow-sm">
-                          <div className="h-full w-full rounded-xl bg-white flex items-center justify-center">
-                            <BrainLogo size={16} className="text-[#333286]" />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-900 tracking-tight block leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          WoT Service Provider
-                        </span>
-                        <span className="text-[10px] font-medium text-slate-500 block mt-0.5 leading-none">
-                          NIP-85 Declaration
-                        </span>
-                        {history?.last_time_calculated_graperank && (
-                          <span className="text-[9px] text-slate-400 mt-1 leading-none flex items-center gap-1.5 flex-wrap">
-                            <span>
-                              Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}
-                            </span>
-                            <PresetBadge
-                              preset={grapeRank?.graperank_preset_used}
-                              size="xs"
-                              testId="badge-dashboard-preset-used"
-                            />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                        </span>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
-                      </div>
-                      <button
-                        onClick={() => setRecalcConfirmOpen(true)}
-                        disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#333286]/8 text-[#333286] hover:bg-[#333286]/15 transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none border border-[#7c86ff]/15 hover:border-[#7c86ff]/30"
-                        data-testid="button-recalculate-wot-card"
-                      >
-                        {triggerGrapeRankMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                            <span className="text-[9px] font-semibold tracking-wide">Calculating</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span className="text-[9px] font-semibold tracking-wide">Recalculate</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                <button
+                  type="button"
+                  onClick={() => setWotExpanded((v) => !v)}
+                  aria-expanded={wotExpanded}
+                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 transition-colors"
+                  data-testid="button-wot-expand"
+                >
+                  <div className="h-7 w-7 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+                    <BrainLogo size={14} className="text-[#333286]" />
+                  </div>
+                  <span className="text-[13px] font-semibold text-slate-900 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700">Active</span>
+                  </span>
+                  <span className="flex-1" />
+                  <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
+                </button>
+                {wotExpanded && (
+                <div className="px-3.5 pb-3.5 border-t border-slate-100">
+
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                    {history?.last_time_calculated_graperank && (
+                      <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
+                    )}
+                    <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
+                      <Info className="h-3 w-3 text-slate-300" />
+                    </span>
+                    {grapeRank?.graperank_preset_used && (
+                      <span className="inline-flex items-center gap-1">
+                        <span>Trust</span>
+                        <PresetBadge preset={grapeRank.graperank_preset_used} size="xs" testId="badge-dashboard-preset-used" />
+                      </span>
+                    )}
                   </div>
 
                   <AnimatePresence initial={false}>
-                    {!assistantDismissed && !assistantPubkey && (
+                    {!assistantDismissed && !assistantPubkey && !nip85CreatedInApp && (
                       <motion.div
                         key="assistant-inline-prompt"
                         initial={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
@@ -849,20 +904,28 @@ export default function DashboardPage() {
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold text-slate-900 leading-tight truncate" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            <p className="text-[11px] font-semibold text-slate-900 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
                               Publish your assistant
                             </p>
                             <p className="text-[10px] text-slate-500 leading-tight truncate">
-                              Speak your trust scores to Nostr apps
+                              Speak your trust scores to compatible apps
                             </p>
                           </div>
                           <button
                             type="button"
-                            onClick={() => navigate("/settings")}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            onClick={() => publishAssistantMutation.mutate()}
+                            disabled={publishAssistantMutation.isPending}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
                             data-testid="button-assistant-inline-publish"
                           >
-                            Publish
+                            {publishAssistantMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                Publishing
+                              </>
+                            ) : (
+                              "Publish"
+                            )}
                           </button>
                           <button
                             type="button"
@@ -881,11 +944,9 @@ export default function DashboardPage() {
                     )}
                   </AnimatePresence>
 
-                  <div className="pt-1.5">
-                    <div className="rounded-lg bg-gradient-to-br from-indigo-50/50 to-slate-50/50">
-                      <div className="border-l-2 border-[#7c86ff] px-3 py-2.5">
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Compatible Clients</span>
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 mb-2.5">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Readable in compatible apps</span>
                           <div className="relative group/info">
                             <button
                               type="button"
@@ -897,24 +958,35 @@ export default function DashboardPage() {
                               <Info className="h-2 w-2" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-purple-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-[#7c86ff] hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-purple-700 transition-colors">Amethyst</span>
+                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-[#333286] transition-colors">Amethyst</span>
                           </a>
                           <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
                             <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
                           </a>
                         </div>
-                      </div>
-                    </div>
+                        <button
+                          onClick={() => setRecalcConfirmOpen(true)}
+                          disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
+                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#333286]/[0.06] text-[#333286] hover:bg-[#333286]/[0.12] border border-[#7c86ff]/15 hover:border-[#7c86ff]/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                          data-testid="button-recalculate-wot-card"
+                        >
+                          {triggerGrapeRankMutation.isPending ? (
+                            <><Loader2 className="w-3 h-3 animate-spin" /><span className="text-[11px] font-semibold tracking-wide">Calculating</span></>
+                          ) : (
+                            <><RefreshCw className="w-3 h-3" /><span className="text-[11px] font-semibold tracking-wide">Recalculate</span></>
+                          )}
+                        </button>
                   </div>
                 </div>
+                )}
               </div>
               ) : (
               <div
@@ -935,6 +1007,11 @@ export default function DashboardPage() {
                   ) : publishDone ? (
                     <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
+                    </span>
+                  ) : justFollowed ? (
+                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Calculating…
                     </span>
                   ) : isErrorState ? (
                     <span className="text-xs text-red-500 font-medium" data-testid="text-overall-trust-score-sub">
@@ -1028,7 +1105,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {isGrapeRankFailed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {isGrapeRankFailed && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1047,26 +1124,68 @@ export default function DashboardPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <AnimatePresence>
-              {hasNoFollowing && !triggerGrapeRankMutation.isPending && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-indigo-200/60 shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)] w-fit md:ml-auto"
-                  data-testid="graperank-no-following"
-                >
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Info className="w-4 h-4 text-indigo-500" />
+            {/* No-follows users: an inline follow-picker (same suggestions as
+                /welcome) so they can start their Web of Trust without leaving. */}
+            {hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isPending && (
+              <FollowToCalculateCard onDone={handleFollowDone} />
+            )}
+
+            {/* Scores just went live → the viral beat: invite people in. Shown
+                once per account (persisted), never on recalcs. */}
+            {user && publishDone && !inviteCardSeen && !isRecalculating && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="mb-6"
+              >
+                <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
+                  <div className="h-8 w-8 rounded-lg bg-[#6366f1]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
+                    <Users className="h-4 w-4" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-indigo-700">No follows yet</p>
-                    <p className="text-xs text-indigo-600/80 mt-0.5">Follow some people on Nostr first for the best results. You can still try calculating.</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
+                    <span className="font-semibold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
+                    <span className="hidden sm:inline text-slate-500">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
+                    className="shrink-0 h-9 px-4 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    data-testid="button-invite-grow"
+                  >
+                    <Users className="h-4 w-4" />
+                    Invite friends
+                  </button>
+                  <button
+                    type="button"
+                    onClick={markInviteCardSeen}
+                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    aria-label="Dismiss"
+                    data-testid="button-invite-grow-dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+            {/* Rendered outside the card gate so it stays mounted after the card
+                collapses (clicking Invite marks the card seen). */}
+            {user && (
+              <ShareProfileModal
+                open={inviteShareOpen}
+                onOpenChange={setInviteShareOpen}
+                invite
+                npub={user.npub}
+                displayName={user.displayName || "You"}
+                picture={user.picture}
+                nip05={user.profile?.nip05}
+                canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
+                // No trust pill on an invite: the score is self-referential (your own POV
+                // ≈ 100) and meaningless for a brand-new account — the invite is about
+                // "join & start connected to you", not a score flex.
+                score01={null}
+              />
+            )}
 
             {(showOnboarding || isRecalculating) && (
               <div
@@ -1169,7 +1288,7 @@ export default function DashboardPage() {
                       </p>
                       <h2
                         className="text-xl sm:text-2xl font-bold text-white tracking-tight"
-                        style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                        style={{ fontFamily: "var(--font-display)" }}
                         data-testid="text-onboarding-title"
                       >
                         {isRecalculation ? "Refreshing your trust scores" : isErrorState ? "Something went wrong" : "Clarity in a fragmented world"}
@@ -1227,7 +1346,7 @@ export default function DashboardPage() {
                             </p>
                             <p
                               className="text-sm font-semibold text-white truncate"
-                              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                              style={{ fontFamily: "var(--font-display)" }}
                               data-testid="text-onboarding-progress-step"
                             >
                               {isGrapeRankFailed
@@ -1274,13 +1393,13 @@ export default function DashboardPage() {
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-graph" />
                               ) : (
                                 <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-violet-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
                                   data-testid="dot-onboarding-graph"
                                 />
                               )}
                               <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-emerald-300" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">{calcDone ? "Calculated" : "Calculating"}</span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-violet-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
                               {calcDone ? "Complete" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -1294,7 +1413,7 @@ export default function DashboardPage() {
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-scores" />
                               ) : (
                                 <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-fuchsia-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-indigo-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
                                   data-testid="dot-onboarding-scores"
                                 />
                               )}
@@ -1303,7 +1422,7 @@ export default function DashboardPage() {
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-fuchsia-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
                               {publishDone ? "Complete" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -1380,8 +1499,6 @@ export default function DashboardPage() {
                               }
                             }}
                           >
-                            <div className={`h-1.5 w-full bg-gradient-to-r ${ONBOARDING_SLIDES[activeOnboardingIndex].tone}`} />
-
                             <div className="p-4 sm:p-5">
                               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                                 <div className="min-w-0">
@@ -1390,7 +1507,7 @@ export default function DashboardPage() {
                                   </p>
                                   <h3
                                     className="text-base sm:text-lg font-semibold text-white mt-1"
-                                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                                    style={{ fontFamily: "var(--font-display)" }}
                                     data-testid="text-onboarding-active-title"
                                   >
                                     {ONBOARDING_SLIDES[activeOnboardingIndex].title}
@@ -1447,7 +1564,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1455,11 +1572,9 @@ export default function DashboardPage() {
               className="mb-6"
             >
               <Card
-                className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative"
+                className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
                 data-testid="card-nip85-cta"
               >
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 pointer-events-none" />
 
                 <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="h-12 w-12 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286] shrink-0">
@@ -1467,7 +1582,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-nip85-cta-title">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
                       Select Brainstorm as your Web of Trust Service Provider
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
@@ -1479,7 +1594,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => setNip85ModalOpen(true)}
-                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#3730a3]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
                       data-testid="button-nip85-cta"
                     >
                       <BrainLogo size={14} className="text-white/80" />
@@ -1487,7 +1602,13 @@ export default function DashboardPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setNip85Dismissed(true)}
+                      onClick={() => {
+                        try {
+                          const pk = getCurrentUser()?.pubkey;
+                          if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
+                        } catch { /* ignore */ }
+                        setNip85Dismissed(true);
+                      }}
                       className="text-xs text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
                       data-testid="button-nip85-dismiss"
                     >
@@ -1514,19 +1635,18 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
-                className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
+                className={`bg-white border-slate-200 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
                 title={!isCalculationComplete ? "Available after calculation completes" : undefined}
                 data-testid="card-social-graph"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
 
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
                       <Users className="h-3.5 w-3.5" />
                     </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Social Graph
                     </span>
                   </div>
@@ -1540,7 +1660,6 @@ export default function DashboardPage() {
                       onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
                       data-testid="card-trusted-followers"
                     >
-                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#7c86ff] to-[#333286]" />
                       <div className="flex items-center gap-1.5 mb-2">
                         <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
                           <Award className="h-3 w-3" />
@@ -1560,16 +1679,15 @@ export default function DashboardPage() {
                     </div>
 
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-violet-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-violet-400/40 hover:shadow-[0_8px_24px_-8px_rgba(139,92,246,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
                       onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
                       data-testid="card-trusted-following"
                     >
-                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-[#7c86ff]" />
                       <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-violet-500/8 text-violet-600">
+                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
                           <UserPlus className="h-3 w-3" />
                         </div>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
@@ -1579,7 +1697,7 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-violet-500/60">
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
                           <span>Explore</span>
                           <ChevronRight className="h-2.5 w-2.5" />
                         </div>
@@ -1627,7 +1745,6 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="relative">
-                  <div className="h-1.5 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" />
                   <div className="px-6 pt-6 pb-5">
                     <DialogHeader>
                       <div className="flex items-start justify-between gap-4 pr-10">
@@ -1636,7 +1753,7 @@ export default function DashboardPage() {
                             <ShieldAlert className="h-5 w-5" />
                           </div>
                           <div className="min-w-0">
-                            <DialogTitle className="text-xl font-bold text-slate-900 leading-none tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-network-alerts-dialog-title">
+                            <DialogTitle className="text-xl font-bold text-slate-900 leading-none tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
                               Network Alerts
                             </DialogTitle>
                             <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
@@ -1722,7 +1839,7 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card
-                className="bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
+                className="bg-white border-slate-200 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
                 onClick={() => {
                   setRiskDialogOpen(true);
                   if (riskTeaserTimerRef.current) { window.clearTimeout(riskTeaserTimerRef.current); riskTeaserTimerRef.current = null; }
@@ -1736,7 +1853,6 @@ export default function DashboardPage() {
                 aria-label="Open Network Alerts preview"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x absolute top-0 left-0" />
 
                 <div
                   className="absolute -right-12 top-[0.85rem] z-30 rotate-45 bg-[#333286] px-12 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
@@ -1768,7 +1884,7 @@ export default function DashboardPage() {
                     <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
                       <ShieldAlert className="h-3.5 w-3.5" />
                     </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Network Alerts
                     </span>
                   </div>
@@ -1816,7 +1932,7 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
                     {isErrorState ? (
@@ -1833,7 +1949,6 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className={`h-1 w-full absolute top-0 left-0 ${isCalculationComplete ? "bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" : "bg-slate-200"}`} />
 
                 <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
                   <div className="flex items-center justify-between">
@@ -1841,7 +1956,7 @@ export default function DashboardPage() {
                       <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
                         <Network className="h-3.5 w-3.5" />
                       </div>
-                      <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                      <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                         Extended Reach
                       </span>
                     </div>
@@ -1904,7 +2019,7 @@ export default function DashboardPage() {
           {!hasNoFollowing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
                     {isErrorState ? (
@@ -1923,17 +2038,16 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                <div className={`h-1 w-full ${isCalculationComplete ? "bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x" : "bg-slate-200"}`} />
 
                 <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
-                <CardHeader className="bg-gradient-to-b from-[#7c86ff]/15 to-white/60 border-b border-[#7c86ff]/10 py-3 px-5 transition-colors duration-500 group-hover:from-[#7c86ff]/25 group-hover:to-white/80">
+                <CardHeader className="bg-slate-50 border-b border-slate-200 py-3 px-5">
                   <div className="flex flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
                         <Users className="h-3.5 w-3.5" />
                       </div>
                       <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
-                        <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                        <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "var(--font-display)" }}>
                           Network Health
                         </CardTitle>
                         <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
@@ -1994,8 +2108,8 @@ export default function DashboardPage() {
                           </div>
                           {isHop1 && (
                             <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#3730a3] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
                             </div>
                           )}
                         </div>
@@ -2045,7 +2159,7 @@ export default function DashboardPage() {
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mb-8">
               <Card className="bg-gradient-to-br from-[#333286] via-[#1e1b4b] to-slate-950 text-white border-[#7c86ff]/20 shadow-[0_20px_60px_-15px_rgba(51,50,134,0.3)] overflow-hidden relative group" onMouseMove={handleMouseMove}>
                 <div className="relative z-10 p-6 sm:p-8">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                     Discover Your Tribe
                   </h2>
                   <p className="text-indigo-200/70 mt-2 max-w-xl text-sm sm:text-base font-light">
@@ -2070,7 +2184,7 @@ export default function DashboardPage() {
 
           {false && (
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mb-8 text-center">
-              <h2 className="text-2xl font-bold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h2 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Grow Your Network
                 </span>
@@ -2082,7 +2196,7 @@ export default function DashboardPage() {
             <div className="absolute inset-0 bg-[#020617] border-y border-indigo-500/20">
               <div className="absolute inset-0 bg-[linear-gradient(to_right,#818cf810_1px,transparent_1px),linear-gradient(to_bottom,#818cf810_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
               <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-indigo-600/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
-              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-violet-600/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
+              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-[#7c86ff]/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -2151,7 +2265,7 @@ export default function DashboardPage() {
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
                         <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-400/20 text-purple-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#c7d2fe] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                               <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
                               <line x1="12" y1="18" x2="12.01" y2="18" />
@@ -2161,7 +2275,7 @@ export default function DashboardPage() {
                           <div className="relative group/info">
                             <button
                               type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-purple-300 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400/50"
+                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[#c7d2fe] hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/50"
                               onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
                               aria-label="What are Supported Clients?"
                               data-testid="button-supported-clients-info"
@@ -2169,7 +2283,7 @@ export default function DashboardPage() {
                               <Info className="h-3 w-3" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -2178,11 +2292,11 @@ export default function DashboardPage() {
                           <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
                             <img src={amethystLogoImg} alt="Amethyst Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
                             <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-amethyst-title">
+                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-amethyst-title">
                                 Amethyst
                               </h2>
-                              <p className="text-xs sm:text-sm font-medium text-purple-300/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/25 text-purple-200 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
+                              <p className="text-xs sm:text-sm font-medium text-[#c7d2fe]/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/15 border border-[#7c86ff]/25 text-[#ddd6fe] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
                                 <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                                 <span>NIP-85</span>
                               </div>
@@ -2193,7 +2307,7 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
                           <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-android">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-android">
                               <Download className="mr-2 h-4 w-4" />
                               Download for Android
                             </Button>
@@ -2208,9 +2322,9 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/20 rounded-full blur-[80px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-purple-500/20 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-purple-400/10 rounded-full pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/20 rounded-full blur-[80px] pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-[#7c86ff]/20 rounded-full animate-pulse pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-[#7c86ff]/10 rounded-full pointer-events-none" />
                       </div>
                     </div>
                   </Card>
@@ -2273,7 +2387,7 @@ export default function DashboardPage() {
                               <Info className="h-3 w-3" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
-                              These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -2282,7 +2396,7 @@ export default function DashboardPage() {
                           <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
                             <img src={nostriaIconImg} alt="Nostria Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
                             <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-supported-nostria-title">
+                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-nostria-title">
                                 Nostria
                               </h2>
                               <p className="text-xs sm:text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
@@ -2369,7 +2483,7 @@ export default function DashboardPage() {
                               <BrainLogo size={48} className="text-white hidden sm:block" />
                             </div>
                             <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }} data-testid="text-developer-title">
+                              <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-developer-title">
                                 Get Your Client Featured
                               </h2>
                               <p className="text-xs sm:text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
@@ -2380,7 +2494,7 @@ export default function DashboardPage() {
 
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
                           <div data-testid="link-developer-contact" onClick={(e) => { e.stopPropagation(); navigate("/faq?tab=developers"); }}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-purple-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base cursor-pointer" data-testid="button-developer-contact">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base cursor-pointer" data-testid="button-developer-contact">
                               <HelpCircle className="mr-2 h-4 w-4" />
                               Learn More
                             </Button>
@@ -2395,7 +2509,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-600/15 rounded-full blur-[90px] pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/15 rounded-full blur-[90px] pointer-events-none" />
                       </div>
                     </div>
                   </Card>

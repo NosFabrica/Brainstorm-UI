@@ -214,6 +214,59 @@ async function optionalAuthFetch(
   return fetch(url, options);
 }
 
+/**
+ * Pull the backend's `detail`/`message` off a non-ok JSON response so 4xx/5xx
+ * (incl. 409/422) surface a human error. Returns "" if the body isn't JSON.
+ */
+async function extractApiError(response: Response): Promise<string> {
+  const data = await response.json().catch(() => null);
+  return data?.detail || data?.message || "";
+}
+
+export interface SchedulingItem {
+  id: number;
+  name: string;
+  schedule_interval_seconds: number;
+  priority: number;
+  enabled: boolean;
+  is_default: boolean;
+  manual_quota_limit: number;
+  manual_quota_window_seconds: number;
+}
+
+export interface CreateSchedulingBody {
+  name: string;
+  schedule_interval_seconds: number;
+  priority?: number;
+  enabled?: boolean;
+  is_default?: boolean;
+  manual_quota_limit?: number;
+  manual_quota_window_seconds?: number;
+}
+
+export type UpdateSchedulingBody = Partial<CreateSchedulingBody>;
+
+export interface SchedulerStats {
+  throughput_per_day: number;
+  demand_per_day: number;
+  median_publish_seconds: number | null;
+  lane_depths: Record<string, number>;
+  tier_slip_seconds: Record<string, number>;
+}
+
+export interface SchedulingUserItem {
+  pubkey: string;
+  last_time_published_graperank: string | null;
+}
+
+export interface SchedulingUsersPage {
+  items: SchedulingUserItem[];
+  total: number;
+  page: number;
+  size: number;
+  pages: number;
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
@@ -259,6 +312,174 @@ export const apiClient = {
     return await response.json();
   },
 
+  async getSchedulingPolicies(): Promise<SchedulingItem[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch scheduling policies (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async createSchedulingPolicy(
+    body: CreateSchedulingBody,
+  ): Promise<SchedulingItem> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to create scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async updateSchedulingPolicy(
+    id: number,
+    body: UpdateSchedulingBody,
+  ): Promise<SchedulingItem> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to update scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async deleteSchedulingPolicy(id: number): Promise<void> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}`,
+      { method: "DELETE", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to delete scheduling policy (${response.status})`,
+      );
+    }
+  },
+
+  async resyncObserver(pubkey: string, target: string) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
+      { method: "POST", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to resync observer (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async assignUserScheduling(pubkey: string, schedulingId: number) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/users/${pubkey}/scheduling`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduling_id: schedulingId }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to assign scheduling policy (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getSchedulingStats(): Promise<SchedulerStats> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/stats`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch scheduler stats (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async getSchedulingPolicyUsers(
+    id: number,
+    params: { page?: number; size?: number } = {},
+  ): Promise<SchedulingUsersPage> {
+    const qs = new URLSearchParams();
+    if (params.page != null) qs.set("page", String(params.page));
+    if (params.size != null) qs.set("size", String(params.size));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}/users${suffix}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch policy users (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  async assignPolicyUsers(
+    id: number,
+    pubkeys: string[],
+  ): Promise<{ assigned: number }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/scheduling/${id}/users`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkeys }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to assign users (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
   async getUserByPubkey(pubkey: string) {
     const response = await optionalAuthFetch(
       `${getBrainstormApi()}/user/${pubkey}`,
@@ -297,6 +518,9 @@ export const apiClient = {
       tier_high?: number;
       tier_medium_high?: number;
       tier_medium?: number;
+      // Force the unauthenticated "house" POV (stable for every viewer) instead
+      // of the logged-in viewer's personalized perspective. Used by public pages.
+      house?: boolean;
     },
   ) {
     const params = new URLSearchParams();
@@ -310,7 +534,7 @@ export const apiClient = {
       params.set("tier_medium", String(opts.tier_medium));
     const qs = params.toString();
     const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
-    const response = await optionalAuthFetch(url, {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(60000),
     });
     if (!response.ok) {
@@ -346,6 +570,8 @@ export const apiClient = {
       tier_medium_high?: number;
       tier_medium?: number;
       with_total?: boolean;
+      // Force the unauthenticated "house" POV (stable for every viewer).
+      house?: boolean;
     },
   ) {
     const params = new URLSearchParams();
@@ -361,7 +587,7 @@ export const apiClient = {
     if (opts?.tier_medium != null) params.set("tier_medium", String(opts.tier_medium));
     if (opts?.with_total) params.set("with_total", "true");
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
-    const response = await optionalAuthFetch(url, {
+    const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(30000),
     });
     if (!response.ok) {
@@ -403,6 +629,30 @@ export const apiClient = {
       throw new Error(friendlyMessage);
     }
     return await response.json();
+  },
+
+  // Ingest a freshly-signed onboarding kind-3 follow list synchronously, so the
+  // backend has the user's follows BEFORE GrapeRank is triggered (no relay-
+  // propagation wait). Throws an Error carrying `.status` so the caller can
+  // branch on 429 (rate-limit — don't retry) vs transient errors (retry).
+  async submitFollowList(signedEvent: Record<string, unknown>) {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/followList`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signed_event: signedEvent }),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      let detail = body?.detail || body?.message || `Failed to ingest follow list (${response.status})`;
+      if (typeof detail === "object") detail = JSON.stringify(detail);
+      const err = new Error(detail) as Error & { status?: number };
+      err.status = response.status;
+      throw err;
+    }
+    return await response.json(); // { code, message, data: { followCount } }
   },
 
   async getGrapeRankResult() {
@@ -471,71 +721,30 @@ export const apiClient = {
     return await response.json();
   },
 
-  async searchProfilesLegacyMeili(
-    text: string,
-    pov: "house" | "user" = "house",
-    userPubkey?: string,
-    limit: number = 50,
-    timeoutMs: number = 15000,
-  ): Promise<{
-    success: boolean;
-    hits: Array<Record<string, unknown>>;
-    estimatedTotalHits?: number;
-  }> {
-    const params = new URLSearchParams({
-      q: text,
-      limit: String(limit),
-      offset: "0",
-      wotPov: pov,
-    });
-    if (pov === "user" && userPubkey) params.set("userPubkey", userPubkey);
-    const response = await fetch(
-      `https://brainstorm.world/api/search/profiles/meili?${params.toString()}`,
-      { signal: AbortSignal.timeout(timeoutMs) },
-    );
-    if (!response.ok) {
-      throw new Error(`Search failed (${response.status})`);
-    }
-    const data = await response.json();
-    if (!data?.success) {
-      throw new Error("Search service unavailable");
-    }
-    return {
-      success: true,
-      hits: Array.isArray(data.hits) ? data.hits : [],
-      estimatedTotalHits:
-        typeof data.estimatedTotalHits === "number"
-          ? data.estimatedTotalHits
-          : undefined,
-    };
-  },
-
   /**
-   * Look up a single profile's NosFabrica ("house") perspective `wot_rank`
-   * (returned 0..100 by Meili). Used by the Profile page to render the dual
-   * meter regardless of entry point (Search, Network, deep link), since the
-   * per-profile overview endpoint doesn't yet accept a `wotPov` parameter.
-   * Returns null if the pubkey isn't in the Meili index or if no rank field
-   * is present on the matching hit.
+   * Look up a single profile's NosFabrica ("house") perspective trust score —
+   * `influence` (0..1) — from our own backend. Issues an *unauthenticated*
+   * `/user/{pubkey}/overview` request so the result is always the house POV
+   * (the default observer), regardless of whether a viewer is logged in. Used
+   * by the Profile page's dual meter and the share page's network-trust score.
+   * Returns null if the backend has no overview for the pubkey (not yet indexed
+   * by Brainstorm) or the request fails.
    */
-  async lookupNosfabricaRank(
-    hexPubkey: string,
-    npub: string,
+  async getHouseInfluence(
+    pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    if (!hexPubkey || !npub) return null;
+    if (!pubkey) return null;
     try {
-      // Query by npub — Meili indexes both hex pubkey and npub as searchable
-      // fields; npub is the more discriminating token.
-      const res = await this.searchProfilesLegacyMeili(npub, "house", undefined, 5, timeoutMs);
-      const targetHex = hexPubkey.toLowerCase();
-      const hit = res.hits.find(h => typeof h.pubkey === "string" && (h.pubkey as string).toLowerCase() === targetHex);
-      if (!hit) return null;
-      const raw =
-        (typeof hit.wot_rank === "number" && Number.isFinite(hit.wot_rank) ? (hit.wot_rank as number) : null) ??
-        (typeof (hit as Record<string, unknown>).wotRank === "number" && Number.isFinite((hit as Record<string, unknown>).wotRank as number) ? ((hit as Record<string, unknown>).wotRank as number) : null) ??
-        (typeof (hit as Record<string, unknown>).rank === "number" && Number.isFinite((hit as Record<string, unknown>).rank as number) ? ((hit as Record<string, unknown>).rank as number) : null);
-      return raw;
+      // Plain fetch (no session token) → NosFabrica/house perspective.
+      const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return null;
+      const json = await response.json();
+      // Overview responses are wrapped: { code, message, data: { influence } }.
+      const influence = (json as { data?: { influence?: unknown } })?.data?.influence;
+      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
     } catch {
       return null;
     }
@@ -615,8 +824,11 @@ export const apiClient = {
   },
 
   async publishBrainstormAssistantProfile(profile: { name?: string; about?: string; picture?: string; banner?: string; lud16?: string; nip05?: string; website?: string }) {
+    // Publishes the user's assistant kind-0 metadata event. The backend route is
+    // `/user/assistantProfile` (there is no `/user/publishAssistantProfile`); the
+    // profile fields are sent as the body and ignored by the server if unused.
     const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/publishAssistantProfile`,
+      `${getBrainstormApi()}/user/assistantProfile`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

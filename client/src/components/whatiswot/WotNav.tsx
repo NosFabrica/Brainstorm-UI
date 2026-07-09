@@ -91,7 +91,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
             <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
             <span
               className="text-lg sm:text-xl font-bold tracking-tight text-white"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-logo"
             >
               Brainstorm

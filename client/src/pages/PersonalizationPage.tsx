@@ -12,6 +12,7 @@ import {
   UserCircle,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.webp";
 
 const steps = [
@@ -29,29 +30,13 @@ export default function PersonalizationPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
         <div className="space-y-12 sm:space-y-16 animate-fade-up">
           {/* Editorial hero */}
-          <header className="max-w-3xl" data-testid="section-personalization-header">
-            <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
-                Your perspective
-              </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
-            </div>
-            <h1
-              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-personalization-title"
-            >
-              Every search has a <span className="text-[#333286]">point of view</span>.
-            </h1>
-            <p
-              className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl"
-              data-testid="text-personalization-subtitle"
-            >
-              By default, you see the network through a trusted community curated by the house. Sign in, and you can
-              see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you
-              see.
-            </p>
-          </header>
+          <PageHeader
+            size="hero"
+            kicker="Your perspective"
+            title={<>Every search has a <span className="text-[#333286]">point of view</span>.</>}
+            subtitle="By default, you see the network through a trusted community curated by the house. Sign in, and you can see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you see."
+            testId="section-personalization-header"
+          />
 
           {/* The big idea — tinted two-column */}
           <section

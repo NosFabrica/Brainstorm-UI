@@ -336,10 +336,9 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     const isRefreshing = expandedLoading && !detail;
     return (
       <div
-        className={`bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl rounded-2xl border border-[#7c86ff]/20 shadow-[0_8px_30px_-12px_rgba(124,134,255,0.15)] overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
+        className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
         data-testid={`detail-panel-${pkShort}`}
       >
-        <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -641,7 +640,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                               ? cardFollowHovered
                                 ? "bg-red-50 border border-red-200 text-red-600"
                                 : "bg-white border border-slate-200 text-slate-600"
-                              : "bg-[#3730a3] text-white hover:bg-[#312e81]"
+                              : "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
                           }`}
                           data-testid={`button-follow-${pkShort}`}
                         >
@@ -706,7 +705,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   </div>
                 )}
                 <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#3730a3] text-white shadow-md hover:shadow-lg hover:bg-[#312e81] transition-all duration-200"
+                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#6366f1] text-white shadow-md hover:shadow-lg hover:bg-[#4f46e5] transition-all duration-200"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNavigate(

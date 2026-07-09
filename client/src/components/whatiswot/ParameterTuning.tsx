@@ -15,7 +15,7 @@ export function ParameterTuning() {
               <div className="text-center mb-8">
                 <h2 
                   className="text-2xl font-bold text-white mb-2"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                  style={{ fontFamily: "var(--font-display)" }}
                 >
                   Interactive Parameter Tuning
                 </h2>

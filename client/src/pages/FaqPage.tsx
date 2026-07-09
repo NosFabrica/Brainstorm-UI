@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 
 const userFaqs = [
   {
@@ -97,33 +98,21 @@ export default function FaqPage() {
     <InfoPageLayout testId="page-faq" active="faq">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="space-y-6 animate-fade-up">
-            <div className="space-y-2" data-testid="section-faq-header">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm w-fit" data-testid="badge-faq">
-                <div className="w-1 h-1 rounded-full bg-[#7c86ff] shadow-[0_0_4px_#7c86ff]" />
-                <p className="text-[9px] font-bold tracking-[0.15em] text-[#333286] uppercase">Brainstorm FAQ</p>
-              </div>
-              <h1
-                className="text-3xl font-bold text-slate-900 tracking-tight"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-faq-title"
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Frequently Asked Questions
-                </span>
-              </h1>
-              <p className="text-slate-600 font-medium" data-testid="text-faq-subtitle">
-                {activeTab === "users"
-                  ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
-                  : "Technical details for client developers implementing NIP-85 Trust Attestations."}
-              </p>
-            </div>
+            <PageHeader
+              kicker="Brainstorm FAQ"
+              title={<>Frequently Asked <span className="text-[#333286]">Questions</span></>}
+              subtitle={activeTab === "users"
+                ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
+                : "Technical details for client developers implementing NIP-85 Trust Attestations."}
+              testId="section-faq-header"
+            />
 
             <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
               <button
                 onClick={() => handleTabChange("users")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "users"
-                    ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30"
+                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
                     : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-users"
@@ -134,7 +123,7 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("developers")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "developers"
-                    ? "bg-[#3730a3] text-white shadow-lg shadow-[#3730a3]/30"
+                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
                     : "text-slate-500 hover:text-[#333286]"
                 }`}
                 data-testid="tab-developers"
@@ -144,12 +133,9 @@ export default function FaqPage() {
             </div>
 
             <div
-              className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden relative group"
+              className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative group"
             >
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-2xl" />
-
-              <div className="bg-gradient-to-b from-[#7c86ff]/10 to-white/60 border-b border-[#7c86ff]/10 px-5 py-4">
+              <div className="bg-slate-50 border-b border-slate-200 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
                     <HelpCircle className="h-4 w-4 text-[#333286]" />

@@ -15,6 +15,7 @@ import {
   Ban,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { PageHeader } from "@/components/PageHeader";
 import { BrainLogo } from "@/components/BrainLogo";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
 
@@ -120,8 +121,8 @@ const METRICS: { value: string; label: string }[] = [
 
 const POWERED_BY: { name: string; note: string; href: string }[] = [
   { name: "Vespa", note: "Search engine", href: "https://vespa.ai/" },
-  { name: "GrapeRank", note: "Trust scoring", href: "https://primal.net/straycat/graperank" },
-  { name: "Nostr", note: "Open protocol", href: "https://nostr.com/" },
+  { name: "GrapeRank", note: "Trust scoring", href: "https://github.com/NosFabrica" },
+  { name: "Nostr", note: "Open protocol", href: "https://github.com/nostr-protocol/nips" },
 ];
 
 function PipelineDiagram() {
@@ -222,26 +223,13 @@ export default function HowSearchWorksPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
         <div className="space-y-12 sm:space-y-16 animate-fade-up">
           {/* Editorial hero */}
-          <header className="max-w-3xl" data-testid="section-hsw-header">
-            <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
-                Under the hood
-              </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
-            </div>
-            <h1
-              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-hsw-title"
-            >
-              How Brainstorm finds the <span className="text-[#333286]">real people</span>.
-            </h1>
-            <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl" data-testid="text-hsw-subtitle">
-              Search is only half the job. The harder part is telling legitimate accounts apart from the
-              spam, bots, and impersonators. Here's the pipeline that does both — from query to verified
-              results.
-            </p>
-          </header>
+          <PageHeader
+            size="hero"
+            kicker="Under the hood"
+            title={<>How Brainstorm finds the <span className="text-[#333286]">real people</span>.</>}
+            subtitle="Search is only half the job. The harder part is telling legitimate accounts apart from the spam, bots, and impersonators. Here's the pipeline that does both — from query to verified results."
+            testId="section-hsw-header"
+          />
 
           {/* Plain-language intro */}
           <section
@@ -408,7 +396,7 @@ export default function HowSearchWorksPage() {
                   the screen in front of your eyes. Currently we rely upon follows, mutes, and reports, processed
                   using a method called{" "}
                   <a
-                    href="https://primal.net/straycat/graperank"
+                    href="https://github.com/NosFabrica"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"

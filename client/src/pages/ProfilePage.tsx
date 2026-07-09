@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { GlossBackground } from "@/components/GlossBackground";
 import { getVerifiedThreshold, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -38,7 +39,18 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Share2,
+  Globe,
+  Eye,
+  BadgeCheck,
 } from "lucide-react";
+import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { ZapModal } from "@/components/ZapModal";
+import { FlashIcon } from "@/components/FlashIcon";
+import { WotStrengthCard } from "@/components/WotStrengthCard";
+import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
+import { copyToClipboard } from "@/lib/clipboard";
+import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { AgentIcon } from "@/components/AgentIcon";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { FEATURES } from "@/config/featureFlags";
@@ -54,7 +66,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { isAdminPubkey } from "@/config/adminAccess";
@@ -84,6 +96,7 @@ import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
+import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 
 interface AdminHistoryItem {
@@ -93,13 +106,14 @@ interface AdminHistoryItem {
   status: string;
   ta_status: string | null;
   internal_publication_status: string | null;
-  result: string | null;
+  error: { code: string; message: string | null } | null;
   count_values: string | null;
   password: string | null;
   algorithm: string | null;
   parameters: string | null;
   how_many_others_with_priority: number;
   pubkey: string;
+  trigger_source: string | null;
 }
 
 const FollowersIcon = ({ className }: { className?: string }) => (
@@ -195,6 +209,21 @@ function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: 
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
 }
 
+// Why this run was queued: manual (user asked), scheduled (tier auto-scheduler),
+// admin (admin action), periodic (cron). Colored distinctly from status badges.
+function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
+  if (!value) return <span className="text-slate-300">—</span>;
+  const lower = value.toLowerCase();
+  const colors = lower === "scheduled"
+    ? "bg-violet-50 text-violet-700 border-violet-200"
+    : lower === "periodic"
+    ? "bg-sky-50 text-sky-700 border-sky-200"
+    : lower === "admin"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : "bg-slate-50 text-slate-600 border-slate-200";
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`}>{value}</span>;
+}
+
 type AdminHistoryFailureStage = "calculation" | "ta" | "publication";
 
 const ADMIN_HISTORY_FAILURE_HINTS: Record<AdminHistoryFailureStage, { label: string; hint: string }> = {
@@ -264,7 +293,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
     ? "publication"
     : null;
   const failureInfo = failureStage ? ADMIN_HISTORY_FAILURE_HINTS[failureStage] : null;
-  const errorText = (item.result && item.result.trim()) || "";
+  const errorText = item.error?.message?.trim() || "";
   return (
     <>
       <tr
@@ -273,6 +302,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         data-testid={`row-admin-history-${item.private_id || idx}`}
       >
         <td className="px-2 py-2 font-mono text-slate-600">{item.private_id}</td>
+        <td className="px-2 py-2"><AdminHistoryTriggerBadge value={item.trigger_source} /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.status} type="status" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.ta_status} type="ta" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
@@ -283,7 +313,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
       </tr>
       {expanded && (
         <tr className="bg-amber-50/30">
-          <td colSpan={8} className="px-4 py-3">
+          <td colSpan={9} className="px-4 py-3">
             {failureInfo && (
               <div
                 className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2"
@@ -300,10 +330,10 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
-              {item.result && (
+              {item.error?.message && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Result</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.result}</p>
+                  <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
+                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
                 </div>
               )}
               {item.count_values && (
@@ -447,15 +477,6 @@ const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
   { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
 ];
-
-const REPORT_TYPE_BADGE_COLORS: Record<string, string> = {
-  spam: "bg-amber-50 text-amber-700 border-amber-200",
-  impersonation: "bg-red-50 text-red-700 border-red-200",
-  nudity: "bg-pink-50 text-pink-700 border-pink-200",
-  illegal: "bg-red-50 text-red-800 border-red-300",
-  profanity: "bg-orange-50 text-orange-700 border-orange-200",
-  other: "bg-slate-50 text-slate-600 border-slate-200",
-};
 
 const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
   { value: "all", label: "All Types", dotColor: "bg-slate-300" },
@@ -626,7 +647,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 
   return (
     <div className="border-t border-slate-100 bg-slate-50/50">
-      <div className="px-3 py-2 space-y-2 border-b border-slate-100 bg-gradient-to-r from-white/80 via-indigo-50/20 to-white/80 backdrop-blur-sm">
+      <div className="px-3 py-2 space-y-2 border-b border-slate-200 bg-slate-50">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 mr-1">
             <ArrowUpDown className="h-3 w-3 text-slate-400" />
@@ -635,7 +656,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                 <button
                   key={opt.value}
                   onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#3730a3] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#6366f1] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
                   data-testid={`sort-${opt.value}-${key}`}
                 >
                   {opt.label}
@@ -879,7 +900,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="px-3 py-2">
             <button
               onClick={(e) => { e.stopPropagation(); onShowMore(key, processed, visibleCount); }}
-              className="w-full py-2 rounded-lg bg-[#3730a3] hover:bg-[#312e81] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+              className="w-full py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
               Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
@@ -911,6 +932,8 @@ export default function ProfilePage() {
   const [user, setUser] = useState<NostrUser | null>(null);
 
   const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [zapOpen, setZapOpen] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -955,6 +978,31 @@ export default function ProfilePage() {
   }, [npubParam]);
 
   const social = useSocialActions(user?.pubkey);
+  const relQueryClient = useQueryClient();
+
+  // "Follows you": does the target follow ME? (my pubkey ∈ their kind-3 contact list)
+  const theyFollowMeQuery = useQuery({
+    queryKey: ["they-follow-me", user?.pubkey, hexPubkey],
+    queryFn: async () => getFollowedPubkeys(await fetchContactList(hexPubkey)).has(user!.pubkey),
+    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const theyFollowMe = theyFollowMeQuery.data === true;
+
+  // "You reported this": have I published a kind-1984 report targeting them?
+  const myReportQuery = useQuery({
+    queryKey: ["my-report", user?.pubkey, hexPubkey],
+    queryFn: () => fetchMyReport(hexPubkey),
+    enabled: !!user?.pubkey && !!hexPubkey && user?.pubkey !== hexPubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const myReport = myReportQuery.data ?? null;
+  // Write the "you reported this" state straight into the cache instead of
+  // re-fetching kind-1984 from relays (which lags 8s / until propagation) — so
+  // the chip appears/clears instantly. Shared key, so the /p line updates too.
+  const setMyReport = (value: MyReport | null) => relQueryClient.setQueryData(["my-report", user?.pubkey, hexPubkey], value);
 
   const { data: grapeRankData } = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -982,11 +1030,18 @@ export default function ProfilePage() {
   }, [calcDoneNow]);
 
   useEffect(() => {
-    // Anonymous-friendly: full profiles are public (NosFabrica "house" POV).
-    // Capture the user when present so personalized sections + the account menu
-    // render, but never redirect anon visitors away.
+    // Capture the signed-in user so personalized sections + the account menu render.
     setUser(getCurrentUser());
   }, [navigate]);
+
+  // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
+  // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
+  // view — no matter how they arrived (search, a shared link, a bookmark).
+  useEffect(() => {
+    if (npubParam && !hasSessionToken()) {
+      navigate(`/p/${npubParam}`, { replace: true });
+    }
+  }, [npubParam, navigate]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1314,7 +1369,36 @@ export default function ProfilePage() {
     };
   }, [seed]);
 
-  const displayNostrProfile = nostrProfile ?? seedAsNostrProfile;
+  // When you're viewing your *own* profile, the locally-known current-user
+  // profile (updated on every in-app save) is the freshest source — a just-
+  // created/edited kind 0 may not have propagated to the HTTP gateways/relays
+  // that `fetchProfile` queries yet. Use it to fill gaps (esp. picture/banner)
+  // so your own avatar shows immediately instead of the initials fallback.
+  const ownProfileFallback = useMemo<ProfileContent | null>(() => {
+    if (!user || !hexPubkey || user.pubkey !== hexPubkey) return null;
+    if (user.profile) return user.profile;
+    if (user.picture || user.displayName) {
+      return {
+        name: user.displayName,
+        display_name: user.displayName,
+        picture: user.picture,
+        about: user.about,
+        nip05: user.nip05,
+      } as ProfileContent;
+    }
+    return null;
+  }, [user, hexPubkey]);
+
+  const displayNostrProfile = useMemo<ProfileContent | null>(() => {
+    const base = nostrProfile ?? seedAsNostrProfile;
+    if (!ownProfileFallback) return base;
+    if (!base) return ownProfileFallback;
+    // Network values win when present; the local copy backfills empty fields.
+    const nonEmpty = Object.fromEntries(
+      Object.entries(base).filter(([, v]) => v != null && v !== ""),
+    );
+    return { ...ownProfileFallback, ...nonEmpty } as ProfileContent;
+  }, [nostrProfile, seedAsNostrProfile, ownProfileFallback]);
 
   const loadError = useMemo<string | null>(() => {
     if (!npubParam) return null;
@@ -1467,21 +1551,7 @@ export default function ProfilePage() {
     return matching.reduce((latest, r) => r.timestamp > latest.timestamp ? r : latest, matching[0]);
   }, [hexPubkey]);
 
-  const formatRelativeTime = useCallback((timestamp: number) => {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    let relative: string;
-    if (diff < 60) relative = "just now";
-    else if (diff < 3600) relative = `${Math.floor(diff / 60)}m ago`;
-    else if (diff < 86400) relative = `${Math.floor(diff / 3600)}h ago`;
-    else if (diff < 2592000) relative = `${Math.floor(diff / 86400)}d ago`;
-    else if (diff < 31536000) relative = `${Math.floor(diff / 2592000)}mo ago`;
-    else relative = `${Math.floor(diff / 31536000)}y ago`;
-
-    const date = new Date(timestamp * 1000);
-    const absolute = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    return `${relative} · ${absolute}`;
-  }, []);
+  const formatRelativeTime = useCallback((timestamp: number) => formatReportTime(timestamp), []);
 
 
   const mutualPubkeys = useMemo(() => {
@@ -1893,11 +1963,10 @@ export default function ProfilePage() {
   };
 
   const handleCopyNpub = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyToClipboard(text)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    }
   };
 
   const displayNpub = useMemo(() => {
@@ -1905,117 +1974,60 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
-  // Fetch the NosFabrica ("house") perspective rank for the viewed profile on
-  // mount, so the dual-meter widget renders regardless of entry point (Search,
-  // Network, deep link, etc). The /user/{pubkey}/overview endpoint doesn't
-  // accept a `wotPov` parameter yet, so we lean on the Meili search endpoint
-  // (which does). Skipped when the search-click seed already supplied a value.
+  // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
+  // profile on mount, so the dual-meter widget renders regardless of entry point
+  // (Search, Network, deep link, etc). Uses an unauthenticated overview request
+  // (always house POV). Skipped when the search-click seed already supplied a value.
   const nosfabricaRankQuery = useQuery<number | null>({
     queryKey: ["profile-nosfabrica-rank", hexPubkey],
     queryFn: async () => {
-      if (!hexPubkey || !displayNpub) return null;
-      return await apiClient.lookupNosfabricaRank(hexPubkey, displayNpub);
+      if (!hexPubkey) return null;
+      return await apiClient.getHouseInfluence(hexPubkey);
     },
-    enabled: !!hexPubkey && !!displayNpub && (seed?.wotRankNosfabrica == null),
+    enabled: !!hexPubkey && (seed?.wotRankNosfabrica == null),
     staleTime: 5 * 60_000,
     retry: false,
   });
+
+  // Viewing your OWN profile, the personalized score is always self-POV (you
+  // trust yourself → 100), which is meaningless. So on your own profile we show
+  // the network/house score instead — the same number others see on your
+  // shareable /p page — framed as "how others see you".
+  const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
+  const houseInfluence01 = useMemo(() => {
+    const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
+    if (typeof r !== "number" || !Number.isFinite(r)) return null;
+    const v01 = r > 1 ? r / 100 : r;
+    return Math.min(1, Math.max(0, v01));
+  }, [seed?.wotRankNosfabrica, nosfabricaRankQuery.data]);
 
   if (isAuthRedirecting()) return null;
 
   const isAnon = !user;
   const truncatedNpub = user ? user.npub.slice(0, 12) + "..." + user.npub.slice(-6) : "";
+  // X-style stat numbers: full under 10k ("1,234"), compact above ("114K").
+  const fmtStat = (n: number) =>
+    n >= 10000 ? new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString();
 
   const renderTrustBadge = (idSuffix: string = "") => {
     if (!profileResult || profileResult.influence === undefined || !profileTier) return null;
-    const yourScoreRaw = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    const yourScore = Math.min(1, Math.max(0, yourScoreRaw));
-    const yourPct = Math.round(yourScore * 100);
-    // Prefer the search-click seed (already in scope from the user's
-    // navigation), then fall back to the Meili lookup fetched on Profile mount
-    // so the dual meter renders for Network / deep-link entry points too.
-    const nfRank = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data ?? undefined;
-    const hasNf = typeof nfRank === "number" && Number.isFinite(nfRank);
-    const nfRank01 = hasNf
-      ? ((nfRank as number) > 1 ? (nfRank as number) / 100 : (nfRank as number))
-      : 0;
-    const nfScore = hasNf ? Math.min(1, Math.max(0, nfRank01)) : 0;
-    const nfPct = Math.round(nfScore * 100);
-    const nfTier = hasNf
-      ? TIER_DISPLAY_CONFIG.find(t => nfScore >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1]
-      : null;
-    const circumference = 2 * Math.PI * 18;
-    const yourOffset = circumference - (yourScore * circumference);
-    const nfOffset = circumference - (nfScore * circumference);
-    const renderRing = (
-      offset: number,
-      ringClass: string,
-      trackClass: string,
-    ) => (
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-        <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className={trackClass} />
-        <circle cx="22" cy="22" r="18" fill="none" strokeWidth="2.5" strokeLinecap="round"
-          className={ringClass} style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease-out" }} />
-      </svg>
-    );
 
-    if (!hasNf) {
-      return (
-        <div className="flex flex-col items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-xl px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[88px]" data-testid={`badge-trust-score${idSuffix}`}>
-          <div className="flex items-center gap-1">
-            <BrainLogo size={10} className="text-indigo-400" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-          </div>
-          <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
-            {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-            <span className="text-sm font-bold font-mono tabular-nums text-indigo-700">{yourPct}</span>
-          </div>
-          <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        </div>
-      );
-    }
-
-    // V3 — PrimaryWithChip: keep the user's score as the primary ring (same
-    // compact footprint as the original single ring so the description stays
-    // glued to the profile block), with NosFabrica surfaced as a small
-    // comparison chip below. Honest about the asymmetry — the page's data is
-    // always personalized today, NosFabrica is shown as comparative context.
-    const diff = nfPct - yourPct;
-    const diffAbs = Math.abs(diff);
-    const TrendIcon = diffAbs <= 5 ? Minus : diff > 0 ? TrendingUp : TrendingDown;
-    const trendColor = diffAbs <= 5
-      ? "text-slate-500"
-      : diff > 0
-        ? "text-indigo-600"
-        : "text-emerald-600";
-    const diffPrefix = diffAbs <= 5 ? "" : diff > 0 ? "+" : "−";
+    // Own profile → the network's view of you (null = not yet scored, shown as
+    // such in the card); anyone else → your personalized view of them.
+    const score01 = isOwnProfile
+      ? houseInfluence01
+      : Math.min(1, Math.max(0, typeof profileResult.influence === "number" ? profileResult.influence : 0));
+    // Other profiles: primary = your personal POV, secondary = the network score
+    // (shown only when they differ → naturally hidden when logged out, where both
+    // resolve to the house score). Own profile: network primary, no secondary.
     return (
-      <div className="flex flex-col items-center gap-1.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-2 backdrop-blur-sm self-start shrink-0 min-w-[96px] sm:min-w-[120px]" data-testid={`badge-trust-score${idSuffix}`}>
-        <div className="flex items-center gap-1">
-          <BrainLogo size={10} className="text-indigo-400" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-400">Brainstorm</span>
-        </div>
-        <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center" data-testid={`meter-you${idSuffix}`}>
-          {renderRing(yourOffset, profileTier.ring, "text-indigo-100")}
-          <span className="text-sm font-bold font-mono tabular-nums text-indigo-700" data-testid={`text-score-you${idSuffix}`}>{yourPct}</span>
-        </div>
-        <span className={`text-[10px] sm:text-xs font-bold text-center leading-tight ${profileTier.text}`} data-testid={`text-trust-tier${idSuffix}`}>{profileTier.name}</span>
-        {!isAnon && (
-          <div
-            className="inline-flex items-center gap-1 rounded-full bg-white/80 border border-indigo-200/70 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-            data-testid={`chip-nosfabrica-compare${idSuffix}`}
-            title={nfTier ? `Brainstorm perspective: ${nfPct} · ${nfTier.name}` : `Brainstorm perspective: ${nfPct}`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" data-testid={`meter-nosfabrica${idSuffix}`} />
-            <span className="text-indigo-500/80">Brainstorm</span>
-            <span className="font-bold tabular-nums text-indigo-700" data-testid={`text-score-nosfabrica${idSuffix}`}>{nfPct}</span>
-            <span className={`inline-flex items-center gap-0.5 ${trendColor}`} data-testid={`text-agreement${idSuffix}`}>
-              <TrendIcon className="h-3 w-3" />
-              {diffPrefix}{diffAbs}
-            </span>
-          </div>
-        )}
-      </div>
+      <WotStrengthCard
+        score01={score01}
+        secondaryScore01={isOwnProfile ? null : houseInfluence01}
+        primaryLabel="To you"
+        secondaryLabel="Brainstorm"
+        className="w-full md:w-64 md:shrink-0"
+      />
     );
   };
 
@@ -2024,12 +2036,7 @@ export default function ProfilePage() {
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-profile"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]" style={{ animation: "profileBlobA 28s ease-in-out infinite" }} />
-        <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]" style={{ animation: "profileBlobB 32s ease-in-out infinite 2s" }} />
-      </div>
+      <GlossBackground />
 
       {isAnon ? (
         <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4" data-testid="header-profile-anon">
@@ -2050,6 +2057,28 @@ export default function ProfilePage() {
         </header>
       ) : (
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} />
+      )}
+
+      <ShareProfileModal
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        npub={displayNpub}
+        displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+        picture={displayNostrProfile?.picture}
+        nip05={displayNostrProfile?.nip05}
+        canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+        score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
+      />
+
+      {hexPubkey && displayNostrProfile?.lud16 && (
+        <ZapModal
+          open={zapOpen}
+          onOpenChange={setZapOpen}
+          recipientPubkey={hexPubkey}
+          lud16={displayNostrProfile.lud16}
+          displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
+          picture={displayNostrProfile?.picture}
+        />
       )}
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
@@ -2109,7 +2138,7 @@ export default function ProfilePage() {
 
         {isLoading && (
           <div data-testid="panel-profile-skeleton">
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden">
               <div className="p-6 sm:p-8 animate-pulse">
                 <div className="flex items-start gap-4">
                   <div className="h-14 w-14 rounded-full bg-slate-200 shrink-0" />
@@ -2138,7 +2167,7 @@ export default function ProfilePage() {
 
         {!isLoading && loadError && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden relative" data-testid="card-profile-error">
+            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden relative" data-testid="card-profile-error">
               <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-indigo-500/40 to-indigo-800/25" />
@@ -2156,7 +2185,7 @@ export default function ProfilePage() {
                     <Button
                       type="button"
                       onClick={() => navigate("/")}
-                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#3730a3] hover:bg-[#312e81] text-white"
+                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#6366f1] hover:bg-[#4f46e5] text-white"
                       data-testid="button-profile-new-search"
                     >
                       New Search
@@ -2170,8 +2199,7 @@ export default function ProfilePage() {
 
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
-            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
                   <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
@@ -2241,105 +2269,31 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white/95 border-slate-200/80 shadow-[0_8px_30px_-8px_rgba(51,50,134,0.12)] rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
-              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
+            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
 
-              <div className="p-5 sm:p-6 relative overflow-hidden"
-                style={{
-                  backgroundImage: [
-                    'radial-gradient(circle at 90% 10%, rgba(99,102,241,0.12) 0%, transparent 50%)',
-                    'radial-gradient(circle at 5% 95%, rgba(99,102,241,0.06) 0%, transparent 40%)',
-                    'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)',
-                  ].join(', '),
-                  backgroundSize: '100% 100%, 100% 100%, 20px 20px',
-                  boxShadow: 'inset 0 1px 0 0 rgba(99,102,241,0.12), inset 0 -1px 0 0 rgba(99,102,241,0.04)',
-                }}
-              >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true" data-testid="svg-network-bg">
-                  {[
-                    { x1: 10, y1: 5, x2: 28, y2: 14 },
-                    { x1: 10, y1: 5, x2: 4, y2: 20 },
-                    { x1: 28, y1: 14, x2: 45, y2: 8 },
-                    { x1: 28, y1: 14, x2: 38, y2: 28 },
-                    { x1: 4, y1: 20, x2: 18, y2: 35 },
-                    { x1: 45, y1: 8, x2: 62, y2: 12 },
-                    { x1: 62, y1: 12, x2: 78, y2: 6 },
-                    { x1: 62, y1: 12, x2: 72, y2: 25 },
-                    { x1: 78, y1: 6, x2: 93, y2: 15 },
-                    { x1: 72, y1: 25, x2: 88, y2: 35 },
-                    { x1: 38, y1: 28, x2: 52, y2: 38 },
-                    { x1: 18, y1: 35, x2: 8, y2: 50 },
-                    { x1: 18, y1: 35, x2: 30, y2: 48 },
-                    { x1: 52, y1: 38, x2: 65, y2: 48 },
-                    { x1: 88, y1: 35, x2: 95, y2: 50 },
-                    { x1: 8, y1: 50, x2: 20, y2: 62 },
-                    { x1: 30, y1: 48, x2: 45, y2: 58 },
-                    { x1: 65, y1: 48, x2: 80, y2: 55 },
-                    { x1: 95, y1: 50, x2: 85, y2: 65 },
-                    { x1: 20, y1: 62, x2: 35, y2: 72 },
-                    { x1: 45, y1: 58, x2: 55, y2: 70 },
-                    { x1: 80, y1: 55, x2: 92, y2: 68 },
-                    { x1: 35, y1: 72, x2: 15, y2: 82 },
-                    { x1: 35, y1: 72, x2: 50, y2: 80 },
-                    { x1: 55, y1: 70, x2: 70, y2: 78 },
-                    { x1: 92, y1: 68, x2: 82, y2: 80 },
-                    { x1: 15, y1: 82, x2: 28, y2: 92 },
-                    { x1: 50, y1: 80, x2: 65, y2: 90 },
-                    { x1: 70, y1: 78, x2: 82, y2: 80 },
-                    { x1: 82, y1: 80, x2: 95, y2: 92 },
-                  ].map((l, i) => {
-                    const len = Math.sqrt(Math.pow(l.x2 - l.x1, 2) + Math.pow(l.y2 - l.y1, 2)) * 5;
-                    return (
-                      <line key={`cl-${i}`} x1={`${l.x1}%`} y1={`${l.y1}%`} x2={`${l.x2}%`} y2={`${l.y2}%`}
-                        stroke="rgb(99,102,241)" strokeWidth="0.5" opacity="0"
-                        style={{ strokeDasharray: len, strokeDashoffset: len, ['--dash' as string]: len, animation: `profileLineDraw 1.8s ${0.3 + i * 0.1}s ease-out forwards, profileLinePulse 6s ${2.5 + i * 0.25}s ease-in-out infinite` }} />
-                    );
-                  })}
-                  {[
-                    { cx: 10, cy: 5, r: 3.5, delay: 0.2 },
-                    { cx: 28, cy: 14, r: 2.5, delay: 0.4 },
-                    { cx: 4, cy: 20, r: 2, delay: 0.6 },
-                    { cx: 45, cy: 8, r: 2, delay: 0.5 },
-                    { cx: 62, cy: 12, r: 2.5, delay: 0.6 },
-                    { cx: 78, cy: 6, r: 1.5, delay: 0.5 },
-                    { cx: 93, cy: 15, r: 2, delay: 0.7 },
-                    { cx: 38, cy: 28, r: 2, delay: 0.8 },
-                    { cx: 72, cy: 25, r: 2.5, delay: 0.8 },
-                    { cx: 18, cy: 35, r: 2, delay: 0.9 },
-                    { cx: 88, cy: 35, r: 2, delay: 0.9 },
-                    { cx: 52, cy: 38, r: 2.5, delay: 1.0 },
-                    { cx: 8, cy: 50, r: 1.5, delay: 1.0 },
-                    { cx: 65, cy: 48, r: 2, delay: 1.1 },
-                    { cx: 95, cy: 50, r: 1.5, delay: 1.1 },
-                    { cx: 30, cy: 48, r: 2, delay: 1.0 },
-                    { cx: 20, cy: 62, r: 2, delay: 1.2 },
-                    { cx: 45, cy: 58, r: 1.5, delay: 1.2 },
-                    { cx: 80, cy: 55, r: 2, delay: 1.2 },
-                    { cx: 85, cy: 65, r: 1.5, delay: 1.3 },
-                    { cx: 35, cy: 72, r: 2, delay: 1.3 },
-                    { cx: 55, cy: 70, r: 2, delay: 1.4 },
-                    { cx: 92, cy: 68, r: 1.5, delay: 1.3 },
-                    { cx: 15, cy: 82, r: 2, delay: 1.5 },
-                    { cx: 50, cy: 80, r: 2, delay: 1.5 },
-                    { cx: 70, cy: 78, r: 1.5, delay: 1.5 },
-                    { cx: 82, cy: 80, r: 2, delay: 1.6 },
-                    { cx: 28, cy: 92, r: 1.5, delay: 1.7 },
-                    { cx: 65, cy: 90, r: 1.5, delay: 1.7 },
-                    { cx: 95, cy: 92, r: 2, delay: 1.8 },
-                  ].map((n, i) => (
-                    <circle key={`cn-${i}`} cx={`${n.cx}%`} cy={`${n.cy}%`} r={n.r} fill="rgb(99,102,241)" opacity="0"
-                      style={{ animation: `profileNodePop 0.6s ${n.delay}s ease-out forwards, profileNodeFloat ${5 + (i % 3) * 2}s ${2 + n.delay}s ease-in-out infinite` }} />
-                  ))}
-                </svg>
+              <div className="relative overflow-hidden">
+                {/* Cover banner — matches the public /p page; fills the top space. */}
+                <div className="relative w-full h-24 sm:h-32">
+                  {displayNostrProfile?.banner ? (
+                    <img src={displayNostrProfile.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
+                      <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+                    </div>
+                  )}
+                </div>
+                
 
-                <div className="relative z-10">
-                <div className="flex items-start gap-3 sm:gap-4 mb-5">
-                  {(() => {
+                <div className="px-5 sm:px-6 pb-5 sm:pb-6 relative z-10">
+                {/* Avatar overlaps the banner on its own line, so the name, npub,
+                    stats and actions below all share one left edge (like /p). */}
+                {(() => {
                     const isOwnAssistant = !!hexPubkey && getCurrentAssistantPubkey() === hexPubkey;
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white shrink-0 -mt-12 sm:-mt-16">
                         {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
                         <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
@@ -2347,17 +2301,26 @@ export default function ProfilePage() {
                       </Avatar>
                     );
                   })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
+                {/* Two-column hero — identity + stats + actions on the left, the
+                    Web of Trust card as a top-aligned right sidebar (desktop),
+                    matching the public /p page. */}
+                <div className="mt-2.5 md:flex md:gap-6 md:items-start">
+                <div className="md:flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
+                          <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
+                          {displayNostrProfile?.nip05 && (
+                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
+                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-indigo-500" />
+                              <span className="truncate">{displayNostrProfile.nip05}</span>
+                            </span>
+                          )}
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30"
+                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30 self-center"
                               data-testid="badge-brainstorm-assistant"
                               title="This is your Brainstorm Assistant — a bot that publishes your trust scores to Nostr."
                             >
@@ -2365,123 +2328,196 @@ export default function ProfilePage() {
                               Brainstorm Assistant
                             </Badge>
                           )}
-                          <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100" data-testid="badge-profile-found">
-                            Profile Found
-                          </Badge>
                         </div>
-                        {displayNostrProfile?.nip05 && (
-                          <p className="text-xs sm:text-xs text-indigo-600 font-medium mt-0.5 truncate" data-testid="text-profile-nip05">{displayNostrProfile.nip05}</p>
-                        )}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
                           <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
-                        {hexPubkey && !isAnon && !social.isSelf(hexPubkey) && (
-                          <div className="flex items-center gap-2 mt-2.5" data-testid="row-profile-actions">
-                            {social.listsLoading ? (
-                              <>
-                                <div className="h-7 sm:h-8 w-20 sm:w-24 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-follow-button" />
-                                <div className="h-7 sm:h-8 w-16 sm:w-20 rounded-lg bg-slate-100 dark:bg-slate-700 animate-pulse" data-testid="skeleton-mute-button" />
-                              </>
-                            ) : (
-                            <>
-                            {(() => {
-                              const following = social.isFollowing(hexPubkey);
-                              const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={pending || social.isAnyPending}
-                                  onMouseEnter={() => following && setFollowHovered(true)}
-                                  onMouseLeave={() => setFollowHovered(false)}
-                                  onClick={async () => {
-                                    const result = following
-                                      ? await social.unfollow(hexPubkey)
-                                      : await social.follow(hexPubkey);
-                                    if (result.success) {
-                                      toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
-                                    } else {
-                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                                    }
-                                    setFollowHovered(false);
-                                  }}
-                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-3 sm:px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
-                                    following
-                                      ? followHovered
-                                        ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
-                                        : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                                      : "bg-[#3730a3] text-white hover:bg-[#312e81] shadow-sm"
-                                  }`}
-                                  data-testid="button-follow-toggle"
-                                >
-                                  {pending ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : following ? (
-                                    followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <UserPlus className="h-3.5 w-3.5" />
-                                  )}
-                                  <span className="hidden sm:inline">
-                                    {pending ? "..." : following ? (followHovered ? "Unfollow" : "Following") : "Follow"}
-                                  </span>
-                                </button>
-                              );
-                            })()}
-                            {(() => {
-                              const muted = social.isMuted(hexPubkey);
-                              const pending = social.isPending("mute", hexPubkey) || social.isPending("unmute", hexPubkey);
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={pending || social.isAnyPending}
-                                  onClick={async () => {
-                                    const result = muted
-                                      ? await social.unmute(hexPubkey)
-                                      : await social.mute(hexPubkey);
-                                    if (result.success) {
-                                      toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
-                                    } else {
-                                      toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
-                                    }
-                                  }}
-                                  className={`inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
-                                    muted
-                                      ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                                  }`}
-                                  data-testid="button-mute-toggle"
-                                >
-                                  {pending ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : muted ? (
-                                    <Volume2 className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <VolumeX className="h-3.5 w-3.5" />
-                                  )}
-                                  <span className="hidden sm:inline">{pending ? "..." : muted ? "Unmute" : "Mute"}</span>
-                                </button>
-                              );
-                            })()}
-                            <button
-                              type="button"
-                              disabled={social.isAnyPending}
-                              onClick={() => setReportDialogOpen(true)}
-                              className="inline-flex items-center gap-1.5 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-semibold transition-all duration-200 border bg-white border-slate-200 text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-50 disabled:pointer-events-none"
-                              data-testid="button-report"
-                            >
-                              <Flag className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Report</span>
-                            </button>
-                            </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="contents">{renderTrustBadge()}</div>
+                        {/* Web of Trust — mobile inline; on desktop it renders in the right sidebar. */}
+                        <div className="md:hidden mt-3">{renderTrustBadge()}</div>
                     </div>
-                  </div>
+                {/* X-style inline counts — full-width so they sit on one line. */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[13px] sm:text-sm" data-testid="row-profile-stats">
+                  <span data-testid="stat-profile-following">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followingTotal)}</span>
+                    <span className="text-slate-500 ml-1">Following</span>
+                  </span>
+                  <span data-testid="stat-profile-followers">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followersTotal)}</span>
+                    <span className="text-slate-500 ml-1">Followers</span>
+                  </span>
+                  <span data-testid="stat-profile-mutual">
+                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
+                    <span className="text-slate-500 ml-1">Mutual</span>
+                  </span>
+                  {theyFollowMe && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-[#3730a3]" data-testid="badge-follows-you">
+                      <ArrowLeft className="h-3 w-3" /> Follows you
+                    </span>
+                  )}
+                </div>
+                {/* One tidy action bar — full-width, aligned with the stats above.
+                    Follow is primary; the rest tuck into a "more" menu. */}
+                <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="row-profile-actions">
+                  {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
+                    <>
+                      {social.listsLoading ? (
+                        <div className="h-8 w-24 rounded-lg bg-slate-100 animate-pulse" data-testid="skeleton-follow-button" />
+                      ) : (() => {
+                        const following = social.isFollowing(hexPubkey);
+                        const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
+                        return (
+                          <button
+                            type="button"
+                            disabled={pending || social.isAnyPending}
+                            onMouseEnter={() => following && setFollowHovered(true)}
+                            onMouseLeave={() => setFollowHovered(false)}
+                            onClick={async () => {
+                              const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
+                              if (result.success) {
+                                toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
+                              } else {
+                                toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                              }
+                              setFollowHovered(false);
+                            }}
+                            className={`inline-flex items-center justify-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
+                              following
+                                ? followHovered
+                                  ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                  : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                                : "bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-sm"
+                            }`}
+                            data-testid="button-follow-toggle"
+                          >
+                            {following ? (followHovered ? <UserMinus className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />) : <UserPlus className="h-3.5 w-3.5" />}
+                            <span>{following ? (followHovered ? "Unfollow" : "Following") : "Follow"}</span>
+                          </button>
+                        );
+                      })()}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/p/${displayNpub}`)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                        data-testid="link-public-page"
+                        title="See the public, shareable version of this profile"
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
+                      </button>
+                      {displayNostrProfile?.lud16 && (
+                        <button
+                          type="button"
+                          onClick={() => setZapOpen(true)}
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          data-testid="button-zap"
+                          title="Send a zap"
+                        >
+                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                        </button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors" aria-label="More actions" data-testid="button-profile-more">
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-44 bg-white/95 backdrop-blur-xl">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => setShareOpen(true)} data-testid="button-share-profile">
+                            <Share2 className="h-4 w-4 mr-2 text-slate-500" /> Share
+                          </DropdownMenuItem>
+                          {(() => {
+                            const muted = social.isMuted(hexPubkey);
+                            return (
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={async () => {
+                                  const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
+                                  if (result.success) {
+                                    toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
+                                  } else {
+                                    toast({ title: "Error", description: result.error || "Action failed", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid="button-mute-toggle"
+                              >
+                                {muted ? <Volume2 className="h-4 w-4 mr-2 text-slate-500" /> : <VolumeX className="h-4 w-4 mr-2 text-slate-500" />}
+                                {muted ? "Unmute" : "Mute"}
+                              </DropdownMenuItem>
+                            );
+                          })()}
+                          {myReport ? (
+                            <DropdownMenuItem
+                              className="cursor-pointer text-amber-700 focus:text-amber-800"
+                              onClick={async () => {
+                                const snapshot = myReport;
+                                setMyReport(null); // optimistic: chip + menu flip instantly
+                                const result = await social.unreport(hexPubkey);
+                                if (result.success) {
+                                  toast({ title: "Report removed", description: "Trust scores may take a little while to reflect this." });
+                                } else {
+                                  setMyReport(snapshot); // rollback
+                                  toast({ title: "Error", description: result.error || "Couldn't remove report", variant: "destructive" });
+                                }
+                              }}
+                              data-testid="button-unreport"
+                            >
+                              <Flag className="h-4 w-4 mr-2" /> Undo report
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-700" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
+                              <Flag className="h-4 w-4 mr-2" /> Report
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      {myReport && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                          title="Your report is published. Undo it from the ⋯ menu. Trust scores may take a little while to reflect changes."
+                          data-testid="chip-you-reported"
+                        >
+                          <Flag className="h-3 w-3" /> You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/p/${displayNpub}`)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                        data-testid="link-public-page"
+                        title="See the public, shareable version of this profile"
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0" /> Public page
+                      </button>
+                      {!isOwnProfile && displayNostrProfile?.lud16 && (
+                        <button
+                          type="button"
+                          onClick={() => setZapOpen(true)}
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          data-testid="button-zap"
+                          title="Send a zap"
+                        >
+                          <FlashIcon className="h-3.5 w-3.5 text-amber-500" /> Zap
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShareOpen(true)}
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                        data-testid="button-share-profile"
+                      >
+                        <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
+                      </button>
+                    </>
+                  )}
+                </div>
+                </div>
+                {/* Web of Trust — desktop right sidebar, top-aligned beside the identity. */}
+                <div className="hidden md:block md:w-64 md:shrink-0 mt-1">{renderTrustBadge()}</div>
                 </div>
                 {displayNostrProfile?.about && (
                   <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
@@ -2500,7 +2536,31 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {confidenceGuidance && (
+                {isOwnProfile ? (
+                  <div className="mb-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 border border-indigo-200/60 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                      <Eye className="h-4 w-4 text-indigo-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs sm:text-sm font-bold text-indigo-700">This is how others see you</span>
+                      <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">
+                        {houseInfluence01 != null
+                          ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
+                          : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so others can see your standing."}
+                      </p>
+                      {houseInfluence01 == null && (
+                        <button
+                          type="button"
+                          onClick={() => setShareOpen(true)}
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-700 hover:text-indigo-900 transition-colors"
+                          data-testid="button-own-profile-invite"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" /> Invite friends
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : confidenceGuidance && (
                   <div className={`mb-4 rounded-xl ${confidenceGuidance.bg} border ${confidenceGuidance.border} backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3`} data-testid="banner-confidence-guidance">
                     <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${confidenceGuidance.iconBg} flex items-center justify-center shrink-0`}>
                       {confidenceGuidance.icon === "check" && <ShieldCheck className={`h-4 w-4 ${confidenceGuidance.iconColor}`} />}
@@ -2634,7 +2694,7 @@ export default function ProfilePage() {
                   return (
                   <div className="space-y-5">
                     <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-indigo-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
@@ -2749,7 +2809,17 @@ export default function ProfilePage() {
                           </div>
                           );
                         })()}
-                        {profileResult.influence !== undefined && (
+                        {(() => {
+                          if (profileResult.influence === undefined) return null;
+                          // Own profile shows the NETWORK influence (how others see
+                          // you), not the self-POV 1.00. Null = not yet scored →
+                          // skip the row (the banner already explains).
+                          const inf = isOwnProfile
+                            ? houseInfluence01
+                            : (typeof profileResult.influence === "number" ? profileResult.influence : null);
+                          if (isOwnProfile && inf == null) return null;
+                          const infNum = typeof inf === "number" ? inf : 0;
+                          return (
                           <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-profile-influence">
                             <div className="flex items-center gap-2 sm:gap-3">
                               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
@@ -2763,14 +2833,15 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-2 sm:gap-2.5">
                               <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min((typeof profileResult.influence === "number" ? profileResult.influence : 0) * 100, 100)}%` }} />
+                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
                               </div>
                               <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
-                                {typeof profileResult.influence === "number" ? profileResult.influence.toFixed(2) : profileResult.influence}
+                                {typeof inf === "number" ? inf.toFixed(2) : "—"}
                               </p>
                             </div>
                           </div>
-                        )}
+                          );
+                        })()}
                         {followerTierBreakdown && followerTierBreakdown.total > 0 && (
                           <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30" data-testid="card-audience-quality">
                             <div className="flex items-center justify-between mb-2">
@@ -3080,6 +3151,7 @@ export default function ProfilePage() {
                               <thead>
                                 <tr className="border-b border-amber-200/40">
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">ID</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Source</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Status</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">TA Status</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Pub Status</th>
@@ -3205,6 +3277,9 @@ export default function ProfilePage() {
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
                 if (result.success) {
+                  // Show the "you reported this" state immediately — the dialog's
+                  // own spinner already covered the publish; don't wait on a relay refetch.
+                  setMyReport({ id: "", reportType: reportReason, reason: "", timestamp: Math.floor(Date.now() / 1000), eventIds: [] });
                   toast({ title: "Reported", description: "Report published to Nostr relays" });
                   setReportDialogOpen(false);
                 } else {

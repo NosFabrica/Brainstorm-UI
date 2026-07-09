@@ -74,8 +74,9 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       label: "Network",
       path: "/network",
       icon: Users,
-      disabled: !calcDone,
-      disabledTitle: "Available after calculation completes",
+      // Always accessible — the NetworkPage shows its own "being calculated"
+      // screen (with Back to Dashboard) until scores are ready, so there's no
+      // need to gate the tile (and gating it disagreed across surfaces).
     },
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]

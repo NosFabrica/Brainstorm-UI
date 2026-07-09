@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
+import { GlossBackground } from "@/components/GlossBackground";
+import { PageHeader } from "@/components/PageHeader";
 import {
   getVerifiedThreshold,
   PRESET_THRESHOLDS,
@@ -894,7 +897,7 @@ export default function NetworkPage() {
 
   const handleCopyNpub = useCallback(async (npub: string, pubkey: string) => {
     try {
-      await navigator.clipboard.writeText(npub);
+      await copyToClipboard(npub);
       setCopiedPubkey(pubkey);
       setTimeout(() => setCopiedPubkey(null), 2000);
     } catch {}
@@ -1159,7 +1162,7 @@ export default function NetworkPage() {
           </p>
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#3730a3] hover:bg-[#312e81] text-white text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
             onClick={() => navigate("/dashboard")}
             data-testid="button-back-to-dashboard"
           >
@@ -1178,74 +1181,7 @@ export default function NetworkPage() {
       className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-network"
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.28] pointer-events-none" />
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/30 blur-[130px]"
-          style={{ animation: "networkBlobA 28s ease-in-out infinite" }}
-        />
-        <div
-          className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/20 blur-[150px]"
-          style={{ animation: "networkBlobB 32s ease-in-out infinite 2s" }}
-        />
-        <div
-          className="absolute bottom-[10%] left-[20%] w-[40%] h-[40%] rounded-full bg-violet-100/15 blur-[110px]"
-          style={{ animation: "networkBlobC 24s ease-in-out infinite 5s" }}
-        />
-      </div>
-
-      <div className="absolute top-0 left-0 right-0 h-[600px] overflow-hidden pointer-events-none z-0">
-        <svg className="absolute inset-0 w-full h-full">
-          {connectionPairs.map(([a, b], i) => (
-            <line
-              key={i}
-              x1={`${floatingNodes[a].x}%`}
-              y1={`${floatingNodes[a].y}%`}
-              x2={`${floatingNodes[b].x}%`}
-              y2={`${floatingNodes[b].y}%`}
-              stroke="url(#networkLineGrad)"
-              strokeWidth="0.5"
-              strokeDasharray={connectionLineDashArrays[i]}
-              strokeDashoffset={connectionLineDashArrays[i]}
-              style={connectionLineStyles[i]}
-            />
-          ))}
-          <defs>
-            <linearGradient
-              id="networkLineGrad"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="100%"
-            >
-              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0.14" />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {floatingNodes.map((node, i) => (
-          <div
-            key={node.id}
-            className="absolute rounded-full bg-white/80 border border-slate-200/40"
-            style={floatingNodeStyles[i]}
-          />
-        ))}
-      </div>
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[5]">
-        {decorativeText.map((text, i) => (
-          <div
-            key={i}
-            className="absolute text-xs font-mono text-indigo-400/50 select-none whitespace-nowrap"
-            style={decorativeTextStyles[i]}
-            data-testid={`text-network-bg-decorative-${i}`}
-          >
-            {text}
-          </div>
-        ))}
-      </div>
+      <GlossBackground />
 
       <AppHeader
         user={user}
@@ -1261,41 +1197,19 @@ export default function NetworkPage() {
             data-testid="section-network-header"
           >
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
-            <div className="flex flex-col items-start gap-3">
-              <div
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/60 border border-indigo-500/10 shadow-sm backdrop-blur-sm"
-                data-testid="pill-network-kicker"
-              >
-                <div className="w-1 h-1 rounded-full bg-indigo-500 shadow-[0_0_4px_#6366f1] animate-pulse" />
-                <span className="text-xs font-bold tracking-[0.15em] text-indigo-900 uppercase">
-                  Network Explorer
-                </span>
-              </div>
-              <h1
-                className="text-2xl md:text-3xl font-bold tracking-tight relative"
-                style={{ fontFamily: "var(--font-display)" }}
-                data-testid="text-network-title"
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 via-indigo-500 to-indigo-800 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block">
-                  Your Network
-                </span>
-              </h1>
-              <p
-                className="text-slate-500 text-xs md:text-sm max-w-xl leading-relaxed font-light"
-                data-testid="text-network-subtitle"
-              >
-                Browse and manage your social graph connections.
-              </p>
-            </div>
+            <PageHeader
+              kicker="Network Explorer"
+              title={<>Your <span className="text-[#333286]">Network</span></>}
+              subtitle="Browse and manage your social graph connections."
+              testId="section-network-header"
+            />
           </div>
 
           <Card
-            className="bg-white/90 backdrop-blur-xl border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.07)] overflow-hidden rounded-xl relative"
+            className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
             data-testid="card-network-filters"
           >
-            <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
-
-            <CardHeader className="relative bg-gradient-to-b from-indigo-500/15 to-white/60 border-b border-indigo-500/10 py-4 px-5">
+            <CardHeader className="relative bg-slate-50 border-b border-slate-200 py-4 px-5">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">

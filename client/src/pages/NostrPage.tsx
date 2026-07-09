@@ -69,7 +69,7 @@ const CONCEPTS: Concept[] = [
 ];
 
 const RESOURCES: { name: string; note: string; href: string }[] = [
-  { name: "nostr.com", note: "A friendly starting point", href: "https://nostr.com/" },
+  { name: "grownostr.org", note: "A friendly starting point", href: "https://grownostr.org/" },
   { name: "nostr.how", note: "Step-by-step guides", href: "https://nostr.how/" },
   {
     name: "NIPs on GitHub",

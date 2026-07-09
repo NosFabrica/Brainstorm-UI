@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
@@ -136,7 +137,7 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
       className="p-0.5 rounded hover:bg-slate-100 transition-colors shrink-0"
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
+        copyToClipboard(text);
         toast({ title: "Copied", description: text.slice(0, 24) + (text.length > 24 ? "…" : ""), duration: 1500 });
       }}
       data-testid={testId}

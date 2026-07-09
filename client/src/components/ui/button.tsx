@@ -5,16 +5,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-lg shadow-purple-600/30 hover:shadow-xl hover:-translate-y-0.5",
-        secondary: "border-2 border-purple-600 text-purple-600 bg-white hover:bg-purple-50",
+        primary: "bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-lg shadow-[#6366f1]/25 hover:shadow-xl hover:-translate-y-0.5",
+        secondary: "border-2 border-[#3730a3] text-[#3730a3] bg-white hover:bg-[#eef2ff]",
         ghost: "hover:bg-gray-100 hover:text-gray-900",
         outline: "border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 text-gray-700",
         destructive: "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/30",
-        link: "text-purple-600 underline-offset-4 hover:underline",
+        link: "text-[#3730a3] underline-offset-4 hover:underline",
       },
       size: {
         default: "h-11 px-6 py-2",
