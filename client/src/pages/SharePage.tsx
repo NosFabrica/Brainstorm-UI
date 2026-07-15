@@ -52,6 +52,7 @@ import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearP
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -666,14 +667,17 @@ export default function SharePage() {
 
   const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
-  // Remember the inviter (this profile) for logged-out visitors, so a new
-  // account created later in the session auto-follows them even if the invite
-  // query param is lost. Cleared on successful signup.
-  useEffect(() => {
-    if (!loggedIn && npub) {
-      try { sessionStorage.setItem("brainstorm_pending_invite", npub); } catch {}
-    }
-  }, [loggedIn, npub]);
+  // NOTE on the invite model: clicking a "Join" CTA below carries `?invite=<npub>`,
+  // so a new account created from this profile auto-follows its owner (new user →
+  // owner) — the new user starts connected with a trust anchor. We deliberately do
+  // NOT notify the owner ("someone just joined — welcome them back?"): that prompt
+  // was the scam lever (it pressured the owner to follow BACK a stranger, forming a
+  // trust edge that carries the owner's weight). The auto-follow alone is inert — a
+  // brand-new account following you carries ~zero weight and gains nothing unless
+  // you follow back. The owner-facing notification stays off (WelcomeBackCard is
+  // unmounted) until a backend invite-record can gate a genuine reciprocal prompt.
+  // We also don't blanket-store this profile as a "pending invite" on mere view —
+  // the auto-follow is CTA-only, so it's an intentional act, not a drive-by tag.
 
   useShareMeta(
     pubkey
@@ -843,7 +847,13 @@ export default function SharePage() {
                   <span className="font-semibold text-slate-700">{verifiedFollowers.toLocaleString()}</span> Verified Followers
                 </Link>
               )}
-              {/* Phase 2: Degree (1st/2nd/3rd) — needs a backend `degree`/`hops` field on /overview or /stats. */}
+              {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
+                  on line 1. Signed-in + scored viewers only (needs my pubkey as the
+                  path origin); hidden on your own profile. */}
+              {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
+                localStorage.getItem("brainstorm_calc_completed") === "true" && (
+                  <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                )}
             </div>
             {(verifiedMuters != null || verifiedReporters != null) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
@@ -934,16 +944,53 @@ export default function SharePage() {
                 </p>
               );
             })()}
-            <Link
-              href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
-              data-testid="share-wot-cta"
-            >
-              See in your Web of Trust <ArrowRight className="h-4 w-4" />
-            </Link>
-            {loggedIn
-              ? !isOwner && <span className="text-xs text-slate-400">Follow, mute or report from your full view</span>
-              : <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
+            {loggedIn ? (
+              <>
+                <Link
+                  href={`/profile/${npub}?pov=mywot`}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
+                  data-testid="share-wot-cta"
+                >
+                  See in your Web of Trust <ArrowRight className="h-4 w-4" />
+                </Link>
+                {!isOwner && <span className="text-xs text-slate-400">Follow, mute or report from your full view</span>}
+              </>
+            ) : (
+              /* Logged-out → a join panel: lead with the personal connection +
+                 product value, not the raw score. Clicking "Join free" carries
+                 ?invite so the new account auto-follows this profile (see the note
+                 above), so "instantly connected" holds. No owner notification. */
+              <div className="w-full rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.05] to-[#7c86ff]/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  {/* Personal connection + value */}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {profile.picture && (
+                      <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-[#4338ca] uppercase">Join Brainstorm</div>
+                      <h3 className="mt-0.5 text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+                        Connect with {displayName}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                        Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
+                      </p>
+                    </div>
+                  </div>
+                  {/* CTA — right on desktop, full-width below on mobile */}
+                  <div className="shrink-0 sm:text-right">
+                    <Link
+                      href={`/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
+                      data-testid="share-wot-cta"
+                    >
+                      Join free <ArrowRight className="h-4 w-4" />
+                    </Link>
+                    <div className="mt-2 text-xs text-slate-400 text-center sm:text-right">Free · no email · a minute</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {foundViaRelays && (
@@ -1155,6 +1202,22 @@ export default function SharePage() {
           Shared via <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
         </p>
       </div>
+
+      {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
+      {!loggedIn && (
+        <>
+          <div className="h-20 sm:hidden" aria-hidden />
+          <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
+            <Link
+              href={`/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
+              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
+              data-testid="share-wot-cta-sticky"
+            >
+              Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </>
+      )}
 
       <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       {profile.lud16 && (

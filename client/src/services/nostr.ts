@@ -1323,10 +1323,30 @@ export function logout() {
   // Brainstorm Assistant data is namespaced per owner, so logging out does
   // not need to wipe it — switching accounts naturally isolates state and
   // the user's own assistant identity should still be there next login.
+  const prevPubkey = getCurrentUser()?.pubkey;
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
   clearSecretKey();
   queryClient.clear();
+
+  // Clear leftover Web-of-Trust scoring state so the next session starts clean.
+  // Global markers bleed across accounts (a new login would inherit the previous
+  // user's "calculating"/"ready" bar); the per-user markers re-drive the
+  // "Calculating…" pill for ~30min if the same user logs back in. Wipe both.
+  try {
+    ["brainstorm_calc_active", "brainstorm_scores_ready_nudge", "brainstorm_calc_completed"].forEach((k) =>
+      localStorage.removeItem(k),
+    );
+    if (prevPubkey) {
+      [
+        `brainstorm_calc_triggered_at:${prevPubkey}`,
+        `brainstorm_calc_pill_dismissed:${prevPubkey}`,
+        `brainstorm_calc_completed:${prevPubkey}`,
+      ].forEach((k) => localStorage.removeItem(k));
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function publishToRelays(

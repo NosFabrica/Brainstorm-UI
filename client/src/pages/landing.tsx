@@ -891,6 +891,13 @@ export default function Landing() {
         </div>
 
         <PostSignupCard />
+        {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
+            New users still auto-follow the profile they join from (see SharePage) —
+            that connection is benign. But this owner-facing notification was the scam
+            lever: it pressured the owner to follow BACK a stranger, forming a trust
+            edge that carries the owner's weight. It fired for ANY brand-new inbound
+            follower, so it can't be re-enabled safely until a backend invite-record
+            gates it to genuine, owner-issued invites. */}
         <BackupReminder />
 
         {isSearching && (
