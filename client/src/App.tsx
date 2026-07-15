@@ -19,6 +19,7 @@ import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
 import ConnectionListPage from "@/pages/ConnectionListPage";
+import HopsPathPage from "@/pages/HopsPathPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
@@ -102,6 +103,7 @@ function Router() {
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         <Route path="/profile/:npub" component={ProfilePage} />
+        <Route path="/p/:id/hops" component={HopsPathPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />

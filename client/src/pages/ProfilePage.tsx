@@ -92,6 +92,7 @@ import {
 } from "@/services/profilePageCache";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
+import { DegreeChip } from "@/components/DegreeChip";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
@@ -2352,6 +2353,11 @@ export default function ProfilePage() {
                     <span className="font-bold text-slate-900 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
                     <span className="text-slate-500 ml-1">Mutual</span>
                   </span>
+                  {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
+                  {hasSessionToken() && !isOwnProfile && user?.pubkey && hexPubkey &&
+                    localStorage.getItem("brainstorm_calc_completed") === "true" && (
+                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
+                    )}
                   {theyFollowMe && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-[#3730a3]" data-testid="badge-follows-you">
                       <ArrowLeft className="h-3 w-3" /> Follows you

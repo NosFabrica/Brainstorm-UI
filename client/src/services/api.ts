@@ -267,6 +267,21 @@ export interface SchedulingUsersPage {
   pages: number;
 }
 
+/** Follows-graph shortest-path result from `GET /shortestPath`. */
+export interface ShortestPath {
+  from: string;
+  to: string;
+  reachable: boolean;
+  hops: number;
+  /** Ordered hex pubkeys from `from` to `to` (inclusive); one random shortest path. */
+  path: string[];
+  /** Total number of shortest paths of this length. */
+  pathCount: number;
+  /** True when `pathCount` hit the server cap (show as "N+"). */
+  pathCountCapped: boolean;
+  maxHops: number;
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
@@ -541,6 +556,24 @@ export const apiClient = {
       throw new Error(`Failed to fetch user stats (${response.status})`);
     }
     return await response.json();
+  },
+
+  /**
+   * Follows-graph distance from `from` to `to` (the "hops" / degree metric):
+   * `{ reachable, hops, path[], pathCount, pathCountCapped, maxHops }`. `from`/`to`
+   * are hex pubkeys or npubs; the endpoint returns ONE randomly-chosen shortest
+   * path per call (re-call for a different one). `from` is required — there is no
+   * house default, so callers pass an explicit pubkey (the logged-in viewer's).
+   */
+  async getShortestPath(opts: { from: string; to: string }): Promise<ShortestPath> {
+    const params = new URLSearchParams({ from: opts.from, to: opts.to });
+    const url = `${getBrainstormApi()}/shortestPath?${params.toString()}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch shortest path (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data as ShortestPath;
   },
 
   async getUserConnections(
