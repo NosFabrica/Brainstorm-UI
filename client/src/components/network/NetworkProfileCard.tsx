@@ -708,9 +708,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#6366f1] text-white shadow-md hover:shadow-lg hover:bg-[#4f46e5] transition-all duration-200"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onNavigate(
-                      `/profile/${npub}?fromGroup=${activeGroupRef.current ?? ""}`,
-                    );
+                    onNavigate(`/p/${npub}`);
                   }}
                   data-testid={`button-view-full-${pkShort}`}
                 >

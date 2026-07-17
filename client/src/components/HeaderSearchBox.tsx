@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useLocation } from "wouter";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
-import { hasSessionToken } from "@/services/api";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
@@ -30,6 +29,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
   const timer = useRef<number>();
   const reqId = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Live suggestions, debounced. A request token is bumped every keystroke so a
   // slow earlier response can't overwrite newer results. Direct identifiers
@@ -79,7 +79,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
     setActive(-1);
     // Logged-out visitors get the public share page (/p); members get the
     // personalized /profile view. Matches the landing search convention.
-    navigate(hasSessionToken() ? `/profile/${r.npub}?pov=${POV}` : `/p/${r.npub}`);
+    navigate(`/p/${r.npub}`);
   };
 
   const goTopic = (tag: string) => {
@@ -114,6 +114,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
+            ref={inputRef}
             type="text"
             value={q}
             onChange={(e) => { setQ(e.target.value); schedule(e.target.value); }}
@@ -122,9 +123,20 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
             placeholder="Search Brainstorm"
             aria-label="Search Brainstorm"
             autoComplete="off"
-            className="w-full rounded-full border border-slate-200 bg-white/80 py-2 pl-9 pr-3 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+            className="w-full rounded-full border border-slate-200 bg-white/80 py-2 pl-9 pr-9 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
             data-testid="header-search-input"
           />
+          {q && (
+            <button
+              type="button"
+              onClick={() => { setQ(""); schedule(""); setOpen(false); inputRef.current?.focus(); }}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              data-testid="header-search-clear"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </form>
       {open && (topic.isTopic || loading || suggestions.length > 0) && (

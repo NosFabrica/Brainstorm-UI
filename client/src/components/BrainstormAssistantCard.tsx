@@ -463,7 +463,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               {published?.npub && (
                 <button
                   type="button"
-                  onClick={() => navigate(`/profile/${published.npub}`)}
+                  onClick={() => navigate(`/p/${published.npub}`)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
                   data-testid={`button-assistant-view-profile-${variant}`}
                 >
