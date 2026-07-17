@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getCurrentUser } from "@/services/nostr";
@@ -43,6 +44,19 @@ export function useScoringStatus(): {
   const calcDone = isDone(d?.internal_publication_status);
   const publishDone = calcDone && isDone(d?.ta_status);
   const failed = isFail(d?.status);
+
+  // Persist "scores are ready" from THIS app-wide poll (mounted globally via
+  // ScoringStatusBar). The flag gates degree chips / the hops page everywhere;
+  // previously only the dashboard set it, so after a fresh login the chips
+  // stayed hidden until the user happened to visit /dashboard. Now they light
+  // up within the first poll (~seconds) on whatever page the user is on.
+  useEffect(() => {
+    if (!publishDone) return;
+    try {
+      localStorage.setItem("brainstorm_calc_completed", "true");
+      if (user?.pubkey) localStorage.setItem(`brainstorm_calc_completed:${user.pubkey}`, "true");
+    } catch { /* ignore */ }
+  }, [publishDone, user?.pubkey]);
 
   let triggeredAt = 0;
   try {

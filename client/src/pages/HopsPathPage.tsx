@@ -12,6 +12,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ordinal } from "@/components/DegreeChip";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -45,6 +46,9 @@ export default function HopsPathPage() {
 
   // Shuffle: each bump re-fetches, and the endpoint returns a different random path.
   const [nonce, setNonce] = useState(0);
+  // Sitewide score-POV (personalized vs global) + the shared explainer modal.
+  const { pov: scorePov } = useScorePov();
+  const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
 
   const pathQuery = useQuery({
     queryKey: ["shortestPath", fromPubkey, toPubkey, nonce],
@@ -73,19 +77,24 @@ export default function HopsPathPage() {
     retry: false,
   });
 
-  // Each node's Web-of-Trust influence (0–1) from YOUR POV — makes the weak link
-  // in the chain obvious (a bad actor's score stands out). Short paths → few calls.
+  // Each node's trust score (0–1) from BOTH views — yours (authed overview) and
+  // everyone's (house). Fetching both makes the POV toggle instant and lets the
+  // pill hint when the two views disagree. Short paths → few calls.
   const scoresQuery = useQuery({
-    queryKey: ["hops-scores", (d?.path ?? []).join(",")],
+    queryKey: ["hops-scores-both", signedIn, (d?.path ?? []).join(",")],
     queryFn: async () => {
       const entries = await Promise.all(
         d!.path.map(async (pk) => {
-          try {
-            const inf = (await apiClient.getUserOverview(pk))?.data?.influence;
-            return [pk, typeof inf === "number" ? inf : null] as const;
-          } catch {
-            return [pk, null] as const;
-          }
+          const [mine, house] = await Promise.all([
+            signedIn
+              ? apiClient.getUserOverview(pk).then((r) => {
+                  const inf = r?.data?.influence;
+                  return typeof inf === "number" ? inf : null;
+                }).catch(() => null)
+              : Promise.resolve(null),
+            apiClient.getHouseInfluence(pk).catch(() => null),
+          ]);
+          return [pk, { mine, house }] as const;
         }),
       );
       return new Map(entries);
@@ -94,6 +103,13 @@ export default function HopsPathPage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  // The ACTIVE view's number per node (drives tiers + the weak-link pick).
+  const scores = useMemo(() => {
+    if (!scoresQuery.data) return undefined;
+    const m = new Map<string, number | null>();
+    scoresQuery.data.forEach((v, pk) => m.set(pk, scorePov === "personalized" ? (v.mine ?? v.house) : v.house));
+    return m;
+  }, [scoresQuery.data, scorePov]);
 
   // My own follow list once → know which path nodes I already follow.
   const followingQuery = useQuery({
@@ -111,7 +127,6 @@ export default function HopsPathPage() {
   const subjectName =
     subjectQuery.data?.display_name || subjectQuery.data?.name || shortNpub(npubFromPubkey(toPubkey));
   const profs = profilesQuery.data;
-  const scores = scoresQuery.data;
   const myFollows = followingQuery.data;
 
   // Weak link = the DECISION-MAKER, not the scammer: the last trusted account before
@@ -170,21 +185,27 @@ export default function HopsPathPage() {
         </h1>
 
         {pathQuery.isPending ? (
-          <div className="mt-8 flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Tracing the shortest path…</div>
+          <div className="mt-8 flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Finding your connection…</div>
         ) : !d || !d.reachable || d.hops === 0 ? (
           <p className="mt-4 text-slate-600" data-testid="hops-unreachable">
             {d && d.hops === 0
               ? "That's you."
-              : `Not connected — there's no follow-path to ${subjectName} within ${d?.maxHops ?? 30} hops of your network.`}
+              : `Not connected — ${subjectName} can't be reached through the people you follow.`}
           </p>
         ) : (
           <>
             <p className="mt-3 text-[15px] text-slate-600 leading-relaxed">
-              <span className="font-semibold text-slate-900">{ordinal(d.hops)} degree</span> — {subjectName} is{" "}
-              <span className="font-semibold">{d.hops}</span> follow-{d.hops === 1 ? "hop" : "hops"} from you. There{" "}
-              {d.pathCount === 1 ? "is" : "are"}{" "}
-              <span className="font-semibold text-slate-900">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span>{" "}
-              shortest {d.pathCount === 1 ? "path" : "paths"} this short — here's one:
+              <span className="font-semibold text-slate-900">{ordinal(d.hops)} degree</span> —{" "}
+              {d.hops === 1 ? (
+                <>you follow {subjectName} directly.</>
+              ) : (
+                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
+              )}{" "}
+              {d.pathCount === 1 ? (
+                <>This is the only connection this direct:</>
+              ) : (
+                <>There are <span className="font-semibold text-slate-900">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> connections this direct — here's one:</>
+              )}
             </p>
 
             {/* The path — each node links to their profile. The weak-link explanation
@@ -250,10 +271,39 @@ export default function HopsPathPage() {
                             <div className="text-[11px] uppercase tracking-wide text-slate-400">{roleLabel}</div>
                           </Link>
                           {!isMe && tier && (
-                            <div className="shrink-0 min-w-[60px] text-right" title="Web-of-Trust score from your point of view" data-testid={`hops-score-${i}`}>
-                              <div className={`text-sm font-bold tabular-nums leading-tight ${tier.text}`}>{Math.round((score as number) * 100)}%</div>
+                            <button
+                              type="button"
+                              onClick={() => setScoreExplainOpen(true)}
+                              className={`shrink-0 min-w-[64px] rounded-lg border px-2 py-1 text-right transition-colors hover:brightness-[0.98] ${povChrome(scorePov)}`}
+                              title="What does this score mean?"
+                              data-testid={`hops-score-${i}`}
+                            >
+                              <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
+                                <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                {Math.round((score as number) * 100)}%
+                              </div>
                               <div className="text-[10px] text-slate-400 leading-tight">{tier.name}</div>
-                            </div>
+                              {(() => {
+                                // Subtle hint when the OTHER view disagrees (after
+                                // rounding): its number + which way it moves.
+                                const both = scoresQuery.data?.get(pk);
+                                const other = scorePov === "personalized" ? both?.house : both?.mine;
+                                if (typeof other !== "number") return null;
+                                const shownPct = Math.round((score as number) * 100);
+                                const otherPct = Math.round(other * 100);
+                                if (otherPct === shownPct) return null;
+                                const mine = scorePov === "global";
+                                return (
+                                  <div
+                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-indigo-500" : "text-slate-400"}`}
+                                    data-testid={`hops-score-delta-${i}`}
+                                  >
+                                    <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
+                                    {otherPct > shownPct ? "▲" : "▼"} {otherPct} {mine ? "for you" : "everyone"}
+                                  </div>
+                                );
+                              })()}
+                            </button>
                           )}
                         </div>
 
@@ -296,18 +346,20 @@ export default function HopsPathPage() {
             <ShieldAlert className="h-4 w-4 text-[#7c86ff]" /> What "degree" means
           </div>
           <p className="mt-1.5">
-            Your degree to someone is how many <span className="font-medium text-slate-700">follow-hops</span> it takes to reach
-            them through people you follow — 1st degree means you follow them directly, 2nd means through one person, and so on.
-            It's a "good" signal: being connected, even a few hops out, means they're inside your web of trust.
+            Your degree shows how closely you're connected to someone.{" "}
+            <span className="font-medium text-slate-700">1st degree</span> means you follow them directly.{" "}
+            <span className="font-medium text-slate-700">2nd degree</span> means someone you follow, follows them — and so on.
+            Being connected, even a few steps out, means they're part of your trusted network.
           </p>
           <p className="mt-2">
-            It's also a tool: a swarm of bad actors is usually all downstream of{" "}
-            <span className="font-medium text-slate-700">one</span> flagged account that a person you trust followed — often by
-            mistake. That trusted account is the <span className="font-medium text-slate-700">weak link</span>: it's how the
-            swarm reached you. Report the flagged account to drive its score to zero and disconnect everything behind it.
+            It's also a safety tool. Scam accounts usually get into your network because{" "}
+            <span className="font-medium text-slate-700">one person you trust followed them</span> — often by mistake. That
+            person is the <span className="font-medium text-slate-700">weak link</span>. Report the scam account itself and it —
+            plus everything hiding behind it — drops out of your network.
           </p>
         </div>
       </main>
+      <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
     </div>
   );
 }
@@ -335,9 +387,9 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
       {open && (
         <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900" data-testid="hops-weaklink-detail">
           This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a flagged
-          account. Likely an honest mistake, but it's how {scammerName} reached your network.{" "}
-          <span className="font-semibold">Report {scammerName}</span> below to disconnect it (and anything downstream) from
-          your web of trust.
+          account. Likely an honest mistake, but it's how {scammerName} got into your network.{" "}
+          <span className="font-semibold">Report {scammerName}</span> below to remove it — and anything hiding behind it —
+          from your network.
         </p>
       )}
     </div>

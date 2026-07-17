@@ -45,8 +45,8 @@ export function DegreeChip({
   const tip = reachable
     ? d.hops === 1
       ? "You follow this person directly (1st degree). Tap to see the connection."
-      : `${ordinal(d.hops)} degree — you're connected through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"} you follow. Tap to see the path.`
-    : `Not reachable through your follow network within ${d.maxHops} hops.`;
+      : `${ordinal(d.hops)} degree — you're connected through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
+    : "Not reachable through the people you follow.";
 
   const bold = variant === "bold";
   const numCls = bold ? "font-bold text-slate-900 tabular-nums" : "font-semibold text-slate-700";
