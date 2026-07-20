@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
+import { env } from "@/lib/runtimeEnv";
 import { useLocation } from "wouter";
 import {
   Terminal,
@@ -63,7 +64,8 @@ const ConnectionIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const RELAY_URL = "wss://search.brainstorm.world/";
+// Per-env public search relay; no in-source fallback (see runtimeEnv).
+const RELAY_URL = env.VITE_WOT_SEARCH_RELAY;
 
 const QUICK_START_SNIPPET = `["REQ", "search-1", {
   "kinds": [0],
