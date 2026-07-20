@@ -1799,7 +1799,7 @@ export async function fetchMuteListTimestamp(
   return undefined;
 }
 
-const WOT_SEARCH_RELAY = "wss://search.brainstorm.world/";
+const WOT_SEARCH_RELAY = env.VITE_WOT_SEARCH_RELAY.trim();
 
 export interface NostrSearchResult {
   pubkey: string;
@@ -1816,6 +1816,14 @@ export function searchNostrProfiles(
   options: { limit?: number; timeoutMs?: number } = {}
 ): Promise<NostrSearchResult[]> {
   const { limit = 10, timeoutMs = 5000 } = options;
+  if (!WOT_SEARCH_RELAY) {
+    // eslint-disable-next-line no-console
+    console.error(
+      "[nostr] VITE_WOT_SEARCH_RELAY is not set — Nostr profile search is disabled. " +
+        "Set VITE_WOT_SEARCH_RELAY at build/deploy time (see README and Dockerfile).",
+    );
+    return Promise.resolve([]);
+  }
   return new Promise((resolve) => {
     const results: NostrSearchResult[] = [];
     const seen = new Set<string>();
