@@ -24,6 +24,7 @@ import {
   UserPlus,
   VolumeX,
   Flag,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
@@ -52,7 +53,10 @@ import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearP
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
+import { ProfileActions } from "@/components/share/ProfileActions";
+import { useScorePov } from "@/components/score/TrustScorePov";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -128,8 +132,10 @@ export default function SharePage() {
   const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
     (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
-  // viewer — drives the at-a-glance badges above the CTA. Actions live on /profile/.
+  // viewer — drives the at-a-glance badges next to the actions (which now live
+  // here on /p; /profile is the tucked-away advanced view).
   const rel = useRelationshipBadges(pubkey);
+  const { pov: scorePov } = useScorePov();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
@@ -666,14 +672,17 @@ export default function SharePage() {
 
   const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
-  // Remember the inviter (this profile) for logged-out visitors, so a new
-  // account created later in the session auto-follows them even if the invite
-  // query param is lost. Cleared on successful signup.
-  useEffect(() => {
-    if (!loggedIn && npub) {
-      try { sessionStorage.setItem("brainstorm_pending_invite", npub); } catch {}
-    }
-  }, [loggedIn, npub]);
+  // NOTE on the invite model: clicking a "Join" CTA below carries `?invite=<npub>`,
+  // so a new account created from this profile auto-follows its owner (new user →
+  // owner) — the new user starts connected with a trust anchor. We deliberately do
+  // NOT notify the owner ("someone just joined — welcome them back?"): that prompt
+  // was the scam lever (it pressured the owner to follow BACK a stranger, forming a
+  // trust edge that carries the owner's weight). The auto-follow alone is inert — a
+  // brand-new account following you carries ~zero weight and gains nothing unless
+  // you follow back. The owner-facing notification stays off (WelcomeBackCard is
+  // unmounted) until a backend invite-record can gate a genuine reciprocal prompt.
+  // We also don't blanket-store this profile as a "pending invite" on mere view —
+  // the auto-follow is CTA-only, so it's an intentional act, not a drive-by tag.
 
   useShareMeta(
     pubkey
@@ -723,15 +732,67 @@ export default function SharePage() {
   // viewer, so an account they trust never shows an empty network bar), and
   // "Brainstorm" becomes the reference row. The secondary shows only if it
   // differs from the primary after rounding.
-  const leadWithMine = loggedIn && score01 != null;
+  // Which POV leads follows the sitewide score-POV toggle (personalized vs
+  // global) — the personalized number only leads when the viewer chose it.
+  const leadWithMine = loggedIn && score01 != null && scorePov === "personalized";
   const cardPrimaryScore = leadWithMine ? score01 : primaryScore01;
-  const cardSecondaryScore = leadWithMine ? houseScore01 : null;
+  const cardSecondaryScore = leadWithMine ? houseScore01 : loggedIn ? score01 : null;
+  // Logged-in relationship actions — rendered inside the WoT card (as its footer)
+  // so the primary Follow action sits with the trust context as one cohesive unit,
+  // instead of a floating pill below it.
+  const loggedInActions = loggedIn ? (
+    <div className="flex flex-col gap-2" data-testid="share-actions-block">
+      {rel.enabled && !isOwner && !rel.loading && (rel.followsYou || rel.isFollowing || rel.isMuted || rel.report) && (() => {
+        const parts: { key: string; text: string; Icon: LucideIcon; className?: string }[] = [];
+        if (rel.isFollowing && rel.followsYou) parts.push({ key: "mutual", text: "You follow each other", Icon: Users });
+        else if (rel.isFollowing) parts.push({ key: "following", text: "You follow them", Icon: UserCheck });
+        else if (rel.followsYou) parts.push({ key: "follows-you", text: "They follow you", Icon: UserPlus });
+        if (rel.isMuted) parts.push({ key: "muted", text: "You've muted them", Icon: VolumeX });
+        if (rel.report) parts.push({ key: "reported", text: "You reported this", Icon: Flag, className: "text-amber-600" });
+        return (
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400" data-testid="share-relationship-summary">
+            {parts.map((p, i) => (
+              <span key={p.key} className="inline-flex items-center">
+                {i > 0 && <span className="text-slate-300 mr-2.5">·</span>}
+                <span className={`inline-flex items-center gap-1 ${p.className ?? ""}`}>
+                  <p.Icon className="h-3 w-3" /> {p.text}
+                </span>
+              </span>
+            ))}
+          </p>
+        );
+      })()}
+      {isOwner ? (
+        /* Owner: no self-actions. A quiet link to the analytics view. */
+        <Link
+          href={`/profile/${npub}`}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+          data-testid="share-advanced-view-owner"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Advanced view
+        </Link>
+      ) : (
+        /* Non-owner: relationship actions. Keyed on the loaded relationship so it
+           re-seeds once useRelationshipBadges settles. */
+        <ProfileActions
+          key={`${rel.isFollowing}-${rel.isMuted}-${!!rel.report}`}
+          targetPubkey={pubkey}
+          npub={npub}
+          initialFollowing={rel.isFollowing}
+          initialMuted={rel.isMuted}
+          alreadyReported={!!rel.report}
+        />
+      )}
+    </div>
+  ) : null;
+
   const wotCard = (
     <WotStrengthCard
       score01={cardPrimaryScore}
       secondaryScore01={cardSecondaryScore}
-      primaryLabel={leadWithMine ? "To you" : ""}
-      secondaryLabel="Brainstorm"
+      primaryLabel={leadWithMine ? "For you" : "Everyone"}
+      secondaryLabel={leadWithMine ? "Everyone" : "For you"}
+      footer={loggedInActions}
     />
   );
 
@@ -792,7 +853,8 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Web of Trust — mobile inline (desktop shows it in the right sidebar). */}
+          {/* Web of Trust — mobile inline (desktop shows it in the right sidebar).
+              Logged-in actions live inside the card (its footer). */}
           <div className="md:hidden mt-3">{wotCard}</div>
 
           {roleLabels.length > 0 && (
@@ -843,7 +905,13 @@ export default function SharePage() {
                   <span className="font-semibold text-slate-700">{verifiedFollowers.toLocaleString()}</span> Verified Followers
                 </Link>
               )}
-              {/* Phase 2: Degree (1st/2nd/3rd) — needs a backend `degree`/`hops` field on /overview or /stats. */}
+              {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
+                  on line 1. Signed-in + scored viewers only (needs my pubkey as the
+                  path origin); hidden on your own profile. */}
+              {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
+                localStorage.getItem("brainstorm_calc_completed") === "true" && (
+                  <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                )}
             </div>
             {(verifiedMuters != null || verifiedReporters != null) && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
@@ -861,8 +929,14 @@ export default function SharePage() {
             )}
           </div>
 
-          {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style). */}
-          {!isHidden("followedBy") && <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />}
+          {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style).
+              Mobile: inline here. Desktop: moved into the right rail under the WoT
+              card (a coherent "trust + who vouches for them" column). */}
+          {!isHidden("followedBy") && (
+            <div className="md:hidden">
+              <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />
+            </div>
+          )}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
           {!isHidden("tenure") && (memberSinceYear || relayCount > 0) && (
@@ -907,44 +981,41 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Action — the one thing an account unlocks: this profile seen through
-              YOUR web of trust. Single CTA (logged out → sign-in funnel; logged
-              in → the personalized profile). */}
-          <div className="mt-4 flex flex-col items-start gap-2">
-            {/* Your relationship — read-only, at-a-glance state for a logged-in
-                viewer (not your own profile). A quiet meta line matching the
-                page's other muted lines; actions live on the full profile. */}
-            {rel.enabled && !isOwner && !rel.loading && (rel.followsYou || rel.isFollowing || rel.isMuted || rel.report) && (() => {
-              const parts: { key: string; text: string; Icon: LucideIcon; className?: string }[] = [];
-              if (rel.isFollowing && rel.followsYou) parts.push({ key: "mutual", text: "You follow each other", Icon: Users });
-              else if (rel.isFollowing) parts.push({ key: "following", text: "You follow them", Icon: UserCheck });
-              else if (rel.followsYou) parts.push({ key: "follows-you", text: "They follow you", Icon: UserPlus });
-              if (rel.isMuted) parts.push({ key: "muted", text: "You've muted them", Icon: VolumeX });
-              if (rel.report) parts.push({ key: "reported", text: "You reported this", Icon: Flag, className: "text-amber-600" });
-              return (
-                <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400" data-testid="share-relationship-summary">
-                  {parts.map((p, i) => (
-                    <span key={p.key} className="inline-flex items-center">
-                      {i > 0 && <span className="text-slate-300 mr-2.5">·</span>}
-                      <span className={`inline-flex items-center gap-1 ${p.className ?? ""}`}>
-                        <p.Icon className="h-3 w-3" /> {p.text}
-                      </span>
-                    </span>
-                  ))}
-                </p>
-              );
-            })()}
-            <Link
-              href={loggedIn ? `/profile/${npub}?pov=mywot` : `/login?invite=${npub}&next=${encodeURIComponent(`/profile/${npub}?pov=mywot`)}`}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
-              data-testid="share-wot-cta"
-            >
-              See in your Web of Trust <ArrowRight className="h-4 w-4" />
-            </Link>
-            {loggedIn
-              ? !isOwner && <span className="text-xs text-slate-400">Follow, mute or report from your full view</span>
-              : <span className="text-xs text-slate-400">Sign in or create a free account — no email</span>}
-          </div>
+          {/* Logged-out → the Join conversion panel (leads with the personal
+              connection). Logged-in relationship actions live under the WoT card
+              (loggedInActions), not here. */}
+          {!loggedIn && (
+            <div className="mt-4 w-full rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.05] to-[#7c86ff]/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                {/* Personal connection + value */}
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  {profile.picture && (
+                    <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-[#4338ca] uppercase">Join Brainstorm</div>
+                    <h3 className="mt-0.5 text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+                      Connect with {displayName}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                      Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
+                    </p>
+                  </div>
+                </div>
+                {/* CTA — right on desktop, full-width below on mobile */}
+                <div className="shrink-0 sm:text-right">
+                  <Link
+                    href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
+                    data-testid="share-wot-cta"
+                  >
+                    Join free <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <div className="mt-2 text-xs text-slate-400 text-center sm:text-right">Free · no email · a minute</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {foundViaRelays && (
             <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-slate-400">
@@ -952,8 +1023,17 @@ export default function SharePage() {
             </p>
           )}
             </div>
-            {/* Web of Trust — desktop sidebar (mobile shows it inline above). */}
-            <div className="hidden md:block md:w-64 md:shrink-0 mt-1">{wotCard}</div>
+            {/* Web of Trust — desktop sidebar (mobile shows it inline above).
+                Logged-in actions live inside the card (its footer); social proof
+                sits below it so the rail reads as one "trust signals" column. */}
+            <div className="hidden md:block md:w-64 md:shrink-0 mt-1">
+              {wotCard}
+              {!isHidden("followedBy") && topFollowers.length > 0 && (
+                <div className="mt-4 px-1">
+                  <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} stacked />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1155,6 +1235,22 @@ export default function SharePage() {
           Shared via <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
         </p>
       </div>
+
+      {/* Sticky mobile Join bar — a persistent CTA as a logged-out visitor scrolls. */}
+      {!loggedIn && (
+        <>
+          <div className="h-20 sm:hidden" aria-hidden />
+          <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
+            <Link
+              href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
+              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
+              data-testid="share-wot-cta-sticky"
+            >
+              Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </>
+      )}
 
       <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       {profile.lud16 && (

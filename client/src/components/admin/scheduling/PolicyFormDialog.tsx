@@ -131,7 +131,7 @@ export function PolicyFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "New scheduling policy" : "Edit scheduling policy"}
@@ -140,7 +140,7 @@ export function PolicyFormDialog({
             Set the recalculation cadence and manual-recalc quota for this tier.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="policy-name">Name</Label>
             <Input id="policy-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -158,21 +158,19 @@ export function PolicyFormDialog({
             {errors.priority && <p className="text-xs text-red-500">{errors.priority}</p>}
           </div>
 
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Label htmlFor="policy-interval">Recalculation interval</Label>
+          <div>
+            <Label htmlFor="policy-interval">Recalculation interval</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-2">
               <Input
                 id="policy-interval"
                 type="number"
                 value={intervalValue}
                 onChange={(e) => setIntervalValue(e.target.value)}
               />
-            </div>
-            <div>
-              <Label htmlFor="policy-interval-unit">Interval unit</Label>
               <select
                 id="policy-interval-unit"
-                className="h-10 rounded-md border px-2"
+                aria-label="Interval unit"
+                className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
                 value={intervalUnit}
                 onChange={(e) => setIntervalUnit(e.target.value)}
               >
@@ -181,13 +179,13 @@ export function PolicyFormDialog({
                 ))}
               </select>
             </div>
+            {errors.schedule_interval_seconds && (
+              <p className="mt-1 text-xs text-red-500">{errors.schedule_interval_seconds}</p>
+            )}
           </div>
-          {errors.schedule_interval_seconds && (
-            <p className="text-xs text-red-500">{errors.schedule_interval_seconds}</p>
-          )}
 
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <Label htmlFor="policy-quota-limit">Manual quota limit</Label>
               <Input
                 id="policy-quota-limit"
@@ -196,27 +194,27 @@ export function PolicyFormDialog({
                 onChange={(e) => setQuotaLimit(e.target.value)}
               />
             </div>
-            <div className="flex-1">
-              <Label htmlFor="policy-quota-window">Quota window</Label>
-              <Input
-                id="policy-quota-window"
-                type="number"
-                value={windowValue}
-                onChange={(e) => setWindowValue(e.target.value)}
-              />
-            </div>
             <div>
-              <Label htmlFor="policy-quota-window-unit">Quota window unit</Label>
-              <select
-                id="policy-quota-window-unit"
-                className="h-10 rounded-md border px-2"
-                value={windowUnit}
-                onChange={(e) => setWindowUnit(e.target.value)}
-              >
-                {UNIT_OPTIONS.map((u) => (
-                  <option key={u.seconds} value={u.seconds}>{u.label}</option>
-                ))}
-              </select>
+              <Label htmlFor="policy-quota-window">Quota window</Label>
+              <div className="grid grid-cols-[1fr_8rem] gap-2">
+                <Input
+                  id="policy-quota-window"
+                  type="number"
+                  value={windowValue}
+                  onChange={(e) => setWindowValue(e.target.value)}
+                />
+                <select
+                  id="policy-quota-window-unit"
+                  aria-label="Quota window unit"
+                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  value={windowUnit}
+                  onChange={(e) => setWindowUnit(e.target.value)}
+                >
+                  {UNIT_OPTIONS.map((u) => (
+                    <option key={u.seconds} value={u.seconds}>{u.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

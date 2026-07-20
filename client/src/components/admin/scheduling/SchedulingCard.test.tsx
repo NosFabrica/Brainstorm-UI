@@ -4,6 +4,17 @@ import { renderWithProviders } from "@/test/utils";
 import { apiClient, type SchedulingItem } from "@/services/api";
 import { SchedulingCard } from "./SchedulingCard";
 
+// The enriched assigned-users list + AssignUsersDialog resolve kind-0 profiles
+// and search Nostr over relays — stub those so tests stay offline/deterministic.
+vi.mock("@/services/nostr", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/nostr")>();
+  return {
+    ...actual,
+    fetchProfileMap: vi.fn().mockResolvedValue(new Map()),
+    searchNostrProfiles: vi.fn().mockResolvedValue([]),
+  };
+});
+
 const WEEKLY: SchedulingItem = {
   id: 1, name: "Weekly", schedule_interval_seconds: 604800, priority: 0,
   enabled: true, is_default: true, manual_quota_limit: 20, manual_quota_window_seconds: 604800,
@@ -216,7 +227,7 @@ describe("SchedulingCard", () => {
     expect(await screen.findByText(/assigned to users/i)).toBeInTheDocument();
   });
 
-  it("opens the per-policy users dialog from a row", async () => {
+  it("expands a row to show its assigned users inline", async () => {
     const A = "a".repeat(64);
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([DAILY]);
     vi.spyOn(apiClient, "getSchedulingPolicyUsers").mockResolvedValue({
@@ -227,17 +238,29 @@ describe("SchedulingCard", () => {
     renderWithProviders(<SchedulingCard active />);
     await screen.findByText("Daily");
     const row = screen.getByText("Daily").closest("tr")!;
-    fireEvent.click(within(row).getByRole("button", { name: /users/i }));
+    fireEvent.click(within(row).getByRole("button", { name: /manage/i }));
 
-    expect(await screen.findByText(new RegExp(A.slice(0, 12)))).toBeInTheDocument();
+    // enriched list shows the assigned count and a user row (name falls back to
+    // "Unknown" when no kind-0 profile resolves in the test env)
+    expect(await screen.findByText(/1 total/i)).toBeInTheDocument();
+    expect(await screen.findByText("Unknown")).toBeInTheDocument();
   });
 
-  it("renders the bulk-assign panel", async () => {
+  it("opens the Assign-users dialog (with paste box) from an expanded row", async () => {
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([DAILY]);
+    vi.spyOn(apiClient, "getSchedulingPolicyUsers").mockResolvedValue({
+      items: [], total: 0, page: 1, size: 20, pages: 1,
+    });
 
     renderWithProviders(<SchedulingCard active />);
     await screen.findByText("Daily");
+    const row = screen.getByText("Daily").closest("tr")!;
+    fireEvent.click(within(row).getByRole("button", { name: /manage/i }));
 
-    expect(screen.getByLabelText(/pubkeys/i)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /add users/i }));
+    expect(await screen.findByText(/assign users to/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("assign-paste-toggle"));
+    expect(await screen.findByLabelText(/pubkeys/i)).toBeInTheDocument();
   });
 });

@@ -5,7 +5,6 @@ import {
   SiX,
   SiTelegram,
   SiMastodon,
-  SiLinkedin,
   SiYoutube,
   SiSignal,
   SiBluesky,
@@ -13,6 +12,9 @@ import {
   SiTiktok,
   SiInstagram,
 } from "react-icons/si";
+// LinkedIn was removed from Simple Icons (brand policy) and is no longer
+// exported by react-icons/si, so its official mark comes from Font Awesome.
+import { FaLinkedin } from "react-icons/fa";
 
 // Accurate official brand marks (Simple Icons), monochrome via currentColor so
 // they stay subtle + cohesive with the rest of the profile's link row.
@@ -23,7 +25,7 @@ function Glyph({ icon }: { icon: IdentityIcon }) {
     case "x": return <SiX className={cls} aria-hidden="true" />;
     case "telegram": return <SiTelegram className={cls} aria-hidden="true" />;
     case "mastodon": return <SiMastodon className={cls} aria-hidden="true" />;
-    case "linkedin": return <SiLinkedin className={cls} aria-hidden="true" />;
+    case "linkedin": return <FaLinkedin className={cls} aria-hidden="true" />;
     case "youtube": return <SiYoutube className={cls} aria-hidden="true" />;
     case "signal": return <SiSignal className={cls} aria-hidden="true" />;
     case "bluesky": return <SiBluesky className={cls} aria-hidden="true" />;

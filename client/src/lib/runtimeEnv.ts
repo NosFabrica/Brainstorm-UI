@@ -1,6 +1,7 @@
 type EnvKey =
   | "VITE_API_URL"
   | "VITE_NIP85_RELAY_URL"
+  | "VITE_WOT_SEARCH_RELAY"
   | "VITE_FEATURE_AGENT_SUITE"
   | "VITE_FEATURE_ASSISTANTS_ADMIN";
 
@@ -22,6 +23,7 @@ function read(key: EnvKey): string | undefined {
 export const env = {
   VITE_API_URL: read("VITE_API_URL") ?? "",
   VITE_NIP85_RELAY_URL: read("VITE_NIP85_RELAY_URL") ?? "",
+  VITE_WOT_SEARCH_RELAY: read("VITE_WOT_SEARCH_RELAY") ?? "",
   VITE_FEATURE_AGENT_SUITE: read("VITE_FEATURE_AGENT_SUITE") ?? "",
   VITE_FEATURE_ASSISTANTS_ADMIN: read("VITE_FEATURE_ASSISTANTS_ADMIN") ?? "",
 } as const;

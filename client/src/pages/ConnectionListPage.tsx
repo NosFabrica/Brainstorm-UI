@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
@@ -13,6 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
+import { TrustScoreModal, PovIcon, useScorePov } from "@/components/score/TrustScorePov";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -20,10 +21,10 @@ const TYPE_MAP: Record<
   string,
   { kind: ConnKind; verifiedOnly: boolean; title: (name: string) => string; subtitle: (name: string) => string; empty: string }
 > = {
-  followers: { kind: "followed_by", verifiedOnly: true, title: (n) => `Verified followers of ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust who follow ${n}, strongest first.`, empty: "No verified followers yet." },
-  following: { kind: "following", verifiedOnly: false, title: (n) => `${n} is following`, subtitle: (n) => `Accounts ${n} follows, ranked by Web-of-Trust score.`, empty: "Not following anyone yet." },
-  muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust that have muted ${n}.`, empty: "No verified muters." },
-  reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, subtitle: (n) => `Trusted accounts in the Web of Trust that have reported ${n}.`, empty: "No verified reporters." },
+  followers: { kind: "followed_by", verifiedOnly: true, title: (n) => `Verified followers of ${n}`, subtitle: (n) => `Trusted people who follow ${n}.`, empty: "No verified followers yet." },
+  following: { kind: "following", verifiedOnly: false, title: (n) => `${n} is following`, subtitle: (n) => `People ${n} follows.`, empty: "Not following anyone yet." },
+  muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, subtitle: (n) => `Trusted people who have muted ${n}.`, empty: "No verified muters." },
+  reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, subtitle: (n) => `Trusted people who have reported ${n}.`, empty: "No verified reporters." },
 };
 
 /** Drop placeholder handles ("null"/"undefined"/empty) and the NIP-05 root prefix. */
@@ -43,12 +44,21 @@ export default function ConnectionListPage() {
   const relayHints = decoded?.relays || [];
   const cfg = TYPE_MAP[type];
 
-  // POV: logged-out (or not-yet-calculated) viewers get NosFabrica's "house"
-  // perspective; a signed-in member with calculated scores sees their OWN Web of
-  // Trust — dropping `house` lets optionalAuthFetch send their token (observer POV).
+  // POV: honors the sitewide score-POV toggle. Personalized needs a signed-in
+  // viewer with calculated scores; otherwise (or when the viewer chose Global)
+  // the house perspective serves — `house: true` forces the unauthenticated view.
   const signedIn = hasSessionToken();
   const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
-  const myPov = signedIn && calcDone;
+  const { pov: scorePov } = useScorePov();
+  const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
+  const myPov = signedIn && calcDone && scorePov === "personalized";
+
+  // Filter & sort panel (toggled by the icon next to the title). Both map 1:1 to
+  // server params — tier filters, order sorts by trust score — so pagination
+  // stays honest (no client-side reshuffling of partial pages).
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tierFilter, setTierFilter] = useState<"all" | "high" | "medium_high" | "medium" | "medium_low">("all");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
   const subjectQuery = useQuery({
@@ -66,12 +76,13 @@ export default function ConnectionListPage() {
     readonly unknown[],
     string | undefined
   >({
-    queryKey: ["share-conn", pubkey, cfg?.kind, type, myPov],
+    queryKey: ["share-conn", pubkey, cfg?.kind, type, myPov, tierFilter, sortOrder],
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const res = await apiClient.getUserConnections(pubkey, cfg!.kind, {
         limit: PAGE,
         cursor: pageParam || undefined,
-        order: "desc",
+        order: sortOrder,
+        tier: tierFilter === "all" ? undefined : tierFilter,
         verified_threshold: getVerifiedThreshold(),
         min_influence: cfg!.verifiedOnly ? getVerifiedThreshold() : undefined,
         house: !myPov,
@@ -181,9 +192,52 @@ export default function ConnectionListPage() {
             {cfg.verifiedOnly && (
               <InfoHint label="What does verified mean?">{verifiedPopover}</InfoHint>
             )}
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              aria-expanded={filtersOpen}
+              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              title="Filter & sort"
+              data-testid="conn-filter-toggle"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
           </div>
           {!loading && items.length > 0 && (
             <p className="mt-1.5 text-sm text-slate-500" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+          )}
+
+          {filtersOpen && (
+            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Trust level</span>
+                {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTierFilter(value)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                    data-testid={`conn-filter-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Sort</span>
+                {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSortOrder(value)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                    data-testid={`conn-sort-${value}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -242,9 +296,17 @@ export default function ConnectionListPage() {
                     })()}
                   </div>
                   {tier && (
-                    <span className="hidden shrink-0 items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex" style={{ backgroundColor: `${tier.color}14`, color: tier.color }} data-testid="conn-tier">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setScoreExplainOpen(true); }}
+                      className={`hidden shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex ${scorePov === "personalized" ? "border-indigo-200" : "border-slate-200"}`}
+                      style={{ backgroundColor: `${tier.color}14`, color: tier.color }}
+                      title="What does this score mean?"
+                      data-testid="conn-tier"
+                    >
+                      <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
                       {tier.name}
-                    </span>
+                    </button>
                   )}
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400" />
                 </Link>
@@ -266,6 +328,7 @@ export default function ConnectionListPage() {
           </button>
         )}
       </main>
+      <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
     </div>
   );
 }

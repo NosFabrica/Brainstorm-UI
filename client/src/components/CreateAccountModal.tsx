@@ -7,7 +7,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Loader2, Check, AlertCircle, ArrowRight } from "lucide-react";
-import { createAccount, type NostrUser } from "@/services/nostr";
+import { createAccount, triggerScoringAndAnchor, type NostrUser } from "@/services/nostr";
+import { followPubkeys } from "@/services/socialActions";
 
 interface CreateAccountModalProps {
   open: boolean;
@@ -54,6 +55,22 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
     setError("");
     try {
       const user = await createAccount(trimmed, { inviterPubkey });
+      // The one follow the user explicitly opted into by using an invite link.
+      // Published here (not just preselected in onboarding) so the invite promise
+      // — "join and you're connected to them" — always holds, even if the invitee
+      // skips onboarding or is routed straight to the inviter's profile. Safe: a
+      // brand-new account has no follow list to wipe. Fire-and-forget so signup
+      // stays instant; the onboarding preselect remains as a backstop.
+      if (inviterPubkey) {
+        void (async () => {
+          try {
+            await followPubkeys([inviterPubkey]);
+            triggerScoringAndAnchor(user.pubkey); // give the invitee a starter Web of Trust
+          } catch {
+            /* non-fatal — onboarding's preselected inviter follow is the backstop */
+          }
+        })();
+      }
       setCreatedUser(user);
       setState("success");
       // Never a dead end: auto-advance if the user doesn't tap "Get started".

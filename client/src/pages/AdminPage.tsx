@@ -10,6 +10,7 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
+import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
@@ -104,7 +105,7 @@ import { useToast } from "@/hooks/use-toast";
 type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
-type ActivityTimeRange = "24h" | "week" | "month" | "quarter" | "all";
+type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
 
 function formatTimestamp(dateStr?: string): string {
   if (!dateStr) return "";
@@ -314,13 +315,14 @@ function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnec
 
 type HourlyBucket = { t: number; success: number; failed: number; total: number };
 
-type TrendWindow = "1h" | "24h" | "7d" | "30d";
+type TrendWindow = "1h" | "24h" | "7d" | "all";
 
 type WindowConfig = {
   windowMs: number;
   bucketCount: number;
   bucketSizeMs: number;
   shortLabel: string;
+  windowPhrase: string;
   longLabel: string;
   priorLabel: string;
   bucketLabelFn: (ts: number) => string;
@@ -339,6 +341,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 12,
         bucketSizeMs: 5 * 60000,
         shortLabel: "1h",
+        windowPhrase: "the last hour",
         longLabel: "Last hour",
         priorLabel: "vs prior 1h",
         bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -352,6 +355,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 24,
         bucketSizeMs: HOUR,
         shortLabel: "24h",
+        windowPhrase: "the last 24h",
         longLabel: "Last 24 hours",
         priorLabel: "vs prior 24h",
         bucketLabelFn: (ts) => new Date(ts).toLocaleTimeString([], { hour: "2-digit" }),
@@ -365,6 +369,7 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         bucketCount: 7,
         bucketSizeMs: DAY,
         shortLabel: "7d",
+        windowPhrase: "the last 7d",
         longLabel: "Last 7 days",
         priorLabel: "vs prior 7d",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short" }),
@@ -372,18 +377,19 @@ function getWindowConfig(w: TrendWindow): WindowConfig {
         xAxisInterval: 0,
         bucketUnitLabel: "calcs / day",
       };
-    case "30d":
+    case "all":
       return {
-        windowMs: 30 * DAY,
-        bucketCount: 30,
-        bucketSizeMs: DAY,
-        shortLabel: "30d",
-        longLabel: "Last 30 days",
-        priorLabel: "vs prior 30d",
+        windowMs: Number.POSITIVE_INFINITY,
+        bucketCount: 12,
+        bucketSizeMs: DAY, // overridden dynamically from the loaded-data span
+        shortLabel: "All",
+        windowPhrase: "all loaded",
+        longLabel: "All loaded activity",
+        priorLabel: "vs prior period",
         bucketLabelFn: (ts) => new Date(ts).toLocaleDateString([], { month: "short", day: "numeric" }),
-        bucketTooltipFn: (ts) => new Date(ts).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
-        xAxisInterval: 4,
-        bucketUnitLabel: "calcs / day",
+        bucketTooltipFn: (ts) => new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        xAxisInterval: 2,
+        bucketUnitLabel: "calcs",
       };
   }
 }
@@ -609,7 +615,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
@@ -635,7 +641,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
       </div>
       <div className="flex items-end justify-between gap-2 relative">
         <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-        {!unsupported && (
+        {!unsupported && hasSparkline && (
           <div className="flex items-center gap-1">
             <MiniSparkline
               data={sparklineData ?? []}
@@ -751,7 +757,180 @@ function pickFailureStage(opts: { statusFailed: boolean; taFailed: boolean; pubF
   return null;
 }
 
-function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: string; taPubkey: string | null }) {
+function parseIsoMs(iso: string): number {
+  return new Date(iso.endsWith("Z") ? iso : iso + "Z").getTime();
+}
+
+/**
+ * Groups the activity feed's failed requests by stage + normalized error
+ * message so an admin can see *why* things are failing, expand a pattern to see
+ * every affected user, and re-run the whole group in one click.
+ */
+function FailureBreakdownCard({
+  items,
+  isLoading,
+  isError,
+  errorMessage,
+  onViewUser,
+}: {
+  items: BrainstormRequestInstance[];
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage?: string;
+  onViewUser: (pubkey: string) => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
+
+  const totalFailures = useMemo(() => items.filter(isItemFailed).length, [items]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; stage: string; latest: BrainstormRequestInstance; count: number; users: Map<string, number> }>();
+    for (const item of items) {
+      if (!isItemFailed(item)) continue;
+      const stage = getFailureStage(item) ?? "Pipeline";
+      const key = normalizeErrorKey(extractErrorMessage(item)) + "|" + stage;
+      const t = parseIsoMs(item.updated_at);
+      const g = map.get(key);
+      if (g) {
+        g.count += 1;
+        if (t > parseIsoMs(g.latest.updated_at)) g.latest = item;
+        if (item.pubkey) g.users.set(item.pubkey, Math.max(t, g.users.get(item.pubkey) ?? 0));
+      } else {
+        const users = new Map<string, number>();
+        if (item.pubkey) users.set(item.pubkey, t);
+        map.set(key, { key, stage, latest: item, count: 1, users });
+      }
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => parseIsoMs(b.latest.updated_at) - parseIsoMs(a.latest.updated_at) || b.count - a.count,
+    );
+  }, [items]);
+
+  async function retryGroup(key: string, pubkeys: string[]) {
+    if (!pubkeys.length) return;
+    setRetrying(key);
+    let ok = 0;
+    let failed = 0;
+    for (const pk of pubkeys) {
+      try {
+        await apiClient.triggerUserGraperank(pk);
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/activity"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] }),
+    ]);
+    toast({
+      title: `Re-triggered ${ok} user${ok === 1 ? "" : "s"}${failed ? ` · ${failed} failed` : ""}`,
+      variant: failed ? "destructive" : undefined,
+    });
+    setRetrying(null);
+  }
+
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-failure-breakdown">
+      <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
+      <div className="px-5 py-4 border-b border-red-100 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+            <AlertTriangle className="h-4 w-4 text-red-500" /> Failure Breakdown
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {totalFailures === 0
+              ? "No failures in the current activity feed."
+              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
+          </p>
+        </div>
+        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{totalFailures}</span>
+      </div>
+      <div className="p-5">
+        {isError ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <XCircle className="h-8 w-8 text-red-400 mb-2" />
+            <p className="text-sm font-semibold text-slate-700">Couldn't load failure data</p>
+            <p className="text-[10px] text-slate-500 mt-1 max-w-md">{errorMessage || "The /admin/activity endpoint did not respond."}</p>
+          </div>
+        ) : isLoading && totalFailures === 0 ? (
+          <div className="flex items-center justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
+        ) : totalFailures === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
+            <p className="text-sm font-semibold text-slate-700">No failures right now</p>
+            <p className="text-[10px] text-slate-400 mt-1">Every recent request has succeeded.</p>
+          </div>
+        ) : (
+          <ul className="space-y-2.5" data-testid="list-failure-breakdown">
+            {groups.map((g) => {
+              const errMsg = extractErrorMessage(g.latest);
+              const users = Array.from(g.users.entries()).sort((a, b) => b[1] - a[1]).map(([pk]) => pk);
+              const isOpen = expanded === g.key;
+              const isRetrying = retrying === g.key;
+              return (
+                <li key={g.key} className="rounded-lg border border-red-200 bg-white/70 p-3" data-testid="failure-breakdown-group">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{g.stage}</span>
+                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">{g.count}×</span>
+                        <span className="text-[9px] text-slate-500">{users.length} user{users.length === 1 ? "" : "s"} affected</span>
+                        <span className="text-[9px] text-slate-400 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-800 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {users.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpanded(isOpen ? null : g.key)}
+                            className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                            data-testid="failure-breakdown-toggle-users"
+                          >
+                            <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} /> {isOpen ? "Hide" : "Show"} affected users
+                          </button>
+                        )}
+                        {users.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] gap-1 border-red-200 text-red-700 hover:bg-red-50"
+                            disabled={isRetrying}
+                            onClick={() => retryGroup(g.key, users)}
+                            data-testid="failure-breakdown-retry-all"
+                          >
+                            {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Retry all {users.length}
+                          </Button>
+                        )}
+                      </div>
+                      {isOpen && (
+                        <ul className="mt-2 space-y-1 max-h-52 overflow-auto rounded-lg border border-slate-100 bg-white p-2">
+                          {users.slice(0, 100).map((pk) => (
+                            <li key={pk} className="flex items-center justify-between gap-2">
+                              <button type="button" onClick={() => onViewUser(pk)} className="font-mono text-[10px] text-[#333286] hover:text-[#7c86ff] truncate" title={pk}>{pk.slice(0, 16)}…{pk.slice(-6)}</button>
+                              <button type="button" onClick={() => onViewUser(pk)} className="text-[9px] text-slate-400 hover:text-[#333286] inline-flex items-center gap-1 shrink-0"><Eye className="h-3 w-3" /> view</button>
+                            </li>
+                          ))}
+                          {users.length > 100 && <li className="text-[9px] text-slate-400 px-1">+ {users.length - 100} more</li>}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: string; npub: string; taPubkey: string | null; schedulingName?: string }) {
   const historyQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/users", pubkey, "history"],
     queryFn: () => apiClient.getAdminUserHistory(pubkey, { page: 1, size: 10 }),
@@ -791,13 +970,19 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
             </div>
           </div>
 
-          <NostrHealthCard pubkey={pubkey} taPubkey={taPubkey} />
-
           <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-[#333286]" />
                 <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
+                {schedulingName && (
+                  <span
+                    className="text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full"
+                    title="This user's current scheduling tier — how often scheduled runs recalculate them"
+                  >
+                    {schedulingName} schedule
+                  </span>
+                )}
               </div>
               {historyQuery.data && historyQuery.data.total > 0 && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{historyQuery.data.total} records</span>
@@ -820,11 +1005,13 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-slate-100 border-b-2 border-slate-200">
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Date</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600" title="What triggered this run">Source</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Status</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Algorithm</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">TA Status</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Publication</th>
                       <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Queue</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600" title="Time from request to finished">Duration</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -845,6 +1032,9 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                           <tr className={`border-b ${hasFail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className="text-[11px] font-medium text-slate-700">{formatTimestamp(item.created_at)}</span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <TriggerSourceBadge value={item.trigger_source} />
                             </td>
                             <td className="px-3 py-2.5">
                               {statusFailed ? (
@@ -921,13 +1111,16 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
                             <td className="px-3 py-2.5">
                               <span className="text-[11px] font-medium text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
                             </td>
+                            <td className="px-3 py-2.5">
+                              <span className="text-[11px] text-slate-600 tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</span>
+                            </td>
                           </tr>
                           {hasFail && (() => {
                             const stage = pickFailureStage({ statusFailed, taFailed, pubFailed });
                             const stageInfo = stage ? FAILURE_STAGE_HINTS[stage] : null;
                             return (
                               <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
-                                <td colSpan={6} className="px-4 py-2">
+                                <td colSpan={8} className="px-4 py-2">
                                   <div className="flex items-start gap-2">
                                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                     <div className="flex-1 space-y-1">
@@ -964,6 +1157,8 @@ function UserHistoryRow({ pubkey, npub, taPubkey }: { pubkey: string; npub: stri
               </div>
             )}
           </div>
+
+          <NostrHealthCard pubkey={pubkey} taPubkey={taPubkey} />
         </div>
       </td>
     </tr>
@@ -1039,6 +1234,25 @@ function truncateError(text: string, maxLen = 140): string {
   const cleaned = text.replace(/\s+/g, " ").trim();
   if (cleaned.length <= maxLen) return cleaned;
   return cleaned.slice(0, maxLen) + "…";
+}
+
+/** Human latency between a request's start and finish ISO timestamps. */
+function formatLatencyMs(startIso: string, endIso: string): string | null {
+  const parse = (s: string) => new Date(s.endsWith("Z") ? s : s + "Z").getTime();
+  const start = parse(startIso);
+  const end = parse(endIso);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const ms = end - start;
+  if (ms < 0) return null;
+  if (ms < 1000) return "<1s";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
 }
 
 function normalizeErrorKey(text: string): string {
@@ -1264,7 +1478,7 @@ const pipelineRowStyles = {
   },
 };
 
-function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, queuePosition }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; queuePosition?: number | "active" }) {
+function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, selected, onToggleSelect, bulkStatus, profile, queuePosition, schedulingName }: { item: BrainstormRequestInstance; idx: number; onViewDetail: (item: BrainstormRequestInstance) => void; onNavigateToUser?: (pubkey: string) => void; onRetrigger?: (pubkey: string) => Promise<void>; selected?: boolean; onToggleSelect?: () => void; bulkStatus?: "queued" | "running" | "success" | "failed"; profile?: { name?: string; picture?: string }; queuePosition?: number | "active"; schedulingName?: string }) {
   const [expanded, setExpanded] = useState(false);
   const [retriggerState, setRetriggerState] = useState<"idle" | "confirming" | "running" | "done" | "error">("idle");
   const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1346,6 +1560,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           </div>
         </td>
         <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px] tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</td>
         <td className="px-2 py-2 text-[10px]">
           {item.pubkey ? (() => {
             let npub: string;
@@ -1384,7 +1599,12 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             );
           })() : <span className="font-mono text-slate-400">—</span>}
         </td>
-        <td className="px-2 py-2"><TriggerSourceBadge value={item.trigger_source} /></td>
+        <td className="px-2 py-2">
+          <TriggerSourceBadge value={item.trigger_source} />
+          {schedulingName && (
+            <div className="text-[8px] font-medium text-violet-600 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
+          )}
+        </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
@@ -1448,7 +1668,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={12} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -1462,7 +1682,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
       )}
       {expanded && (
         <tr className={style.expanded}>
-          <td colSpan={11} className="px-4 py-3">
+          <td colSpan={12} className="px-4 py-3">
             {isFailed ? (
               <FailureDetailCard
                 item={item}
@@ -1698,7 +1918,15 @@ export default function AdminPage() {
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity/overview"],
-    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
+    // Pull more history so the 7d/30d trends are meaningful; fall back to a
+    // smaller page if the endpoint caps the size.
+    queryFn: async () => {
+      try {
+        return await apiClient.getAdminActivity({ page: 1, size: 500 });
+      } catch {
+        return await apiClient.getAdminActivity({ page: 1, size: 100 });
+      }
+    },
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
@@ -1929,7 +2157,24 @@ export default function AdminPage() {
   const lastCreated = grapeRank?.created_at ?? null;
 
   const overviewAllUsers = overviewUsersQuery.data?.items ?? [];
+  // pubkey → current scheduling tier, for Platform Activity rows (best-effort:
+  // only covers users in the loaded set; activity records don't carry the tier).
+  const schedulingTierByPubkey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of overviewAllUsers) {
+      if (u.pubkey && u.scheduling_name) m.set(u.pubkey, u.scheduling_name);
+    }
+    return m;
+  }, [overviewAllUsers]);
   const overviewAllActivity = overviewActivityQuery.data?.items ?? [];
+  // Coverage of the loaded activity feed — surfaced so admins know how far the
+  // trend windows actually reach (7d/30d may exceed the loaded records).
+  const activityCoverage = useMemo(() => {
+    const times = overviewAllActivity
+      .map((a) => parseActivityTs(a.updated_at))
+      .filter((t): t is number => !!t);
+    return { count: overviewAllActivity.length, oldest: times.length ? Math.min(...times) : null };
+  }, [overviewAllActivity]);
   const overviewTotalUsers = overviewUsersQuery.data?.total ?? 0;
   const overviewLoading = overviewUsersQuery.isLoading || overviewActivityQuery.isLoading;
 
@@ -2068,9 +2313,26 @@ export default function AdminPage() {
     return map;
   }, [overviewAllActivity, activityItems]);
 
+  // Fixed 24h glance-trend for the top KPI-card sparklines — independent of the
+  // Overview trend-window filter (the header cards show "right now" state).
+  const fixedTrends24h = useMemo(() => {
+    const now = Date.now();
+    const cfg = getWindowConfig("24h");
+    const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
+    return {
+      bucketTimestamps: buckets.map((b) => b.t),
+      totalSeries: buckets.map((b) => b.total),
+      successSeries: buckets.map((b) => b.success),
+      failedSeries: buckets.map((b) => b.failed),
+      rateSeries: buckets.map((b) => {
+        const d = b.success + b.failed;
+        return d === 0 ? 0 : Math.round((b.success / d) * 100);
+      }),
+    };
+  }, [overviewAllActivity]);
+
   const trends = useMemo(() => {
     const now = Date.now();
-    const cfg = getWindowConfig(trendWindow);
     const HOUR = 3600000;
     const oldestActivityTs = overviewAllActivity.reduce((min, a) => {
       const t = parseActivityTs(a.updated_at);
@@ -2078,8 +2340,15 @@ export default function AdminPage() {
       return min === 0 ? t : Math.min(min, t);
     }, 0);
     const dataAgeMs = oldestActivityTs > 0 ? (now - oldestActivityTs) : 0;
-    const dataCoversWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95;
-    const dataCoversPriorWindow = oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95;
+    let cfg = getWindowConfig(trendWindow);
+    if (trendWindow === "all") {
+      // Bucket the whole loaded span so "All" reads well no matter the range.
+      const spanMs = Math.max(dataAgeMs, HOUR);
+      const bucketCount = 12;
+      cfg = { ...cfg, bucketCount, bucketSizeMs: Math.ceil(spanMs / bucketCount) };
+    }
+    const dataCoversWindow = trendWindow === "all" ? true : (oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 0.95);
+    const dataCoversPriorWindow = trendWindow === "all" ? false : (oldestActivityTs > 0 && dataAgeMs >= cfg.windowMs * 1.95);
     const buckets = bucketActivity(overviewAllActivity, cfg.bucketCount, cfg.bucketSizeMs, now);
     const cmp = compareActivityWindows(overviewAllActivity, cfg.windowMs, now);
     const cmp1h = compareActivityWindows(overviewAllActivity, HOUR, now);
@@ -2385,6 +2654,17 @@ export default function AdminPage() {
             </div>
           </div>
 
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current system state</span>
+            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              live now
+            </span>
+            <span className="text-[9px] text-slate-400">· mini-charts show the last 24h · window filters affect the charts below, not these</span>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
               label="Scored Users"
@@ -2394,26 +2674,10 @@ export default function AdminPage() {
               tooltip="Click to view scored users"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("scored"); setActiveTab("users"); setUserPage(0); }}
-              sparklineData={trends.successSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.successSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="successes"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curSuccess - trends.cmp.prevSuccess) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    label={trends.cfg.priorLabel}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curSuccess - trends.cmp1h.prevSuccess) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      label="vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
             <KpiCard
               label="SP Adopters"
@@ -2423,7 +2687,6 @@ export default function AdminPage() {
               tooltip="Click to view SP adopters"
               scope={pipelineMetrics || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("sp_adopters"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
               label="Queue Depth"
@@ -2433,97 +2696,44 @@ export default function AdminPage() {
               tooltip="Click to view queued users"
               scope={computedQueueDepth !== null || hasSystemData ? "system" : "graph"}
               onClick={() => { setKpiFilter("queue"); setActiveTab("users"); setUserPage(0); }}
-              deltaSlot={<DeltaIndicator delta={null} insufficient={true} insufficientLabel="snapshot only" />}
             />
             <KpiCard
               label="Total Calcs"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.totalCalcs) : "0"}
               icon={Activity}
-              subtitle={`${formatNumber(trends.cmp.curTotal)} in last ${trends.cfg.shortLabel}`}
-              tooltip={`Cumulative calculation attempts across all users; ${trends.cfg.shortLabel} trend shown`}
+              subtitle="Cumulative attempts, all users"
+              tooltip="Cumulative calculation attempts across all users"
               scope="system"
-              sparklineData={trends.totalSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.totalSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#7c86ff"
-              sparklineValueLabel={trends.cfg.bucketUnitLabel}
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curTotal - trends.cmp1h.prevTotal) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
+              sparklineValueLabel="calcs / hr"
             />
             <KpiCard
               label="Success Rate"
               value={pipelineMetrics ? `${pipelineMetrics.successRate}%` : (trends.cmp.curSR !== null ? `${trends.cmp.curSR}%` : "—")}
               icon={CheckCircle2}
-              subtitle={trends.cmp.curSR !== null ? `${trends.cmp.curSR}% success in last ${trends.cfg.shortLabel}` : "Cumulative success rate"}
-              tooltip={`Successful calculations as % of attempted; ${trends.cfg.shortLabel} trend shown`}
+              subtitle="Cumulative success rate"
+              tooltip="Successful calculations as % of attempted"
               scope="system"
-              sparklineData={trends.rateSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.rateSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#10b981"
               sparklineValueLabel="success rate"
               sparklineValueSuffix="%"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.cmp.curSR !== null && trends.cmp.prevSR !== null ? (trends.cmp.curSR - trends.cmp.prevSR) : null}
-                    insufficient={!(trends.cmp.curSR !== null && trends.cmp.prevSR !== null)}
-                    suffix=" pts"
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null ? (trends.cmp1h.curSR - trends.cmp1h.prevSR) : null}
-                      insufficient={!(trends.cmp1h.curSR !== null && trends.cmp1h.prevSR !== null)}
-                      suffix=" pts"
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
             <KpiCard
               label="Failed Count"
               value={pipelineMetrics ? formatNumber(pipelineMetrics.failedCount) : formatNumber(trends.cmp.curFailed)}
               icon={AlertTriangle}
-              subtitle={`${formatNumber(trends.cmp.curFailed)} failed in last ${trends.cfg.shortLabel}`}
+              subtitle="Users with a failed run"
               tooltip="Click to view users with failures"
               scope="system"
               onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
-              sparklineData={trends.failedSeries}
-              sparklineTimestamps={trends.bucketTimestamps}
+              sparklineData={fixedTrends24h.failedSeries}
+              sparklineTimestamps={fixedTrends24h.bucketTimestamps}
               sparklineColor="#f87171"
               sparklineValueLabel="failures"
-              deltaSlot={
-                <div className="flex flex-col gap-0.5">
-                  <DeltaIndicator
-                    delta={trends.hasPriorWindow ? (trends.cmp.curFailed - trends.cmp.prevFailed) : null}
-                    insufficient={!trends.hasPriorWindow}
-                    inverted
-                    label={`${trends.cfg.shortLabel} ${trends.cfg.priorLabel}`}
-                  />
-                  {trendWindow !== "1h" && (
-                    <DeltaIndicator
-                      delta={trends.hasPriorHourWindow ? (trends.cmp1h.curFailed - trends.cmp1h.prevFailed) : null}
-                      insufficient={!trends.hasPriorHourWindow}
-                      inverted
-                      label="1h vs prior 1h"
-                    />
-                  )}
-                </div>
-              }
             />
           </div>
 
@@ -2605,10 +2815,15 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" data-testid="trend-window-selector-row">
                 <div>
                   <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Trend window</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">All Overview sparklines, deltas, and charts use this window{!trends.dataCoversWindow && trends.hasAnyActivity ? " · limited data available" : ""}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    All Overview sparklines, deltas, and charts use this window
+                    {activityCoverage.count > 0 && ` · last ${activityCoverage.count} records`}
+                    {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
+                    {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
+                  </p>
                 </div>
                 <div className="inline-flex rounded-lg border-2 border-[#7c86ff]/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
-                  {(["1h", "24h", "7d", "30d"] as TrendWindow[]).map(w => (
+                  {(["1h", "24h", "7d", "all"] as TrendWindow[]).map(w => (
                     <button
                       key={w}
                       type="button"
@@ -2618,7 +2833,7 @@ export default function AdminPage() {
                       className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md ring-1 ring-[#7c86ff]/40" : "text-slate-600 bg-slate-50 hover:bg-[#7c86ff]/10 hover:text-[#333286] hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
-                      {w}
+                      {w === "all" ? "All" : w}
                     </button>
                   ))}
                 </div>
@@ -2747,7 +2962,7 @@ export default function AdminPage() {
 
                     <div className="border-t border-slate-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput (last {trends.cfg.shortLabel})</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput · {trends.cfg.windowPhrase}</p>
                         <DeltaIndicator
                           delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
                           insufficient={!trends.hasPriorWindow}
@@ -2756,7 +2971,7 @@ export default function AdminPage() {
                       </div>
                       <div className="rounded-xl border border-slate-100 bg-white/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
                         {!trends.hasAnyActivity ? (
-                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in last {trends.cfg.shortLabel}</div>
+                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in {trends.cfg.windowPhrase}</div>
                         ) : (
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={trends.buckets.map(b => ({
@@ -2827,15 +3042,15 @@ export default function AdminPage() {
                     </div>
 
                     <div className="border-t border-slate-100 pt-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Last 24h Throughput</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Throughput · {trends.cfg.windowPhrase}</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
                           <p className="text-[10px] font-semibold text-emerald-600">Successful</p>
-                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{pipelineMetrics.recentSuccess}</p>
+                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
                         </div>
                         <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-100">
                           <p className="text-[10px] font-semibold text-red-600">Failed</p>
-                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{pipelineMetrics.recentFailed}</p>
+                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
                         </div>
                       </div>
                     </div>
@@ -2877,7 +3092,15 @@ export default function AdminPage() {
               </div>
 
               {(() => {
-                const failedItems = overviewAllActivity.filter(isItemFailed);
+                const failureWindowMs = trends.cfg.windowMs;
+                const failureNow = Date.now();
+                const failedItems = overviewAllActivity.filter((item) => {
+                  if (!isItemFailed(item)) return false;
+                  const t = parseActivityTs(item.updated_at);
+                  if (!t) return false;
+                  const age = failureNow - t;
+                  return age >= 0 && age < failureWindowMs;
+                });
                 const groups = new Map<string, { count: number; latest: BrainstormRequestInstance; pubkeys: Set<string> }>();
                 for (const item of failedItems) {
                   const key = normalizeErrorKey(extractErrorMessage(item)) + "|" + (getFailureStage(item) ?? "");
@@ -2912,8 +3135,8 @@ export default function AdminPage() {
                           </h3>
                           <p className="text-xs text-slate-500 mt-0.5">
                             {totalFailures === 0
-                              ? "No failures detected in recent activity."
-                              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
+                              ? `No failures in ${trends.cfg.windowPhrase}.`
+                              : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
                           </p>
                         </div>
                         <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`} data-testid="badge-failure-count">
@@ -3562,11 +3785,12 @@ export default function AdminPage() {
                 </div>
               )}
 
-              <div className="overflow-x-auto">
+              <div className="hidden md:block">
+                <ScrollableTable>
                 <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200" data-testid="table-users">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80">
-                      <th className="px-2 py-2.5 align-middle w-8 border-r border-slate-200">
+                      <th className="px-2 py-2.5 align-middle w-8 border-r border-slate-200 sticky left-0 z-20 bg-slate-50">
                         {(() => {
                           const visible = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList);
                           const visiblePks = visible.map(u => u.pubkey);
@@ -3595,8 +3819,8 @@ export default function AdminPage() {
                           );
                         })()}
                       </th>
-                      <th className="px-2 py-2.5 align-middle w-6 border-r border-slate-200"></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
+                      <th className="px-2 py-2.5 align-middle w-12 border-r border-slate-200 sticky left-8 z-20 bg-slate-50"></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 sticky left-20 z-20 bg-slate-50 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
@@ -3606,7 +3830,7 @@ export default function AdminPage() {
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
                       <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tier</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center sticky right-0 z-20 bg-slate-50 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3644,14 +3868,14 @@ export default function AdminPage() {
                         const isTriggering = triggeringPubkeys.has(u.pubkey);
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className={`border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : ""}`} onClick={() => {
+                            <tr className={`group border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : ""}`} onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
-                              <td className="px-2 py-2.5 border-r border-slate-100 w-8" onClick={(e) => { e.stopPropagation(); setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; }); }}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 w-8 sticky left-0 z-10 bg-white group-hover:bg-slate-50" onClick={(e) => { e.stopPropagation(); setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; }); }}>
                                 {(() => {
                                   const isSelected = selectedUserPubkeys.has(u.pubkey);
                                   const bs = bulkStatuses.get(u.pubkey);
@@ -3666,7 +3890,7 @@ export default function AdminPage() {
                                   );
                                 })()}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100">
+                              <td className="px-2 py-2.5 border-r border-slate-100 w-12 sticky left-8 z-10 bg-white group-hover:bg-slate-50">
                                 <div className="flex items-center gap-1.5">
                                   {(() => {
                                     const health = getUserHealth(u.latest_status, u.latest_ta_status, u.times_calculated);
@@ -3677,7 +3901,7 @@ export default function AdminPage() {
                                   <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-profile-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 sticky left-20 z-10 bg-white group-hover:bg-slate-50 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]" data-testid={`cell-profile-${i}`}>
                                 <div className="flex items-center gap-1.5">
                                   <Avatar className="h-6 w-6 shrink-0">
                                     {prof?.picture ? (
@@ -3784,7 +4008,7 @@ export default function AdminPage() {
                                   <span className="text-[9px] text-slate-500">{u.scheduling_name}</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 text-center">
+                              <td className="px-2 py-2.5 text-center sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]">
                                 <div className="flex items-center gap-1 justify-center">
                                   <Button
                                     variant="ghost"
@@ -3840,7 +4064,7 @@ export default function AdminPage() {
                               </tr>
                             )}
                             {isExpanded && (
-                              <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} />
+                              <UserHistoryRow pubkey={u.pubkey} npub={npub} taPubkey={u.ta_pubkey} schedulingName={u.scheduling_name} />
                             )}
                           </Fragment>
                         );
@@ -3848,6 +4072,109 @@ export default function AdminPage() {
                     )}
                   </tbody>
                 </table>
+                </ScrollableTable>
+              </div>
+
+              {/* Mobile: stacked user cards (the wide table is md+ only) */}
+              <div className="md:hidden divide-y divide-slate-100" data-testid="cards-users">
+                {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-slate-400">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
+                    Loading users...
+                  </div>
+                ) : adminUsersQuery.isError ? (
+                  <div className="px-4 py-10 text-center text-sm text-red-400">Failed to load users. Check your admin access.</div>
+                ) : adminUsersList.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-slate-400">{userSearch ? "No users match your search" : "No user data available"}</div>
+                ) : filteredUsersList.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-slate-400">No users match the current filter</div>
+                ) : (
+                  (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).map((u, i) => {
+                    const prof = userProfiles.get(u.pubkey);
+                    let npub: string;
+                    try { npub = nip19.npubEncode(u.pubkey); } catch { npub = u.pubkey; }
+                    const isTriggering = triggeringPubkeys.has(u.pubkey);
+                    const isSelected = selectedUserPubkeys.has(u.pubkey);
+                    const bs = bulkStatuses.get(u.pubkey);
+                    const health = getUserHealth(u.latest_status, u.latest_ta_status, u.times_calculated);
+                    const healthColors = { green: "bg-emerald-400", amber: "bg-amber-400", red: "bg-red-400", gray: "bg-slate-300" } as const;
+                    return (
+                      <div key={u.pubkey} className={`p-3 ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : "bg-white"}`} data-testid={`card-user-${i}`}>
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; })}
+                            className="mt-0.5 shrink-0"
+                            title={isSelected ? "Deselect" : "Select"}
+                            data-testid={`card-checkbox-user-${i}`}
+                          >
+                            {bs === "running" ? <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> :
+                             bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
+                             bs === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
+                             isSelected ? <CheckSquare className="h-4 w-4 text-[#333286]" /> :
+                             <Square className="h-4 w-4 text-slate-300" />}
+                          </button>
+                          <Avatar className="h-9 w-9 shrink-0">
+                            {prof?.picture ? <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" /> : null}
+                            <AvatarFallback className="bg-slate-100 border border-slate-200 text-[10px] text-slate-400">{prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-4 w-4 text-slate-300" />}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`h-2 w-2 rounded-full shrink-0 ${healthColors[health]}`} />
+                              <span className="text-sm font-semibold text-slate-800 truncate">{prof?.name || npub.slice(0, 12) + "..."}</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[10px] font-mono text-indigo-500/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
+                              <CopyButton text={npub} />
+                            </div>
+                          </div>
+                          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {schedulingPolicies.length > 0 ? (
+                              <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} />
+                            ) : (
+                              <span className="text-[10px] text-slate-500">{u.scheduling_name}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
+                          {u.latest_status && (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>{u.latest_status}</span>
+                          )}
+                          {u.latest_ta_status && (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>TA {u.latest_ta_status}</span>
+                          )}
+                          <span className="text-[9px] text-slate-400 tabular-nums">{u.times_calculated} calcs</span>
+                          <span className="text-[9px] text-slate-400">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 mt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                            onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
+                            data-testid={`card-button-trigger-${i}`}
+                          >
+                            {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+                            {isTriggering ? "..." : "Trigger"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[11px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            onClick={(e) => { e.stopPropagation(); window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`); navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`); }}
+                            data-testid={`card-button-view-${i}`}
+                          >
+                            <Eye className="h-3 w-3 mr-1" /> View
+                          </Button>
+                          <ResyncControl pubkey={u.pubkey} />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
 
               <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center gap-2 sm:gap-3">
@@ -3959,16 +4286,6 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
-                </div>
-                <div className="px-5 py-4">
-                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
-                </div>
-              </div>
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-policies">
                 <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
                 <div className="px-5 py-4 border-b border-[#7c86ff]/10">
@@ -3977,6 +4294,16 @@ export default function AdminPage() {
                 </div>
                 <div className="px-5 py-4">
                   <SchedulingCard active={activeTab === "scheduling"} />
+                </div>
+              </div>
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
+                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
+                </div>
+                <div className="px-5 py-4">
+                  <SchedulingStatsPanel active={activeTab === "scheduling"} />
                 </div>
               </div>
             </div>
@@ -4108,32 +4435,24 @@ export default function AdminPage() {
                 const now = Date.now();
 
                 const rangeLabels: Record<ActivityTimeRange, string> = {
+                  "1h": "Last Hour",
                   "24h": "Last 24 Hours",
-                  "week": "This Week",
-                  "month": "This Month",
-                  "quarter": "This Quarter",
-                  "all": "All Time",
+                  "7d": "Last 7 Days",
+                  "all": "All Loaded",
                 };
                 const rangeShort: Record<ActivityTimeRange, string> = {
+                  "1h": "1h",
                   "24h": "24h",
-                  "week": "Week",
-                  "month": "Month",
-                  "quarter": "Quarter",
+                  "7d": "7d",
                   "all": "All",
                 };
 
                 const getStartMs = (range: ActivityTimeRange): number => {
-                  if (range === "all") return 0;
-                  const d = new Date();
                   switch (range) {
+                    case "1h": return now - 3600000;
                     case "24h": return now - 86400000;
-                    case "week": { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d.getTime(); }
-                    case "month": { d.setDate(1); d.setHours(0,0,0,0); return d.getTime(); }
-                    case "quarter": {
-                      const qMonth = Math.floor(d.getMonth() / 3) * 3;
-                      d.setMonth(qMonth, 1); d.setHours(0,0,0,0);
-                      return d.getTime();
-                    }
+                    case "7d": return now - 7 * 86400000;
+                    case "all": return 0;
                     default: return 0;
                   }
                 };
@@ -4165,7 +4484,7 @@ export default function AdminPage() {
                 const lastActivityTs = sortedByUpdate[0]?.last_updated ?? null;
                 const uniquePubkeys = new Set(filteredItems.map(a => a.pubkey).filter(Boolean)).size;
 
-                const presets: ActivityTimeRange[] = ["24h", "week", "month", "quarter", "all"];
+                const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
                   <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
@@ -4215,7 +4534,7 @@ export default function AdminPage() {
                         </div>
                       </div>
                       {activityTimeRange !== "24h" && (
-                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on latest 100 activity records. Broader ranges may not reflect full history.</p>
+                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may not reflect full history.</p>
                       )}
                     </div>
                     <div className="p-4 sm:p-5">
@@ -4277,6 +4596,23 @@ export default function AdminPage() {
                   </div>
                 );
               })()}
+
+              <FailureBreakdownCard
+                items={overviewAllActivity}
+                isLoading={overviewLoading}
+                isError={overviewActivityQuery.isError}
+                errorMessage={overviewActivityQuery.error instanceof Error ? overviewActivityQuery.error.message : undefined}
+                onViewUser={(pk) => {
+                  setUserSearch(pk);
+                  setDebouncedSearch(pk);
+                  setActiveTab("users");
+                  setKpiFilter(null);
+                  setUserPage(0);
+                  setExpandedRows(new Set([pk]));
+                  setHighlightedPubkey(pk);
+                  setTimeout(() => setHighlightedPubkey(null), 2500);
+                }}
+              />
 
               <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
@@ -4429,6 +4765,7 @@ export default function AdminPage() {
                               </th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500" title="Time from created to updated">Duration</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
                               <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
@@ -4451,6 +4788,7 @@ export default function AdminPage() {
                                   item={item}
                                   idx={idx}
                                   profile={item.pubkey ? userProfiles.get(item.pubkey) : undefined}
+                                  schedulingName={item.pubkey ? schedulingTierByPubkey.get(item.pubkey) : undefined}
                                   onViewDetail={handleViewRequestDetail}
                                   selected={isSelected}
                                   bulkStatus={bs}

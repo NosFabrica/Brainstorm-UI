@@ -12,6 +12,7 @@ import {
   Zap,
   Globe,
   Users,
+  UserRound,
   Radar,
   Copy,
 } from "lucide-react";
@@ -327,7 +328,7 @@ export default function Landing() {
       return;
     }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
-    setLocation(`/profile/${result.npub}?fromSearch=1&pov=${effectivePov}${suffix}`);
+    setLocation(`/p/${result.npub}${suffix ? `?${suffix.replace(/^&/, "")}` : ""}`);
   }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
 
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
@@ -394,7 +395,7 @@ export default function Landing() {
 
     // Direct identifiers resolve to a profile — logged-out visitors get the public
     // /p page, members get the personalized /profile view (mirrors goToProfile).
-    const profileDest = (np: string) => (user ? `/profile/${np}?pov=${effectivePov}` : `/p/${np}`);
+    const profileDest = (np: string) => `/p/${np}`;
 
     if (isLikelyNpub(q)) {
       try {
@@ -826,21 +827,24 @@ export default function Landing() {
                 className="inline-flex items-center gap-2"
                 data-testid="toggle-home-pov"
               >
+                {/* Segmented control using the sitewide POV language: globe =
+                    Brainstorm's global view (neutral), person + indigo fill =
+                    your personalized view. Selected = filled pill, unmistakable. */}
                 <button
                   type="button"
                   onClick={() => setPov("nosfabrica")}
                   aria-pressed={effectivePov === "nosfabrica"}
                   className={
-                    "rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "font-semibold text-indigo-600"
-                      : "font-medium text-slate-500 hover:text-slate-700")
+                      ? "border-slate-300 bg-slate-100 font-semibold text-slate-800 shadow-sm"
+                      : "border-transparent font-medium text-slate-400 hover:text-slate-600")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
+                  <Globe className={"h-3 w-3 " + (effectivePov === "nosfabrica" ? "text-slate-500" : "text-slate-300")} />
                   Brainstorm
                 </button>
-                <span className="text-slate-300" aria-hidden="true">·</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -856,14 +860,15 @@ export default function Landing() {
                         : undefined
                   }
                   className={
-                    "rounded px-1.5 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
                     (effectivePov === "mywot"
-                      ? "font-semibold text-emerald-700"
-                      : "font-medium text-slate-500 hover:text-slate-700") +
+                      ? "border-indigo-300 bg-indigo-50 font-semibold text-indigo-700 shadow-sm"
+                      : "border-transparent font-medium text-slate-400 hover:text-slate-600") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
+                  <UserRound className={"h-3 w-3 " + (effectivePov === "mywot" ? "text-indigo-500" : "text-slate-300")} />
                   {user.displayName || "My results"}
                 </button>
               </div>
@@ -891,6 +896,13 @@ export default function Landing() {
         </div>
 
         <PostSignupCard />
+        {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
+            New users still auto-follow the profile they join from (see SharePage) —
+            that connection is benign. But this owner-facing notification was the scam
+            lever: it pressured the owner to follow BACK a stranger, forming a trust
+            edge that carries the owner's weight. It fired for ANY brand-new inbound
+            follower, so it can't be re-enabled safely until a backend invite-record
+            gates it to genuine, owner-issued invites. */}
         <BackupReminder />
 
         {isSearching && (

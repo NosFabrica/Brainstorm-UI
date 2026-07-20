@@ -16,11 +16,16 @@ export function UserTierPicker({
   pubkey,
   schedulingId,
   policies,
+  onChanged,
 }: {
   pubkey: string;
   schedulingId: number | null;
   schedulingName: string;
   policies: SchedulingItem[];
+  /** Fired after a successful reassignment — lets callers refresh their own
+   *  lists (e.g. the per-policy assigned-users list). Optional; the Users tab
+   *  doesn't need it. */
+  onChanged?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -39,6 +44,7 @@ export function UserTierPicker({
         queryClient.invalidateQueries({ queryKey: USERS_KEY }),
         queryClient.invalidateQueries({ queryKey: POLICIES_KEY }),
       ]);
+      onChanged?.();
       setOverride(null);
       toast({ title: "Tier updated", description: `${pubkey.slice(0, 12)}…` });
     } catch (e) {

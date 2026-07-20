@@ -19,6 +19,7 @@ import NetworkPage from "@/pages/NetworkPage";
 import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
 import ConnectionListPage from "@/pages/ConnectionListPage";
+import HopsPathPage from "@/pages/HopsPathPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
@@ -76,7 +77,7 @@ function SearchRedirect() {
 
 // Account-only pages are hidden from anonymous visitors: no preview, just a
 // clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
-// so users return after signing in). Public pages (/, /profile/:npub,
+// so users return after signing in). Public pages (/, /p/:id,
 // /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
@@ -101,7 +102,9 @@ function Router() {
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
-        <Route path="/profile/:npub" component={ProfilePage} />
+        {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
+        <Route path="/profile/:npub">{() => <RequireAuth component={ProfilePage} />}</Route>
+        <Route path="/p/:id/hops" component={HopsPathPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
