@@ -1918,15 +1918,8 @@ export default function AdminPage() {
 
   const overviewActivityQuery = useQuery<AdminUserHistoryPage>({
     queryKey: ["/api/admin/activity/overview"],
-    // Pull more history so the 7d/30d trends are meaningful; fall back to a
-    // smaller page if the endpoint caps the size.
-    queryFn: async () => {
-      try {
-        return await apiClient.getAdminActivity({ page: 1, size: 500 });
-      } catch {
-        return await apiClient.getAdminActivity({ page: 1, size: 100 });
-      }
-    },
+    // Backend caps `size` at 100; requesting more 422s.
+    queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
     enabled: !!user,
     staleTime: 60_000,
     retry: 1,
