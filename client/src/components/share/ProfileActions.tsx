@@ -78,7 +78,7 @@ export function ProfileActions({
   };
 
   return (
-    <div className="flex items-center gap-2" data-testid="share-profile-actions">
+    <div className="flex flex-1 md:flex-none items-center gap-2" data-testid="share-profile-actions">
       <button
         type="button"
         onClick={toggleFollow}
@@ -104,7 +104,7 @@ export function ProfileActions({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+            className="inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
             aria-label="More actions"
             data-testid="share-actions-menu"
           >
@@ -146,5 +146,34 @@ export function ProfileActions({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+/**
+ * The owner's own-profile overflow menu: no follow/mute/report (you can't act on
+ * yourself), just a ⋯ menu with the quiet "Advanced view" link — so the owner's
+ * controls look identical to everyone else's instead of a bare text link.
+ */
+export function OwnerActions({ npub }: { npub: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+          aria-label="More actions"
+          data-testid="share-owner-menu"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem asChild className="gap-2 text-slate-500">
+          <Link href={`/profile/${npub}`} data-testid="share-advanced-view">
+            <ExternalLink className="h-4 w-4" /> Advanced view
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

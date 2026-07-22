@@ -4,6 +4,15 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 export type FollowedByPerson = { pubkey: string; name?: string; picture?: string };
 
+// Compact count so the line stays a uniform width across users: 7,218 → 7.2k,
+// 1,234,567 → 1.2M; anything under 1,000 stays exact. Lowercase k, uppercase M.
+function compactCount(n: number): string {
+  if (n < 1000) return String(n);
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 })
+    .format(n)
+    .replace("K", "k");
+}
+
 /**
  * "Followed by [avatars] Alice, Bob & 1,234 others" — social proof from the
  * top WoT-ranked followers (the most-trusted accounts in the network who follow
@@ -19,9 +28,9 @@ export function FollowedByRow({ people, total, href, stacked = false }: { people
 
   const label =
     lead.length === 0
-      ? `Followed by ${grandTotal.toLocaleString()} trusted accounts`
+      ? `Followed by ${compactCount(grandTotal)} trusted accounts`
       : others > 0
-        ? `Followed by ${lead.join(", ")} & ${others.toLocaleString()} others`
+        ? `Followed by ${lead.join(", ")} & ${compactCount(others)} others`
         : `Followed by ${lead.join(" & ")}`;
 
   return (

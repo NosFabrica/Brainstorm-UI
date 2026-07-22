@@ -8,12 +8,12 @@ import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, PovIcon, useScorePov } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -265,7 +265,6 @@ export default function ConnectionListPage() {
               const name = p?.display_name || p?.name || (rowNpub ? rowNpub.slice(0, 12) + "…" : pk.slice(0, 12) + "…");
               const handle = cleanNip05(p?.nip05);
               const score = typeof inf === "number" ? Math.min(1, Math.max(0, inf)) : null;
-              const tier = score != null ? tierForScore(score) : null;
               return (
                 <Link
                   key={pk}
@@ -273,7 +272,7 @@ export default function ConnectionListPage() {
                   className="group flex items-center gap-3.5 px-4 py-3 hover:bg-slate-50 transition-colors"
                   data-testid={`conn-row-${pk.slice(0, 8)}`}
                 >
-                  <TrustAvatar picture={p?.picture} name={name} score={score} tier={tier} />
+                  <TrustAvatar picture={p?.picture} name={name} score={score} pov={scorePov} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
                     {handle ? (
@@ -295,19 +294,6 @@ export default function ConnectionListPage() {
                       );
                     })()}
                   </div>
-                  {tier && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setScoreExplainOpen(true); }}
-                      className={`hidden shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex ${scorePov === "personalized" ? "border-indigo-200" : "border-slate-200"}`}
-                      style={{ backgroundColor: `${tier.color}14`, color: tier.color }}
-                      title="What does this score mean?"
-                      data-testid="conn-tier"
-                    >
-                      <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                      {tier.name}
-                    </button>
-                  )}
                   <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400" />
                 </Link>
               );
@@ -336,19 +322,17 @@ export default function ConnectionListPage() {
 /** Avatar wrapped in a tier-coloured trust ring with a small score badge — one
  *  premium "person" token (LinkedIn/Facebook feel) instead of two side-by-side
  *  circles. */
-function TrustAvatar({ picture, name, score, tier }: { picture?: string; name: string; score: number | null; tier: { name: string; color: string } | null }) {
-  const pct = score != null ? Math.round(score * 100) : null;
+function TrustAvatar({ picture, name, score, pov }: { picture?: string; name: string; score: number | null; pov: ScorePov }) {
   return (
-    <div className="relative shrink-0" title={tier && pct != null ? `${tier.name} · ${pct}` : undefined}>
-      <Avatar
-        className="h-12 w-12 rounded-full bg-white"
-        style={{ boxShadow: tier ? `0 0 0 2px #fff, 0 0 0 4px ${tier.color}` : "0 0 0 1px #e2e8f0" }}
-      >
+    <div className="relative shrink-0">
+      <Avatar className="h-12 w-12 rounded-full bg-white" style={{ boxShadow: "0 0 0 1px #e2e8f0" }}>
         {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
-      {pct != null && tier && (
-        <span className="absolute -bottom-1 -right-1 rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums text-white shadow-sm ring-2 ring-white" style={{ backgroundColor: tier.color }}>{pct}</span>
+      {/* The Verification Score coin — same label-less badge as the profile hero,
+          POV-aware (colored personalized / grey global). */}
+      {score != null && (
+        <VerificationCoin score01={score} pov={pov} size={24} className="absolute -bottom-1 -right-1" />
       )}
     </div>
   );

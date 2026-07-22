@@ -49,7 +49,7 @@ export function WotStrengthCard({
       <div className="flex items-center justify-between gap-1.5 mb-2">
         <span className="inline-flex items-center gap-1.5">
           <BrainLogo size={15} className="text-indigo-500" />
-          <span className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Trust Score</span>
+          <span className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Verification Score</span>
         </span>
         <PovTag pov={pov} />
       </div>

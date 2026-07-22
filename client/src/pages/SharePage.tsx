@@ -19,13 +19,7 @@ import {
   Copy,
   Check,
   SlidersHorizontal,
-  Users,
-  UserCheck,
   UserPlus,
-  VolumeX,
-  Flag,
-  ExternalLink,
-  type LucideIcon,
 } from "lucide-react";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -55,13 +49,14 @@ import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
-import { ProfileActions } from "@/components/share/ProfileActions";
-import { useScorePov } from "@/components/score/TrustScorePov";
+import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
+import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
+import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { FlashIcon } from "@/components/FlashIcon";
-import { WotStrengthCard } from "@/components/WotStrengthCard";
 import { ZapModal } from "@/components/ZapModal";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
@@ -95,6 +90,10 @@ export default function SharePage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [npubCopied, setNpubCopied] = useState(false);
+  const [scoreModalOpen, setScoreModalOpen] = useState(false);
+  // One shared lens for the whole stats block: verified (trust-filtered) vs all
+  // (raw). Defaults to verified — Brainstorm's bot-free view is the headline.
+  const [statLens, setStatLens] = useState<StatLens>("verified");
 
   const profileQuery = useQuery({
     queryKey: ["share-profile", pubkey],
@@ -425,17 +424,24 @@ export default function SharePage() {
   // total (per CEO: total following is more meaningful than verified following).
   const stats = statsQuery.data?.data as
     | {
-        followed_by?: { verified?: number };
-        following?: { total?: number };
-        muted_by?: { verified?: number };
-        reported_by?: { verified?: number };
+        followed_by?: { verified?: number; total?: number };
+        following?: { total?: number; verified?: number };
+        muted_by?: { verified?: number; total?: number };
+        reported_by?: { verified?: number; total?: number };
       }
     | undefined;
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  // Each stat carries BOTH the web-of-trust-filtered (`verified`) and raw
+  // (`total`, includes bots) count in one response — the StatToggle flips between
+  // them client-side. No extra request.
   const verifiedFollowers = num(stats?.followed_by?.verified);
+  const allFollowers = num(stats?.followed_by?.total);
   const followingTotal = num(stats?.following?.total);
+  const verifiedFollowing = num(stats?.following?.verified);
   const verifiedMuters = num(stats?.muted_by?.verified);
+  const allMuters = num(stats?.muted_by?.total);
   const verifiedReporters = num(stats?.reported_by?.verified);
+  const allReporters = num(stats?.reported_by?.total);
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
   // verified followers (house POV → same verdict for every viewer).
   const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);
@@ -734,67 +740,97 @@ export default function SharePage() {
   // differs from the primary after rounding.
   // Which POV leads follows the sitewide score-POV toggle (personalized vs
   // global) — the personalized number only leads when the viewer chose it.
-  const leadWithMine = loggedIn && score01 != null && scorePov === "personalized";
-  const cardPrimaryScore = leadWithMine ? score01 : primaryScore01;
-  const cardSecondaryScore = leadWithMine ? houseScore01 : loggedIn ? score01 : null;
-  // Logged-in relationship actions — rendered inside the WoT card (as its footer)
-  // so the primary Follow action sits with the trust context as one cohesive unit,
-  // instead of a floating pill below it.
-  const loggedInActions = loggedIn ? (
-    <div className="flex flex-col gap-2" data-testid="share-actions-block">
-      {rel.enabled && !isOwner && !rel.loading && (rel.followsYou || rel.isFollowing || rel.isMuted || rel.report) && (() => {
-        const parts: { key: string; text: string; Icon: LucideIcon; className?: string }[] = [];
-        if (rel.isFollowing && rel.followsYou) parts.push({ key: "mutual", text: "You follow each other", Icon: Users });
-        else if (rel.isFollowing) parts.push({ key: "following", text: "You follow them", Icon: UserCheck });
-        else if (rel.followsYou) parts.push({ key: "follows-you", text: "They follow you", Icon: UserPlus });
-        if (rel.isMuted) parts.push({ key: "muted", text: "You've muted them", Icon: VolumeX });
-        if (rel.report) parts.push({ key: "reported", text: "You reported this", Icon: Flag, className: "text-amber-600" });
-        return (
-          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400" data-testid="share-relationship-summary">
-            {parts.map((p, i) => (
-              <span key={p.key} className="inline-flex items-center">
-                {i > 0 && <span className="text-slate-300 mr-2.5">·</span>}
-                <span className={`inline-flex items-center gap-1 ${p.className ?? ""}`}>
-                  <p.Icon className="h-3 w-3" /> {p.text}
-                </span>
-              </span>
-            ))}
-          </p>
-        );
-      })()}
-      {isOwner ? (
-        /* Owner: no self-actions. A quiet link to the analytics view. */
-        <Link
-          href={`/profile/${npub}`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
-          data-testid="share-advanced-view-owner"
+  // The Verification Score coin reflects the ACTIVE point of view (the sitewide
+  // toggle): personalized → the viewer's own score; global → the network (house)
+  // score. Logged-out visitors are always global. Null → unrated coin ("—").
+  const coinScore01 = scorePov === "personalized" ? score01 : houseScore01 ?? score01;
+  // Contact as compact clickable icons — website, lightning address, external
+  // identities. Lives top-right with the actions (and has a mobile fallback row),
+  // never as verbose text at the bottom.
+  const hasContactIcons = !!(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities")));
+  const contactIcons = hasContactIcons ? (
+    <>
+      {profile.website && (
+        <a
+          href={normalizeUrl(profile.website)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#6366f1]"
+          title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+          aria-label="Website"
+          data-testid="share-website"
         >
-          <ExternalLink className="h-3.5 w-3.5" /> Advanced view
-        </Link>
-      ) : (
-        /* Non-owner: relationship actions. Keyed on the loaded relationship so it
-           re-seeds once useRelationshipBadges settles. */
-        <ProfileActions
-          key={`${rel.isFollowing}-${rel.isMuted}-${!!rel.report}`}
-          targetPubkey={pubkey}
-          npub={npub}
-          initialFollowing={rel.isFollowing}
-          initialMuted={rel.isMuted}
-          alreadyReported={!!rel.report}
-        />
+          <Globe className="h-4 w-4" />
+        </a>
       )}
-    </div>
+      {profile.lud16 && (
+        <button
+          type="button"
+          onClick={() => setZapOpen(true)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#F7931A] transition-colors hover:bg-[#F7931A]/10 hover:text-[#e07f12]"
+          title={`Lightning — ${profile.lud16}`}
+          aria-label="Lightning address"
+          data-testid="share-lightning"
+        >
+          <FlashIcon className="h-4 w-4" />
+        </button>
+      )}
+      {identities.length > 0 && !isHidden("identities") && (
+        <span className="inline-flex items-center gap-2.5" data-testid="share-identities">
+          <ExternalIdentities identities={identities} />
+        </span>
+      )}
+    </>
   ) : null;
 
-  const wotCard = (
-    <WotStrengthCard
-      score01={cardPrimaryScore}
-      secondaryScore01={cardSecondaryScore}
-      primaryLabel={leadWithMine ? "For you" : "Everyone"}
-      secondaryLabel={leadWithMine ? "Everyone" : "For you"}
-      footer={loggedInActions}
+  // The action pieces, kept separate so we can place them differently per
+  // breakpoint: a "Follows you" chip, the contact icons, and the Follow/⋯ (or
+  // the owner's ⋯). On desktop all three sit together top-right with the avatar.
+  // On mobile the contact icons move up to the top-right slot under the banner
+  // (filling the dead space across from the avatar) while the Follow/⋯ actions
+  // drop to their own full-width row so the primary button can stretch.
+  const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500" data-testid="share-follows-you">
+      <UserPlus className="h-3 w-3" /> Follows you
+    </span>
+  ) : null;
+  const followButtons = loggedIn ? (isOwner ? (
+    <OwnerActions npub={npub} />
+  ) : (
+    <ProfileActions
+      key={`${rel.isFollowing}-${rel.isMuted}-${!!rel.report}`}
+      targetPubkey={pubkey}
+      npub={npub}
+      initialFollowing={rel.isFollowing}
+      initialMuted={rel.isMuted}
+      alreadyReported={!!rel.report}
     />
-  );
+  )) : null;
+  const hasFollowActions = !!followButtons;
+  const hasActions = loggedIn || hasContactIcons;
+
+  // Desktop: chip + icons + Follow/⋯ together, top-right with the avatar.
+  const topRightActions = hasActions ? (
+    <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
+      {followsYouChip}
+      {contactIcons}
+      {followButtons}
+    </div>
+  ) : null;
+  // Mobile: just the contact icons, top-right across from the avatar.
+  const mobileTopIcons = hasContactIcons ? (
+    <div className="flex sm:hidden items-center gap-1 shrink-0" data-testid="share-icons-mobile">
+      {contactIcons}
+    </div>
+  ) : null;
+  // Mobile: the Follow/⋯ actions (+ follows-you chip) in their own row so the
+  // primary button can fill the width.
+  const mobileFollowRow = hasFollowActions ? (
+    <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
+      {followsYouChip}
+      {followButtons}
+    </div>
+  ) : null;
 
   return (
     <ShareShell onShare={() => setShareOpen(true)}>
@@ -815,12 +851,29 @@ export default function SharePage() {
           {/* key by pubkey so the Avatar remounts per profile — otherwise Radix
               keeps a stale "image loaded" status when navigating from a pictured
               profile to a pictureless one, hiding the fallback. */}
-          <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white">
-            {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden rounded-full">
-              <DefaultAvatarImg flagged={isFlagged} />
-            </AvatarFallback>
-          </Avatar>
+          <div className="flex items-end justify-between gap-3">
+            <div className="relative inline-block">
+              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white">
+                {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden rounded-full">
+                  <DefaultAvatarImg flagged={isFlagged} />
+                </AvatarFallback>
+              </Avatar>
+              {/* Verification Score — the label-less coin, active-POV, bottom-right of
+                  the avatar. Tap opens the shared explainer/compare modal. */}
+              <VerificationCoin
+                score01={coinScore01}
+                pov={scorePov}
+                size={32}
+                onClick={() => setScoreModalOpen(true)}
+                className="absolute -bottom-1 -right-1"
+              />
+            </div>
+            {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons
+                here (top-right under the banner); Follow/⋯ render in a row below. */}
+            {topRightActions}
+            {mobileTopIcons}
+          </div>
 
           <div className="mt-2.5 md:flex md:gap-6 md:items-start">
             <div className="md:flex-1 min-w-0">
@@ -853,10 +906,15 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Web of Trust — mobile inline (desktop shows it in the right sidebar).
-              Logged-in actions live inside the card (its footer). */}
-          <div className="md:hidden mt-3">{wotCard}</div>
+          {/* Mobile: the Follow/⋯ actions in their own row under the identity so
+              the primary button can fill the width. Contact icons live top-right
+              (above), not here. */}
+          {mobileFollowRow}
 
+          {/* Tags — the team's WoT-ranked attribute chips (Verified human, Founder,
+              …) will render here, colored in the personalized view / greyscale in
+              global, with a "+N → see all". Deferred until tag data ships; for now
+              the owner-set role chips below stand in. */}
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
               {roleLabels.map((label) => (
@@ -892,48 +950,81 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Stats — trust chip leads; positive signals, then a quieter risk line. */}
+          {/* Stats — one shared Verified/All lens for the whole block (tap the
+              toggle to reveal how many bots the web of trust filters out). Each
+              count links to its full list. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-              {followingTotal != null && (
-                <Link href={`/p/${rawId}/following`} className="hover:text-slate-700 transition-colors" data-testid="share-stat-following">
-                  <span className="font-semibold text-slate-700">{followingTotal.toLocaleString()}</span> Following
-                </Link>
-              )}
-              {verifiedFollowers != null && (
-                <Link href={`/p/${rawId}/followers`} className="hover:text-slate-700 transition-colors" data-testid="share-stat-followers" title="Verified followers in the web of trust">
-                  <span className="font-semibold text-slate-700">{verifiedFollowers.toLocaleString()}</span> Verified Followers
-                </Link>
-              )}
-              {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
-                  on line 1. Signed-in + scored viewers only (needs my pubkey as the
-                  path origin); hidden on your own profile. */}
-              {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
-                localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                  <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
+                {(followingTotal != null || verifiedFollowing != null) && (
+                  <Stat
+                    verified={verifiedFollowing}
+                    all={followingTotal}
+                    verifiedLabel="Verified Following"
+                    allLabel="Following"
+                    href={`/p/${rawId}/following`}
+                    lens={statLens}
+                    testId="share-stat-following"
+                  />
                 )}
-            </div>
-            {(verifiedMuters != null || verifiedReporters != null) && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
-                {verifiedMuters != null && (
-                  <Link href={`/p/${rawId}/muters`} className="hover:text-slate-600 transition-colors" data-testid="share-stat-muters" title="Verified accounts that have muted this profile">
-                    <span className="font-semibold text-slate-500">{verifiedMuters.toLocaleString()}</span> Verified Muters
-                  </Link>
+                {(verifiedFollowers != null || allFollowers != null) && (
+                  <Stat
+                    verified={verifiedFollowers}
+                    all={allFollowers}
+                    verifiedLabel="Verified Followers"
+                    allLabel="All Followers"
+                    href={`/p/${rawId}/followers`}
+                    lens={statLens}
+                    testId="share-stat-followers"
+                  />
                 )}
-                {verifiedReporters != null && (
-                  <Link href={`/p/${rawId}/reporters`} className={`transition-colors ${isFlagged ? "text-red-500 hover:text-red-600" : "hover:text-slate-600"}`} data-testid="share-stat-reporters" title="Verified accounts that have reported this profile">
-                    <span className={`font-semibold ${isFlagged ? "text-red-600" : "text-slate-500"}`}>{verifiedReporters.toLocaleString()}</span> Verified Reporters
-                  </Link>
-                )}
+                {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
+                    on line 1. Signed-in + scored viewers only (needs my pubkey as the
+                    path origin); hidden on your own profile. */}
+                {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
+                  localStorage.getItem("brainstorm_calc_completed") === "true" && (
+                    <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                  )}
               </div>
+              {(verifiedMuters != null || allMuters != null || verifiedReporters != null || allReporters != null) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+                  {(verifiedMuters != null || allMuters != null) && (
+                    <Stat
+                      verified={verifiedMuters}
+                      all={allMuters}
+                      verifiedLabel="Verified Muters"
+                      allLabel="All Muters"
+                      href={`/p/${rawId}/muters`}
+                      lens={statLens}
+                      testId="share-stat-muters"
+                    />
+                  )}
+                  {(verifiedReporters != null || allReporters != null) && (
+                    <Stat
+                      verified={verifiedReporters}
+                      all={allReporters}
+                      verifiedLabel="Verified Reporters"
+                      allLabel="All Reporters"
+                      href={`/p/${rawId}/reporters`}
+                      lens={statLens}
+                      danger={isFlagged}
+                      testId="share-stat-reporters"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+            {(verifiedFollowers != null || allFollowers != null) && (
+              <StatLensToggle value={statLens} onChange={setStatLens} />
             )}
           </div>
+          {/* end stats */}
 
-          {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style).
-              Mobile: inline here. Desktop: moved into the right rail under the WoT
-              card (a coherent "trust + who vouches for them" column). */}
+          {/* Social proof — most-trusted accounts who follow them (LinkedIn/FB style),
+              inline under the stats so it reads as a "who vouches for them" line
+              rather than floating in a side rail. */}
           {!isHidden("followedBy") && (
-            <div className="md:hidden">
+            <div className="mt-3">
               <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />
             </div>
           )}
@@ -947,39 +1038,6 @@ export default function SharePage() {
             </p>
           )}
 
-          {/* Identity / contact — clean borderless inline row (LinkedIn-style).
-              Sharing lives in the header Share button + the Open-in-app section. */}
-          {(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities"))) && (
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-              {profile.website && (
-                <a
-                  href={normalizeUrl(profile.website)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-medium text-[#3730a3] hover:underline"
-                  data-testid="share-website"
-                >
-                  <Globe className="h-3.5 w-3.5" /> {profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                </a>
-              )}
-              {profile.lud16 && (
-                <button
-                  type="button"
-                  onClick={() => setZapOpen(true)}
-                  className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 transition-colors"
-                  title="Send a zap"
-                  data-testid="share-lightning"
-                >
-                  <FlashIcon className="h-3.5 w-3.5 text-yellow-400" /> {profile.lud16}
-                </button>
-              )}
-              {identities.length > 0 && !isHidden("identities") && (
-                <span className="inline-flex items-center gap-2.5" data-testid="share-identities">
-                  <ExternalIdentities identities={identities} />
-                </span>
-              )}
-            </div>
-          )}
 
           {/* Logged-out → the Join conversion panel (leads with the personal
               connection). Logged-in relationship actions live under the WoT card
@@ -1022,17 +1080,6 @@ export default function SharePage() {
               <Wifi className="h-3.5 w-3.5" /> Fetched live from relays — not yet indexed by Brainstorm.
             </p>
           )}
-            </div>
-            {/* Web of Trust — desktop sidebar (mobile shows it inline above).
-                Logged-in actions live inside the card (its footer); social proof
-                sits below it so the rail reads as one "trust signals" column. */}
-            <div className="hidden md:block md:w-64 md:shrink-0 mt-1">
-              {wotCard}
-              {!isHidden("followedBy") && topFollowers.length > 0 && (
-                <div className="mt-4 px-1">
-                  <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} stacked />
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1252,6 +1299,11 @@ export default function SharePage() {
         </>
       )}
 
+      <TrustScoreModal
+        open={scoreModalOpen}
+        onOpenChange={setScoreModalOpen}
+        scores={{ personalized: score01, global: houseScore01 }}
+      />
       <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       {profile.lud16 && (
         <ZapModal open={zapOpen} onOpenChange={setZapOpen} recipientPubkey={pubkey} lud16={profile.lud16} displayName={displayName} picture={profile.picture} />
