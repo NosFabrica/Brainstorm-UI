@@ -41,7 +41,7 @@ import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
-import { getCurrentUser } from "@/services/nostr";
+import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
 
 function ScrollToTop() {
@@ -133,6 +133,14 @@ function Router() {
 }
 
 function App() {
+  // Warm up the in-memory secret key on boot so the encrypted-at-rest key is
+  // decrypted (silently, no password) before the first signing action — keeps the
+  // synchronous reveal/backup paths correct. Only for signed-in users (the decrypt
+  // is bound to the account pubkey); anonymous visitors skip the IndexedDB open.
+  useEffect(() => {
+    if (getCurrentUser()) void ensureUnlocked();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>

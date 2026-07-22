@@ -2,6 +2,7 @@ import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } fr
 import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
+import { isVaultSupported, encryptSecret, decryptSecret } from "@/lib/skVault";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -64,10 +65,16 @@ declare global {
   }
 }
 
+// Ephemeral session copy for non-persistent logins (nsec paste without "remember
+// me", extension fallback) — plaintext, cleared when the tab closes.
 const SK_STORAGE_KEY = "brainstorm_sk_hex";
-// Persistent variant for self-custodial accounts created in-app, so they "stay
-// signed in" across sessions (extension/nsec flows keep using the session copy).
+// LEGACY plaintext persistent key. Read-only now (for one-time migration); we no
+// longer write it except in the rare vault-unsupported fallback. See SK_ENC_KEY.
 const SK_PERSIST_KEY = "brainstorm_sk_hex_persist";
+// Persistent account key, ENCRYPTED at rest (skVault device-key wrap). Holds a
+// versioned envelope, never the raw key. This is the default for created/restored
+// accounts that "stay signed in".
+const SK_ENC_KEY = "brainstorm_sk_enc";
 
 export type LoginErrorCode =
   | "NO_EXTENSION"
@@ -86,60 +93,202 @@ export class LoginError extends Error {
   }
 }
 
+// The decrypted persistent key lives ONLY here — a module-level variable, never
+// written back to any storage API. It's populated by `storeSecretKey` (fresh
+// login/create) or by `ensureUnlocked` (silent async decrypt on cold boot).
+let memSk: Uint8Array | null = null;
+let unlockPromise: Promise<void> | null = null;
+
+/**
+ * Synchronous read of the raw secret key for signing. Returns the in-memory copy
+ * if present; otherwise reconstructs it from the two PLAINTEXT sources that are
+ * safe to read synchronously — the ephemeral session key and the legacy plaintext
+ * persist key. The ENCRYPTED persistent key (`SK_ENC_KEY`) cannot be read here
+ * (decryption is async) — call `await ensureUnlocked()` first; every real sign
+ * path does, via `signEventLocally`.
+ */
 function getStoredSecretKey(): Uint8Array | null {
+  if (memSk) return memSk;
   try {
     const hex =
       sessionStorage.getItem(SK_STORAGE_KEY) || localStorage.getItem(SK_PERSIST_KEY);
-    if (!hex) return null;
-    return hexToBytes(hex);
+    if (hex) {
+      memSk = hexToBytes(hex);
+      return memSk;
+    }
   } catch {
-    return null;
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * Populate `memSk` from persisted storage, decrypting the encrypted envelope if
+ * needed. Idempotent + memoized so concurrent callers share one in-flight decrypt.
+ * Silent (no password, no prompt). Also performs the one-time legacy→encrypted
+ * migration. Safe to call eagerly on boot and defensively before any local sign.
+ */
+export async function ensureUnlocked(): Promise<void> {
+  if (memSk) return;
+  if (unlockPromise) {
+    await unlockPromise;
+    return;
+  }
+  unlockPromise = doUnlock();
+  try {
+    await unlockPromise;
+  } finally {
+    unlockPromise = null;
   }
 }
 
-function storeSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): void {
+async function doUnlock(): Promise<void> {
+  if (memSk) return;
+
+  let sess: string | null = null;
+  let encEnvelope: string | null = null;
+  let legacy: string | null = null;
   try {
-    const hex = bytesToHex(sk);
-    if (opts?.persistent) {
-      // Created-in-app account: persist so the user stays signed in. Clear any
-      // stale session copy so the two stores never disagree.
-      localStorage.setItem(SK_PERSIST_KEY, hex);
-      sessionStorage.removeItem(SK_STORAGE_KEY);
-    } else {
-      sessionStorage.setItem(SK_STORAGE_KEY, hex);
-      localStorage.removeItem(SK_PERSIST_KEY);
+    sess = sessionStorage.getItem(SK_STORAGE_KEY);
+    encEnvelope = localStorage.getItem(SK_ENC_KEY);
+    legacy = localStorage.getItem(SK_PERSIST_KEY);
+  } catch {
+    return;
+  }
+
+  // Ephemeral session key (non-persistent login) — plaintext, never migrated.
+  if (sess) {
+    try {
+      memSk = hexToBytes(sess);
+    } catch {
+      /* ignore */
     }
-  } catch {}
+    return;
+  }
+
+  // Encrypted persistent key → decrypt with the device key, bound to this
+  // account's pubkey (AAD). A foreign/corrupt envelope throws → treated as "no
+  // key" (the user re-authenticates).
+  if (encEnvelope) {
+    const pubkey = getCurrentUser()?.pubkey;
+    if (pubkey && isVaultSupported()) {
+      try {
+        memSk = await decryptSecret(encEnvelope, pubkey);
+      } catch {
+        memSk = null;
+      }
+    }
+    return;
+  }
+
+  // Legacy plaintext persist → migrate in place: hold in memory, re-encrypt, and
+  // delete the plaintext. One-time, transparent, no user action.
+  if (legacy) {
+    try {
+      memSk = hexToBytes(legacy);
+    } catch {
+      return;
+    }
+    if (isVaultSupported()) {
+      try {
+        const envelope = await encryptSecret(memSk, getPublicKey(memSk));
+        localStorage.setItem(SK_ENC_KEY, envelope);
+        localStorage.removeItem(SK_PERSIST_KEY);
+      } catch {
+        /* leave the plaintext key as-is (vault-unsupported fallback) */
+      }
+    }
+  }
+}
+
+/**
+ * Persist (or session-scope) a freshly-obtained secret key and hold it in memory.
+ * Persistent keys are ENCRYPTED at rest via the device-key wrap; only if the
+ * vault is unavailable do we fall back to plaintext localStorage (parity with the
+ * old behavior — never orphan a brand-new account). Non-persistent keys stay in
+ * plaintext sessionStorage (ephemeral, cleared on tab close).
+ */
+async function storeSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): Promise<void> {
+  memSk = sk;
+  try {
+    if (opts?.persistent) {
+      sessionStorage.removeItem(SK_STORAGE_KEY);
+      if (isVaultSupported()) {
+        try {
+          const envelope = await encryptSecret(sk, getPublicKey(sk));
+          localStorage.setItem(SK_ENC_KEY, envelope);
+          localStorage.removeItem(SK_PERSIST_KEY);
+          return;
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[skVault] at-rest encryption failed — falling back to plaintext persist",
+            err,
+          );
+        }
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn("[skVault] at-rest encryption unavailable — falling back to plaintext persist");
+      }
+      // Fallback: plaintext persist (no worse than the prior behavior).
+      localStorage.setItem(SK_PERSIST_KEY, bytesToHex(sk));
+      localStorage.removeItem(SK_ENC_KEY);
+    } else {
+      sessionStorage.setItem(SK_STORAGE_KEY, bytesToHex(sk));
+      localStorage.removeItem(SK_PERSIST_KEY);
+      localStorage.removeItem(SK_ENC_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function clearSecretKey(): void {
+  memSk = null;
+  unlockPromise = null;
   try {
     sessionStorage.removeItem(SK_STORAGE_KEY);
     localStorage.removeItem(SK_PERSIST_KEY);
+    localStorage.removeItem(SK_ENC_KEY);
   } catch {}
 }
 
+/** True when a secret key is held or persisted in any form (memory / session /
+ * encrypted / legacy plaintext). A presence check — does NOT decrypt. */
+function hasAnyStoredKey(): boolean {
+  if (memSk) return true;
+  try {
+    return !!(
+      sessionStorage.getItem(SK_STORAGE_KEY) ||
+      localStorage.getItem(SK_ENC_KEY) ||
+      localStorage.getItem(SK_PERSIST_KEY)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function hasLocalSecretKey(): boolean {
-  return getStoredSecretKey() !== null;
+  return hasAnyStoredKey();
 }
 
 /** True when an in-app–created account's key is persisted locally ("stay signed in"). */
 export function hasPersistentKey(): boolean {
   try {
-    return !!localStorage.getItem(SK_PERSIST_KEY);
+    return !!(localStorage.getItem(SK_ENC_KEY) || localStorage.getItem(SK_PERSIST_KEY));
   } catch {
     return false;
   }
 }
 
 /**
- * True when we hold the raw secret key in this session (created/restored account
- * in localStorage, OR an nsec pasted into sessionStorage) — i.e. when we can back
+ * True when we hold the raw secret key for this account (created/restored account
+ * persisted locally, OR an nsec pasted into the session) — i.e. when we can back
  * it up or reveal it. False for extension logins, where the key never leaves the
- * signer.
+ * signer. Presence check only; the actual bytes come via `ensureUnlocked`.
  */
 export function hasStoredSecretKey(): boolean {
-  return !!getStoredSecretKey();
+  return hasAnyStoredKey();
 }
 
 function signWithStoredKey(event: Record<string, unknown>): Record<string, unknown> {
@@ -164,12 +313,14 @@ export async function signEventLocally(
       throw new Error("Extension returned an unsigned event");
     } catch (err) {
       if (hasLocalSecretKey()) {
+        await ensureUnlocked();
         return signWithStoredKey(event);
       }
       throw err;
     }
   }
   if (hasLocalSecretKey()) {
+    await ensureUnlocked();
     return signWithStoredKey(event);
   }
   throw new Error("No signer available. Please sign in again.");
@@ -1255,7 +1406,7 @@ async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: b
 
   const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
 
-  storeSecretKey(sk, opts);
+  await storeSecretKey(sk, opts);
   try {
     const user = await completeLogin(pubkey, signedEvent);
     // The user supplied their own nsec → they demonstrably hold the key, so the
@@ -1599,7 +1750,7 @@ export async function createAccount(
   };
   const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
 
-  storeSecretKey(sk, { persistent: true });
+  await storeSecretKey(sk, { persistent: true });
   let user: NostrUser;
   try {
     user = await completeLogin(pubkey, signedEvent);
