@@ -772,7 +772,7 @@ export default function Landing() {
                           type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50 dark:bg-indigo-500/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => goToProfile(s)}
@@ -789,14 +789,14 @@ export default function Landing() {
                               {getDisplayLabel(s)}
                             </p>
                             {handle && (
-                              <p className="text-[11px] text-indigo-600 truncate flex items-center gap-0.5">
+                              <p className="text-[11px] text-indigo-600 dark:text-indigo-400 truncate flex items-center gap-0.5">
                                 <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
                                 {handle}
                               </p>
                             )}
                           </div>
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/25 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
                               <BrainLogo size={10} className="shrink-0" />
                               {s.wotRank}
                             </span>
@@ -985,7 +985,7 @@ export default function Landing() {
                           </span>
                         </div>
                         {result.nip05 && (
-                          <p className="text-[10px] sm:text-[11px] text-indigo-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
+                          <p className="text-[10px] sm:text-[11px] text-indigo-600 dark:text-indigo-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
                             <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
                             {result.nip05.replace(/^_@/, "")}
                           </p>
@@ -1017,7 +1017,7 @@ export default function Landing() {
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                           {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/25" data-testid={`badge-rank-${idx}`}>
                               <BrainLogo size={10} className="shrink-0" />
                               {result.wotRank}
                             </span>
