@@ -85,7 +85,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-72 p-3 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
+        className="w-60 p-3 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
         data-testid="panel-apps-launcher"
       >
         <p
@@ -94,7 +94,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
         >
           Brainstorm apps
         </p>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1.5">
           {tiles.map((tile) => {
             const Icon = tile.icon;
             const isActive = active === tile.key;
