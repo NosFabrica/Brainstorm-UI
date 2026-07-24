@@ -15,8 +15,9 @@ import {
   UserRound,
   Radar,
   Copy,
+  ShieldCheck,
 } from "lucide-react";
-import { GlossBackground } from "@/components/GlossBackground";
+import { HomeHeroBackground } from "@/components/HomeHeroBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
@@ -587,7 +588,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
-      <GlossBackground />
+      <HomeHeroBackground dimmed={lifted} />
 
       {user ? (
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
@@ -615,11 +616,14 @@ export default function Landing() {
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8">
-            <h1 className="mb-1.5" data-testid="text-home-title">
+            <h1 className="mb-2.5" data-testid="text-home-title">
               <span className="sr-only">Brainstorm</span>
-              <Wordmark height={44} className="mx-auto" />
+              {/* Website hero → wordmark. Gradient on the light hero, white on the
+                  dark hero (best contrast on the photograph). */}
+              <Wordmark height={52} className="mx-auto dark:hidden" />
+              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
             </h1>
-            <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg" data-testid="text-home-subtitle">
+            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium drop-shadow-sm" data-testid="text-home-subtitle">
               Search through the people you trust.
             </p>
           </div>
@@ -890,6 +894,26 @@ export default function Landing() {
             </div>
           )}
         </div>
+
+        {/* The three brand value props (guidelines homepage) — shown in the empty
+            hero state, hidden once a search is in progress. */}
+        {!lifted && (
+          <div className="w-full max-w-4xl mx-auto mt-12 sm:mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 px-2 text-left" data-testid="home-value-props" style={{ animation: "homeFadeUp 0.6s ease-out" }}>
+            {[
+              { Icon: Users, title: "Web of trust", body: "Brainstorm surfaces people, ideas, and perspectives through connections you already trust — not popularity alone." },
+              { Icon: ShieldCheck, title: "Without noise", body: "No ads, no tracking, and no paid placement. Just results shaped by relevance, context, and your own point of view." },
+              { Icon: Globe, title: "Open and free", body: "Built on open protocols and designed for everyone. Your trust network stays portable, transparent, and under your control." },
+            ].map(({ Icon, title, body }) => (
+              <div key={title}>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-brand-accent" />
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+                </div>
+                <p className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <PostSignupCard />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
