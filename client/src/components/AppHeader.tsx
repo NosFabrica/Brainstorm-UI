@@ -23,6 +23,7 @@ import {
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
 import { BrainLogo } from "@/components/BrainLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
@@ -245,6 +246,11 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   <SettingsIcon className="mr-2 h-4 w-4" />
                   <span>Settings</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-indigo-100 dark:bg-slate-800" />
+                <div className="px-2 py-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                  <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Appearance</p>
+                  <ThemeToggle size="sm" />
+                </div>
                 {isAdmin && (
                   <DropdownMenuItem
                     className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800"

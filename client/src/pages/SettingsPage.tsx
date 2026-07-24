@@ -52,6 +52,7 @@ import {
   Copy,
   User,
   ShieldCheck,
+  Sun,
   Download,
   ChevronDown,
   Key,
@@ -59,6 +60,7 @@ import {
   IdCard,
   SlidersHorizontal,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -415,6 +417,26 @@ export default function SettingsPage() {
       <ProfileEditForm
         onSaved={() => toast({ title: "Profile saved", description: "Your profile has been published.", duration: 3000 })}
       />
+    </div>
+  );
+
+  const appearanceCard = (
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="card-settings-appearance">
+      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
+            <Sun className="h-4 w-4 text-brand-deep" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-appearance-title">Appearance</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Theme for this device</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-5 flex items-center justify-between gap-4">
+        <p className="text-sm text-slate-600 dark:text-slate-300">Choose Light, Dark, or follow your system.</p>
+        <ThemeToggle />
+      </div>
     </div>
   );
 
@@ -1501,6 +1523,7 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-profile">
               {profileCard}
               {personalizationCard}
+              {appearanceCard}
               {accountCard}
             </div>
           )}

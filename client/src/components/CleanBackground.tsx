@@ -12,7 +12,7 @@ export function CleanBackground() {
       <div className="absolute -top-[35%] left-1/2 -translate-x-1/2 w-[140%] h-[80%] rounded-[50%] bg-[radial-gradient(ellipse_at_center,_rgb(var(--brand-primary)/0.12),_transparent_70%)] blur-3xl" />
 
       {/* Quiet color depth at the lower corners */}
-      <div className="absolute -bottom-[25%] -left-[15%] w-[60%] h-[60%] rounded-full bg-indigo-200/25 blur-[150px]" />
+      <div className="absolute -bottom-[25%] -left-[15%] w-[60%] h-[60%] rounded-full bg-indigo-200/25 dark:bg-brand-primary/15 blur-[150px]" />
       <div className="absolute top-[15%] -right-[20%] w-[55%] h-[55%] rounded-full bg-brand-accent/20 blur-[150px]" />
 
       {/* Gentle bottom fade to keep content grounded */}
