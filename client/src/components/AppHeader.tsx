@@ -23,6 +23,7 @@ import {
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -140,17 +141,13 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
             ) : (
               <button
                 type="button"
-                className="flex items-center gap-2 min-w-0"
+                className="flex items-center min-w-0"
                 onClick={() => navigate("/")}
                 data-testid="button-app-brand"
               >
-                <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
-                <span
-                  className="font-brand text-lg sm:text-xl font-bold tracking-tight text-white"
-                  data-testid="text-logo"
-                >
-                  Brainstorm
-                </span>
+                {/* Handwritten wordmark — the default brand signature. On the
+                    dark Ink header the gradient reads in both light and dark. */}
+                <Wordmark height={24} className="shrink-0" />
               </button>
             )}
           </div>

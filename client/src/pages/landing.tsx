@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -614,15 +615,10 @@ export default function Landing() {
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2 mb-1.5">
-              <BrainLogo size={32} clickable className="text-indigo-500" />
-              <h1
-                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight text-indigo-500"
-                data-testid="text-home-title"
-              >
-                Brainstorm
-              </h1>
-            </div>
+            <h1 className="mb-1.5" data-testid="text-home-title">
+              <span className="sr-only">Brainstorm</span>
+              <Wordmark height={44} className="mx-auto" />
+            </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base" data-testid="text-home-subtitle">
               Search across millions of profiles
             </p>

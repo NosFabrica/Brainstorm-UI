@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Link } from "wouter";
 import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
 
 /**
@@ -25,9 +26,8 @@ export function PublicPageHeader({
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
-        <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="public-brand">
-          <BrainLogo size={26} className="text-indigo-500" />
-          <span className="hidden font-brand text-lg font-bold tracking-tight text-indigo-500 sm:inline">Brainstorm</span>
+        <Link href="/" className="flex shrink-0 items-center" data-testid="public-brand">
+          <Wordmark height={22} />
         </Link>
 
         <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />
