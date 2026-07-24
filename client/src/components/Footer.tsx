@@ -7,18 +7,16 @@ export function Footer() {
 
   return (
     <motion.footer 
-      className="relative z-20 w-screen mt-auto bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-transparent"
+      className="relative z-20 w-screen mt-auto bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/60"
       data-footer-dark="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.6 }}
       style={{ marginLeft: 'calc(50% - 50vw)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
     >
-      <div className="w-full px-6 pb-6 pt-4 sm:px-8">
+      <div className="w-full px-6 pb-6 pt-6 sm:px-8">
         {/* Desktop Footer */}
         <div className="hidden sm:block">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700/20 to-transparent mb-5" />
-          
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-5 text-xs text-slate-500">
               <motion.a 
@@ -160,8 +158,6 @@ export function Footer() {
         
         {/* Mobile Footer - Clean stacked layout */}
         <div className="sm:hidden">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700/20 to-transparent mb-6" />
-          
           {/* What is Web of Trust - Featured at top */}
           <motion.button 
             className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-indigo-500/10 via-brand-accent/10 to-brand-accent/10 border border-indigo-500/30 rounded-xl flex items-center justify-center gap-3 group"
