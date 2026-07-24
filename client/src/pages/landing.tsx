@@ -830,7 +830,7 @@ export default function Landing() {
               {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill (guidelines homepage). */}
               <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
-                  <Globe className="h-3 w-3" /> Default view
+                  <img src="/brand/symbol-white.svg" alt="" aria-hidden="true" className="h-3 w-auto select-none" /> Brainstorm view
                 </span>
                 <button
                   type="button"
@@ -867,7 +867,12 @@ export default function Landing() {
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  <Globe className="h-3 w-3" /> Default view
+                  {effectivePov === "nosfabrica" ? (
+                    <img src="/brand/symbol-white.svg" alt="" aria-hidden="true" className="h-3 w-auto select-none" />
+                  ) : (
+                    <BrainLogo size={12} className="shrink-0" />
+                  )}{" "}
+                  Brainstorm view
                 </button>
                 <button
                   type="button"
