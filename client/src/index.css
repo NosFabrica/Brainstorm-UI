@@ -173,6 +173,9 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Design System v1.0: Medium (500) is the default text weight; hierarchy
+       comes from scale, emphasis from weight (explicit font-semibold/bold). */
+    font-weight: 500;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
