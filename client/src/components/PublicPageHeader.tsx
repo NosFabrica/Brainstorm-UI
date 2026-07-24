@@ -2,19 +2,18 @@ import { type ReactNode } from "react";
 import { Link } from "wouter";
 import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
-import { Wordmark } from "@/components/Wordmark";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
+import { AppsLauncher } from "@/components/AppsLauncher";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { logout } from "@/services/nostr";
 
 /**
- * Shared sticky header for the public / shared-link pages (/p, /e, /a, /t).
- *
- * Layout mirrors Google/LinkedIn: wordmark (left) → search (left-center,
- * flex-grow with a max-width cap) → page-specific `actions` (right). On desktop
- * the search is a live typeahead (HeaderSearchBox) — pick a suggestion to jump
- * to a profile, or submit free text to the home results surface (`/?q=`; landing
- * hydrates from it). On mobile the field collapses to a magnifier that jumps to
- * the home search (full box + typeahead + keyboard), so the tight headers stay
- * clean.
+ * Shared header for the public / shared-link pages (/p, /e, /a, /t). Uniform
+ * with the app + home headers: transparent (frosted-on-scroll), just the B mark
+ * on the left, a live search typeahead in the middle, and — when signed in —
+ * the apps launcher + account menu on the right (so the logged-in user gets the
+ * same avatar + waffle on every page). Signed out, only the page `actions` show.
  */
 export function PublicPageHeader({
   actions,
@@ -23,12 +22,17 @@ export function PublicPageHeader({
   actions?: ReactNode;
   maxWidthClass?: string;
 }) {
+  const [user, setUser] = useCurrentUser();
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const handleLogout = () => { logout(); setUser(null); };
+
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 backdrop-blur-md">
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
-        <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="public-brand">
-          <BrainLogo size={24} />
-          <span className="hidden text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:inline">Brainstorm</span>
+        <Link href="/" className="flex shrink-0 items-center" aria-label="Brainstorm home" data-testid="public-brand">
+          <BrainLogo size={26} />
         </Link>
 
         <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />
@@ -43,6 +47,14 @@ export function PublicPageHeader({
             <Search className="h-5 w-5" />
           </Link>
           {actions}
+          {user && (
+            <>
+              <div className="hidden sm:flex items-center">
+                <AppsLauncher user={user} calcDone={calcDone} variant="light" />
+              </div>
+              <AccountMenu user={user} onLogout={handleLogout} />
+            </>
+          )}
         </div>
       </div>
     </header>

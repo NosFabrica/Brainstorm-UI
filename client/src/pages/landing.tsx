@@ -21,6 +21,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AppsLauncher } from "@/components/AppsLauncher";
+import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
@@ -611,18 +612,7 @@ export default function Landing() {
           {user ? (
             <>
               <AppsLauncher user={user} calcDone={calcDone} active="home" variant="light" />
-              <button
-                type="button"
-                onClick={() => setLocation("/dashboard")}
-                aria-label="Your dashboard"
-                className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-                data-testid="home-avatar"
-              >
-                <Avatar className="h-9 w-9 border border-white/40 shadow-sm">
-                  {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
-                </Avatar>
-              </button>
+              <AccountMenu user={user} onLogout={handleLogout} active="home" />
             </>
           ) : (
             <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />

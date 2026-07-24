@@ -2,12 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import {
-  LayoutGrid,
-  Search,
-  Home,
-  Users,
-} from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 
 import { FEATURES } from "@/config/featureFlags";
@@ -53,18 +48,9 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
   const [open, setOpen] = useState(false);
   const isLight = variant === "light";
 
+  // The Brainstorm apps grid holds the product family only. The interface
+  // destinations (Search / Dashboard / Network) live in the account menu.
   const tiles: AppTile[] = [
-    { key: "dashboard", label: "Dashboard", path: "/dashboard", icon: Home },
-    { key: "home", label: "Search", path: "/", icon: Search, tone: "special" },
-    {
-      key: "network",
-      label: "Network",
-      path: "/network",
-      icon: Users,
-      // Always accessible — the NetworkPage shows its own "being calculated"
-      // screen (with Back to Dashboard) until scores are ready, so there's no
-      // need to gate the tile (and gating it disagreed across surfaces).
-    },
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
       : []),
