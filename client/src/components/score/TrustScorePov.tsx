@@ -95,7 +95,7 @@ export function TrustScoreModal({
     const base = "w-full rounded-xl border p-3 text-left transition-colors";
     const cls = active
       ? target === "personalized"
-        ? `${base} border-indigo-300 bg-indigo-50 ring-1 ring-indigo-200`
+        ? `${base} border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-200 dark:ring-indigo-500/25`
         : `${base} border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800`
       : `${base} border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800`;
     return { cls, active, locked };
@@ -147,7 +147,7 @@ export function TrustScoreModal({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Personalized — for you
-                  {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Current view</span>}
+                  {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Current view</span>}
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Seen through <span className="font-medium">your own</span> network — the people you trust, and who they trust.
@@ -184,7 +184,7 @@ export function TrustScoreModal({
         </div>
 
         {unsupportedNote && (
-          <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 leading-relaxed">
+          <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {unsupportedNote}
           </p>
         )}
