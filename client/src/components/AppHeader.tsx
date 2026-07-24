@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
 import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
@@ -53,24 +53,20 @@ export function AppHeader({ user, onLogout, calcDone = false, active, actions }:
               </Button>
             </div>
 
-            {/* Brand lockup: B mark + wordmark. App-chrome pages (dashboard,
-                network, settings, FAQ, admin, /profile) have no header search
-                bar, so there's room to anchor the page with the full name. The
-                search-bar headers (home, /p share pages) keep the B mark only. */}
+            {/* Handwritten wordmark — the full brand signature (same as the
+                homepage hero). App-chrome pages (dashboard, network, settings,
+                FAQ, admin, /profile) have no header search bar, so the wordmark
+                anchors them; the search-bar headers (home, /p share pages) keep
+                the compact B mark. Gradient reads on light, white on dark. */}
             <button
               type="button"
-              className="flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+              className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
               onClick={() => navigate("/")}
               aria-label="Brainstorm home"
               data-testid="button-app-brand"
             >
-              <BrainLogo size={28} className="shrink-0" />
-              <span
-                className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900 dark:text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Brainstorm
-              </span>
+              <Wordmark height={26} className="shrink-0 dark:hidden" />
+              <Wordmark height={26} variant="white" className="hidden shrink-0 dark:block" />
             </button>
           </div>
 
