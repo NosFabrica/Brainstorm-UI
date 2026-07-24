@@ -7,7 +7,7 @@ export function Footer() {
 
   return (
     <motion.footer 
-      className="relative z-20 w-screen mt-auto bg-slate-950"
+      className="relative z-20 w-screen mt-auto bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-transparent"
       data-footer-dark="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -17,7 +17,7 @@ export function Footer() {
       <div className="w-full px-6 pb-6 pt-4 sm:px-8">
         {/* Desktop Footer */}
         <div className="hidden sm:block">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/20 to-transparent mb-5" />
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700/20 to-transparent mb-5" />
           
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-5 text-xs text-slate-500">
@@ -37,7 +37,7 @@ export function Footer() {
                 />
               </motion.a>
               
-              <div className="w-px h-4 bg-slate-700/50" />
+              <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/50" />
               
               <motion.button 
                 onClick={() => setLocation('/nostr')}
@@ -47,13 +47,13 @@ export function Footer() {
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
               >
                 <img src="/nostr-ostrich.gif" alt="Nostr" className="h-6 w-auto group-hover:h-8 transition-all duration-200" />
-                <span className="text-slate-400 group-hover:text-brand-accent group-hover:font-medium transition-all duration-200">Built on Nostr</span>
+                <span className="text-slate-600 dark:text-slate-400 group-hover:text-brand-accent group-hover:font-medium transition-all duration-200">Built on Nostr</span>
               </motion.button>
               
-              <div className="w-px h-4 bg-slate-700/50" />
+              <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/50" />
               
               <motion.span 
-                className="text-[10px] text-slate-600 font-mono cursor-default hover:text-slate-300 transition-colors duration-300"
+                className="text-[10px] text-slate-500 dark:text-slate-600 font-mono cursor-default hover:text-slate-700 dark:hover:text-slate-300 transition-colors duration-300"
                 whileHover={{ textShadow: ["0 0 4px rgba(255,255,255,0.3)", "0 0 8px rgba(255,255,255,0.5)", "0 0 4px rgba(255,255,255,0.3)"] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
               >v0.1.0-alpha</motion.span>
@@ -61,7 +61,7 @@ export function Footer() {
             
             <div className="flex items-center gap-4">
               <motion.div 
-                className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default hover:text-slate-300 transition-colors duration-300"
+                className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default hover:text-slate-700 dark:hover:text-slate-300 transition-colors duration-300"
                 whileHover={{ textShadow: ["0 0 4px rgba(255,255,255,0.3)", "0 0 8px rgba(255,255,255,0.5)", "0 0 4px rgba(255,255,255,0.3)"] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
               >
@@ -69,10 +69,10 @@ export function Footer() {
                 <span>Clarity in a fragmented world</span>
               </motion.div>
               
-              <div className="w-px h-4 bg-slate-700/50" />
+              <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/50" />
               
               <motion.button 
-                className="relative text-indigo-400 hover:text-white text-sm font-medium flex items-center gap-2 transition-colors group overflow-visible"
+                className="relative text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-white text-sm font-medium flex items-center gap-2 transition-colors group overflow-visible"
                 onClick={() => setLocation('/what-is-wot')}
                 data-testid="button-learn-more"
                 whileHover={{ scale: 1.05 }}
@@ -87,7 +87,7 @@ export function Footer() {
                 </motion.span>
               </motion.button>
               
-              <div className="w-px h-4 bg-slate-700/50" />
+              <div className="w-px h-4 bg-slate-300 dark:bg-slate-700/50" />
               
               <motion.a 
                 href="https://megistus.xyz/" 
@@ -151,7 +151,7 @@ export function Footer() {
                 <img 
                   src="/megistus-icon-white.png" 
                   alt="Megistus" 
-                  className="h-10 w-auto opacity-60 group-hover:opacity-100 transition-all duration-300 group-hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] group-hover:brightness-125 relative z-10"
+                  className="invert dark:invert-0 h-10 w-auto opacity-60 group-hover:opacity-100 transition-all duration-300 group-hover:drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] group-hover:brightness-125 relative z-10"
                 />
               </motion.a>
             </div>
@@ -160,7 +160,7 @@ export function Footer() {
         
         {/* Mobile Footer - Clean stacked layout */}
         <div className="sm:hidden">
-          <div className="h-px bg-gradient-to-r from-transparent via-slate-700/20 to-transparent mb-6" />
+          <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-700/20 to-transparent mb-6" />
           
           {/* What is Web of Trust - Featured at top */}
           <motion.button 
@@ -169,9 +169,9 @@ export function Footer() {
             data-testid="button-learn-more-mobile"
             whileTap={{ scale: 0.98 }}
           >
-            <Info className="h-4 w-4 text-indigo-400" />
-            <span className="text-sm font-medium text-indigo-300">What is Web of Trust?</span>
-            <ChevronRight className="h-4 w-4 text-indigo-400/60" />
+            <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">What is Web of Trust?</span>
+            <ChevronRight className="h-4 w-4 text-indigo-600/60 dark:text-indigo-400/60" />
           </motion.button>
           
           {/* Partner logos row - 3 items */}
@@ -187,19 +187,19 @@ export function Footer() {
               <img src="/nosfabrica-logo.png" alt="Nosfabrica" className="h-5 w-auto rounded" />
             </motion.a>
             
-            <div className="w-px h-5 bg-slate-700/30" />
+            <div className="w-px h-5 bg-slate-300 dark:bg-slate-700/30" />
             
             <motion.button 
               onClick={() => setLocation('/nostr')}
               data-testid="link-built-on-nostr-mobile"
-              className="flex items-center gap-1.5 opacity-50 hover:opacity-100 transition-opacity"
+              className="flex items-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity"
               whileTap={{ scale: 0.95 }}
             >
               <img src="/nostr-ostrich.gif" alt="Nostr" className="h-5 w-auto" />
-              <span className="text-[10px] text-slate-400">Nostr</span>
+              <span className="text-[10px] text-slate-600 dark:text-slate-400">Nostr</span>
             </motion.button>
             
-            <div className="w-px h-5 bg-slate-700/30" />
+            <div className="w-px h-5 bg-slate-300 dark:bg-slate-700/30" />
             
             <motion.a 
               href="https://megistus.xyz/" 
@@ -209,13 +209,13 @@ export function Footer() {
               data-testid="link-megistus-mobile"
               whileTap={{ scale: 0.95 }}
             >
-              <img src="/megistus-icon-white.png" alt="Megistus" className="h-8 w-auto" />
+              <img src="/megistus-icon-white.png" alt="Megistus" className="invert dark:invert-0 h-8 w-auto" />
             </motion.a>
           </div>
           
           {/* Version */}
           <div className="text-center mt-1">
-            <span className="text-[9px] text-slate-700 font-mono">v0.1.0-beta</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-700 font-mono">v0.1.0-beta</span>
           </div>
         </div>
       </div>

@@ -181,8 +181,10 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  body:has(footer.bg-slate-950),
-  body:has(footer[data-footer-dark="true"]) {
+  /* Match the overscroll/safe-area gap to the footer. The footer is theme-aware
+     (light in light mode, ink in dark), so only paint the body near-black in
+     dark mode — in light mode the body keeps its light default. */
+  .dark body:has(footer[data-footer-dark="true"]) {
     background: #020617;
   }
 
