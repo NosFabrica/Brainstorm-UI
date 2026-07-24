@@ -310,24 +310,24 @@ export default function AboutPage() {
 
           {/* Vendors */}
           <ComingSoonCard
-            icon={<Store className="h-5 w-5 text-sky-600" />}
-            tint="bg-sky-50"
+            icon={<Store className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
+            tint="bg-sky-50 dark:bg-sky-500/10"
             title="Brainstorm Vendors"
             desc="Find sellers and services worth your money, vouched for by people you trust."
             testId="card-family-vendors"
           />
           {/* Communities */}
           <ComingSoonCard
-            icon={<CommunitiesIcon className="h-5 w-5 text-violet-600" />}
-            tint="bg-violet-50"
+            icon={<CommunitiesIcon className="h-5 w-5 text-violet-600 dark:text-violet-400" />}
+            tint="bg-violet-50 dark:bg-violet-500/10"
             title="Brainstorm Communities"
             desc="Hang out in spaces full of people actually worth your time."
             testId="card-family-communities"
           />
           {/* Music */}
           <ComingSoonCard
-            icon={<MusicLibraryIcon className="h-5 w-5 text-fuchsia-600" />}
-            tint="bg-fuchsia-50"
+            icon={<MusicLibraryIcon className="h-5 w-5 text-fuchsia-600 dark:text-fuchsia-400" />}
+            tint="bg-fuchsia-50 dark:bg-fuchsia-500/10"
             title="Brainstorm Music"
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
