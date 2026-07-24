@@ -145,8 +145,8 @@ function LiveBadge({ updatedAt, boosting, isFetching }: { updatedAt: number; boo
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider border ${
         boosting
-          ? "bg-amber-50 text-amber-700 border-amber-200"
-          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+          : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
       }`}
       title={boosting ? "Refreshing more frequently after a recent trigger" : "Auto-refresh enabled"}
       data-testid="badge-live-updated"
@@ -297,9 +297,9 @@ function getUserHealth(status: string | null, taStatus: string | null, timesCalc
 
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
-    connected: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500", ping: "bg-emerald-400", label: "Connected" },
-    degraded: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500", ping: "bg-amber-400", label: "Degraded" },
-    disconnected: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500", ping: "", label: "Not Connected" },
+    connected: { bg: "bg-emerald-50 dark:bg-emerald-500/10", border: "border-emerald-200 dark:border-emerald-500/25", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500", ping: "bg-emerald-400", label: "Connected" },
+    degraded: { bg: "bg-amber-50 dark:bg-amber-500/10", border: "border-amber-200 dark:border-amber-500/25", text: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500", ping: "bg-amber-400", label: "Degraded" },
+    disconnected: { bg: "bg-red-50 dark:bg-red-500/10", border: "border-red-200 dark:border-red-500/25", text: "text-red-700 dark:text-red-300", dot: "bg-red-500", ping: "", label: "Not Connected" },
   }[status];
 
   return (
@@ -615,7 +615,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
@@ -633,7 +633,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           </span>
         )}
         {trend && !scope && (
-          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
+          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
             {trend.up ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             {trend.value}
           </span>
@@ -834,9 +834,9 @@ function FailureBreakdownCard({
   }
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-failure-breakdown">
+    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-red-200/50 dark:border-red-500/25 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-failure-breakdown">
       <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
-      <div className="px-5 py-4 border-b border-red-100 flex items-start justify-between gap-3">
+      <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
             <AlertTriangle className="h-4 w-4 text-red-500" /> Failure Breakdown
@@ -847,7 +847,7 @@ function FailureBreakdownCard({
               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
           </p>
         </div>
-        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{totalFailures}</span>
+        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25"}`}>{totalFailures}</span>
       </div>
       <div className="p-5">
         {isError ? (
@@ -872,13 +872,13 @@ function FailureBreakdownCard({
               const isOpen = expanded === g.key;
               const isRetrying = retrying === g.key;
               return (
-                <li key={g.key} className="rounded-lg border border-red-200 bg-white/70 dark:bg-slate-900/70 p-3" data-testid="failure-breakdown-group">
+                <li key={g.key} className="rounded-lg border border-red-200 dark:border-red-500/25 bg-white/70 dark:bg-slate-900/70 p-3" data-testid="failure-breakdown-group">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{g.stage}</span>
-                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">{g.count}×</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">{g.stage}</span>
+                        <span className="text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 px-1.5 py-0.5 rounded-full tabular-nums">{g.count}×</span>
                         <span className="text-[9px] text-slate-500 dark:text-slate-400">{users.length} user{users.length === 1 ? "" : "s"} affected</span>
                         <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
                       </div>
@@ -898,7 +898,7 @@ function FailureBreakdownCard({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-6 text-[10px] gap-1 border-red-200 text-red-700 hover:bg-red-50"
+                            className="h-6 text-[10px] gap-1 border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
                             disabled={isRetrying}
                             onClick={() => retryGroup(g.key, users)}
                             data-testid="failure-breakdown-retry-all"
@@ -938,31 +938,31 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
   });
 
   return (
-    <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
+    <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30 dark:bg-none dark:bg-slate-900/40" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
       <td colSpan={12} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
             <p className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-[9px] mb-2">Identity</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm min-w-0">
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
                 <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">Full Pubkey</p>
                 <div className="flex items-center gap-1 min-w-0">
                   <p className="font-mono text-slate-700 dark:text-slate-200 text-[9px] truncate">{pubkey}</p>
                   <CopyButton text={pubkey} />
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm min-w-0">
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
                 <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">Nostr npub</p>
                 <div className="flex items-center gap-1 min-w-0">
-                  <p className="font-mono text-indigo-600 text-[9px] truncate">{npub}</p>
+                  <p className="font-mono text-indigo-600 dark:text-indigo-400 text-[9px] truncate">{npub}</p>
                   <CopyButton text={npub} />
                 </div>
               </div>
               {taPubkey && (
-                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm min-w-0">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
                   <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">TA Pubkey</p>
                   <div className="flex items-center gap-1 min-w-0">
-                    <p className="font-mono text-emerald-600 text-[9px] truncate">{taPubkey}</p>
+                    <p className="font-mono text-emerald-600 dark:text-emerald-400 text-[9px] truncate">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
                   </div>
                 </div>
@@ -970,14 +970,14 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
             </div>
           </div>
 
-          <div className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 shadow-sm">
+          <div className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-500/25 shadow-sm dark:shadow-none">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-brand-deep" />
                 <p className="font-bold text-xs text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
                 {schedulingName && (
                   <span
-                    className="text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full"
+                    className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/25 px-1.5 py-0.5 rounded-full"
                     title="This user's current scheduling tier — how often scheduled runs recalculate them"
                   >
                     {schedulingName} schedule
@@ -995,9 +995,9 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                 <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               </div>
             ) : historyQuery.isError ? (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25">
                 <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-                <p className="text-xs text-red-600">Failed to load calculation history</p>
+                <p className="text-xs text-red-600 dark:text-red-400">Failed to load calculation history</p>
               </div>
             ) : historyQuery.data && historyQuery.data.items.length > 0 ? (
               <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1029,7 +1029,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                       const rowKey = item.private_id ?? idx;
                       return (
                         <Fragment key={rowKey}>
-                          <tr className={`border-b ${hasFail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900" : "border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40"} hover:bg-indigo-50/30 transition-colors`}>
+                          <tr className={`border-b ${hasFail ? "border-red-200 dark:border-red-500/25 bg-red-50/20 dark:bg-red-500/10" : idx % 2 === 0 ? "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900" : "border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40"} hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
                             </td>
@@ -1041,7 +1041,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                       data-testid={`tooltip-history-error-status-${rowKey}`}
                                     >{item.status}</span>
                                   </TooltipTrigger>
@@ -1051,7 +1051,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                 </Tooltip>
                               ) : (
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                  statusLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                  statusLower === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
                                   "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                 }`}>{item.status}</span>
                               )}
@@ -1065,7 +1065,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                         data-testid={`tooltip-history-error-ta-${rowKey}`}
                                       >{item.ta_status}</span>
                                     </TooltipTrigger>
@@ -1075,7 +1075,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   </Tooltip>
                                 ) : (
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    taLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                    taLower === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
                                     "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                   }`}>{item.ta_status}</span>
                                 )
@@ -1089,7 +1089,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                         data-testid={`tooltip-history-error-pub-${rowKey}`}
                                       >{item.internal_publication_status}</span>
                                     </TooltipTrigger>
@@ -1099,8 +1099,8 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   </Tooltip>
                                 ) : (
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    pubLower === "success" || pubLower === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                    pubLower === "pending" || pubLower === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                    pubLower === "success" || pubLower === "published" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                    pubLower === "pending" || pubLower === "in_progress" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/25" :
                                     "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                   }`}>{item.internal_publication_status}</span>
                                 )
@@ -1119,15 +1119,15 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                             const stage = pickFailureStage({ statusFailed, taFailed, pubFailed });
                             const stageInfo = stage ? FAILURE_STAGE_HINTS[stage] : null;
                             return (
-                              <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
+                              <tr className="border-b border-red-200 dark:border-red-500/25 bg-red-50/60 dark:bg-red-500/10" data-testid={`row-history-error-${rowKey}`}>
                                 <td colSpan={8} className="px-4 py-2">
                                   <div className="flex items-start gap-2">
                                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                     <div className="flex-1 space-y-1">
                                       {errorText ? (
-                                        <span className="block text-[11px] text-red-700 font-mono break-all">{errorText}</span>
+                                        <span className="block text-[11px] text-red-700 dark:text-red-300 font-mono break-all">{errorText}</span>
                                       ) : (
-                                        <span className="block text-[11px] text-red-600/80 italic">No error details captured — check server logs.</span>
+                                        <span className="block text-[11px] text-red-600/80 dark:text-red-400/80 italic">No error details captured — check server logs.</span>
                                       )}
                                       {stageInfo && (
                                         <p
@@ -1170,11 +1170,11 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "success" || lower === "done" || lower === "published"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
     : lower === "failure" || lower === "failed" || lower === "error"
-    ? "bg-red-50 text-red-700 border-red-200"
+    ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
     : lower === "pending" || lower === "queued" || lower === "in_progress"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
     : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
@@ -1186,11 +1186,11 @@ function TriggerSourceBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
-    ? "bg-violet-50 text-violet-700 border-violet-200"
+    ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-500/25"
     : lower === "periodic"
-    ? "bg-sky-50 text-sky-700 border-sky-200"
+    ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
     : lower === "admin"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
     : lower === "manual"
     ? "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
     : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
@@ -1306,11 +1306,11 @@ function ConfirmRetriggerButton({
       onClick={handleClick}
       disabled={state === "running"}
       className={`text-[10px] font-semibold inline-flex items-center gap-1 transition-colors ${
-        state === "confirming" ? "text-amber-700 animate-pulse" :
-        state === "done" ? "text-emerald-700" :
-        state === "error" ? "text-red-700" :
+        state === "confirming" ? "text-amber-700 dark:text-amber-300 animate-pulse" :
+        state === "done" ? "text-emerald-700 dark:text-emerald-300" :
+        state === "error" ? "text-red-700 dark:text-red-300" :
         state === "running" ? "text-slate-400 dark:text-slate-500" :
-        "text-red-700 hover:text-red-900"
+        "text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200"
       } ${className}`}
       data-testid={testId}
     >
@@ -1345,18 +1345,18 @@ function FailureDetailCard({
     try { return new Date(d.endsWith("Z") ? d : d + "Z").toLocaleString(); } catch { return d; }
   };
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50/70 p-3" data-testid={`failure-detail-${item.private_id ?? "x"}`}>
+    <div className="rounded-lg border border-red-200 dark:border-red-500/25 bg-red-50/70 dark:bg-red-500/10 p-3" data-testid={`failure-detail-${item.private_id ?? "x"}`}>
       <div className="flex items-start gap-2">
         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-red-800 uppercase tracking-wider">Failed at {stage}</span>
-            <span className="text-[10px] text-red-600/80">Request #{item.private_id}</span>
+            <span className="text-[11px] font-bold text-red-800 dark:text-red-300 uppercase tracking-wider">Failed at {stage}</span>
+            <span className="text-[10px] text-red-600/80 dark:text-red-400/80">Request #{item.private_id}</span>
           </div>
-          <p className="mt-1.5 text-[11px] text-red-900 font-mono break-words whitespace-pre-wrap leading-relaxed" data-testid={`failure-message-${item.private_id ?? "x"}`}>
+          <p className="mt-1.5 text-[11px] text-red-900 dark:text-red-300 font-mono break-words whitespace-pre-wrap leading-relaxed" data-testid={`failure-message-${item.private_id ?? "x"}`}>
             {errorText}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-red-700/80">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-red-700/80 dark:text-red-300/80">
             <span>Algorithm: <span className="font-mono">{item.algorithm || "—"}</span></span>
             <span>Created: {fmtFull(item.created_at)}</span>
             <span>Updated: {fmtFull(item.updated_at)}</span>
@@ -1364,7 +1364,7 @@ function FailureDetailCard({
           </div>
           {item.pubkey && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider">User:</span>
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider">User:</span>
               {onNavigateToUser ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); onNavigateToUser(item.pubkey!); }}
@@ -1381,16 +1381,16 @@ function FailureDetailCard({
           )}
           {item.parameters && (
             <div className="mt-2 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Parameters</span>
-              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 rounded px-2 py-1.5 break-all whitespace-pre-wrap" data-testid={`failure-parameters-${item.private_id ?? "x"}`}>
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider block mb-0.5">Parameters</span>
+              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 dark:border-red-500/20 rounded px-2 py-1.5 break-all whitespace-pre-wrap" data-testid={`failure-parameters-${item.private_id ?? "x"}`}>
                 {item.parameters}
               </p>
             </div>
           )}
           {item.count_values && (
             <div className="mt-2 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Count Values</span>
-              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 rounded px-2 py-1.5 break-all">
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider block mb-0.5">Count Values</span>
+              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 dark:border-red-500/20 rounded px-2 py-1.5 break-all">
                 {item.count_values}
               </p>
             </div>
@@ -1403,11 +1403,11 @@ function FailureDetailCard({
                   disabled={retriggerState === "running" || isInPipeline}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border ${
                     isInPipeline ? "text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 cursor-not-allowed" :
-                    retriggerState === "confirming" ? "text-amber-800 bg-amber-50 border-amber-300 animate-pulse" :
-                    retriggerState === "done" ? "text-emerald-700 bg-emerald-50 border-emerald-300" :
-                    retriggerState === "error" ? "text-red-700 bg-red-100 border-red-300" :
+                    retriggerState === "confirming" ? "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 animate-pulse" :
+                    retriggerState === "done" ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30" :
+                    retriggerState === "error" ? "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border-red-300 dark:border-red-500/30" :
                     retriggerState === "running" ? "text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" :
-                    "text-red-700 bg-white dark:bg-slate-900 border-red-300 hover:bg-red-100"
+                    "text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border-red-300 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/15"
                   }`}
                   data-testid={`failure-retrigger-${item.private_id}`}
                 >
@@ -1421,7 +1421,7 @@ function FailureDetailCard({
               {onViewDetail && (
                 <button
                   onClick={onViewDetail}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-red-700 bg-white dark:bg-slate-900 border border-red-200 hover:bg-red-50 transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                   data-testid={`failure-view-detail-${item.private_id}`}
                 >
                   <Eye className="h-3 w-3" /> View Full Request
@@ -1437,40 +1437,40 @@ function FailureDetailCard({
 
 const pipelineRowStyles = {
   active: {
-    row: "bg-blue-50/50 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60",
-    hover: "hover:bg-blue-100/40",
-    expanded: "bg-blue-50/30",
-    expandedBorder: "border-blue-200/40",
+    row: "bg-blue-50/50 dark:bg-blue-500/10 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60 dark:border-b-blue-500/20",
+    hover: "hover:bg-blue-100/40 dark:hover:bg-blue-500/15",
+    expanded: "bg-blue-50/30 dark:bg-blue-500/5",
+    expandedBorder: "border-blue-200/40 dark:border-blue-500/25",
     label: "PROCESSING",
-    labelClass: "bg-blue-500/10 text-blue-700 border-blue-300/50",
+    labelClass: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-300/50 dark:border-blue-500/30",
     dot: "bg-blue-500",
     dotPulse: "bg-blue-400",
   },
   waiting: {
-    row: "bg-amber-50/40 border-l-[3px] border-l-amber-400 border-b border-b-amber-100/50",
-    hover: "hover:bg-amber-100/30",
-    expanded: "bg-amber-50/20",
-    expandedBorder: "border-amber-200/40",
+    row: "bg-amber-50/40 dark:bg-amber-500/10 border-l-[3px] border-l-amber-400 border-b border-b-amber-100/50 dark:border-b-amber-500/20",
+    hover: "hover:bg-amber-100/30 dark:hover:bg-amber-500/15",
+    expanded: "bg-amber-50/20 dark:bg-amber-500/5",
+    expandedBorder: "border-amber-200/40 dark:border-amber-500/25",
     label: "IN QUEUE",
-    labelClass: "bg-amber-500/10 text-amber-700 border-amber-300/50",
+    labelClass: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-500/30",
     dot: "bg-amber-500",
     dotPulse: "bg-amber-400",
   },
   failed: {
-    row: "bg-red-50/30 border-l-[3px] border-l-red-300 border-b border-b-red-100/40",
-    hover: "hover:bg-red-50/50",
-    expanded: "bg-red-50/20",
-    expandedBorder: "border-red-200/40",
+    row: "bg-red-50/30 dark:bg-red-500/10 border-l-[3px] border-l-red-300 border-b border-b-red-100/40 dark:border-b-red-500/20",
+    hover: "hover:bg-red-50/50 dark:hover:bg-red-500/15",
+    expanded: "bg-red-50/20 dark:bg-red-500/5",
+    expandedBorder: "border-red-200/40 dark:border-red-500/25",
     label: "",
     labelClass: "",
     dot: "",
     dotPulse: "",
   },
   complete: {
-    row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60",
-    hover: "hover:bg-indigo-50/30",
-    expanded: "bg-indigo-50/20",
-    expandedBorder: "border-indigo-100/60",
+    row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60 dark:border-b-slate-800/60",
+    hover: "hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10",
+    expanded: "bg-indigo-50/20 dark:bg-indigo-500/5",
+    expandedBorder: "border-indigo-100/60 dark:border-indigo-500/25",
     label: "",
     labelClass: "",
     dot: "",
@@ -1521,7 +1521,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
   };
 
   const bulkOverlay = bulkStatus === "running" ? "ring-1 ring-amber-300 ring-inset" :
-    bulkStatus === "queued" ? "ring-1 ring-slate-200 ring-inset opacity-90" :
+    bulkStatus === "queued" ? "ring-1 ring-slate-200 dark:ring-slate-800 ring-inset opacity-90" :
     bulkStatus === "success" ? "ring-1 ring-emerald-300 ring-inset" :
     bulkStatus === "failed" ? "ring-1 ring-red-300 ring-inset" : "";
   return (
@@ -1541,8 +1541,8 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
               data-testid={`checkbox-activity-${item.private_id ?? idx}`}
             >
               {bulkStatus === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
-               bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
-               bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
+               bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> :
+               bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" /> :
                selected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                <Square className={`h-3.5 w-3.5 ${item.pubkey ? "text-slate-400 dark:text-slate-500" : "text-slate-200"}`} />}
             </button>
@@ -1602,7 +1602,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
         <td className="px-2 py-2">
           <TriggerSourceBadge value={item.trigger_source} />
           {schedulingName && (
-            <div className="text-[8px] font-medium text-violet-600 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
+            <div className="text-[8px] font-medium text-violet-600 dark:text-violet-400 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
           )}
         </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
@@ -1618,9 +1618,9 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             // the backend captured at run time, with 0 → "—".
             if (isInPipeline && queuePosition !== undefined) {
               if (queuePosition === "active") {
-                return <span className="font-semibold text-emerald-600">active</span>;
+                return <span className="font-semibold text-emerald-600 dark:text-emerald-400">active</span>;
               }
-              return <span className="font-semibold text-amber-600 tabular-nums">{queuePosition}</span>;
+              return <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">{queuePosition}</span>;
             }
             const depth = item.how_many_others_with_priority;
             return <span className="text-slate-600 dark:text-slate-300">{depth > 0 ? depth : "—"}</span>;
@@ -1643,9 +1643,9 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
               disabled={retriggerState === "running" || isInPipeline}
               className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                 isInPipeline ? "text-slate-300 dark:text-slate-600 cursor-not-allowed" :
-                retriggerState === "confirming" ? "text-amber-700 bg-amber-50 border border-amber-300 animate-pulse" :
-                retriggerState === "done" ? "text-emerald-600 bg-emerald-50 border border-emerald-200" :
-                retriggerState === "error" ? "text-red-500 bg-red-50 border border-red-200" :
+                retriggerState === "confirming" ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 animate-pulse" :
+                retriggerState === "done" ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25" :
+                retriggerState === "error" ? "text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" :
                 retriggerState === "running" ? "text-slate-400 dark:text-slate-500" :
                 "text-brand-deep hover:bg-brand-deep/5 hover:text-brand-accent border border-transparent hover:border-brand-accent/20"
               }`}
@@ -1668,12 +1668,12 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50 dark:border-red-500/20">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider mr-1.5">Failed at {failureStage ?? "Pipeline"}:</span>
-                <span className="text-[10px] text-red-800 font-mono break-words">{truncateError(extractErrorMessage(item), 160)}</span>
+                <span className="text-[10px] font-bold text-red-700 dark:text-red-300 uppercase tracking-wider mr-1.5">Failed at {failureStage ?? "Pipeline"}:</span>
+                <span className="text-[10px] text-red-800 dark:text-red-300 font-mono break-words">{truncateError(extractErrorMessage(item), 160)}</span>
                 <span className="ml-2 text-[9px] text-red-500/70 italic">Click for details</span>
               </div>
             </div>
@@ -2620,7 +2620,7 @@ export default function AdminPage() {
   const configuredRelays = [PRIMARY_RELAY, ...PROFILE_RELAYS];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-admin">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-admin">
       <PageBackground />
 
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
@@ -2633,7 +2633,7 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 dark:bg-slate-900/70 border border-amber-500/20 shadow-sm backdrop-blur-sm w-fit">
                   <div className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
-                  <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 uppercase">NosFabrica Admin</p>
+                  <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 dark:text-amber-300 uppercase">NosFabrica Admin</p>
                 </div>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -2649,7 +2649,7 @@ export default function AdminPage() {
 
           <div className="mb-2 flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current system state</span>
-            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600">
+            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -2832,7 +2832,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-3 border-b border-brand-accent/10 flex items-center justify-between gap-3">
                   <div>
@@ -2887,7 +2887,7 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex items-start justify-between gap-3">
@@ -2911,7 +2911,7 @@ export default function AdminPage() {
                           {trends.hasAnyActivity && (
                             <MiniSparkline data={trends.rateSeries} timestamps={trends.bucketTimestamps} color="#10b981" height={20} width={64} valueLabel="success rate" valueSuffix="%" />
                           )}
-                          <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
+                          <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
                         </div>
                       </div>
                       <div className="flex justify-end mb-1">
@@ -3006,7 +3006,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
+              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
@@ -3021,7 +3021,7 @@ export default function AdminPage() {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">TA Success Rate</span>
-                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.taAdoptionRate}%</span>
+                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}>{pipelineMetrics.taAdoptionRate}%</span>
                       </div>
                       <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                         <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%` }} />
@@ -3037,13 +3037,13 @@ export default function AdminPage() {
                     <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Throughput · {trends.cfg.windowPhrase}</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                          <p className="text-[10px] font-semibold text-emerald-600">Successful</p>
-                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
+                        <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/25">
+                          <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Successful</p>
+                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-100">
-                          <p className="text-[10px] font-semibold text-red-600">Failed</p>
-                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
+                        <div className="p-2.5 rounded-xl bg-red-50/60 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25">
+                          <p className="text-[10px] font-semibold text-red-600 dark:text-red-400">Failed</p>
+                          <p className="text-lg font-bold text-red-700 dark:text-red-300 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
                         </div>
                       </div>
                     </div>
@@ -3117,9 +3117,9 @@ export default function AdminPage() {
                 const totalFailures = failedItems.length;
                 const dataUnavailable = overviewActivityQuery.isError || (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
                 return (
-                  <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-recent-failures">
+                  <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-red-200/50 dark:border-red-500/25 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-recent-failures">
                     <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
-                    <div className="px-5 py-4 border-b border-red-100">
+                    <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
@@ -3132,7 +3132,7 @@ export default function AdminPage() {
                               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
                           </p>
                         </div>
-                        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`} data-testid="badge-failure-count">
+                        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25"}`} data-testid="badge-failure-count">
                           {totalFailures}
                         </span>
                       </div>
@@ -3169,14 +3169,14 @@ export default function AdminPage() {
                             const errMsg = extractErrorMessage(g.latest);
                             const userCount = g.pubkeys.size;
                             return (
-                              <li key={idx} className="rounded-lg border border-red-200 bg-white/70 dark:bg-slate-900/70 p-3" data-testid={`failure-group-${idx}`}>
+                              <li key={idx} className="rounded-lg border border-red-200 dark:border-red-500/25 bg-white/70 dark:bg-slate-900/70 p-3" data-testid={`failure-group-${idx}`}>
                                 <div className="flex items-start gap-2">
                                   <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{stage}</span>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">{stage}</span>
                                       {g.count > 1 && (
-                                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">
+                                        <span className="text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 px-1.5 py-0.5 rounded-full tabular-nums">
                                           {g.count}× occurrences
                                         </span>
                                       )}
@@ -3240,7 +3240,7 @@ export default function AdminPage() {
                 );
               })()}
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
@@ -3275,7 +3275,7 @@ export default function AdminPage() {
 
           {activeTab === "users" && (
             <>
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
               <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
               <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
@@ -3285,7 +3285,7 @@ export default function AdminPage() {
                     <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500">Page {(userPage + 1)} of {totalPages}</span>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">Source: /admin/users</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Source: /admin/users</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -3530,9 +3530,9 @@ export default function AdminPage() {
                         )}
 
                         {onboardError && (
-                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-200" data-testid="onboard-error">
+                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="onboard-error">
                             <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-red-700">{onboardError}</p>
+                            <p className="text-[10px] text-red-700 dark:text-red-300">{onboardError}</p>
                           </div>
                         )}
 
@@ -3562,9 +3562,9 @@ export default function AdminPage() {
                                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] border transition-all ${
                                       progressItem
                                         ? progressItem.success
-                                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                          : "bg-red-50 border-red-200 text-red-700"
-                                        : "bg-indigo-50 border-brand-accent/20 text-slate-700 dark:text-slate-200"
+                                          ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
+                                          : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
+                                        : "bg-indigo-50 dark:bg-indigo-500/10 border-brand-accent/20 text-slate-700 dark:text-slate-200"
                                     }`}
                                     data-testid={`queue-item-${profile.pubkey.slice(0, 8)}`}
                                   >
@@ -3606,10 +3606,10 @@ export default function AdminPage() {
                             )}
 
                             {onboardProgress && !onboardingAll && (
-                              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25">
                                 <div className="flex items-center gap-2">
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                                  <p className="text-[11px] font-semibold text-emerald-800">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                                     {onboardProgress.results.filter(r => r.success).length} onboarded
                                     {onboardProgress.results.filter(r => !r.success).length > 0 && `, ${onboardProgress.results.filter(r => !r.success).length} failed`}
                                   </p>
@@ -3622,9 +3622,9 @@ export default function AdminPage() {
                     )}
 
                     {lookupError && lookupMode === "lookup" && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="lookup-error">
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="lookup-error">
                         <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{lookupError}</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{lookupError}</p>
                       </div>
                     )}
                   </DialogContent>
@@ -3669,7 +3669,7 @@ export default function AdminPage() {
                       }
                     };
                     return (
-                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
+                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-500/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
                         <CheckSquare className="h-4 w-4 text-brand-deep" />
                         <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{dedupePubkeys.length} selected</span>
                         {canSelectAllMatching && (
@@ -3684,7 +3684,7 @@ export default function AdminPage() {
                           </button>
                         )}
                         {bulkRunning && (
-                          <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-users">
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium" data-testid="bulk-progress-users">
                             {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
                           </span>
                         )}
@@ -3712,8 +3712,8 @@ export default function AdminPage() {
                     );
                   })()}
                   {bulkLastResult && bulkLastResult.source === "users" && (
-                    <div className={`px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-users">
-                      {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
+                    <div className={`px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-300/50 dark:border-emerald-500/30" : "bg-red-50/60 dark:bg-red-500/10 border-red-300/50 dark:border-red-500/30"}`} data-testid="bulk-result-users">
+                      {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />}
                       <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed</span>
                       <div className="ml-auto flex items-center gap-2">
                         {bulkLastResult.failures.length > 0 && (
@@ -3738,11 +3738,11 @@ export default function AdminPage() {
                       </div>
                       {bulkLastResult.failures.length > 0 && (
                         <details className="basis-full mt-1.5">
-                          <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                          <summary className="text-[10px] font-semibold text-red-700 dark:text-red-300 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
                           <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-users">
                             {bulkLastResult.failures.map((f, i) => (
-                              <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
-                                <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                              <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 dark:text-red-300/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                <span className="text-red-600 dark:text-red-400">{f.pubkey.slice(0, 12)}…</span> — {f.error}
                               </li>
                             ))}
                           </ul>
@@ -3754,13 +3754,13 @@ export default function AdminPage() {
               )}
 
               {kpiFilter && (
-                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
+                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-indigo-50/30 dark:bg-indigo-500/10 flex items-center gap-2" data-testid="kpi-filter-badge">
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Filtered:</span>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    kpiFilter === "scored" ? "bg-emerald-50 border border-emerald-200 text-emerald-700" :
-                    kpiFilter === "sp_adopters" ? "bg-indigo-50 border border-indigo-200 text-indigo-700" :
-                    kpiFilter === "failed" ? "bg-red-50 border border-red-200 text-red-700" :
-                    "bg-amber-50 border border-amber-200 text-amber-700"
+                    kpiFilter === "scored" ? "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300" :
+                    kpiFilter === "sp_adopters" ? "bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 text-indigo-700 dark:text-indigo-300" :
+                    kpiFilter === "failed" ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300" :
+                    "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300"
                   }`}>
                     {kpiFilter === "scored" && <><UserCheck className="h-3 w-3" /> Scored Users</>}
                     {kpiFilter === "sp_adopters" && <><Shield className="h-3 w-3" /> SP Adopters</>}
@@ -3875,8 +3875,8 @@ export default function AdminPage() {
                                   return (
                                     <button type="button" className="inline-flex items-center justify-center" data-testid={`checkbox-user-${i}`} title={isSelected ? "Deselect" : "Select"}>
                                       {bs === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
-                                       bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
-                                       bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
+                                       bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> :
+                                       bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" /> :
                                        isSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                                        <Square className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />}
                                     </button>
@@ -3924,7 +3924,7 @@ export default function AdminPage() {
                               <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-ta-pubkey-${i}`}>
                                 {u.ta_pubkey ? (
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-emerald-600">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-emerald-600 dark:text-emerald-400">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
                                     <CopyButton text={u.ta_pubkey} />
                                   </div>
                                 ) : (
@@ -3935,8 +3935,8 @@ export default function AdminPage() {
                                 {u.latest_status ? (
                                   <div className="flex items-center gap-1">
                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                      u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                      isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" :
+                                      u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                      isFailedStatus(u.latest_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" :
                                       "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                     }`}>{u.latest_status}</span>
                                     {isFailedStatus(u.latest_status) && (
@@ -3953,8 +3953,8 @@ export default function AdminPage() {
                                 {u.latest_ta_status ? (
                                   <div className="flex items-center gap-1">
                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                      u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                      isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" :
+                                      u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                      isFailedStatus(u.latest_ta_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" :
                                       "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                     }`}>{u.latest_ta_status}</span>
                                     {isFailedStatus(u.latest_ta_status) && (
@@ -4006,7 +4006,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
                                     title={bulkRunning || bulkStatuses.get(u.pubkey) === "running" ? "Bulk re-trigger in progress" : undefined}
                                     onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
@@ -4033,21 +4033,21 @@ export default function AdminPage() {
                               </td>
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
-                              <tr className="bg-red-50/40 border-b border-red-100" data-testid={`row-failure-summary-${i}`}>
+                              <tr className="bg-red-50/40 dark:bg-red-500/10 border-b border-red-100 dark:border-red-500/25" data-testid={`row-failure-summary-${i}`}>
                                 <td colSpan={13} className="px-3 py-1.5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
-                                    <span className="text-[10px] text-red-800 font-medium">
+                                    <span className="text-[10px] text-red-800 dark:text-red-300 font-medium">
                                       {isFailedStatus(u.latest_status) && isFailedStatus(u.latest_ta_status)
                                         ? "GrapeRank and TA Attestation both failed on the most recent run."
                                         : isFailedStatus(u.latest_status)
                                           ? "GrapeRank calculation failed on the most recent run."
                                           : "TA Attestation failed on the most recent run."}
                                     </span>
-                                    <span className="text-[9px] text-red-600/80">Open the error history to see the full message.</span>
+                                    <span className="text-[9px] text-red-600/80 dark:text-red-400/80">Open the error history to see the full message.</span>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setExpandedRows(prev => { const next = new Set(prev); next.add(u.pubkey); return next; }); }}
-                                      className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-red-700 bg-white dark:bg-slate-900 border border-red-300 hover:bg-red-100 transition-colors"
+                                      className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border border-red-300 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/15 transition-colors"
                                       data-testid={`button-view-error-history-${i}`}
                                     >
                                       <Eye className="h-3 w-3" /> View error history
@@ -4102,8 +4102,8 @@ export default function AdminPage() {
                             data-testid={`card-checkbox-user-${i}`}
                           >
                             {bs === "running" ? <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> :
-                             bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
-                             bs === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
+                             bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> :
+                             bs === "failed" ? <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> :
                              isSelected ? <CheckSquare className="h-4 w-4 text-brand-deep" /> :
                              <Square className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
                           </button>
@@ -4132,10 +4132,10 @@ export default function AdminPage() {
 
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
                           {u.latest_status && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>{u.latest_status}</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : isFailedStatus(u.latest_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>{u.latest_status}</span>
                           )}
                           {u.latest_ta_status && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>TA {u.latest_ta_status}</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : isFailedStatus(u.latest_ta_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>TA {u.latest_ta_status}</span>
                           )}
                           <span className="text-[9px] text-slate-400 dark:text-slate-500 tabular-nums">{u.times_calculated} calcs</span>
                           <span className="text-[9px] text-slate-400 dark:text-slate-500">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
@@ -4145,7 +4145,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[11px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            className="text-[11px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-7"
                             disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
                             onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
                             data-testid={`card-button-trigger-${i}`}
@@ -4218,7 +4218,7 @@ export default function AdminPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5 text-emerald-600" />
+                    <Play className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                     Confirm GrapeRank Trigger
                   </DialogTitle>
                   <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 pt-1">
@@ -4227,9 +4227,9 @@ export default function AdminPage() {
                 </DialogHeader>
                 {triggerConfirmPubkey && (
                   <div className="pt-2 space-y-4">
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                      <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                    <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
+                      <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                         <li>A GrapeRank calculation request is sent to the Brainstorm server for this user's pubkey</li>
                         <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
                         <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
@@ -4237,9 +4237,9 @@ export default function AdminPage() {
                         <li>If a calculation is already running for this user, a duplicate request may be queued</li>
                       </ul>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
-                      <p className="text-xs text-blue-800">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
+                    <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1.5">Good to know</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Target Pubkey</p>
@@ -4279,7 +4279,7 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
@@ -4289,7 +4289,7 @@ export default function AdminPage() {
                   <SchedulingCard active={activeTab === "scheduling"} />
                 </div>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
@@ -4305,7 +4305,7 @@ export default function AdminPage() {
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
@@ -4335,8 +4335,8 @@ export default function AdminPage() {
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                         ep.loading ? "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800" :
-                        ep.ok ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
-                        "bg-red-50 text-red-600 border border-red-200"
+                        ep.ok ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/25" :
+                        "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/25"
                       }`}>
                         {ep.loading ? "Loading" : ep.ok ? "Healthy" : "Error"}
                       </span>
@@ -4345,7 +4345,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -4372,14 +4372,14 @@ export default function AdminPage() {
                       <div key={relay} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid={`relay-row-${idx}`}>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                            relayStatus === "connected" ? "bg-emerald-50 border border-emerald-200" :
-                            relayStatus === "degraded" ? "bg-amber-50 border border-amber-200" :
-                            "bg-red-50 border border-red-200"
+                            relayStatus === "connected" ? "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25" :
+                            relayStatus === "degraded" ? "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25" :
+                            "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
                           }`}>
                             {relayStatus === "disconnected" ? (
-                              <WifiOff className="h-4 w-4 text-red-600" />
+                              <WifiOff className="h-4 w-4 text-red-600 dark:text-red-400" />
                             ) : (
-                              <Wifi className={`h-4 w-4 ${relayStatus === "connected" ? "text-emerald-600" : "text-amber-600"}`} />
+                              <Wifi className={`h-4 w-4 ${relayStatus === "connected" ? "text-emerald-600" : "text-amber-600 dark:text-amber-400"}`} />
                             )}
                           </div>
                           <div>
@@ -4390,8 +4390,8 @@ export default function AdminPage() {
                         <div className="flex items-center gap-3">
                           {latencyInfo?.latencyMs !== null && latencyInfo?.latencyMs !== undefined && (
                             <span className={`text-[10px] font-mono font-bold tabular-nums ${
-                              latencyInfo.latencyMs < 500 ? "text-emerald-600" :
-                              latencyInfo.latencyMs < 2000 ? "text-amber-600" : "text-red-600"
+                              latencyInfo.latencyMs < 500 ? "text-emerald-600 dark:text-emerald-400" :
+                              latencyInfo.latencyMs < 2000 ? "text-amber-600 dark:text-amber-400" : "text-red-600"
                             }`} data-testid={`relay-latency-${idx}`}>
                               {latencyInfo.latencyMs}ms
                             </span>
@@ -4480,7 +4480,7 @@ export default function AdminPage() {
                 const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
                     <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4544,7 +4544,7 @@ export default function AdminPage() {
                           </div>
                           <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-success">
                             <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-emerald-600">{filteredSuccess.toLocaleString()}</p>
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{filteredSuccess.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort[activityTimeRange]} Succeeded</p>
                           </div>
                           <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-failed">
@@ -4607,7 +4607,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4649,14 +4649,14 @@ export default function AdminPage() {
                         const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                         const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
                         return (
-                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
+                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 dark:bg-indigo-500/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
                             <CheckSquare className="h-4 w-4 text-brand-deep" />
                             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {selectedCount} selected
                               {dedupePubkeys.length !== selectedCount && <span className="text-slate-500 dark:text-slate-400 font-normal"> ({dedupePubkeys.length} unique)</span>}
                             </span>
                             {bulkRunning && (
-                              <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-activity">
+                              <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium" data-testid="bulk-progress-activity">
                                 {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
                               </span>
                             )}
@@ -4684,8 +4684,8 @@ export default function AdminPage() {
                         );
                       })()}
                       {bulkLastResult && bulkLastResult.source === "activity" && (
-                        <div className={`mb-3 px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-activity">
-                          {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
+                        <div className={`mb-3 px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-300/50 dark:border-emerald-500/30" : "bg-red-50/60 dark:bg-red-500/10 border-red-300/50 dark:border-red-500/30"}`} data-testid="bulk-result-activity">
+                          {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />}
                           <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                             {bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed
                           </span>
@@ -4712,11 +4712,11 @@ export default function AdminPage() {
                           </div>
                           {bulkLastResult.failures.length > 0 && (
                             <details className="basis-full mt-1.5">
-                              <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                              <summary className="text-[10px] font-semibold text-red-700 dark:text-red-300 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
                               <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-activity">
                                 {bulkLastResult.failures.map((f, i) => (
-                                  <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
-                                    <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                                  <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 dark:text-red-300/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                    <span className="text-red-600 dark:text-red-400">{f.pubkey.slice(0, 12)}…</span> — {f.error}
                                   </li>
                                 ))}
                               </ul>
@@ -4861,9 +4861,9 @@ export default function AdminPage() {
                       </div>
                     )}
                     {detailError && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="detail-error">
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="detail-error">
                         <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{detailError}</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{detailError}</p>
                       </div>
                     )}
                     {detailData && (
@@ -4892,7 +4892,7 @@ export default function AdminPage() {
                 const statsLoading = assistantStatsQuery.isLoading;
                 const statsUnavailable = !statsLoading && stats === null;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
                     <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
@@ -4953,7 +4953,7 @@ export default function AdminPage() {
                 const total = data?.total ?? 0;
                 const totalPages = data?.pages ?? 1;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
                     <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
@@ -5013,7 +5013,7 @@ export default function AdminPage() {
                                 return (
                                   <Fragment key={it.owner_pubkey}>
                                     <tr
-                                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 cursor-pointer"
+                                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-indigo-500/10 cursor-pointer"
                                       onClick={() => setExpandedAssistant(isExpanded ? null : it.owner_pubkey)}
                                       data-testid={`row-assistant-${it.owner_pubkey}`}
                                     >
@@ -5115,9 +5115,9 @@ export default function AdminPage() {
             const inFlight = bulkConfirm.pubkeys.filter(pk => triggeringPubkeys.has(pk));
             return (
               <div className="pt-2 space-y-4">
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                  <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
+                  <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                     <li>One GrapeRank calculation request is sent <span className="font-semibold">per unique pubkey</span></li>
                     <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
                     <li>Already in-flight users will be skipped automatically</li>
@@ -5131,9 +5131,9 @@ export default function AdminPage() {
                   </p>
                 </div>
                 {inFlight.length > 0 && (
-                  <div className="p-3 rounded-xl bg-orange-50 border border-orange-200" data-testid="text-bulk-confirm-inflight">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Heads up</p>
-                    <p className="text-xs text-orange-900">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
+                  <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/25" data-testid="text-bulk-confirm-inflight">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300 mb-1">Heads up</p>
+                    <p className="text-xs text-orange-900 dark:text-orange-200">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
                   </div>
                 )}
                 <div className="flex justify-end gap-2">

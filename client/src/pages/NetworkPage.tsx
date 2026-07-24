@@ -1206,14 +1206,14 @@ export default function NetworkPage() {
           </div>
 
           <Card
-            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative"
+            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden rounded-xl relative"
             data-testid="card-network-filters"
           >
             <CardHeader className="relative bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-4 px-5">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm text-indigo-800 ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-none text-indigo-800 dark:text-indigo-300 ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
                     <Filter className="h-4 w-4" />
                   </div>
                   <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm min-w-0">
@@ -1244,13 +1244,13 @@ export default function NetworkPage() {
                       data-testid="switch-verified-only"
                     />
                     <span
-                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700 dark:text-indigo-300" : "text-slate-400 dark:text-slate-500"}`}
                     >
                       Verified
                     </span>
                   </label>
                   <div
-                    className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                    className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 dark:text-indigo-300 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
                     data-testid="badge-nostr-network"
                   >
                     <img
@@ -1266,7 +1266,7 @@ export default function NetworkPage() {
 
               {/* Mobile: NOSTR badge pinned to top-right corner */}
               <div
-                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5"
+                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 dark:text-indigo-300 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5"
                 data-testid="badge-nostr-network-mobile"
               >
                 <img
@@ -1281,18 +1281,18 @@ export default function NetworkPage() {
               {/* Mobile: Verified toggle — full-width settings-style row */}
               <div className="sm:hidden mt-3">
                 <label
-                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100"
+                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25"
                   data-testid="toggle-verified-only-mobile"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
+                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
                     >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div
-                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600 dark:text-slate-300"}`}
+                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-300"}`}
                       >
                         Verified
                       </div>
@@ -1541,7 +1541,7 @@ export default function NetworkPage() {
                                 ? "bg-red-600 text-white border border-red-600"
                                 : "bg-indigo-800 text-white border border-indigo-800"
                               : tier.key === "flagged"
-                                ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
+                                ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 dark:border-red-500/25 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-500/40"
                                 : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                           data-testid={`button-trust-filter-${tier.key}`}
@@ -1664,7 +1664,7 @@ export default function NetworkPage() {
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors shrink-0"
                     onClick={() => {
                       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
                       setCurrentPage(1);
@@ -1728,11 +1728,11 @@ export default function NetworkPage() {
             </div>
           ) : visiblePubkeys.length === 0 ? (
             <Card
-              className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl rounded-xl overflow-hidden"
+              className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-none rounded-xl overflow-hidden"
               data-testid="card-network-empty"
             >
               <div className="p-8 flex flex-col items-center text-center">
-                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 flex items-center justify-center mb-4">
+                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 dark:text-indigo-300 flex items-center justify-center mb-4">
                   <Users className="h-6 w-6" />
                 </div>
                 <h3

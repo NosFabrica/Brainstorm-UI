@@ -856,12 +856,12 @@ export default function DashboardPage() {
                     <BrainLogo size={14} className="text-brand-deep" />
                   </div>
                   <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700">Active</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
                   </span>
                   <span className="flex-1" />
                   <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
@@ -895,7 +895,7 @@ export default function DashboardPage() {
                         className="overflow-hidden"
                         data-testid="container-assistant-inline-prompt"
                       >
-                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-indigo-50/40 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
+                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-indigo-50/40 dark:bg-none dark:bg-slate-800/50 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
                           <img
                             src="/assistant-default.webp"
                             alt=""
@@ -996,7 +996,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col leading-tight min-w-0">
                   <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Trust signals</span>
                   {triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
                       Score: {grapeRankScore}
                     </span>
                   ) : publishDone ? (
-                    <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
                   ) : justFollowed ? (
@@ -1111,15 +1111,15 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-red-200/60 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-red-200/60 dark:border-red-500/25 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
                   data-testid="graperank-failed"
                 >
-                  <div className="h-8 w-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                  <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25 flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-4 h-4 text-red-500" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-red-700">Calculation incomplete</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">Please wait a few minutes, then try again.</p>
+                    <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
+                    <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Please wait a few minutes, then try again.</p>
                   </div>
                 </motion.div>
               )}
@@ -1785,9 +1785,9 @@ export default function DashboardPage() {
 
                       <div className="p-4 space-y-2" data-testid="list-network-alerts-dialog-signals">
                         {reportedByCount > 0 && (
-                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200/60 bg-gradient-to-r from-white/70 to-red-50/35 px-3 py-2.5" data-testid="row-dialog-reported-by">
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200/60 dark:border-red-500/25 bg-gradient-to-r from-white/70 to-red-50/35 dark:from-slate-900/70 dark:to-red-950/35 px-3 py-2.5" data-testid="row-dialog-reported-by">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="h-8 w-8 rounded-full bg-red-100 border border-red-200 flex items-center justify-center">
+                              <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 flex items-center justify-center">
                                 <ShieldAlert className="h-4 w-4 text-red-500" />
                               </div>
                               <div className="min-w-0">
@@ -1795,13 +1795,13 @@ export default function DashboardPage() {
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
                           </div>
                         )}
                         {mutedByCount > 0 && (
-                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200/60 bg-gradient-to-r from-white/70 to-amber-50/35 px-3 py-2.5" data-testid="row-dialog-muted-by">
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200/60 dark:border-amber-500/25 bg-gradient-to-r from-white/70 to-amber-50/35 dark:from-slate-900/70 dark:to-amber-950/35 px-3 py-2.5" data-testid="row-dialog-muted-by">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="h-8 w-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
+                              <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/25 flex items-center justify-center">
                                 <VolumeX className="h-4 w-4 text-amber-500" />
                               </div>
                               <div className="min-w-0">
@@ -1809,7 +1809,7 @@ export default function DashboardPage() {
                                 <div className="text-xs text-slate-500 dark:text-slate-400">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
                               </div>
                             </div>
-                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
                           </div>
                         )}
                         {reportedByCount === 0 && mutedByCount === 0 && (
@@ -1821,7 +1821,7 @@ export default function DashboardPage() {
                               </>
                             ) : (
                               <>
-                                <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-2">
+                                <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center mx-auto mb-2">
                                   <Check className="h-5 w-5 text-emerald-500" />
                                 </div>
                                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">All clear</p>
@@ -1901,27 +1901,27 @@ export default function DashboardPage() {
 
                   <div className="space-y-1.5 mt-1">
                     {reportedByCount > 0 && (
-                      <div className="flex items-center justify-between p-1.5 rounded bg-red-50/50 border border-red-200/60" data-testid="row-reported-by-count">
+                      <div className="flex items-center justify-between p-1.5 rounded bg-red-50/50 dark:bg-red-500/10 border border-red-200/60 dark:border-red-500/25" data-testid="row-reported-by-count">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-red-100 dark:bg-red-500/15 flex items-center justify-center">
                             <ShieldAlert className="h-2.5 w-2.5 text-red-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
                             <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">Reported By</p>
-                            <p className="text-xs text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
+                            <p className="text-xs text-red-600/70 dark:text-red-400/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
                       </div>
                     )}
                     {mutedByCount > 0 && (
-                      <div className="flex items-center justify-between p-1.5 rounded bg-amber-50/50 border border-amber-200/60" data-testid="row-muted-by-count">
+                      <div className="flex items-center justify-between p-1.5 rounded bg-amber-50/50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/25" data-testid="row-muted-by-count">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center">
                             <VolumeX className="h-2.5 w-2.5 text-amber-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
                             <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">Muted By</p>
-                            <p className="text-xs text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
+                            <p className="text-xs text-amber-600/70 dark:text-amber-400/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
                       </div>
@@ -1962,7 +1962,7 @@ export default function DashboardPage() {
                     </div>
                     <UITooltip>
                       <TooltipTrigger>
-                        <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 transition-colors" />
+                        <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 dark:text-slate-200 shadow-xl p-3">
                         <div className="space-y-1 max-w-xs">
@@ -1971,7 +1971,7 @@ export default function DashboardPage() {
                             This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
                           </p>
                           <p className="text-xs leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-1 mt-1">
-                            <span className="font-semibold text-indigo-600">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
                           </p>
                         </div>
                       </TooltipContent>
@@ -1988,7 +1988,7 @@ export default function DashboardPage() {
                   <div className="mt-auto space-y-2 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60">
                     <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
                       <span>Reach Depth</span>
-                      <span className="text-indigo-600 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
                     </div>
                     <Slider
                       value={hopRange}
@@ -2120,7 +2120,7 @@ export default function DashboardPage() {
                         const canClick = isCalculationComplete && calcDone && !!tier;
                         const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
                         return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1 gap-2">
@@ -2555,7 +2555,7 @@ export default function DashboardPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                <Keyboard className="h-5 w-5 text-indigo-600" />
+                <Keyboard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 Keyboard Shortcuts
               </h3>
               <div className="space-y-3">
@@ -2573,7 +2573,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <Button
-                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white"
+                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white"
                 onClick={() => setShowShortcuts(false)}
               >
                 Got it

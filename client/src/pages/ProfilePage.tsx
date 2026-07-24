@@ -201,11 +201,11 @@ function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: 
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "success" || lower === "done" || lower === "published"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
     : lower === "failure" || lower === "failed" || lower === "error"
-    ? "bg-red-50 text-red-700 border-red-200"
+    ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
     : lower === "pending" || lower === "queued" || lower === "in_progress"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
     : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
 }
@@ -216,11 +216,11 @@ function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
-    ? "bg-violet-50 text-violet-700 border-violet-200"
+    ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-500/25"
     : lower === "periodic"
-    ? "bg-sky-50 text-sky-700 border-sky-200"
+    ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
     : lower === "admin"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
     : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`}>{value}</span>;
 }
@@ -298,7 +298,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
   return (
     <>
       <tr
-        className={`border-b border-amber-100/40 cursor-pointer hover:bg-amber-50/40 transition-colors ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20"}`}
+        className={`border-b border-amber-100/40 dark:border-amber-500/20 cursor-pointer hover:bg-amber-50/40 dark:hover:bg-amber-500/10 transition-colors ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20 dark:bg-amber-500/[0.06]"}`}
         onClick={() => setExpanded(prev => !prev)}
         data-testid={`row-admin-history-${item.private_id || idx}`}
       >
@@ -313,17 +313,17 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
         <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" title={fmtDateFull(item.updated_at)}>{fmtDate(item.updated_at)}</td>
       </tr>
       {expanded && (
-        <tr className="bg-amber-50/30">
+        <tr className="bg-amber-50/30 dark:bg-amber-500/[0.06]">
           <td colSpan={9} className="px-4 py-3">
             {failureInfo && (
               <div
-                className="mb-3 rounded border border-red-200 bg-red-50/60 px-3 py-2"
+                className="mb-3 rounded border border-red-200 dark:border-red-500/25 bg-red-50/60 dark:bg-red-500/10 px-3 py-2"
                 data-testid={`panel-failure-hint-${item.private_id || idx}`}
               >
                 {errorText ? (
-                  <p className="text-[11px] text-red-700 font-mono break-all">{errorText}</p>
+                  <p className="text-[11px] text-red-700 dark:text-red-300 font-mono break-all">{errorText}</p>
                 ) : (
-                  <p className="text-[11px] text-red-600/80 italic">No error details captured — check server logs.</p>
+                  <p className="text-[11px] text-red-600/80 dark:text-red-400/80 italic">No error details captured — check server logs.</p>
                 )}
                 <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-snug mt-1">
                   <span className="font-semibold">Where to look · {failureInfo.label}:</span> {failureInfo.hint}
@@ -451,14 +451,14 @@ const YOU_PILL_META: Record<YouLink, { label: string; Icon: typeof ArrowLeft }> 
 };
 
 const GROUP_DEFS: GroupDef[] = [
-  { key: "followed_by", label: "Follower", colors: "bg-blue-50 text-blue-500 border-blue-100" },
-  { key: "following", label: "Following", colors: "bg-blue-50 text-blue-500 border-blue-100" },
-  { key: "mutual", label: "Mutual", colors: "bg-teal-50 text-teal-500 border-teal-100" },
-  { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
-  { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 text-indigo-500 border-indigo-100" },
-  { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
-  { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
-  { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
+  { key: "followed_by", label: "Follower", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
+  { key: "following", label: "Following", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
+  { key: "mutual", label: "Mutual", colors: "bg-teal-50 dark:bg-teal-500/10 text-teal-500 dark:text-teal-400 border-teal-100 dark:border-teal-500/25" },
+  { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/25" },
+  { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/25" },
+  { key: "muted_by", label: "Muted By", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
+  { key: "muting", label: "Muting", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
+  { key: "reported_by", label: "Reported", colors: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/25" },
   { key: "reporting", label: "Reporting", colors: "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800" },
 ];
 
@@ -471,12 +471,12 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
-  { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
-  { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
-  { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
-  { value: "neutral", label: "Neutral", color: "bg-indigo-50 text-indigo-500" },
-  { value: "low", label: "Low Trust", color: "bg-amber-50 text-amber-600" },
-  { value: "unverified", label: "Unverified", color: "bg-zinc-50 text-zinc-500" },
+  { value: "verified", label: "Verified", color: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
+  { value: "high", label: "Highly Trusted", color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  { value: "trusted", label: "Trusted", color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  { value: "neutral", label: "Neutral", color: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400" },
+  { value: "low", label: "Low Trust", color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  { value: "unverified", label: "Unverified", color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400" },
 ];
 
 const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
@@ -491,14 +491,14 @@ const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: s
 ];
 
 const SECTION_BORDER_COLORS: Record<string, string> = {
-  followed_by: "border-blue-300",
-  following: "border-blue-300",
-  mutual: "border-teal-300",
-  shared_followers: "border-indigo-300",
-  shared_following: "border-indigo-300",
-  muted_by: "border-amber-300",
-  reported_by: "border-red-300",
-  muting: "border-amber-200",
+  followed_by: "border-blue-300 dark:border-blue-500/30",
+  following: "border-blue-300 dark:border-blue-500/30",
+  mutual: "border-teal-300 dark:border-teal-500/30",
+  shared_followers: "border-indigo-300 dark:border-indigo-500/30",
+  shared_following: "border-indigo-300 dark:border-indigo-500/30",
+  muted_by: "border-amber-300 dark:border-amber-500/30",
+  reported_by: "border-red-300 dark:border-red-500/30",
+  muting: "border-amber-200 dark:border-amber-500/25",
   reporting: "border-slate-300 dark:border-slate-700",
 };
 
@@ -669,7 +669,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, !filterDropdownOpen); }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
@@ -689,7 +689,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                         onSetVisibleCount(key, 10);
                         onToggleFilterDropdown(key, false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                       data-testid={`filter-${opt.value}-${key}`}
                     >
                       <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`} />
@@ -705,7 +705,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, !reportTypeDropdownOpen); }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                 data-testid={`report-type-filter-toggle-${key}`}
               >
                 <span className="w-2 h-2 rounded-full bg-current opacity-50" />
@@ -725,7 +725,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                           onSetVisibleCount(key, 10);
                           onToggleReportTypeDropdown(key, false);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                         data-testid={`report-type-filter-${opt.value}-${key}`}
                       >
                         <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
@@ -811,7 +811,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             >
               <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
                 {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
-                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
+                <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -854,7 +854,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                       return (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-teal-50 text-teal-600 border-teal-200"
+                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-500/25"
                           data-testid={`pill-owner-${owner}-${pk.slice(0,8)}`}
                         >
                           <meta.Icon className="h-2.5 w-2.5" />
@@ -867,7 +867,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                       return (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-indigo-50 text-indigo-600 border-indigo-200"
+                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/25"
                           data-testid={`pill-you-${you}-${pk.slice(0,8)}`}
                         >
                           <meta.Icon className="h-2.5 w-2.5" />
@@ -884,11 +884,11 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               {trustScore !== undefined && trustScore !== null && (
                 <div className="w-6 h-6 relative shrink-0">
                   <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
-                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100" />
+                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100 dark:text-indigo-500/20" />
                     <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
                       className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700">{trustPct}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{trustPct}</span>
                 </div>
               )}
               {trustScore === undefined && (
@@ -1665,10 +1665,10 @@ export default function ProfilePage() {
   // for the top tiers, muted violet for neutral, amber (semantic caution) for
   // low, brand grey for unverified. Text shades are darkened for on-white contrast.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", ring: "stroke-violet-600" },
-    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", ring: "stroke-cyan-500" },
-    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10", text: "text-[#665487]", border: "border-[#665487]/30", ring: "stroke-[#665487]" },
-    { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
+    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-700 dark:text-violet-300", border: "border-violet-200 dark:border-violet-500/25", ring: "stroke-violet-600" },
+    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
+    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-violet-300", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
+    { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
@@ -1683,10 +1683,10 @@ export default function ProfilePage() {
     const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
     const pct = Math.round(score * 100);
     const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
-    if (pct >= 50) return { label: "High confidence", color: "text-emerald-700", iconColor: "text-emerald-500", iconBg: "bg-emerald-100", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40", border: "border-emerald-200/60", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
-    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-700", iconColor: "text-indigo-500", iconBg: "bg-indigo-100", bg: "bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40", border: "border-indigo-200/60", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
-    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600 dark:text-slate-300", iconColor: "text-slate-400 dark:text-slate-500", iconBg: "bg-slate-100 dark:bg-slate-800", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40", border: "border-slate-200/60 dark:border-slate-800/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
-    return { label: "Very low confidence", color: "text-amber-700", iconColor: "text-amber-500", iconBg: "bg-amber-100", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40", border: "border-amber-200/60", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
+    if (pct >= 50) return { label: "High confidence", color: "text-emerald-700 dark:text-emerald-300", iconColor: "text-emerald-500 dark:text-emerald-400", iconBg: "bg-emerald-100 dark:bg-emerald-500/15", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40 dark:bg-none dark:bg-emerald-500/10", border: "border-emerald-200/60 dark:border-emerald-500/25", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
+    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-700 dark:text-indigo-300", iconColor: "text-indigo-500 dark:text-indigo-400", iconBg: "bg-indigo-100 dark:bg-indigo-500/15", bg: "bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 dark:bg-none dark:bg-indigo-500/10", border: "border-indigo-200/60 dark:border-indigo-500/25", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
+    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600 dark:text-slate-300", iconColor: "text-slate-400 dark:text-slate-500", iconBg: "bg-slate-100 dark:bg-slate-800", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40 dark:bg-none dark:bg-slate-800/50", border: "border-slate-200/60 dark:border-slate-800/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
+    return { label: "Very low confidence", color: "text-amber-700 dark:text-amber-300", iconColor: "text-amber-500 dark:text-amber-400", iconBg: "bg-amber-100 dark:bg-amber-500/15", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40 dark:bg-none dark:bg-amber-500/10", border: "border-amber-200/60 dark:border-amber-500/25", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
   }, [profileResult, nostrProfile]);
 
   const verifiedCounts = useMemo(() => {
@@ -2102,7 +2102,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50/60 dark:hover:bg-amber-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
                   onClick={() => goBack(fallback)}
                   data-testid="button-back-to-admin"
                 >
@@ -2116,7 +2116,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
                   onClick={() => goBack(`/network?group=${fromGroup}`)}
                   data-testid="button-back-to-network"
                 >
@@ -2129,7 +2129,7 @@ export default function ProfilePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
                 onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
@@ -2142,7 +2142,7 @@ export default function ProfilePage() {
 
         {isLoading && (
           <div data-testid="panel-profile-skeleton">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-xl overflow-hidden">
               <div className="p-6 sm:p-8 animate-pulse">
                 <div className="flex items-start gap-4">
                   <div className="h-14 w-14 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
@@ -2171,11 +2171,11 @@ export default function ProfilePage() {
 
         {!isLoading && loadError && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden relative" data-testid="card-profile-error">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-xl overflow-hidden relative" data-testid="card-profile-error">
               <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-indigo-500/40 to-indigo-800/25" />
-                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 shadow-sm flex items-center justify-center" data-testid="icon-profile-error">
+                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 dark:text-indigo-300 shadow-sm dark:shadow-none flex items-center justify-center" data-testid="icon-profile-error">
                     <User className="h-6 w-6" />
                   </div>
                 </div>
@@ -2203,14 +2203,14 @@ export default function ProfilePage() {
 
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden relative">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
+                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 dark:border-indigo-500/25 shadow-md shrink-0">
                     {displayNostrProfile?.picture && (
                       <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
-                    <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
+                    <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base sm:text-lg font-bold">
                       {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -2234,7 +2234,7 @@ export default function ProfilePage() {
                         </div>
                       </div>
                       <div
-                        className="flex flex-col items-center gap-0.5 bg-indigo-50/80 border border-indigo-200 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
+                        className="flex flex-col items-center gap-0.5 bg-indigo-50/80 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
                         data-testid="badge-trust-score-seed"
                         aria-label="Brainstorm trust score loading"
                       >
@@ -2245,11 +2245,11 @@ export default function ProfilePage() {
                         </div>
                         <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                           <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100" />
+                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100 dark:text-indigo-500/20" />
                           </svg>
                           <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-indigo-300" />
                         </div>
-                        <div className="h-3 w-12 rounded bg-indigo-100 animate-pulse" />
+                        <div className="h-3 w-12 rounded bg-indigo-100 dark:bg-indigo-500/20 animate-pulse" />
                       </div>
                     </div>
                   </div>
@@ -2273,7 +2273,7 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
 
               <div className="relative overflow-hidden">
                 {/* Cover banner — matches the public /p page; fills the top space. */}
@@ -2299,7 +2299,7 @@ export default function ProfilePage() {
                     return (
                       <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
                         {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
-                        <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
+                        <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -2362,7 +2362,7 @@ export default function ProfilePage() {
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}
                   {theyFollowMe && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
                       <ArrowLeft className="h-3 w-3" /> Follows you
                     </span>
                   )}
@@ -2395,7 +2395,7 @@ export default function ProfilePage() {
                             className={`inline-flex items-center justify-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
                               following
                                 ? followHovered
-                                  ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                  ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20"
                                   : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
                                 : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
                             }`}
@@ -2458,7 +2458,7 @@ export default function ProfilePage() {
                           })()}
                           {myReport ? (
                             <DropdownMenuItem
-                              className="cursor-pointer text-amber-700 focus:text-amber-800"
+                              className="cursor-pointer text-amber-700 dark:text-amber-400 focus:text-amber-800 dark:focus:text-amber-300"
                               onClick={async () => {
                                 const snapshot = myReport;
                                 setMyReport(null); // optimistic: chip + menu flip instantly
@@ -2475,7 +2475,7 @@ export default function ProfilePage() {
                               <Flag className="h-4 w-4 mr-2" /> Undo report
                             </DropdownMenuItem>
                           ) : (
-                            <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-700" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
+                            <DropdownMenuItem className="cursor-pointer text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300" onClick={() => setReportDialogOpen(true)} data-testid="button-report">
                               <Flag className="h-4 w-4 mr-2" /> Report
                             </DropdownMenuItem>
                           )}
@@ -2483,7 +2483,7 @@ export default function ProfilePage() {
                       </DropdownMenu>
                       {myReport && (
                         <span
-                          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
                           title="Your report is published. Undo it from the ⋯ menu. Trust scores may take a little while to reflect changes."
                           data-testid="chip-you-reported"
                         >
@@ -2496,7 +2496,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white dark:bg-slate-900 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 dark:border-indigo-500/25 bg-white dark:bg-slate-900 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors"
                         data-testid="link-public-page"
                         title="See the public, shareable version of this profile"
                       >
@@ -2546,12 +2546,12 @@ export default function ProfilePage() {
                 )}
 
                 {isOwnProfile ? (
-                  <div className="mb-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 border border-indigo-200/60 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                  <div className="mb-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 dark:bg-none dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/25 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
                       <Eye className="h-4 w-4 text-indigo-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs sm:text-sm font-bold text-indigo-700">This is how others see you</span>
+                      <span className="text-xs sm:text-sm font-bold text-indigo-700 dark:text-indigo-300">This is how others see you</span>
                       <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                         {houseInfluence01 != null
                           ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
@@ -2561,7 +2561,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => setShareOpen(true)}
-                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-700 hover:text-indigo-900 transition-colors"
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 transition-colors"
                           data-testid="button-own-profile-invite"
                         >
                           <UserPlus className="h-3.5 w-3.5" /> Invite friends
@@ -2598,9 +2598,9 @@ export default function ProfilePage() {
                   const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
 
                   return (
-                    <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/60 overflow-hidden" data-testid="banner-shared-connections">
+                    <div className="mb-4 rounded-xl border border-indigo-100 dark:border-indigo-500/25 bg-indigo-50/60 dark:bg-indigo-500/10 overflow-hidden" data-testid="banner-shared-connections">
                       <div
-                        className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-indigo-50/80 transition-colors" : ""}`}
+                        className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-indigo-50/80 dark:hover:bg-indigo-500/15 transition-colors" : ""}`}
                         onClick={isExpandable ? () => {
                           if (isAnyExpanded) {
                             setExpandedSections(prev => ({ ...prev, shared_followers: false, shared_following: false }));
@@ -2612,20 +2612,20 @@ export default function ProfilePage() {
                           }
                         } : undefined}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 mt-0.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/25 flex items-center justify-center shrink-0 mt-0.5">
                           <SharedConnectionIcon className="h-4 w-4 text-indigo-500" />
                         </div>
                         <div className="flex-1 min-w-0">
                           {sharedCount > 0 ? (
                             <>
-                              <p className="text-sm font-semibold text-indigo-900">
+                              <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
                                 You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
                               </p>
-                              <p className="text-xs text-indigo-600/70 mt-0.5">
+                              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">
                                 {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
                               </p>
                               {capHit && (
-                                <p className="text-[11px] text-indigo-500/60 italic mt-1" data-testid="text-shared-connections-cap-notice">
+                                <p className="text-[11px] text-indigo-500/60 dark:text-indigo-400/60 italic mt-1" data-testid="text-shared-connections-cap-notice">
                                   Based on top 200 connections — full overlap may be larger
                                 </p>
                               )}
@@ -2646,17 +2646,17 @@ export default function ProfilePage() {
                         )}
                       </div>
                       {isAnyExpanded && (
-                        <div className="border-t border-indigo-100">
+                        <div className="border-t border-indigo-100 dark:border-indigo-500/25">
                           {mutualFollowersCount > 0 && (
                             <div>
                               <div
-                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 cursor-pointer hover:bg-indigo-50/70 transition-colors"
+                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 dark:bg-indigo-500/[0.06] cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-500/10 transition-colors"
                                 onClick={(e) => { e.stopPropagation(); toggleSection("shared_followers"); }}
                                 data-testid="toggle-shared-followers"
                               >
                                 <div className="flex items-center gap-2">
                                   <FollowersIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                  <span className="text-xs font-semibold text-indigo-700">
+                                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                                     Mutual Followers ({mutualFollowersCount.toLocaleString()})
                                   </span>
                                 </div>
@@ -2668,13 +2668,13 @@ export default function ProfilePage() {
                           {mutualFollowingCount > 0 && (
                             <div>
                               <div
-                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 cursor-pointer hover:bg-indigo-50/70 transition-colors border-t border-indigo-100/60"
+                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 dark:bg-indigo-500/[0.06] cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-500/10 transition-colors border-t border-indigo-100/60 dark:border-indigo-500/20"
                                 onClick={(e) => { e.stopPropagation(); toggleSection("shared_following"); }}
                                 data-testid="toggle-shared-following"
                               >
                                 <div className="flex items-center gap-2">
                                   <FollowingIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                  <span className="text-xs font-semibold text-indigo-700">
+                                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
                                     Mutual Following ({mutualFollowingCount.toLocaleString()})
                                   </span>
                                 </div>
@@ -2702,7 +2702,7 @@ export default function ProfilePage() {
 
                   return (
                   <div className="space-y-5">
-                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -2719,12 +2719,12 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
                               onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
                               data-testid="metric-profile-followers"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/25 flex items-center justify-center shrink-0">
                                   <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
@@ -2757,12 +2757,12 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
                               onClick={fgExpandable ? () => toggleSection("following") : undefined}
                               data-testid="metric-profile-following"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/25 flex items-center justify-center shrink-0">
                                   <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
@@ -2794,12 +2794,12 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
                               data-testid="metric-profile-mutual"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 dark:bg-teal-500/10 border border-teal-100 dark:border-teal-500/25 flex items-center justify-center shrink-0">
                                   <MutualIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-teal-500" />
                                 </div>
                                 <div>
@@ -2831,7 +2831,7 @@ export default function ProfilePage() {
                           return (
                           <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-profile-influence">
                             <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25 flex items-center justify-center shrink-0">
                                 <BrainLogo size={14} className="text-indigo-500 sm:hidden" />
                                 <BrainLogo size={16} className="text-indigo-500 hidden sm:block" />
                               </div>
@@ -2893,8 +2893,8 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
+                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 dark:bg-none dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-indigo-500" : "bg-slate-300 dark:bg-slate-700"}`} />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
@@ -2903,13 +2903,13 @@ export default function ProfilePage() {
                       </div>
                       <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {isProfileFlagged && (
-                          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3.5 bg-red-50/60" data-testid="metric-profile-flagged-indicator">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
+                          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3.5 bg-red-50/60 dark:bg-red-500/10" data-testid="metric-profile-flagged-indicator">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 flex items-center justify-center shrink-0">
                               <FlaggedIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-600" />
                             </div>
                             <div className="flex-1">
-                              <p className="text-xs sm:text-sm font-semibold text-red-700">Flagged</p>
-                              <p className="text-[10px] sm:text-xs text-red-500 leading-tight">Low trust & reported by 2+ of your trusted contacts</p>
+                              <p className="text-xs sm:text-sm font-semibold text-red-700 dark:text-red-300">Flagged</p>
+                              <p className="text-[10px] sm:text-xs text-red-500 dark:text-red-400 leading-tight">Low trust & reported by 2+ of your trusted contacts</p>
                             </div>
                           </div>
                         )}
@@ -2919,13 +2919,13 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : "cursor-help"}`}
                               title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
                               onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
                               data-testid="metric-profile-muted-by"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
                                   <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
@@ -2936,7 +2936,7 @@ export default function ProfilePage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-muted-by">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-muted-by">
                                     {verifiedCounts.mutedBy > 0 ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.mutedBy > 0 && (
@@ -2956,13 +2956,13 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : "cursor-help"}`}
                               title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
                               onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
                               data-testid="metric-profile-reported-by"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
                                   <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
@@ -2973,7 +2973,7 @@ export default function ProfilePage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-reported-by">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-reported-by">
                                     {verifiedCounts.reportedBy > 0 ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.reportedBy > 0 && (
@@ -2993,7 +2993,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("muting") : undefined}
                               data-testid="metric-profile-muting"
                             >
@@ -3024,7 +3024,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-indigo-50/30 transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
                               onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
                               data-testid="metric-profile-reporting"
                             >
@@ -3057,7 +3057,7 @@ export default function ProfilePage() {
                       const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
                       const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
                       return (
-                      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm" data-testid="alert-profile-trust-warning">
+                      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none" data-testid="alert-profile-trust-warning">
                         <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
@@ -3066,7 +3066,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-2">
                               {isProfileFlagged && (
-                                <span className="text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md">Flagged</span>
+                                <span className="text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25 px-1.5 py-0.5 rounded-md">Flagged</span>
                               )}
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{barTotal.toLocaleString()} total</span>
                             </div>
@@ -3096,7 +3096,7 @@ export default function ProfilePage() {
                                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Muted by</span>
                                 {vMuted > 0 ? (
                                   <>
-                                    <span className="text-[10px] text-amber-600 font-bold font-mono">{vMuted} verified</span>
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold font-mono">{vMuted} verified</span>
                                     <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {mutedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
@@ -3110,7 +3110,7 @@ export default function ProfilePage() {
                                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Reported by</span>
                                 {vReported > 0 ? (
                                   <>
-                                    <span className="text-[10px] text-red-600 font-bold font-mono">{vReported} verified</span>
+                                    <span className="text-[10px] text-red-600 dark:text-red-400 font-bold font-mono">{vReported} verified</span>
                                     <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {reportedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
@@ -3128,11 +3128,11 @@ export default function ProfilePage() {
                 })()}
 
                 {isAdmin && hexPubkey && (
-                  <div className="mt-6 rounded-xl border border-amber-300/60 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 overflow-hidden" data-testid="card-admin-history">
-                    <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200/60 bg-amber-50/50">
+                  <div className="mt-6 rounded-xl border border-amber-300/60 dark:border-amber-500/25 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:bg-none dark:bg-slate-900 overflow-hidden" data-testid="card-admin-history">
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200/60 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/10">
                       <Shield className="h-4 w-4 text-amber-600" />
-                      <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Admin — Brainstorm History</span>
-                      <Badge className="ml-auto bg-amber-100 text-amber-700 border-amber-300 text-[10px]">
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">Admin — Brainstorm History</span>
+                      <Badge className="ml-auto bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500/30 text-[10px]">
                         /admin/users/{"{pubkey}"}/history
                       </Badge>
                     </div>
@@ -3144,7 +3144,7 @@ export default function ProfilePage() {
                         </div>
                       ) : adminHistoryQuery.isError ? (
                         <div className="text-center py-6">
-                          <p className="text-xs text-red-500">Failed to load admin history</p>
+                          <p className="text-xs text-red-500 dark:text-red-400">Failed to load admin history</p>
                           <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{adminHistoryQuery.error instanceof Error ? adminHistoryQuery.error.message : "Unknown error"}</p>
                         </div>
                       ) : !adminHistoryQuery.data?.items?.length ? (
@@ -3158,7 +3158,7 @@ export default function ProfilePage() {
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="border-b border-amber-200/40">
+                                <tr className="border-b border-amber-200/40 dark:border-amber-500/20">
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">ID</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Source</th>
                                   <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Status</th>
@@ -3251,7 +3251,7 @@ export default function ProfilePage() {
                 key={opt.value}
                 className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
                   reportReason === opt.value
-                    ? "border-indigo-300 bg-indigo-50/60 shadow-sm"
+                    ? "border-indigo-300 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 shadow-sm dark:shadow-none"
                     : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
                 }`}
                 data-testid={`report-option-${opt.value}`}
