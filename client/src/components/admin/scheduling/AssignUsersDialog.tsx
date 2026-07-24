@@ -260,7 +260,7 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "brainstorm"
-                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800"
+                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-800"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-brainstorm"
@@ -276,7 +276,7 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "nostr"
-                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800"
+                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-800"
                 : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-nostr"
@@ -339,7 +339,7 @@ export function AssignUsersDialog({
                   onClick={() => toggleTray(p, mode)}
                   trailing={
                     inTray ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
+                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
                       <Plus className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     )
@@ -421,7 +421,7 @@ export function AssignUsersDialog({
                         type="button"
                         aria-label="Remove from selection"
                         onClick={() => removeFromTray(pk)}
-                        className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>

@@ -48,9 +48,9 @@ export function UserResultRow({
     <div
       className={`flex items-center gap-2.5 p-2 rounded-lg border transition-all ${
         active
-          ? "border-brand-accent/40 bg-indigo-50/40"
+          ? "border-brand-accent/40 bg-indigo-50/40 dark:bg-indigo-500/10"
           : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80"
-      } ${clickable ? "cursor-pointer hover:border-brand-accent/30 hover:bg-indigo-50/10" : ""}`}
+      } ${clickable ? "cursor-pointer hover:border-brand-accent/30 hover:bg-indigo-50/10 dark:hover:bg-indigo-500/10" : ""}`}
       onClick={onClick}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}

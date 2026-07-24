@@ -88,7 +88,7 @@ function StatBar({
 function LivePill() {
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-emerald-50 text-emerald-700 border-emerald-200"
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
       title="Auto-refreshes every 30 seconds"
       data-testid="badge-scheduling-live"
     >
@@ -184,7 +184,7 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
             </div>
           )}
           {queueTotal === 0 && lanes.length > 0 && (
-            <p className="mt-2 text-[11px] font-medium text-emerald-600">
+            <p className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               All lanes clear — nothing waiting in the queue.
             </p>
           )}
@@ -213,7 +213,7 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
             </div>
           )}
           {slip.length > 0 && slip.every(([, s]) => s === 0) && (
-            <p className="mt-2 text-[11px] font-medium text-emerald-600">
+            <p className="mt-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
               All tiers are on time.
             </p>
           )}
@@ -223,9 +223,9 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-xl border border-amber-200/70 bg-amber-50/60 px-3 py-2">
-        <Info className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-        <p className="text-[11px] text-amber-700 leading-relaxed">
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200/70 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/10 px-3 py-2">
+        <Info className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
           The scheduler runs only when enabled globally (env-controlled); this
           panel manages policies, not the on/off switch.
         </p>

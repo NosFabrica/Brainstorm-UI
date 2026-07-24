@@ -295,7 +295,7 @@ function PolicyUsersInline({
                           : `Move to the default “${defaultName}” tier`
                       }
                       onClick={() => setConfirmRemove(m)}
-                      className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:disabled:hover:text-slate-500 disabled:cursor-not-allowed transition-colors"
+                      className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:disabled:hover:text-slate-500 disabled:cursor-not-allowed transition-colors"
                     >
                       {removingPk === m.pubkey ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -536,7 +536,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                 return (
                   <Fragment key={p.id}>
                     <tr
-                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 transition-colors"
+                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-indigo-500/10 transition-colors"
                       data-testid={`row-policy-${p.id}`}
                     >
                       <td className="px-2 py-2.5">
@@ -625,7 +625,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                               setDeleteError(null);
                               setConfirmDelete(p);
                             }}
-                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400 disabled:cursor-not-allowed transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

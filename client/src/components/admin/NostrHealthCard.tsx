@@ -112,9 +112,9 @@ function StatusIcon({ status, className = "h-3.5 w-3.5" }: { status: CheckStatus
 
 function StatusPill({ tone, label, testId }: { tone: CheckStatus; label: string; testId: string }) {
   const tones: Record<CheckStatus, string> = {
-    ok: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    warn: "bg-amber-50 text-amber-700 border-amber-200",
-    error: "bg-red-50 text-red-700 border-red-200",
+    ok: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25",
+    warn: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25",
+    error: "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25",
     neutral: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800",
   };
   return (
@@ -191,19 +191,19 @@ function MismatchPair({
 }) {
   return (
     <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-      <div className="p-1.5 rounded-md bg-emerald-50/60 border border-emerald-100">
-        <p className="text-[8px] uppercase tracking-wide text-emerald-700/70 font-bold mb-0.5">{expectedLabel}</p>
+      <div className="p-1.5 rounded-md bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/25">
+        <p className="text-[8px] uppercase tracking-wide text-emerald-700/70 dark:text-emerald-300/70 font-bold mb-0.5">{expectedLabel}</p>
         <div className="flex items-center gap-1 min-w-0">
-          <code className="font-mono text-[9px] text-emerald-800 truncate flex-1" data-testid={`${testIdPrefix}-expected`}>
+          <code className="font-mono text-[9px] text-emerald-800 dark:text-emerald-200 truncate flex-1" data-testid={`${testIdPrefix}-expected`}>
             {expected || "—"}
           </code>
           {expected && <MiniCopy text={expected} testId={`button-copy-${testIdPrefix}-expected`} />}
         </div>
       </div>
-      <div className="p-1.5 rounded-md bg-red-50/60 border border-red-100">
-        <p className="text-[8px] uppercase tracking-wide text-red-700/70 font-bold mb-0.5">{actualLabel}</p>
+      <div className="p-1.5 rounded-md bg-red-50/60 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25">
+        <p className="text-[8px] uppercase tracking-wide text-red-700/70 dark:text-red-300/70 font-bold mb-0.5">{actualLabel}</p>
         <div className="flex items-center gap-1 min-w-0">
-          <code className="font-mono text-[9px] text-red-800 truncate flex-1" data-testid={`${testIdPrefix}-actual`}>
+          <code className="font-mono text-[9px] text-red-800 dark:text-red-200 truncate flex-1" data-testid={`${testIdPrefix}-actual`}>
             {actual || "—"}
           </code>
           {actual && <MiniCopy text={actual} testId={`button-copy-${testIdPrefix}-actual`} />}
@@ -320,9 +320,9 @@ function TagDetailCard({
     ? "warn"
     : "neutral";
   const cardClasses: Record<CheckStatus, string> = {
-    ok: "border-emerald-200 bg-emerald-50/40",
-    warn: "border-amber-200 bg-amber-50/40",
-    error: "border-red-200 bg-red-50/40",
+    ok: "border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/40 dark:bg-emerald-500/10",
+    warn: "border-amber-200 dark:border-amber-500/25 bg-amber-50/40 dark:bg-amber-500/10",
+    error: "border-red-200 dark:border-red-500/25 bg-red-50/40 dark:bg-red-500/10",
     neutral: "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60",
   };
   return (
@@ -337,7 +337,7 @@ function TagDetailCard({
           </span>
           {isFullyActive ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[8px] font-bold uppercase tracking-wider"
               data-testid={`${testIdPrefix}-winner`}
             >
               <CheckCircle2 className="h-2.5 w-2.5" />
@@ -345,7 +345,7 @@ function TagDetailCard({
             </span>
           ) : detail.isWinner ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
               data-testid={`${testIdPrefix}-best-match`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -353,7 +353,7 @@ function TagDetailCard({
             </span>
           ) : cardTone === "warn" ? (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
               data-testid={`${testIdPrefix}-stale`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -372,9 +372,9 @@ function TagDetailCard({
           <span
             className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
               pubkeyTone === "ok"
-                ? "text-emerald-600"
+                ? "text-emerald-600 dark:text-emerald-400"
                 : pubkeyTone === "error"
-                ? "text-red-600"
+                ? "text-red-600 dark:text-red-400"
                 : "text-slate-400 dark:text-slate-500"
             }`}
             data-testid={`${testIdPrefix}-pubkey-status`}
@@ -385,10 +385,10 @@ function TagDetailCard({
           <span
             className={`inline-flex items-center gap-0.5 text-[9px] font-semibold ${
               relayTone === "ok"
-                ? "text-emerald-600"
+                ? "text-emerald-600 dark:text-emerald-400"
                 : relayTone === "error"
-                ? "text-red-600"
-                : "text-amber-600"
+                ? "text-red-600 dark:text-red-400"
+                : "text-amber-600 dark:text-amber-400"
             }`}
             data-testid={`${testIdPrefix}-relay-status`}
           >
@@ -462,7 +462,7 @@ function AllTagsDisclosure({
         aria-controls={listId}
         className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border transition-colors ${
           hasIssues
-            ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
+            ? "border-amber-200 dark:border-amber-500/25 bg-amber-50/50 dark:bg-amber-500/10 hover:bg-amber-50 dark:hover:bg-amber-500/20"
             : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800"
         }`}
         data-testid={`${testIdPrefix}-toggle`}
@@ -478,7 +478,7 @@ function AllTagsDisclosure({
           </span>
           {hasIssues && (
             <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[8px] font-bold uppercase tracking-wider"
               data-testid={`${testIdPrefix}-issues-badge`}
             >
               <AlertTriangle className="h-2.5 w-2.5" />
@@ -523,7 +523,7 @@ function PanelShell({
 }) {
   return (
     <div
-      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 shadow-sm flex flex-col min-h-[180px]"
+      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-500/20 shadow-sm dark:shadow-none flex flex-col min-h-[180px]"
       data-testid={testId}
     >
       <div className="flex items-center justify-between mb-2.5">
@@ -599,11 +599,11 @@ function Nip85Panel({
         <SkeletonChecklist />
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
           data-testid="status-nip85-error"
         >
           <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          <p className="text-[10px] text-red-700">Failed to fetch kind 10040 from relays.</p>
+          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 10040 from relays.</p>
         </div>
       ) : data ? (
         <div className="space-y-0.5">
@@ -822,11 +822,11 @@ function AssignedAssistantSection({
         </div>
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
           data-testid="status-assistant-kind0-error"
         >
           <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          <p className="text-[10px] text-red-700">
+          <p className="text-[10px] text-red-700 dark:text-red-300">
             Failed to fetch assistant kind 0 from relays.
           </p>
         </div>
@@ -874,7 +874,7 @@ function AssignedAssistantSection({
                     target="_blank"
                     rel="noreferrer"
                     className={`text-[10px] hover:underline truncate ${
-                      isAssistant ? "text-emerald-700" : "text-slate-600 dark:text-slate-300"
+                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-assistant-website"
                   >
@@ -959,11 +959,11 @@ function Kind0Panel({
         </div>
       ) : query.isError ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200"
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
           data-testid="status-kind0-error"
         >
           <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          <p className="text-[10px] text-red-700">Failed to fetch kind 0 from relays.</p>
+          <p className="text-[10px] text-red-700 dark:text-red-300">Failed to fetch kind 0 from relays.</p>
         </div>
       ) : !event || !profile ? (
         <div
@@ -1001,7 +1001,7 @@ function Kind0Panel({
                     target="_blank"
                     rel="noreferrer"
                     className={`text-[10px] hover:underline truncate ${
-                      isAssistant ? "text-emerald-700" : "text-slate-600 dark:text-slate-300"
+                      isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-kind0-website"
                   >
@@ -1057,7 +1057,7 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
 
   return (
     <div
-      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 shadow-sm"
+      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-500/20 shadow-sm dark:shadow-none"
       data-testid={`card-nostr-health-${pubkey.slice(0, 8)}`}
     >
       <div className="flex items-center justify-between mb-3">
