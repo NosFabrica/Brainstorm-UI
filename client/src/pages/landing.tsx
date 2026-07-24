@@ -589,8 +589,10 @@ export default function Landing() {
     <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <HomeHeroBackground dimmed={lifted} />
 
-      {/* Homepage nav (guidelines pp.19–20): B symbol left · centered links ·
-          actions right — transparent over the hero photo, both signed-in/out. */}
+      {/* Homepage top bar (Google-search pattern): the center stays empty so the
+          search box owns it. B symbol left · account actions right — transparent
+          over the hero photo, both signed-in/out. The About / How-search-works /
+          Developers / Q&A links live in the bottom footer, Google-style. */}
       <header className="relative z-20 flex items-center px-4 sm:px-8 py-5" data-testid="home-header">
         {/* Left: the compact B symbol (mono variant for contrast on the photo). */}
         <button
@@ -603,29 +605,6 @@ export default function Landing() {
           <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
           <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
         </button>
-
-        {/* Center: primary nav links. */}
-        <nav
-          className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-sm font-medium md:flex lg:gap-9"
-          data-testid="home-nav"
-        >
-          {[
-            { label: "About", path: "/about" },
-            { label: "How search works", path: "/how-search-works" },
-            { label: "Developers", path: "/developers" },
-            { label: "Q&A", path: "/faq" },
-          ].map((l) => (
-            <button
-              key={l.path}
-              type="button"
-              onClick={() => setLocation(l.path)}
-              className="whitespace-nowrap text-slate-700 transition-colors hover:text-brand-deep dark:text-slate-200 dark:hover:text-white"
-              data-testid={`home-nav-${l.path.slice(1)}`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </nav>
 
         {/* Right: actions — apps + avatar when signed in, else Sign in. */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
@@ -1079,6 +1058,27 @@ export default function Landing() {
           </div>
         )}
       </main>
+
+      {/* Footer (Google-search pattern): secondary/info links sit quietly at the
+          bottom, muted and small, so they never compete with the search box. */}
+      <footer className="relative z-10 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+        {[
+          { label: "About", path: "/about" },
+          { label: "How search works", path: "/how-search-works" },
+          { label: "Developers", path: "/developers" },
+          { label: "Q&A", path: "/faq" },
+        ].map((l) => (
+          <button
+            key={l.path}
+            type="button"
+            onClick={() => setLocation(l.path)}
+            className="font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white"
+            data-testid={`footer-home-${l.path.slice(1)}`}
+          >
+            {l.label}
+          </button>
+        ))}
+      </footer>
     </div>
   );
 }
