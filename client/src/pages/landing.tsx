@@ -15,13 +15,12 @@ import {
   UserRound,
   Radar,
   Copy,
-  ShieldCheck,
 } from "lucide-react";
 import { HomeHeroBackground } from "@/components/HomeHeroBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
-import { AppHeader } from "@/components/AppHeader";
+import { AppsLauncher } from "@/components/AppsLauncher";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
@@ -590,26 +589,67 @@ export default function Landing() {
     <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <HomeHeroBackground dimmed={lifted} />
 
-      {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
-      ) : (
-        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
-          <button
-            type="button"
-            onClick={() => setLocation("/about")}
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
-            data-testid="link-home-about"
-          >
-            About
-          </button>
-          <SignInButton
-            variant="primary"
-            label="Sign in"
-            className="!rounded-full sm:px-5"
-            data-testid="button-home-sign-in"
-          />
-        </header>
-      )}
+      {/* Homepage nav (guidelines pp.19–20): B symbol left · centered links ·
+          actions right — transparent over the hero photo, both signed-in/out. */}
+      <header className="relative z-20 flex items-center px-4 sm:px-8 py-5" data-testid="home-header">
+        {/* Left: the compact B symbol (mono variant for contrast on the photo). */}
+        <button
+          type="button"
+          onClick={() => setLocation("/")}
+          aria-label="Brainstorm home"
+          className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="home-brand"
+        >
+          <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
+          <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
+        </button>
+
+        {/* Center: primary nav links. */}
+        <nav
+          className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-7 text-sm font-medium md:flex lg:gap-9"
+          data-testid="home-nav"
+        >
+          {[
+            { label: "About", path: "/about" },
+            { label: "How search works", path: "/how-search-works" },
+            { label: "Developers", path: "/developers" },
+            { label: "Q&A", path: "/faq" },
+          ].map((l) => (
+            <button
+              key={l.path}
+              type="button"
+              onClick={() => setLocation(l.path)}
+              className="whitespace-nowrap text-slate-700 transition-colors hover:text-brand-deep dark:text-slate-200 dark:hover:text-white"
+              data-testid={`home-nav-${l.path.slice(1)}`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Right: actions — apps + avatar when signed in, else Sign in. */}
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          {user ? (
+            <>
+              <AppsLauncher user={user} calcDone={calcDone} active="home" variant="light" />
+              <button
+                type="button"
+                onClick={() => setLocation("/dashboard")}
+                aria-label="Your dashboard"
+                className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+                data-testid="home-avatar"
+              >
+                <Avatar className="h-9 w-9 border border-white/40 shadow-sm">
+                  {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "You"} className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+              </button>
+            </>
+          ) : (
+            <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
+          )}
+        </div>
+      </header>
 
       <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10" : "justify-center -mt-10 sm:-mt-16"}`}>
         <div className="w-full max-w-2xl mx-auto text-center" style={{ animation: "homeFadeUp 0.5s ease-out" }}>
@@ -899,26 +939,6 @@ export default function Landing() {
           )}
         </div>
 
-        {/* The three brand value props (guidelines homepage) — shown in the empty
-            hero state, hidden once a search is in progress. */}
-        {!lifted && (
-          <div className="w-full max-w-4xl mx-auto mt-12 sm:mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 px-2 text-left" data-testid="home-value-props" style={{ animation: "homeFadeUp 0.6s ease-out" }}>
-            {[
-              { Icon: Users, title: "Web of trust", body: "Brainstorm surfaces people, ideas, and perspectives through connections you already trust — not popularity alone." },
-              { Icon: ShieldCheck, title: "Without noise", body: "No ads, no tracking, and no paid placement. Just results shaped by relevance, context, and your own point of view." },
-              { Icon: Globe, title: "Open and free", body: "Built on open protocols and designed for everyone. Your trust network stays portable, transparent, and under your control." },
-            ].map(({ Icon, title, body }) => (
-              <div key={title}>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-brand-accent" />
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
-                </div>
-                <p className="text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">{body}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
         <PostSignupCard />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
             New users still auto-follow the profile they join from (see SharePage) —
@@ -1059,25 +1079,6 @@ export default function Landing() {
           </div>
         )}
       </main>
-
-      <footer className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
-        <button
-          type="button"
-          onClick={() => setLocation("/developers")}
-          className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
-          data-testid="link-home-developers"
-        >
-          Developers
-        </button>
-        <button
-          type="button"
-          onClick={() => setLocation("/how-search-works")}
-          className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
-          data-testid="link-home-how-search-works"
-        >
-          How search works
-        </button>
-      </footer>
     </div>
   );
 }
