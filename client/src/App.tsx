@@ -31,6 +31,9 @@ import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import DevelopersPage from "@/pages/DevelopersPage";
+import DeveloperNip50Page from "@/pages/DeveloperNip50Page";
+import DeveloperOpenRankingPage from "@/pages/DeveloperOpenRankingPage";
+import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPage";
 import NostrPage from "@/pages/NostrPage";
 import HashtagPage from "@/pages/HashtagPage";
 import PrivacyPage from "@/pages/PrivacyPage";
@@ -41,7 +44,7 @@ import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
-import { getCurrentUser } from "@/services/nostr";
+import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
 
 function ScrollToTop() {
@@ -120,6 +123,9 @@ function Router() {
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/developers" component={DevelopersPage} />
+        <Route path="/developers/nip-50" component={DeveloperNip50Page} />
+        <Route path="/developers/open-ranking" component={DeveloperOpenRankingPage} />
+        <Route path="/developers/trusted-assertions" component={DeveloperTrustedAssertionsPage} />
         <Route path="/nostr" component={NostrPage} />
         <Route path="/privacy" component={PrivacyPage} />
         <Route path="/terms" component={TermsPage} />
@@ -133,6 +139,14 @@ function Router() {
 }
 
 function App() {
+  // Warm up the in-memory secret key on boot so the encrypted-at-rest key is
+  // decrypted (silently, no password) before the first signing action — keeps the
+  // synchronous reveal/backup paths correct. Only for signed-in users (the decrypt
+  // is bound to the account pubkey); anonymous visitors skip the IndexedDB open.
+  useEffect(() => {
+    if (getCurrentUser()) void ensureUnlocked();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>

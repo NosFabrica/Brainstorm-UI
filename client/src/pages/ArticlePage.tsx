@@ -7,7 +7,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
@@ -91,7 +91,6 @@ export default function ArticlePage() {
   const authorName = profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
   const authorNpub = ptr ? (() => { try { return npubFromPubkey(ptr.pubkey); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
-  const tier = score01 != null ? tierForScore(score01) : null;
   const loggedIn = hasSessionToken();
   const firstName = authorName.split(" ")[0];
   const [threadGated, setThreadGated] = useState(false);
@@ -167,15 +166,8 @@ export default function ArticlePage() {
                   <span className="text-xs text-slate-400">{publishedAgo(ev)}</span>
                 </div>
               </Link>
-              {tier && (
-                <span
-                  className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full border pl-1.5 pr-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
-                  style={{ color: tier.color, backgroundColor: `${tier.color}14`, borderColor: `${tier.color}55` }}
-                  title="Network web-of-trust score"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tier.color }} />
-                  {tier.name} · {Math.round((score01 ?? 0) * 100)}
-                </span>
+              {typeof score01 === "number" && Number.isFinite(score01) && (
+                <VerificationCoin score01={score01} pov="global" size={24} className="ml-auto" />
               )}
             </div>
 
