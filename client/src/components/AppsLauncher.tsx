@@ -7,6 +7,7 @@ import {
   Search,
   Home,
   Users,
+  Mountain,
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
@@ -39,7 +40,8 @@ export type AppKey =
   | "admin"
   | "reviews"
   | "communities"
-  | "music";
+  | "music"
+  | "events";
 
 interface AppTile {
   key: AppKey;
@@ -49,7 +51,7 @@ interface AppTile {
   disabled?: boolean;
   disabledTitle?: string;
   comingSoon?: boolean;
-  tone?: "default" | "special" | "admin";
+  tone?: "default" | "special" | "admin" | "product";
 }
 
 interface AppsLauncherProps {
@@ -81,9 +83,13 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
       : []),
-    { key: "reviews", label: "Signal", path: "/", icon: RankingIcon, comingSoon: true },
-    { key: "communities", label: "Communities", path: "/", icon: CommunitiesIcon, comingSoon: true },
-    { key: "music", label: "Music", path: "/", icon: MusicLibraryIcon, comingSoon: true },
+    // Product family (Design System v1.0, p.12) — Signal · Communities · Music ·
+    // Events. Product icons read in Aurora Cyan (distinct from the purple
+    // toolbar/interface icons), even while coming soon.
+    { key: "reviews", label: "Signal", path: "/", icon: RankingIcon, comingSoon: true, tone: "product" },
+    { key: "communities", label: "Communities", path: "/", icon: CommunitiesIcon, comingSoon: true, tone: "product" },
+    { key: "music", label: "Music", path: "/", icon: MusicLibraryIcon, comingSoon: true, tone: "product" },
+    { key: "events", label: "Events", path: "/", icon: Mountain, comingSoon: true, tone: "product" },
   ];
 
   return (
@@ -153,22 +159,26 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                 <span
                   className={
                     "h-10 w-10 rounded-xl flex items-center justify-center " +
-                    (tile.comingSoon
-                      ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
-                      : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
-                        (tile.tone === "special"
-                          ? "border border-indigo-500/30 animate-pulse-glow"
-                          : "border border-indigo-500/10"))
+                    (tile.tone === "product"
+                      ? "bg-brand-accent/[0.08] border border-brand-accent/20 "
+                      : tile.comingSoon
+                        ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
+                        : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
+                          (tile.tone === "special"
+                            ? "border border-indigo-500/30 animate-pulse-glow"
+                            : "border border-indigo-500/10"))
                   }
                 >
                   <Icon
                     className={
                       "h-5 w-5 " +
-                      (tile.comingSoon
-                        ? "text-slate-400 dark:text-slate-500"
-                        : tile.tone === "admin"
-                          ? "text-amber-600"
-                          : "text-indigo-600")
+                      (tile.tone === "product"
+                        ? "text-brand-accent"
+                        : tile.comingSoon
+                          ? "text-slate-400 dark:text-slate-500"
+                          : tile.tone === "admin"
+                            ? "text-amber-600"
+                            : "text-indigo-600")
                     }
                   />
                 </span>
