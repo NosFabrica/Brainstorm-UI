@@ -1661,12 +1661,15 @@ export default function ProfilePage() {
     return map;
   }, [profileResult, sectionInfluenceMaps, sharedFollowerPubkeys, sharedFollowingPubkeys]);
 
+  // Brand-aligned trust ramp (mirrors TRUST_TIER_COLORS): Aurora Purple → Cyan
+  // for the top tiers, muted violet for neutral, amber (semantic caution) for
+  // low, brand grey for unverified. Text shades are darkened for on-white contrast.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#059669", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ring: "stroke-emerald-600" },
-    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", ring: "stroke-sky-500" },
-    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#6366f1", bg: "bg-indigo-50", text: "text-indigo-600", border: "border-indigo-200", ring: "stroke-indigo-400" },
+    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", ring: "stroke-violet-600" },
+    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", ring: "stroke-cyan-500" },
+    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10", text: "text-[#665487]", border: "border-[#665487]/30", ring: "stroke-[#665487]" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", min: 0, color: "#a1a1aa", bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", ring: "stroke-zinc-400" },
+    { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200", ring: "stroke-slate-400" },
   ];
 
   const profileTier = useMemo(() => {

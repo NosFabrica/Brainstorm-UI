@@ -31,13 +31,19 @@ export const TIER_THRESHOLDS = {
 // Single source of truth for trust-tier colors — shared by the dashboard's
 // Network Composition breakdown and the public-page Web of Trust bar so the two
 // can never drift. Keep these in sync with nothing else: everything reads here.
+// Brand-aligned trust ramp (Design System v1.0): the two highest tiers use the
+// brand's Aurora Purple → Aurora Cyan (purple & cyan are "reserved for trust,
+// interaction and focus"); neutral is a muted brand violet; the low/flagged
+// tiers keep their semantic warning hues (amber/red) and unverified is a brand
+// grey. Single source of truth — dashboard Network Composition, the WoT bar, and
+// the VerificationCoin all read here.
 export const TRUST_TIER_COLORS = {
-  highlyTrusted: "#059669", // emerald
-  trusted: "#0ea5e9", // sky
-  neutral: "#6366f1", // indigo
-  lowTrust: "#f59e0b", // amber
-  unverified: "#a1a1aa", // zinc
-  flagged: "#ef4444", // red (public pages surface this as the flag banner, not a bar segment)
+  highlyTrusted: "#7237ff", // Aurora Purple
+  trusted: "#13d2e5", // Aurora Cyan
+  neutral: "#665487", // Muted Violet
+  lowTrust: "#f59e0b", // amber (semantic caution — unchanged)
+  unverified: "#8c929e", // Neutral Grey (brand)
+  flagged: "#ef4444", // red (semantic danger — unchanged; public pages surface this as the flag banner)
 } as const;
 
 const BACKEND_TO_PRESET: Record<string, TrustPreset> = {
