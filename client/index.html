@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- No-flash theme: set class="dark" synchronously before first paint.
+         ROLLOUT GATE: while the dark neutral sweep is in progress this honors
+         only an EXPLICIT "dark" choice (never system) so dark-OS visitors aren't
+         dropped into a half-finished dark UI. When dark ships, also honor
+         system: `=== 'dark' || ((!t || t === 'system') && matchMedia(...).matches)`. -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem("brainstorm_theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <title>Brainstorm - Web of Trust for Nostr</title>
     <meta name="description" content="Build trust scores from your own connections — not an algorithm. Brainstorm is the decentralized Web of Trust layer for Nostr." />
     <meta name="keywords" content="Brainstorm, Nostr, Web of Trust, WoT, GrapeRank, decentralized, trust scores, social graph, NIP-85, reputation" />
