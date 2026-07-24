@@ -7,10 +7,19 @@ const alertVariants = cva(
   "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
   {
     variants: {
+      // Alerts (Design System v1.0, p.18): info / success / warning / error.
+      // Colour communicates purpose; each is a soft-tinted panel with a matching
+      // icon colour, in light and dark.
       variant: {
-        default: "bg-background text-foreground",
+        default: "bg-card text-card-foreground border-border",
+        info:
+          "border-brand-accent/30 bg-brand-accent/[0.07] text-brand-deep dark:text-brand-link [&>svg]:text-brand-accent",
+        success:
+          "border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-800 dark:text-emerald-300 [&>svg]:text-emerald-600 dark:[&>svg]:text-emerald-400",
+        warning:
+          "border-amber-500/35 bg-amber-500/[0.08] text-amber-900 dark:text-amber-300 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+          "border-red-500/40 bg-red-500/[0.07] text-red-800 dark:text-red-300 [&>svg]:text-red-600 dark:[&>svg]:text-red-400",
       },
     },
     defaultVariants: {
