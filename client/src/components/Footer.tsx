@@ -7,7 +7,7 @@ export function Footer() {
 
   return (
     <motion.footer 
-      className="relative z-20 w-screen mt-auto bg-slate-100 dark:bg-slate-950 border-t border-slate-200 dark:border-transparent"
+      className="relative z-20 w-screen mt-auto bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-transparent"
       data-footer-dark="true"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
