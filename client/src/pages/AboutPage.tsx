@@ -461,7 +461,7 @@ function ThemeBand({
 }) {
   return (
     <div
-      className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none overflow-hidden"
       data-testid={testId}
     >
       <div className="grid md:grid-cols-2 md:items-stretch">
@@ -503,7 +503,7 @@ function ThemeBand({
           <p className="mt-3 text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">{desc}</p>
           <button
             onClick={onClick}
-            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors self-start"
+            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors self-start"
             data-testid={`${testId}-cta`}
           >
             {ctaLabel}

@@ -151,7 +151,7 @@ function PipelineDiagram() {
               >
                 <div
                   className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                    isEndpoint ? "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" : "bg-white border border-brand-accent/25 text-brand-deep"
+                    isEndpoint ? "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" : "bg-white dark:bg-slate-900 border border-brand-accent/25 text-brand-deep dark:text-brand-link"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
@@ -190,8 +190,8 @@ function TrustSignal({
   fill: number;
 }) {
   const toneStyles = {
-    up: { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", icon: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-    down: { chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", icon: "text-rose-600 bg-rose-50 border-rose-200" },
+    up: { chip: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25", bar: "bg-emerald-500", icon: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25" },
+    down: { chip: "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/25", bar: "bg-rose-500", icon: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/25" },
     off: { chip: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800", bar: "bg-slate-300 dark:bg-slate-700", icon: "text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" },
   }[tone];
   return (
