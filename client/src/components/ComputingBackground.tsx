@@ -278,7 +278,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           </linearGradient>
           <linearGradient id="cbLineGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#7237ff" stopOpacity="0.25" />
           </linearGradient>
         </defs>
       </svg>

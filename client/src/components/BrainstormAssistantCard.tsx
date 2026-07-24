@@ -559,7 +559,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                     type="button"
                     onClick={handlePublish}
                     disabled={isPending}
-                    className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,#3730a3_0%,#5b63d9_45%,#7c86ff_75%,#5b63d9_100%)] hover:bg-[position:100%_0] hover:brightness-110"
+                    className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] hover:bg-[position:100%_0] hover:brightness-110"
                     data-testid={`button-assistant-publish-${variant}`}
                   >
                     {!reduceMotion && (

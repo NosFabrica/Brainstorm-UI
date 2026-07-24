@@ -54,7 +54,7 @@ export function WotBackground() {
         ))}
         <defs>
           <linearGradient id="wotLineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" />
+            <stop offset="0%" stopColor="#7237ff" />
             <stop offset="100%" stopColor="#8b5cf6" />
           </linearGradient>
         </defs>

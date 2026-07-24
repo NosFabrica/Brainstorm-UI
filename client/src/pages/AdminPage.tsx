@@ -462,7 +462,7 @@ function compareActivityWindows(activity: { updated_at: string; status?: string 
   };
 }
 
-function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
+function MiniSparkline({ data, timestamps, color = "#13d2e5", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
   if (!data || data.length < 2) {
     return (
       <div
@@ -505,7 +505,7 @@ function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width
   );
 }
 
-function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, color = "#7c86ff", valueLabel = "value", valueSuffix = "" }: {
+function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, color = "#13d2e5", valueLabel = "value", valueSuffix = "" }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
@@ -646,7 +646,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
             <MiniSparkline
               data={sparklineData ?? []}
               timestamps={sparklineTimestamps}
-              color={sparklineColor ?? "#7c86ff"}
+              color={sparklineColor ?? "#13d2e5"}
               height={22}
               width={64}
               valueLabel={sparklineValueLabel ?? "value"}
@@ -2699,7 +2699,7 @@ export default function AdminPage() {
               scope="system"
               sparklineData={fixedTrends24h.totalSeries}
               sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#7c86ff"
+              sparklineColor="#13d2e5"
               sparklineValueLabel="calcs / hr"
             />
             <KpiCard
@@ -2859,8 +2859,8 @@ export default function AdminPage() {
                       }))} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#7c86ff" stopOpacity={0.5} />
-                            <stop offset="100%" stopColor="#7c86ff" stopOpacity={0.05} />
+                            <stop offset="0%" stopColor="#13d2e5" stopOpacity={0.5} />
+                            <stop offset="100%" stopColor="#13d2e5" stopOpacity={0.05} />
                           </linearGradient>
                           <linearGradient id="failRateGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
@@ -2878,7 +2878,7 @@ export default function AdminPage() {
                           }}
                           formatter={(v: number, name: string) => name === "Failure rate" ? [`${v}%`, name] : [v, name]}
                         />
-                        <Area yAxisId="left" type="monotone" dataKey="total" name={trends.cfg.bucketUnitLabel} stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
+                        <Area yAxisId="left" type="monotone" dataKey="total" name={trends.cfg.bucketUnitLabel} stroke="#13d2e5" strokeWidth={1.5} fill="url(#totalGrad)" />
                         <Area yAxisId="right" type="monotone" dataKey="failureRate" name="Failure rate" stroke="#f87171" strokeWidth={1} fill="url(#failRateGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>

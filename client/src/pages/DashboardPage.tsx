@@ -709,7 +709,7 @@ export default function DashboardPage() {
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
     { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0ea5e9" },
-    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#6366f1" },
+    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#7237ff" },
     {
       name: "Dormant (1+ year)",
       value: Math.max(

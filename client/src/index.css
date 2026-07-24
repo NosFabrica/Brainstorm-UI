@@ -9,36 +9,36 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 220 20% 97%;
-  --foreground: 224 71% 4%;
-  --border: 220 13% 91%;
+  --background: 80 8% 95%;
+  --foreground: 223 41% 7%;
+  --border: 204 7% 85%;
   --card: 0 0% 100%;
-  --card-foreground: 224 71% 4%;
-  --card-border: 220 13% 91%;
+  --card-foreground: 223 41% 7%;
+  --card-border: 204 7% 85%;
   --sidebar: 0 0% 98%;
-  --sidebar-foreground: 224 71% 4%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-primary: 239 84% 67%;
+  --sidebar-foreground: 223 41% 7%;
+  --sidebar-border: 204 7% 85%;
+  --sidebar-primary: 258 100% 61%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 14% 96%;
-  --sidebar-accent-foreground: 224 71% 4%;
-  --sidebar-ring: 239 84% 67%;
+  --sidebar-accent: 80 6% 94%;
+  --sidebar-accent-foreground: 223 41% 7%;
+  --sidebar-ring: 258 100% 61%;
   --popover: 0 0% 100%;
-  --popover-foreground: 224 71% 4%;
-  --popover-border: 220 13% 91%;
-  --primary: 239 84% 67%;
+  --popover-foreground: 223 41% 7%;
+  --popover-border: 204 7% 85%;
+  --primary: 258 100% 61%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 224 71% 4%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
+  --secondary: 80 6% 94%;
+  --secondary-foreground: 223 41% 7%;
+  --muted: 80 6% 94%;
+  --muted-foreground: 216 11% 45%;
   --accent: 262 83% 58%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --input: 220 13% 91%;
-  --ring: 239 84% 67%;
-  --chart-1: 239 84% 67%;
+  --input: 204 7% 85%;
+  --ring: 258 100% 61%;
+  --chart-1: 258 100% 61%;
   --chart-2: 160 84% 39%;
   --chart-3: 30 96% 55%;
   --chart-4: 280 87% 65%;
@@ -50,19 +50,20 @@
      works). Reskin = change these values here; a `.dark` override set is added
      in the dark-mode phase. Codemod replaced ~1k hardcoded hex with the
      `brand-*` Tailwind utilities that read these. */
-  --brand-primary: 99 102 241;        /* was #6366f1 — primary buttons, wordmark */
-  --brand-primary-hover: 79 70 229;   /* was #4f46e5 — primary button hover */
-  --brand-accent: 124 134 255;        /* was #7c86ff — kickers, accent lines, chips */
-  --brand-accent-hover: 91 99 217;    /* was #5b63d9 — accent hover / mid */
-  --brand-deep: 51 50 134;            /* was #333286 — deep accent text */
-  --brand-link: 55 48 163;            /* was #3730a3 — links, secondary text/border */
+  --brand-primary: 114 55 255;        /* Aurora Purple #7237ff — primary buttons, wordmark */
+  --brand-primary-hover: 97 47 217;   /* #612fd9 — darker Aurora Purple, button hover */
+  --brand-accent: 19 210 229;         /* Aurora Cyan #13d2e5 — kickers, accent lines, chips */
+  --brand-accent-hover: 40 126 137;   /* Muted Teal #287e89 — accent hover */
+  --brand-deep: 43 23 79;             /* Deep Violet #2b174f — deep accent text */
+  --brand-link: 114 55 255;           /* Aurora Purple #7237ff — links */
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Headings use the neutral workhorse (Inter) for a calm, corporate hierarchy. */
-  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Brand signature — reserved for the top-level page title and the logo wordmark only. */
-  --font-brand: 'Space Grotesk', 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  /* Brand typography (Design System v1.0): Figtree for interface content,
+     IBM Plex Mono for technical info / metadata. */
+  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Brand signature — top-level page title + logo wordmark. */
+  --font-brand: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
   --radius: 0.75rem;
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);

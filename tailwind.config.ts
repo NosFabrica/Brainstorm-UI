@@ -97,6 +97,25 @@ export default {
           deep: "rgb(var(--brand-deep) / <alpha-value>)",
           link: "rgb(var(--brand-link) / <alpha-value>)",
         },
+        // Brand neutral ramp (Design System v1.0) — overrides Tailwind's default
+        // `slate` so every `*-slate-N` across the app adopts the brand greys
+        // without a per-usage codemod. Anchored on Balanced White (#F2F3F0),
+        // Secondary (#B5BAC3), Neutral Grey (#8C929E), #7F8794, #555D69, and
+        // Brainstorm Ink (#0A0E18); darks are blue-tinted to match Surface Blue
+        // (#151C2A) / Deep Blue (#10213A).
+        slate: {
+          50: "#f2f3f0",
+          100: "#e8eae7",
+          200: "#d6d9db",
+          300: "#b5bac3",
+          400: "#9aa1ac",
+          500: "#8c929e",
+          600: "#6b7480",
+          700: "#555d69",
+          800: "#2b3442",
+          900: "#151c2a",
+          950: "#0a0e18",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
