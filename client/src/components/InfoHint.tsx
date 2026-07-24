@@ -23,7 +23,7 @@ export function InfoHint({ children, label = "More info" }: InfoHintProps) {
         <button
           type="button"
           aria-label={label}
-          className="inline-flex h-11 w-11 -my-2.5 items-center justify-center text-slate-400 hover:text-[#333286] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 rounded-full"
+          className="inline-flex h-11 w-11 -my-2.5 items-center justify-center text-slate-400 hover:text-brand-deep transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-full"
           data-testid="button-info-hint"
         >
           <Info className="h-4 w-4" />
@@ -31,7 +31,7 @@ export function InfoHint({ children, label = "More info" }: InfoHintProps) {
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-auto max-w-[260px] p-3 rounded-xl border-[#7c86ff]/20 bg-white text-[13px] leading-relaxed text-slate-600 shadow-lg"
+        className="w-auto max-w-[260px] p-3 rounded-xl border-brand-accent/20 bg-white text-[13px] leading-relaxed text-slate-600 shadow-lg"
         data-testid="popover-info-hint"
       >
         {children}

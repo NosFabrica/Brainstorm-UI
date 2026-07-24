@@ -44,6 +44,19 @@
   --chart-4: 280 87% 65%;
   --chart-5: 340 82% 52%;
 
+  /* Brand palette — the single source of truth for the app's brand colors.
+     RGB channels (exact to the legacy hex; consumed via
+     rgb(var(--brand-*) / <alpha-value>) in tailwind.config.ts so `/opacity`
+     works). Reskin = change these values here; a `.dark` override set is added
+     in the dark-mode phase. Codemod replaced ~1k hardcoded hex with the
+     `brand-*` Tailwind utilities that read these. */
+  --brand-primary: 99 102 241;        /* was #6366f1 — primary buttons, wordmark */
+  --brand-primary-hover: 79 70 229;   /* was #4f46e5 — primary button hover */
+  --brand-accent: 124 134 255;        /* was #7c86ff — kickers, accent lines, chips */
+  --brand-accent-hover: 91 99 217;    /* was #5b63d9 — accent hover / mid */
+  --brand-deep: 51 50 134;            /* was #333286 — deep accent text */
+  --brand-link: 55 48 163;            /* was #3730a3 — links, secondary text/border */
+
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   /* Headings use the neutral workhorse (Inter) for a calm, corporate hierarchy. */
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

@@ -197,7 +197,7 @@ export function EventThread({
                 key={f.key}
                 type="button"
                 onClick={() => setMinTrust(f.min)}
-                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-[#6366f1] text-white" : "text-slate-500 hover:text-slate-800"}`}
+                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-brand-primary text-white" : "text-slate-500 hover:text-slate-800"}`}
                 data-testid={`thread-filter-${f.key}`}
               >
                 {f.label}
@@ -210,13 +210,13 @@ export function EventThread({
       {loggedIn && !usePersonal && (
         <p className="mb-2 text-xs text-slate-500" data-testid="thread-filter-unlock">
           {calcTriggered ? (
-            <span className="inline-flex items-center gap-1 text-[#333286]"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your Web of Trust — the filter switches to your perspective when it's ready.</span>
+            <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your Web of Trust — the filter switches to your perspective when it's ready.</span>
           ) : myFollows > 0 ? (
             <>Filtering by the Brainstorm network.{" "}
               <button
                 type="button"
                 onClick={() => { if (myPubkey) { void triggerScoringAndAnchor(myPubkey); setCalcTriggered(true); } }}
-                className="font-semibold text-[#3730a3] hover:underline"
+                className="font-semibold text-brand-link hover:underline"
                 data-testid="thread-calc-wot"
               >
                 Calculate your Web of Trust to filter by who YOU trust →
@@ -224,7 +224,7 @@ export function EventThread({
             </>
           ) : (
             <>Filtering by the Brainstorm network.{" "}
-              <Link href={buildWotHref} className="font-semibold text-[#3730a3] hover:underline">Follow people to filter by your own Web of Trust →</Link>
+              <Link href={buildWotHref} className="font-semibold text-brand-link hover:underline">Follow people to filter by your own Web of Trust →</Link>
             </>
           )}
         </p>
@@ -254,21 +254,21 @@ export function EventThread({
       </div>
 
       {!loggedIn && gatedCount > 0 && (
-        <div className="mt-3 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="thread-gate">
+        <div className="mt-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="thread-gate">
           <p className="text-sm font-bold text-slate-900">See the whole conversation</p>
           <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
-            Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-[#333286]">filter the thread through your own Web of Trust</span>.
+            Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-brand-deep">filter the thread through your own Web of Trust</span>.
           </p>
           <Link
             href={loginHref}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
             data-testid="thread-gate-cta"
           >
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
           <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>
           <p className="mt-2 text-xs text-slate-500">
-            Already part of the network? <Link href={loginHref} className="font-semibold text-[#3730a3] hover:underline" data-testid="thread-gate-signin">Sign in →</Link>
+            Already part of the network? <Link href={loginHref} className="font-semibold text-brand-link hover:underline" data-testid="thread-gate-signin">Sign in →</Link>
           </p>
         </div>
       )}

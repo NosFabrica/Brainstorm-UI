@@ -657,7 +657,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                 <button
                   key={opt.value}
                   onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-[#6366f1] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
                   data-testid={`sort-${opt.value}-${key}`}
                 >
                   {opt.label}
@@ -901,7 +901,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="px-3 py-2">
             <button
               onClick={(e) => { e.stopPropagation(); onShowMore(key, processed, visibleCount); }}
-              className="w-full py-2 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
+              className="w-full py-2 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-medium transition-all shadow-sm hover:shadow-md"
               data-testid={`button-show-more-${key}`}
             >
               Show {Math.min(10, processed.length - visibleCount)} more <span className="text-white/60 font-mono ml-1">({processed.length - visibleCount} remaining{typeof sectionTotal === "number" && sectionTotal > processed.length ? ` of ${sectionTotal.toLocaleString()} total` : ""})</span>
@@ -913,7 +913,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             <p className="text-xs text-slate-400">No users match this filter</p>
             <button
               onClick={(e) => { e.stopPropagation(); onSetFilter(key, "all"); onSetReportTypeFilter(key, "all"); }}
-              className="text-xs text-[#3730a3] font-medium mt-1.5 hover:underline"
+              className="text-xs text-brand-link font-medium mt-1.5 hover:underline"
               data-testid={`filter-clear-${key}`}
             >
               Clear filter
@@ -2186,7 +2186,7 @@ export default function ProfilePage() {
                     <Button
                       type="button"
                       onClick={() => navigate("/")}
-                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-[#6366f1] hover:bg-[#4f46e5] text-white"
+                      className="h-10 rounded-xl px-4 font-bold tracking-wide text-xs shadow-sm bg-brand-primary hover:bg-brand-primary-hover text-white"
                       data-testid="button-profile-new-search"
                     >
                       New Search
@@ -2280,7 +2280,7 @@ export default function ProfilePage() {
                   ) : (
                     <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
                       <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
                     </div>
                   )}
                 </div>
@@ -2321,11 +2321,11 @@ export default function ProfilePage() {
                           {hexPubkey && getCurrentAssistantPubkey() === hexPubkey && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] font-bold tracking-wider uppercase bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/30 self-center"
+                              className="text-[10px] font-bold tracking-wider uppercase bg-brand-accent/10 text-brand-deep border border-brand-accent/30 self-center"
                               data-testid="badge-brainstorm-assistant"
                               title="This is your Brainstorm Assistant — a bot that publishes your trust scores to Nostr."
                             >
-                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7c86ff] mr-1" />
+                              <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accent mr-1" />
                               Brainstorm Assistant
                             </Badge>
                           )}
@@ -2359,7 +2359,7 @@ export default function ProfilePage() {
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}
                   {theyFollowMe && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-[#3730a3]" data-testid="badge-follows-you">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
                       <ArrowLeft className="h-3 w-3" /> Follows you
                     </span>
                   )}
@@ -2394,7 +2394,7 @@ export default function ProfilePage() {
                                 ? followHovered
                                   ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
                                   : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                                : "bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-sm"
+                                : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
                             }`}
                             data-testid="button-follow-toggle"
                           >
@@ -3259,7 +3259,7 @@ export default function ProfilePage() {
                   value={opt.value}
                   checked={reportReason === opt.value}
                   onChange={() => setReportReason(opt.value)}
-                  className="mt-0.5 accent-[#3730a3]"
+                  className="mt-0.5 accent-brand-link"
                 />
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{opt.label}</p>

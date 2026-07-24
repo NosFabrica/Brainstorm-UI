@@ -72,8 +72,8 @@ function NavButton({
         (disabled
           ? "font-medium text-slate-400 opacity-50 cursor-not-allowed border border-transparent"
           : active
-            ? "font-semibold text-[#3730a3] bg-indigo-50 border border-indigo-100"
-            : "font-medium text-slate-700 hover:text-[#3730a3] hover:bg-slate-50 border border-transparent")
+            ? "font-semibold text-brand-link bg-indigo-50 border border-indigo-100"
+            : "font-medium text-slate-700 hover:text-brand-link hover:bg-slate-50 border border-transparent")
       }
       onClick={() => {
         if (!disabled) {
@@ -88,11 +88,11 @@ function NavButton({
       <Icon
         className={
           "h-5 w-5 " +
-          (disabled ? "text-slate-300" : active ? "text-[#6366f1]" : "text-slate-400")
+          (disabled ? "text-slate-300" : active ? "text-brand-primary" : "text-slate-400")
         }
       />
       {item.special ? (
-        <span className="bg-gradient-to-r from-[#6366f1] to-[#7c86ff] bg-clip-text font-semibold text-transparent">{item.label}</span>
+        <span className="bg-gradient-to-r from-brand-primary to-brand-accent bg-clip-text font-semibold text-transparent">{item.label}</span>
       ) : item.label}
     </Button>
   );
@@ -152,7 +152,7 @@ export function MobileMenu({
           className="pointer-events-none absolute inset-0"
           style={{
             backgroundImage:
-              "radial-gradient(460px 460px at 115% -8%, rgba(99,102,241,0.08), transparent 62%), radial-gradient(520px 520px at -12% 112%, rgba(124,134,255,0.07), transparent 62%)",
+              "radial-gradient(460px 460px at 115% -8%, rgb(var(--brand-primary)/0.08), transparent 62%), radial-gradient(520px 520px at -12% 112%, rgb(var(--brand-accent)/0.07), transparent 62%)",
           }}
         />
 
@@ -270,7 +270,7 @@ export function MobileMenu({
                 {user.picture ? (
                   <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
                 ) : null}
-                <AvatarFallback className="rounded-2xl bg-indigo-50 text-[#6366f1] font-bold text-lg">
+                <AvatarFallback className="rounded-2xl bg-indigo-50 text-brand-primary font-bold text-lg">
                   {(user.displayName?.slice(0, 1) || "U").toUpperCase()}
                 </AvatarFallback>
               </Avatar>

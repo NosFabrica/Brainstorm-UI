@@ -59,7 +59,7 @@ function SectionRow({
       <span className="flex-1 truncate text-sm font-medium text-slate-800">{label}</span>
       <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${sectionKey}`}><ChevronUp className="h-4 w-4" /></button>
       <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${sectionKey}`}><ChevronDown className="h-4 w-4" /></button>
-      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-[#6366f1]" data-testid={`customize-toggle-${sectionKey}`} />
+      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-brand-primary" data-testid={`customize-toggle-${sectionKey}`} />
     </Reorder.Item>
   );
 }
@@ -211,7 +211,7 @@ export function ProfileCustomizer({
                   <div key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 bg-slate-50/60" : "border-slate-200 bg-white"}`} data-testid={`customize-row-${k}`}>
                     <span className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400" : "text-slate-800"}`}>{HERO_LABELS[k]}</span>
                     {empty && <span className="shrink-0 text-[11px] text-slate-400">Not set yet</span>}
-                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-[#6366f1]"} data-testid={`customize-toggle-${k}`} />
+                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-brand-primary"} data-testid={`customize-toggle-${k}`} />
                   </div>
                 );
               })}
@@ -225,7 +225,7 @@ export function ProfileCustomizer({
               {ROLES.map((r) => {
                 const on = draft.roles.includes(r.key);
                 return (
-                  <button key={r.key} type="button" onClick={() => toggleRole(r.key)} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-[#7c86ff]/40 bg-[#333286]/5 text-[#333286]" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`} data-testid={`customize-role-${r.key}`}>
+                  <button key={r.key} type="button" onClick={() => toggleRole(r.key)} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-brand-accent/40 bg-brand-deep/5 text-brand-deep" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`} data-testid={`customize-role-${r.key}`}>
                     {on && <Check className="h-3 w-3" />} {r.label}
                   </button>
                 );
@@ -239,10 +239,10 @@ export function ProfileCustomizer({
             {selected.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {selected.map((c) => (
-                  <span key={c.pubkey} className="inline-flex items-center gap-1.5 rounded-full border border-[#7c86ff]/40 bg-[#333286]/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-[#333286]">
+                  <span key={c.pubkey} className="inline-flex items-center gap-1.5 rounded-full border border-brand-accent/40 bg-brand-deep/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-brand-deep">
                     <PersonAvatar c={c} size="h-5 w-5" />
                     <span className="max-w-[110px] truncate">{c.name || c.pubkey.slice(0, 8) + "…"}</span>
-                    <button type="button" onClick={() => removePinned(c.pubkey)} className="rounded-full p-0.5 hover:bg-[#333286]/10" aria-label="Remove" data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}><X className="h-3 w-3" /></button>
+                    <button type="button" onClick={() => removePinned(c.pubkey)} className="rounded-full p-0.5 hover:bg-brand-deep/10" aria-label="Remove" data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}><X className="h-3 w-3" /></button>
                   </span>
                 ))}
               </div>
@@ -259,7 +259,7 @@ export function ProfileCustomizer({
                       <button key={c.pubkey} type="button" onClick={() => addPinned(c.pubkey)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50" data-testid={`customize-follower-${c.pubkey.slice(0, 8)}`}>
                         <PersonAvatar c={c} />
                         <span className="flex-1 truncate text-sm text-slate-700">{c.name || c.pubkey.slice(0, 10) + "…"}</span>
-                        <span className="text-xs font-semibold text-[#3730a3]">Add</span>
+                        <span className="text-xs font-semibold text-brand-link">Add</span>
                       </button>
                     ))}
                   </div>
@@ -274,7 +274,7 @@ export function ProfileCustomizer({
           {error ? <span className="truncate text-xs text-red-500">{error}</span> : <span className="text-xs text-slate-400">Saved to Nostr — you own it.</span>}
           <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5] disabled:opacity-60" data-testid="customize-save">
+            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60" data-testid="customize-save">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
             </button>
           </div>

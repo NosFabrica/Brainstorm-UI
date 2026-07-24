@@ -47,7 +47,7 @@ export function Footer() {
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
               >
                 <img src="/nostr-ostrich.gif" alt="Nostr" className="h-6 w-auto group-hover:h-8 transition-all duration-200" />
-                <span className="text-slate-400 group-hover:text-[#7c86ff] group-hover:font-medium transition-all duration-200">Built on Nostr</span>
+                <span className="text-slate-400 group-hover:text-brand-accent group-hover:font-medium transition-all duration-200">Built on Nostr</span>
               </motion.button>
               
               <div className="w-px h-4 bg-slate-700/50" />
@@ -65,7 +65,7 @@ export function Footer() {
                 whileHover={{ textShadow: ["0 0 4px rgba(255,255,255,0.3)", "0 0 8px rgba(255,255,255,0.5)", "0 0 4px rgba(255,255,255,0.3)"] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
               >
-                <div className="w-1.5 h-1.5 rounded-full bg-[#7c86ff] animate-pulse" />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-accent animate-pulse" />
                 <span>Clarity in a fragmented world</span>
               </motion.div>
               
@@ -78,12 +78,12 @@ export function Footer() {
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
               >
-                <motion.div className="absolute -inset-3 rounded-xl bg-gradient-to-r from-indigo-500/20 via-[#7c86ff]/20 to-[#7c86ff]/20 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300" />
+                <motion.div className="absolute -inset-3 rounded-xl bg-gradient-to-r from-indigo-500/20 via-brand-accent/20 to-brand-accent/20 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300" />
                 <motion.div className="absolute -inset-2 rounded-lg border border-indigo-500/0 group-hover:border-indigo-500/40 transition-all duration-300" />
                 <Info className="h-3.5 w-3.5 relative z-10 group-hover:rotate-12 transition-transform duration-300" />
                 <span className="relative z-10">What is Web of Trust?</span>
                 <motion.span className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300" initial={{ scale: 0 }} whileHover={{ scale: 1 }}>
-                  <Sparkles className="h-3 w-3 text-[#7c86ff]" />
+                  <Sparkles className="h-3 w-3 text-brand-accent" />
                 </motion.span>
               </motion.button>
               
@@ -164,7 +164,7 @@ export function Footer() {
           
           {/* What is Web of Trust - Featured at top */}
           <motion.button 
-            className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-indigo-500/10 via-[#7c86ff]/10 to-[#7c86ff]/10 border border-indigo-500/30 rounded-xl flex items-center justify-center gap-3 group"
+            className="w-full mb-6 py-3 px-4 bg-gradient-to-r from-indigo-500/10 via-brand-accent/10 to-brand-accent/10 border border-indigo-500/30 rounded-xl flex items-center justify-center gap-3 group"
             onClick={() => setLocation('/what-is-wot')}
             data-testid="button-learn-more-mobile"
             whileTap={{ scale: 0.98 }}

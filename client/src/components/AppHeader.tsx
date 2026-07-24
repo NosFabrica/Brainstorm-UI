@@ -170,7 +170,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
-                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-[#333286] via-[#7c86ff] to-[#333286] shadow-[0_0_0_1px_rgba(99,102,241,0.15)] transition-all duration-300 group-hover:from-[#3730a3] group-hover:via-[#7c86ff] group-hover:to-[#3730a3] group-hover:shadow-[0_0_16px_2px_rgba(124,134,255,0.5)]">
+                    <div className="rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
                       <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC]" : "bg-slate-950")}>
                         <Avatar className="h-9 w-9 shadow-sm" data-testid="img-user-avatar">
                           {user.picture ? (

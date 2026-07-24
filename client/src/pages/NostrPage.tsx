@@ -89,17 +89,17 @@ export default function NostrPage() {
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-nostr-header">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 Built on Nostr
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
               className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-nostr-title"
             >
-              Brainstorm runs on <span className="text-[#333286]">Nostr</span>.
+              Brainstorm runs on <span className="text-brand-deep">Nostr</span>.
             </h1>
             <p
               className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl"
@@ -112,14 +112,14 @@ export default function NostrPage() {
 
           {/* Plain-language intro */}
           <section
-            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] p-6 sm:p-10"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] p-6 sm:p-10"
             data-testid="section-nostr-plain"
           >
             <div className="flex items-center gap-2.5 mb-5">
-              <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                <Plane className="h-[18px] w-[18px] text-[#333286]" />
+              <div className="h-9 w-9 rounded-xl bg-white border border-brand-accent/25 flex items-center justify-center shrink-0">
+                <Plane className="h-[18px] w-[18px] text-brand-deep" />
               </div>
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                 The simple version
               </span>
             </div>
@@ -160,8 +160,8 @@ export default function NostrPage() {
                     className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-7"
                     data-testid={`card-benefit-${b.title.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                   >
-                    <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center mb-4">
-                      <Icon className="h-5 w-5 text-[#333286]" />
+                    <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
+                      <Icon className="h-5 w-5 text-brand-deep" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900 tracking-tight mb-1.5">{b.title}</h3>
                     <p className="text-[14px] text-slate-600 leading-relaxed">{b.body}</p>
@@ -192,7 +192,7 @@ export default function NostrPage() {
             <button
               type="button"
               onClick={() => setShowWeeds((v) => !v)}
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
               data-testid="button-into-the-weeds"
               aria-expanded={showWeeds}
               aria-controls="nostr-weeds-panel"
@@ -216,8 +216,8 @@ export default function NostrPage() {
                       data-testid={`concept-${c.term.toLowerCase()}`}
                     >
                       <div className="flex items-center gap-3 sm:flex-col sm:items-start shrink-0 sm:w-28">
-                        <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
-                          <Icon className="h-5 w-5 text-[#333286]" />
+                        <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
+                          <Icon className="h-5 w-5 text-brand-deep" />
                         </div>
                         <h3 className="text-base font-bold text-slate-900 tracking-tight sm:mt-2">{c.term}</h3>
                       </div>
@@ -244,14 +244,14 @@ export default function NostrPage() {
                   href={r.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
                   data-testid={`resource-${r.name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                 >
                   <div>
                     <p className="text-sm font-bold text-slate-900">{r.name}</p>
                     <p className="text-xs text-slate-500">{r.note}</p>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-[#7c86ff] shrink-0 transition-colors" />
+                  <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-brand-accent shrink-0 transition-colors" />
                 </a>
               ))}
             </div>
@@ -260,11 +260,11 @@ export default function NostrPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                 Keep reading
               </p>
               <p className="text-base font-semibold text-slate-900">
@@ -272,7 +272,7 @@ export default function NostrPage() {
               </p>
               <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>

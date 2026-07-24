@@ -76,16 +76,16 @@ export default function WelcomePage() {
 
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
             Build your network
           </span>
-          <div className="h-px w-12 bg-[#7c86ff]/40" />
+          <div className="h-px w-12 bg-brand-accent/40" />
         </div>
         <h1
           className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          Follow a few accounts <span className="text-[#333286]">to begin</span>.
+          Follow a few accounts <span className="text-brand-deep">to begin</span>.
         </h1>
         <p className="mt-5 text-lg text-slate-600 leading-relaxed">
           Your Web of Trust is built from who you follow. Pick at least one account so Brainstorm can

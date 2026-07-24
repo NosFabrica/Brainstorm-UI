@@ -29,11 +29,11 @@ export function ShareOgCard({
 
   return (
     <div
-      className="relative w-full aspect-[1200/630] rounded-xl overflow-hidden bg-white border border-[#7c86ff]/20"
+      className="relative w-full aspect-[1200/630] rounded-xl overflow-hidden bg-white border border-brand-accent/20"
       style={{ containerType: "inline-size" }}
     >
       {/* Clean surface — a faint brand wash in one corner, no decorative shapes. */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-[#7c86ff]/[0.08]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-brand-accent/[0.08]" />
       <div className="relative h-full w-full flex flex-col justify-between p-[5%]">
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
@@ -55,7 +55,7 @@ export function ShareOgCard({
           <div className="min-w-0">
             <div className="text-[6.5cqw] font-bold leading-tight truncate text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{displayName}</div>
             {nip05 && (
-              <div className="flex items-center gap-1 text-[3.4cqw] text-[#3730a3] font-medium mt-[0.6cqw]">
+              <div className="flex items-center gap-1 text-[3.4cqw] text-brand-link font-medium mt-[0.6cqw]">
                 <BadgeCheck className="h-[3.4cqw] w-[3.4cqw]" /> {nip05.replace(/^_@/, "")}
               </div>
             )}

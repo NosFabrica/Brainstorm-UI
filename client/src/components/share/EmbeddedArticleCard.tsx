@@ -89,7 +89,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
             <div className="mt-2.5">
               <Link
                 href={`/a/${naddr}`}
-                className="inline-flex items-center gap-1 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
                 Read article <ArrowRight className="h-3.5 w-3.5" />

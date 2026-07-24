@@ -27,7 +27,7 @@ export function ContentTeaserBlock({
       data-testid={testId}
     >
       <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0 text-[#333286]">
+        <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0 text-brand-deep">
           {icon}
         </div>
         <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -37,7 +37,7 @@ export function ContentTeaserBlock({
           <button
             type="button"
             onClick={onViewAll}
-            className="ml-auto text-xs font-semibold text-[#3730a3] hover:underline shrink-0"
+            className="ml-auto text-xs font-semibold text-brand-link hover:underline shrink-0"
             data-testid="block-view-all"
           >
             View all →

@@ -43,10 +43,10 @@ export function BackupReminder() {
 
   return (
     <div
-      className="w-full max-w-3xl mx-auto mt-4 flex items-center gap-3 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.03] to-[#7c86ff]/[0.06] shadow-[0_0_15px_rgba(124,134,255,0.07)] px-4 py-3"
+      className="w-full max-w-3xl mx-auto mt-4 flex items-center gap-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-4 py-3"
       data-testid="backup-reminder"
     >
-      <span className="h-9 w-9 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+      <span className="h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
         <ShieldCheck className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ export function BackupReminder() {
       <button
         type="button"
         onClick={() => navigate("/settings?tab=profile&focus=backup")}
-        className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold px-3.5 py-2 transition-colors"
+        className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold px-3.5 py-2 transition-colors"
         data-testid="backup-reminder-cta"
       >
         Back up now <ArrowRight className="h-3.5 w-3.5" />
@@ -65,7 +65,7 @@ export function BackupReminder() {
         type="button"
         onClick={snooze}
         aria-label="Remind me later"
-        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-[#7c86ff]/10 transition-colors"
+        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-brand-accent/10 transition-colors"
         data-testid="backup-reminder-dismiss"
       >
         <X className="h-4 w-4" />

@@ -100,20 +100,20 @@ export default function FaqPage() {
           <div className="space-y-6 animate-fade-up">
             <PageHeader
               kicker="Brainstorm FAQ"
-              title={<>Frequently Asked <span className="text-[#333286]">Questions</span></>}
+              title={<>Frequently Asked <span className="text-brand-deep">Questions</span></>}
               subtitle={activeTab === "users"
                 ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
                 : "Technical details for client developers implementing NIP-85 Trust Attestations."}
               testId="section-faq-header"
             />
 
-            <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
+            <div className="inline-flex rounded-full p-1 bg-white/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm" data-testid="tabs-faq">
               <button
                 onClick={() => handleTabChange("users")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "users"
-                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
-                    : "text-slate-500 hover:text-[#333286]"
+                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                    : "text-slate-500 hover:text-brand-deep"
                 }`}
                 data-testid="tab-users"
               >
@@ -123,8 +123,8 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("developers")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "developers"
-                    ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
-                    : "text-slate-500 hover:text-[#333286]"
+                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                    : "text-slate-500 hover:text-brand-deep"
                 }`}
                 data-testid="tab-developers"
               >
@@ -138,7 +138,7 @@ export default function FaqPage() {
               <div className="bg-slate-50 border-b border-slate-200 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                    <HelpCircle className="h-4 w-4 text-[#333286]" />
+                    <HelpCircle className="h-4 w-4 text-brand-deep" />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -166,8 +166,8 @@ export default function FaqPage() {
                         key={`${activeTab}-${i}`}
                         className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
                           expandedFaq === i
-                            ? 'bg-gradient-to-br from-[#7c86ff]/8 via-indigo-50/60 to-[#7c86ff]/5 border border-[#7c86ff]/30 shadow-[0_4px_20px_rgba(124,134,255,0.1)]'
-                            : 'bg-white/60 border border-slate-200/80 hover:border-[#7c86ff]/25 hover:bg-white/80 hover:shadow-sm'
+                            ? 'bg-gradient-to-br from-brand-accent/8 via-indigo-50/60 to-brand-accent/5 border border-brand-accent/30 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]'
+                            : 'bg-white/60 border border-slate-200/80 hover:border-brand-accent/25 hover:bg-white/80 hover:shadow-sm'
                         }`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -175,7 +175,7 @@ export default function FaqPage() {
                       >
                         {expandedFaq === i && (
                           <motion.div
-                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#7c86ff] to-transparent"
+                            className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
                             initial={{ opacity: 0, scaleX: 0 }}
                             animate={{ opacity: 1, scaleX: 1 }}
                           />
@@ -190,20 +190,20 @@ export default function FaqPage() {
                             <div
                               className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
                                 expandedFaq === i
-                                  ? 'bg-[#7c86ff]/15 border border-[#7c86ff]/30 shadow-sm'
-                                  : 'bg-white border border-[#7c86ff]/12 shadow-sm group-hover:bg-[#7c86ff]/10 group-hover:border-[#7c86ff]/25'
+                                  ? 'bg-brand-accent/15 border border-brand-accent/30 shadow-sm'
+                                  : 'bg-white border border-brand-accent/12 shadow-sm group-hover:bg-brand-accent/10 group-hover:border-brand-accent/25'
                               }`}
                             >
                               {expandedFaq === i ? (
-                                <BrainLogo size={14} className="text-[#333286]" />
+                                <BrainLogo size={14} className="text-brand-deep" />
                               ) : (
-                                <span className="text-[10px] font-bold text-[#7c86ff]/70 font-mono group-hover:text-[#333286]">
+                                <span className="text-[10px] font-bold text-brand-accent/70 font-mono group-hover:text-brand-deep">
                                   {String(i + 1).padStart(2, '0')}
                                 </span>
                               )}
                             </div>
                             <span className={`text-sm font-semibold transition-colors ${
-                              expandedFaq === i ? 'text-[#333286]' : 'text-slate-700 group-hover:text-slate-900'
+                              expandedFaq === i ? 'text-brand-deep' : 'text-slate-700 group-hover:text-slate-900'
                             }`}>
                               {faq.question}
                             </span>
@@ -214,7 +214,7 @@ export default function FaqPage() {
                             className="flex-shrink-0"
                           >
                             <ChevronDown className={`h-4 w-4 transition-colors ${
-                              expandedFaq === i ? 'text-[#7c86ff]' : 'text-slate-400 group-hover:text-[#7c86ff]'
+                              expandedFaq === i ? 'text-brand-accent' : 'text-slate-400 group-hover:text-brand-accent'
                             }`} />
                           </motion.div>
                         </button>
@@ -246,11 +246,11 @@ export default function FaqPage() {
             {/* Cross-link */}
             <button
               onClick={() => navigate("/nostr")}
-              className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+              className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
               data-testid="link-to-nostr"
             >
               <div>
-                <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+                <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                   Keep reading
                 </p>
                 <p className="text-base font-semibold text-slate-900">
@@ -258,7 +258,7 @@ export default function FaqPage() {
                 </p>
                 <p className="text-sm text-slate-500 mt-0.5">See Built on Nostr</p>
               </div>
-              <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         </div>

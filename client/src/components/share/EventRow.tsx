@@ -26,7 +26,7 @@ export function EventRow({ event, href, past = false }: { event: EventRowItem; h
     >
       <div
         className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border ${
-          past ? "border-slate-200 bg-slate-50 text-slate-400" : "border-[#7c86ff]/30 bg-[#333286]/[0.06] text-[#333286]"
+          past ? "border-slate-200 bg-slate-50 text-slate-400" : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep"
         }`}
         aria-hidden="true"
       >

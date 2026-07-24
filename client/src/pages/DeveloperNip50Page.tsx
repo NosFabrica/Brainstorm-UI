@@ -62,17 +62,17 @@ export default function DeveloperNip50Page() {
           <header className="max-w-3xl" data-testid="section-dev-header">
             <div className="mb-5"><DevBackLink /></div>
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 NIP-50 relay search
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
               className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-dev-title"
             >
-              Add Brainstorm Search to <span className="text-[#333286]">your nostr client</span>.
+              Add Brainstorm Search to <span className="text-brand-deep">your nostr client</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl" data-testid="text-dev-subtitle">
               This relay supports NIP-50 full-text profile search. Any nostr client can query it over a
@@ -81,7 +81,7 @@ export default function DeveloperNip50Page() {
           </header>
 
           {/* Relay URL */}
-          <SectionCard icon={<ConnectionIcon className="h-5 w-5 text-[#333286]" />} title="Relay URL" testId="card-dev-relay">
+          <SectionCard icon={<ConnectionIcon className="h-5 w-5 text-brand-deep" />} title="Relay URL" testId="card-dev-relay">
             <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
               <code className="flex-1 font-mono text-[14px] text-indigo-700 break-all" data-testid="text-relay-url">
                 {RELAY_URL}
@@ -99,7 +99,7 @@ export default function DeveloperNip50Page() {
           </SectionCard>
 
           {/* Quick Start */}
-          <SectionCard icon={<Terminal className="h-5 w-5 text-[#333286]" />} title="Quick Start" testId="card-dev-quickstart">
+          <SectionCard icon={<Terminal className="h-5 w-5 text-brand-deep" />} title="Quick Start" testId="card-dev-quickstart">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               Connect via WebSocket and send a standard NIP-50 search REQ:
             </p>
@@ -112,7 +112,7 @@ export default function DeveloperNip50Page() {
           </SectionCard>
 
           {/* Personalized Results */}
-          <SectionCard icon={<BrainLogo size={20} className="text-[#333286]" />} title="Personalized Results with WoT Extensions" testId="card-dev-personalized">
+          <SectionCard icon={<BrainLogo size={20} className="text-brand-deep" />} title="Personalized Results with WoT Extensions" testId="card-dev-personalized">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               Add custom extensions to the search string to get results personalized to a specific user
               (filtered and sorted by that user's community):
@@ -123,9 +123,9 @@ export default function DeveloperNip50Page() {
               <table className="w-full text-left border-collapse" data-testid="table-extensions">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">Extension</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">Format</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">Description</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-deep">Extension</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-deep">Format</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-deep">Description</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,7 +142,7 @@ export default function DeveloperNip50Page() {
           </SectionCard>
 
           {/* Automatic Score Provisioning */}
-          <SectionCard icon={<FavoriteChartIcon className="h-5 w-5 text-[#333286]" />} title="Automatic Score Provisioning" testId="card-dev-provisioning">
+          <SectionCard icon={<FavoriteChartIcon className="h-5 w-5 text-brand-deep" />} title="Automatic Score Provisioning" testId="card-dev-provisioning">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               The first time you search with a new observer, the relay automatically loads that user's
               Brainstorm data in the background if it is available. In the meantime, the search returns
@@ -154,15 +154,15 @@ export default function DeveloperNip50Page() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">Keep reading</p>
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">Keep reading</p>
               <p className="text-base font-semibold text-slate-900">Want the bigger picture on how trust ranking works?</p>
               <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
 
           <OpenSourceSection />

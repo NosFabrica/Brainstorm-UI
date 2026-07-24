@@ -156,7 +156,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             <button
               type="button"
               onClick={() => setShowAllSuggestions((v) => !v)}
-              className="mt-2 text-sm font-semibold text-[#3730a3] hover:underline"
+              className="mt-2 text-sm font-semibold text-brand-link hover:underline"
               data-testid="welcome-show-more"
             >
               {showAllSuggestions ? "Show fewer" : `Show ${hiddenCount} more`}
@@ -245,7 +245,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             type="button"
             onClick={() => onContinue(Array.from(selected))}
             disabled={count === 0 || busy}
-            className="w-full h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
             data-testid="welcome-finish"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

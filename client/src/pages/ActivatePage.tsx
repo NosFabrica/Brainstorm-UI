@@ -96,11 +96,11 @@ export default function ActivatePage() {
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8 sm:py-12">
         {/* Editorial header */}
         <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">Welcome to Brainstorm</span>
-          <div className="h-px w-12 bg-[#7c86ff]/40" />
+          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Welcome to Brainstorm</span>
+          <div className="h-px w-12 bg-brand-accent/40" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-          Your network's already here. <span className="text-[#333286]">Let's score it.</span>
+          Your network's already here. <span className="text-brand-deep">Let's score it.</span>
         </h1>
         <p className="mt-4 text-lg text-slate-600 leading-relaxed">
           Brainstorm reads the people you already follow and scores how trusted they are — so you can
@@ -130,7 +130,7 @@ export default function ActivatePage() {
         <div className="mt-4 grid grid-cols-3 gap-2">
           {VALUE.map((v) => (
             <div key={v.label} className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 text-center">
-              <span className="h-8 w-8 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#333286] flex items-center justify-center">{v.icon}</span>
+              <span className="h-8 w-8 rounded-lg bg-brand-accent/10 border border-brand-accent/20 text-brand-deep flex items-center justify-center">{v.icon}</span>
               <span className="text-[11px] font-semibold text-slate-600 leading-tight">{v.label}</span>
             </div>
           ))}
@@ -141,7 +141,7 @@ export default function ActivatePage() {
           type="button"
           onClick={calc}
           disabled={!pubkey}
-          className="mt-6 w-full h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+          className="mt-6 w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
           data-testid="activate-calculate"
         >
           Calculate my Web of Trust <ArrowRight className="h-4 w-4" />

@@ -103,12 +103,12 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
           <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
             <DialogHeader>
               {isProfile && intent?.picture ? (
-                <Avatar className="h-10 w-10 rounded-xl border border-[#7c86ff]/20 mb-3">
+                <Avatar className="h-10 w-10 rounded-xl border border-brand-accent/20 mb-3">
                   <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
                   <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
               ) : (
-                <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] mb-3">
+                <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep mb-3">
                   {isProfile ? <UserRound className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </div>
               )}
@@ -150,7 +150,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={confirm}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
               data-testid="button-share-nav-continue"
             >
               {isProfile ? "View profile" : "Search Brainstorm"} <ArrowRight className="h-4 w-4" />

@@ -249,12 +249,12 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   return (
     <div
       className={
-        "rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 transition-all duration-500 relative " +
+        "rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 transition-all duration-500 relative " +
         (showCelebration ? "ring-2 ring-amber-300/60 shadow-[0_0_30px_rgba(252,211,77,0.4)]" : "")
       }
       data-testid={`card-brainstorm-assistant-${variant}`}
     >
-      <div className={(variant === "settings" ? "relative h-24 sm:h-32 md:h-36 " : "relative h-20 sm:h-24 ") + "bg-gradient-to-br from-[#7c86ff] via-[#5b63d9] to-[#333286] overflow-hidden rounded-t-2xl"}>
+      <div className={(variant === "settings" ? "relative h-24 sm:h-32 md:h-36 " : "relative h-20 sm:h-24 ") + "bg-gradient-to-br from-brand-accent via-brand-accent-hover to-brand-deep overflow-hidden rounded-t-2xl"}>
         {(() => {
           const bannerSrc = profile?.banner || getDefaultAssistantBannerUrl();
           if (!bannerSrc) return null;
@@ -271,7 +271,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             />
           );
         })()}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/40 via-[#5b63d9]/30 to-[#333286]/55 mix-blend-multiply pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/40 via-brand-accent-hover/30 to-brand-deep/55 mix-blend-multiply pointer-events-none" />
         <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.25),transparent_50%)] pointer-events-none" />
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
         {variant === "dashboard" && onDismiss && !isActive && (
@@ -305,7 +305,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   />
                 );
               }
-              return <BrainLogo size={variant === "settings" ? 44 : variant === "dashboard" ? 32 : 36} className="text-[#333286]" />;
+              return <BrainLogo size={variant === "settings" ? 44 : variant === "dashboard" ? 32 : 36} className="text-brand-deep" />;
             })()}
           </div>
           {isActive && (
@@ -320,8 +320,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
         {isHighlighted && (
           <div className="inline-flex items-center gap-1.5 mb-1.5" data-testid={`eyebrow-assistant-${variant}`}>
-            <span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#333286]">Recommended next step</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-accent" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-deep">Recommended next step</span>
           </div>
         )}
         <div className="flex items-center gap-2 mb-1">
@@ -332,7 +332,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                 aria-label="What is the Brainstorm Assistant?"
                 data-testid={`button-assistant-info-${variant}`}
               >
@@ -367,10 +367,10 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             <div className={variant === "settings" ? "lg:grid lg:grid-cols-[1.4fr_1fr] lg:gap-5 space-y-3 lg:space-y-0" : "space-y-3"}>
             {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
               <div
-                className="relative rounded-xl border border-[#7c86ff]/20 bg-gradient-to-br from-white to-indigo-50/40 px-4 py-3.5 overflow-hidden"
+                className="relative rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white to-indigo-50/40 px-4 py-3.5 overflow-hidden"
                 data-testid={`profile-assistant-${variant}`}
               >
-                <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-[#7c86ff] to-[#333286]" />
+                <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-brand-accent to-brand-deep" />
                 <div className="space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -387,15 +387,15 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                         </p>
                       )}
                     </div>
-                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[9px] font-bold uppercase tracking-widest text-[#333286]" data-testid={`badge-assistant-bot-${variant}`}>
-                      <span className="h-1 w-1 rounded-full bg-[#7c86ff]" />
+                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-[9px] font-bold uppercase tracking-widest text-brand-deep" data-testid={`badge-assistant-bot-${variant}`}>
+                      <span className="h-1 w-1 rounded-full bg-brand-accent" />
                       Bot
                     </span>
                   </div>
 
                   {profile?.about && (
                     <div className="relative pl-4" data-testid={`text-assistant-about-${variant}`}>
-                      <Quote className="absolute -left-0.5 top-0 h-3 w-3 text-[#7c86ff]/50" aria-hidden="true" />
+                      <Quote className="absolute -left-0.5 top-0 h-3 w-3 text-brand-accent/50" aria-hidden="true" />
                       <p className="text-[12px] leading-relaxed text-slate-600 italic">
                         {profile.about}
                       </p>
@@ -410,11 +410,11 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                         href={w.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#333286] hover:text-[#3730a3] transition-colors group/site focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 rounded"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-deep hover:text-brand-link transition-colors group/site focus:outline-none focus:ring-2 focus:ring-brand-accent/40 rounded"
                         data-testid={`link-assistant-website-${variant}`}
                       >
                         <Globe className="h-3 w-3" />
-                        <span className="underline decoration-[#7c86ff]/40 underline-offset-2 group-hover/site:decoration-[#3730a3]">{w.label}</span>
+                        <span className="underline decoration-brand-accent/40 underline-offset-2 group-hover/site:decoration-brand-link">{w.label}</span>
                         <ExternalLink className="h-3 w-3 opacity-60 group-hover/site:opacity-100" />
                       </a>
                     );
@@ -429,7 +429,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={handleCopyNpub}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-700 hover:text-[#333286] transition-colors group/copy py-2 -my-2 rounded focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-700 hover:text-brand-deep transition-colors group/copy py-2 -my-2 rounded focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                   data-testid={`button-copy-assistant-npub-${variant}`}
                   aria-label={`Copy assistant npub ${published?.npub || ""}`}
                   title={published?.npub}
@@ -464,7 +464,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={() => navigate(`/p/${published.npub}`)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                   data-testid={`button-assistant-view-profile-${variant}`}
                 >
                   <BrainLogo size={12} className="text-white/95" />
@@ -486,7 +486,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   href={njumpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-[#333286] transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 rounded"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-brand-deep transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
                   data-testid={`link-assistant-view-event-${variant}`}
                   title="Open the published event on njump"
                 >
@@ -498,7 +498,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={handleCustomize}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#7c86ff]/30 bg-white text-[#333286] text-xs font-semibold transition-colors hover:bg-[#7c86ff]/5 min-h-[44px]"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/30 bg-white text-brand-deep text-xs font-semibold transition-colors hover:bg-brand-accent/5 min-h-[44px]"
                   data-testid={`button-assistant-customize-${variant}`}
                 >
                   <Wand2 className="h-3.5 w-3.5" />
@@ -509,7 +509,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   <UITooltip>
                     <TooltipTrigger asChild>
                       <span
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#7c86ff]/20 bg-white text-[#333286]/60 text-xs font-semibold opacity-70 cursor-not-allowed min-h-[44px]"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/20 bg-white text-brand-deep/60 text-xs font-semibold opacity-70 cursor-not-allowed min-h-[44px]"
                         aria-disabled="true"
                         tabIndex={0}
                         data-testid={`button-assistant-customize-${variant}`}
@@ -545,9 +545,9 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   initial={false}
                   animate={reduceMotion ? undefined : {
                     boxShadow: [
-                      "0 0 0px 0px rgba(124,134,255,0.00), 0 14px 30px -14px rgba(55,48,163,0.45)",
-                      "0 0 22px 6px rgba(124,134,255,0.28), 0 18px 36px -14px rgba(55,48,163,0.55)",
-                      "0 0 0px 0px rgba(124,134,255,0.00), 0 14px 30px -14px rgba(55,48,163,0.45)",
+                      "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
+                      "0 0 22px 6px rgb(var(--brand-accent)/0.28), 0 18px 36px -14px rgb(var(--brand-link)/0.55)",
+                      "0 0 0px 0px rgb(var(--brand-accent)/0.00), 0 14px 30px -14px rgb(var(--brand-link)/0.45)",
                     ],
                   }}
                   transition={reduceMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
@@ -559,7 +559,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                     type="button"
                     onClick={handlePublish}
                     disabled={isPending}
-                    className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,#3730a3_0%,#5b63d9_45%,#7c86ff_75%,#5b63d9_100%)] hover:bg-[position:100%_0] hover:brightness-110"
+                    className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,#3730a3_0%,#5b63d9_45%,#7c86ff_75%,#5b63d9_100%)] hover:bg-[position:100%_0] hover:brightness-110"
                     data-testid={`button-assistant-publish-${variant}`}
                   >
                     {!reduceMotion && (
@@ -584,7 +584,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   type="button"
                   onClick={handlePublish}
                   disabled={isPending}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-[#6366f1]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-bold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px] shadow-lg shadow-brand-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   data-testid={`button-assistant-publish-${variant}`}
                 >
                   {isPending ? (

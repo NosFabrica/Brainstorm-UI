@@ -167,7 +167,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           cx={node.x}
           cy={node.y}
           r="0.4"
-          fill={isDark ? 'rgba(96,165,250,0.35)' : 'rgba(99,102,241,0.3)'}
+          fill={isDark ? 'rgba(96,165,250,0.35)' : 'rgb(var(--brand-primary)/0.3)'}
           style={{
             transformOrigin: `${node.x}px ${node.y}px`,
             opacity: 0,
@@ -245,7 +245,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full blur-3xl"
         style={{
-          background: isDark ? 'rgba(37,99,235,0.04)' : 'rgba(79,70,229,0.03)',
+          background: isDark ? 'rgba(37,99,235,0.04)' : 'rgb(var(--brand-primary-hover)/0.03)',
           animation: 'cbGlowOrb1 18s ease-in-out infinite 2s',
         }}
       />
@@ -294,10 +294,10 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
             height: node.size + 2,
             background: isDark
               ? 'radial-gradient(circle, rgba(96,165,250,0.2) 0%, rgba(96,165,250,0.04) 60%, transparent 100%)'
-              : 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0.04) 60%, transparent 100%)',
+              : 'radial-gradient(circle, rgb(var(--brand-primary)/0.15) 0%, rgb(var(--brand-primary)/0.04) 60%, transparent 100%)',
             boxShadow: isDark
               ? '0 0 4px 1px rgba(96,165,250,0.05)'
-              : '0 0 4px 1px rgba(99,102,241,0.05)',
+              : '0 0 4px 1px rgb(var(--brand-primary)/0.05)',
             animation: `cbFloatNode ${node.duration}s ease-in-out infinite ${node.delay}s`,
           }}
         />

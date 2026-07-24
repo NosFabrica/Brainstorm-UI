@@ -579,7 +579,7 @@ function Nip85Panel({
   return (
     <PanelShell
       title="Trust Provider List (kind 10040)"
-      icon={<Radio className="h-3.5 w-3.5 text-[#333286]" />}
+      icon={<Radio className="h-3.5 w-3.5 text-brand-deep" />}
       pill={<StatusPill tone={pillTone} label={pillLabel} testId="status-nip85-overall" />}
       testId="card-nip85-health"
     >
@@ -941,7 +941,7 @@ function Kind0Panel({
   return (
     <PanelShell
       title="Profile Metadata (kind 0)"
-      icon={<UserIcon className="h-3.5 w-3.5 text-[#333286]" />}
+      icon={<UserIcon className="h-3.5 w-3.5 text-brand-deep" />}
       pill={pill}
       testId="card-kind0-health"
     >
@@ -1062,8 +1062,8 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 text-[#333286] hidden" />
-          <Radio className="h-4 w-4 text-[#333286]" />
+          <Loader2 className="h-4 w-4 text-brand-deep hidden" />
+          <Radio className="h-4 w-4 text-brand-deep" />
           <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
             Nostr Health
           </p>

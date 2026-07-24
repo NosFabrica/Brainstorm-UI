@@ -65,7 +65,7 @@ function Segmented<T extends string>({ value, options, onChange, testId }: {
           onClick={() => onChange(o.key)}
           aria-pressed={value === o.key}
           className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-            value === o.key ? "bg-white text-[#3730a3] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            value === o.key ? "bg-white text-brand-link shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
           data-testid={`${testId}-${o.key}`}
         >
@@ -169,14 +169,14 @@ export default function HashtagPage() {
         <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 flex-1" data-testid="hashtag-page">
           <PageHeader
             kicker="Topic"
-            title={<><Hash className="inline-block h-7 w-7 -mt-1 text-[#7c86ff]" />{tag}</>}
+            title={<><Hash className="inline-block h-7 w-7 -mt-1 text-brand-accent" />{tag}</>}
             subtitle="Trusted notes and articles on this topic — ranked by Web of Trust, spam filtered out."
           />
 
           {/* Related topics */}
           {relatedTopics.length > 0 && (
             <div className="mt-6 flex flex-wrap items-center gap-2" data-testid="hashtag-related">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-[#7c86ff]">Related</span>
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-brand-accent">Related</span>
               {relatedTopics.map((t) => (
                 <button
                   key={t}
@@ -218,7 +218,7 @@ export default function HashtagPage() {
               ))
             ) : events.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm" data-testid="hashtag-empty">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#333286]">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-accent/10 border border-brand-accent/20 text-brand-deep">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <p className="text-sm font-semibold text-slate-900">
@@ -230,7 +230,7 @@ export default function HashtagPage() {
                     : "We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut."}
                 </p>
                 {candidateCount > 0 && preset !== "relax" && (
-                  <button type="button" onClick={() => setPreset("relax")} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]" data-testid="hashtag-relax">
+                  <button type="button" onClick={() => setPreset("relax")} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover" data-testid="hashtag-relax">
                     Loosen to Relax
                   </button>
                 )}
@@ -259,7 +259,7 @@ export default function HashtagPage() {
                     href={c.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-[#7c86ff]/50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-accent/50"
                     data-testid={`hashtag-client-${c.name}`}
                   >
                     {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />

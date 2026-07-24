@@ -133,7 +133,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
                     animate={{ 
-                      boxShadow: ['0 0 0 0 rgba(99, 102, 241, 0)', '0 0 12px rgba(99, 102, 241, 0.2)', '0 0 0 0 rgba(99, 102, 241, 0)']
+                      boxShadow: ['0 0 0 0 rgb(var(--brand-primary)/0)', '0 0 12px rgb(var(--brand-primary)/0.2)', '0 0 0 0 rgb(var(--brand-primary)/0)']
                     }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
@@ -168,10 +168,10 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
             <motion.div 
               className="relative bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-indigo-500/30 rounded-3xl p-8 backdrop-blur-xl max-w-3xl mx-auto overflow-hidden"
               initial={{ 
-                boxShadow: '0 8px 40px rgba(99, 102, 241, 0.2), 0 0 80px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
+                boxShadow: '0 8px 40px rgb(var(--brand-primary)/0.2), 0 0 80px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
               }}
               whileHover={{ 
-                boxShadow: '0 12px 50px rgba(99, 102, 241, 0.3), 0 0 100px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255,255,255,0.08)'
+                boxShadow: '0 12px 50px rgb(var(--brand-primary)/0.3), 0 0 100px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255,255,255,0.08)'
               }}
               transition={{ duration: 0.4 }}
             >

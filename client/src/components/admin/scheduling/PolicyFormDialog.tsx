@@ -170,7 +170,7 @@ export function PolicyFormDialog({
               <select
                 id="policy-interval-unit"
                 aria-label="Interval unit"
-                className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                 value={intervalUnit}
                 onChange={(e) => setIntervalUnit(e.target.value)}
               >
@@ -206,7 +206,7 @@ export function PolicyFormDialog({
                 <select
                   id="policy-quota-window-unit"
                   aria-label="Quota window unit"
-                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   value={windowUnit}
                   onChange={(e) => setWindowUnit(e.target.value)}
                 >

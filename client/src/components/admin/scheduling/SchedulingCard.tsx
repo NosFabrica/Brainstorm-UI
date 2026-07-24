@@ -184,7 +184,7 @@ function PolicyUsersInline({
         </div>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
           onClick={() => setAssignOpen(true)}
           data-testid={`add-users-${policy.id}`}
         >
@@ -201,7 +201,7 @@ function PolicyUsersInline({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, npub, or hex…"
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               data-testid={`search-users-${policy.id}`}
             />
           </div>
@@ -221,7 +221,7 @@ function PolicyUsersInline({
             aria-pressed={neverOnly}
             className={`h-8 px-3 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
               neverOnly
-                ? "bg-[#333286] text-white border-[#333286]"
+                ? "bg-brand-deep text-white border-brand-deep"
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
             }`}
           >
@@ -358,7 +358,7 @@ function PolicyUsersInline({
               Cancel
             </Button>
             <Button
-              className="bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+              className="bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
               onClick={async () => {
                 const pk = confirmRemove?.pubkey;
                 setConfirmRemove(null);
@@ -469,7 +469,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
         </p>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
           onClick={() => setDialog({ mode: "create" })}
           data-testid="button-new-policy"
         >
@@ -545,7 +545,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                           aria-label={isExpanded ? "Collapse row" : "Expand row"}
                           aria-expanded={isExpanded}
                           onClick={() => toggleExpand(p.id)}
-                          className="p-1 rounded-md text-slate-400 hover:text-[#333286] hover:bg-[#7c86ff]/10 transition-colors"
+                          className="p-1 rounded-md text-slate-400 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
                         >
                           <ChevronDown
                             className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -558,7 +558,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             {p.name}
                           </span>
                           {p.is_default && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#7c86ff]/10 text-[#333286] border border-[#7c86ff]/20">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-brand-accent/10 text-brand-deep border border-brand-accent/20">
                               Default
                             </span>
                           )}
@@ -583,7 +583,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                         <button
                           type="button"
                           onClick={() => toggleExpand(p.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-[#333286] bg-[#7c86ff]/10 hover:bg-[#7c86ff]/20 border border-[#7c86ff]/20 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-brand-deep bg-brand-accent/10 hover:bg-brand-accent/20 border border-brand-accent/20 transition-colors"
                         >
                           <Users2 className="h-3 w-3" /> Manage
                         </button>
@@ -594,7 +594,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             checked={on}
                             onCheckedChange={() => handleToggleEnabled(p)}
                             aria-label={`Toggle ${p.name}`}
-                            className="data-[state=checked]:!bg-[#333286]"
+                            className="data-[state=checked]:!bg-brand-deep"
                           />
                           <span className="text-[11px] font-medium text-slate-500 w-14">
                             {on ? "Enabled" : "Disabled"}
@@ -608,7 +608,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             aria-label="Edit"
                             title="Edit policy"
                             onClick={() => setDialog({ mode: "edit", initial: p })}
-                            className="p-1.5 rounded-md text-slate-500 hover:text-[#333286] hover:bg-[#7c86ff]/10 transition-colors"
+                            className="p-1.5 rounded-md text-slate-500 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>

@@ -615,17 +615,17 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
     >
       <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       </div>
       <div className="flex items-start justify-between mb-2 relative">
-        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
-          <Icon className="h-4 w-4 text-[#333286]" />
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-accent/10 to-brand-deep/10 border border-brand-accent/15 flex items-center justify-center">
+          <Icon className="h-4 w-4 text-brand-deep" />
         </div>
         {scope && (
           <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>
@@ -657,7 +657,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
                 type="button"
                 aria-label={`View ${label} trend details`}
                 title="View trend details"
-                className="p-1 rounded-md text-slate-400 hover:text-[#333286] hover:bg-[#7c86ff]/10 active:bg-[#7c86ff]/20 transition-colors touch-manipulation"
+                className="p-1 rounded-md text-slate-400 hover:text-brand-deep hover:bg-brand-accent/10 active:bg-brand-accent/20 transition-colors touch-manipulation"
                 onClick={(e) => {
                   e.stopPropagation();
                   setTrendOpen(true);
@@ -911,8 +911,8 @@ function FailureBreakdownCard({
                         <ul className="mt-2 space-y-1 max-h-52 overflow-auto rounded-lg border border-slate-100 bg-white p-2">
                           {users.slice(0, 100).map((pk) => (
                             <li key={pk} className="flex items-center justify-between gap-2">
-                              <button type="button" onClick={() => onViewUser(pk)} className="font-mono text-[10px] text-[#333286] hover:text-[#7c86ff] truncate" title={pk}>{pk.slice(0, 16)}…{pk.slice(-6)}</button>
-                              <button type="button" onClick={() => onViewUser(pk)} className="text-[9px] text-slate-400 hover:text-[#333286] inline-flex items-center gap-1 shrink-0"><Eye className="h-3 w-3" /> view</button>
+                              <button type="button" onClick={() => onViewUser(pk)} className="font-mono text-[10px] text-brand-deep hover:text-brand-accent truncate" title={pk}>{pk.slice(0, 16)}…{pk.slice(-6)}</button>
+                              <button type="button" onClick={() => onViewUser(pk)} className="text-[9px] text-slate-400 hover:text-brand-deep inline-flex items-center gap-1 shrink-0"><Eye className="h-3 w-3" /> view</button>
                             </li>
                           ))}
                           {users.length > 100 && <li className="text-[9px] text-slate-400 px-1">+ {users.length - 100} more</li>}
@@ -973,7 +973,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
           <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#333286]" />
+                <Clock className="h-4 w-4 text-brand-deep" />
                 <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
                 {schedulingName && (
                   <span
@@ -1057,7 +1057,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                               )}
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className="text-[11px] font-mono font-semibold text-[#333286]">{item.algorithm}</span>
+                              <span className="text-[11px] font-mono font-semibold text-brand-deep">{item.algorithm}</span>
                             </td>
                             <td className="px-3 py-2.5">
                               {item.ta_status ? (
@@ -1368,7 +1368,7 @@ function FailureDetailCard({
               {onNavigateToUser ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); onNavigateToUser(item.pubkey!); }}
-                  className="font-mono text-[#333286] hover:text-[#7c86ff] hover:underline break-all text-left"
+                  className="font-mono text-brand-deep hover:text-brand-accent hover:underline break-all text-left"
                   data-testid={`failure-pubkey-link-${item.private_id ?? "x"}`}
                 >
                   {item.pubkey}
@@ -1543,7 +1543,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
               {bulkStatus === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
                bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
                bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
-               selected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+               selected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                <Square className={`h-3.5 w-3.5 ${item.pubkey ? "text-slate-400" : "text-slate-200"}`} />}
             </button>
           </td>
@@ -1582,7 +1582,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0 leading-tight">
-                    <span className="text-[10px] font-medium text-[#333286] hover:text-[#7c86ff] truncate max-w-[120px]">
+                    <span className="text-[10px] font-medium text-brand-deep hover:text-brand-accent truncate max-w-[120px]">
                       {displayName || npubShort}
                     </span>
                     {displayName && (
@@ -1647,7 +1647,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                 retriggerState === "done" ? "text-emerald-600 bg-emerald-50 border border-emerald-200" :
                 retriggerState === "error" ? "text-red-500 bg-red-50 border border-red-200" :
                 retriggerState === "running" ? "text-slate-400" :
-                "text-[#333286] hover:bg-[#333286]/5 hover:text-[#7c86ff] border border-transparent hover:border-[#7c86ff]/20"
+                "text-brand-deep hover:bg-brand-deep/5 hover:text-brand-accent border border-transparent hover:border-brand-accent/20"
               }`}
               title={isInPipeline ? "Currently processing" : retriggerState === "confirming" ? "Click again to confirm" : "Re-trigger GrapeRank"}
               data-testid={`button-retrigger-${item.private_id}`}
@@ -1723,7 +1723,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                 <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
                   <button
                     onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
-                    className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
+                    className="text-[10px] font-semibold text-brand-deep hover:text-brand-accent transition-colors flex items-center gap-1 min-h-[28px]"
                     data-testid={`button-view-detail-${item.private_id}`}
                   >
                     <Eye className="h-3 w-3" />
@@ -2637,7 +2637,7 @@ export default function AdminPage() {
                 </div>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-deep via-brand-accent to-brand-deep bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Admin Dashboard
                 </span>
               </h1>
@@ -2731,7 +2731,7 @@ export default function AdminPage() {
           </div>
 
           <div className="hidden sm:block overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-            <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
+            <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-brand-accent/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
               {tabs.map(tab => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.key;
@@ -2741,7 +2741,7 @@ export default function AdminPage() {
                     onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); }}
                     className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                       active
-                        ? "bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white shadow-md"
+                        ? "bg-gradient-to-r from-brand-deep to-brand-accent text-white shadow-md"
                         : "text-slate-500 hover:text-slate-800 hover:bg-white/80"
                     }`}
                     data-testid={`tab-${tab.key}`}
@@ -2762,11 +2762,11 @@ export default function AdminPage() {
                 <div className="relative">
                   <button
                     onClick={() => setMobileTabOpen(!mobileTabOpen)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm shadow-sm text-sm font-semibold text-slate-800"
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/60 border border-brand-accent/10 backdrop-blur-sm shadow-sm text-sm font-semibold text-slate-800"
                     data-testid="button-tab-mobile-trigger"
                   >
                     <span className="flex items-center gap-2">
-                      <ActiveIcon className="h-4 w-4 text-[#333286]" />
+                      <ActiveIcon className="h-4 w-4 text-brand-deep" />
                       {activeTabData?.label}
                     </span>
                     <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${mobileTabOpen ? "rotate-180" : ""}`} />
@@ -2774,7 +2774,7 @@ export default function AdminPage() {
                   {mobileTabOpen && (
                     <>
                       <div className="fixed inset-0 z-30" onClick={() => setMobileTabOpen(false)} />
-                      <div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl bg-white border border-[#7c86ff]/15 shadow-lg overflow-hidden" data-testid="dropdown-tab-mobile">
+                      <div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl bg-white border border-brand-accent/15 shadow-lg overflow-hidden" data-testid="dropdown-tab-mobile">
                         {tabs.map(tab => {
                           const Icon = tab.icon;
                           const isActive = activeTab === tab.key;
@@ -2784,14 +2784,14 @@ export default function AdminPage() {
                               onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); setMobileTabOpen(false); }}
                               className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
                                 isActive
-                                  ? "bg-gradient-to-r from-[#333286]/10 to-[#7c86ff]/10 text-[#333286]"
+                                  ? "bg-gradient-to-r from-brand-deep/10 to-brand-accent/10 text-brand-deep"
                                   : "text-slate-600 hover:bg-slate-50"
                               }`}
                               data-testid={`tab-mobile-${tab.key}`}
                             >
-                              <Icon className={`h-4 w-4 ${isActive ? "text-[#333286]" : "text-slate-400"}`} />
+                              <Icon className={`h-4 w-4 ${isActive ? "text-brand-deep" : "text-slate-400"}`} />
                               {tab.label}
-                              {isActive && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-[#333286]" />}
+                              {isActive && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-brand-deep" />}
                             </button>
                           );
                         })}
@@ -2815,7 +2815,7 @@ export default function AdminPage() {
                     {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
                   </p>
                 </div>
-                <div className="inline-flex rounded-lg border-2 border-[#7c86ff]/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
+                <div className="inline-flex rounded-lg border-2 border-brand-accent/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
                   {(["1h", "24h", "7d", "all"] as TrendWindow[]).map(w => (
                     <button
                       key={w}
@@ -2823,7 +2823,7 @@ export default function AdminPage() {
                       role="tab"
                       aria-selected={trendWindow === w}
                       onClick={() => setTrendWindow(w)}
-                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md ring-1 ring-[#7c86ff]/40" : "text-slate-600 bg-slate-50 hover:bg-[#7c86ff]/10 hover:text-[#333286] hover:shadow-sm"}`}
+                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-brand-accent to-brand-deep text-white shadow-md ring-1 ring-brand-accent/40" : "text-slate-600 bg-slate-50 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
                       {w === "all" ? "All" : w}
@@ -2832,15 +2832,15 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-trend-strip">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-3 border-b border-[#7c86ff]/10 flex items-center justify-between gap-3">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                <div className="px-5 py-3 border-b border-brand-accent/10 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-trend-strip-title">{trends.cfg.longLabel}</h3>
                     <p className="text-[11px] text-slate-500 mt-0.5">Calculation volume with failure-rate band {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}</p>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" /> {trends.cfg.bucketUnitLabel}</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-accent" /> {trends.cfg.bucketUnitLabel}</span>
                     <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Failure rate</span>
                   </div>
                 </div>
@@ -2887,9 +2887,9 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-health">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
@@ -3006,9 +3006,9 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-ta-adoption">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
                   <p className="text-xs text-slate-500 mt-0.5">TA adoption and recent calculation activity</p>
                 </div>
@@ -3202,7 +3202,7 @@ export default function AdminPage() {
                                             setHighlightedPubkey(pk);
                                             setTimeout(() => setHighlightedPubkey(null), 2500);
                                           }}
-                                          className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] inline-flex items-center gap-1"
+                                          className="text-[10px] font-semibold text-brand-deep hover:text-brand-accent inline-flex items-center gap-1"
                                           data-testid={`failure-group-view-user-${idx}`}
                                         >
                                           <Eye className="h-3 w-3" /> View latest affected user
@@ -3240,9 +3240,9 @@ export default function AdminPage() {
                 );
               })()}
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-quick-stats">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
                   <p className="text-xs text-slate-500 mt-0.5">API connectivity</p>
                 </div>
@@ -3275,9 +3275,9 @@ export default function AdminPage() {
 
           {activeTab === "users" && (
             <>
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="panel-users">
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="px-3 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
+              <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
@@ -3295,7 +3295,7 @@ export default function AdminPage() {
                       placeholder="Search name, pubkey, npub..."
                       value={userSearch}
                       onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                      className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                      className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                       data-testid="input-user-search"
                     />
                     {userSearch && (
@@ -3347,7 +3347,7 @@ export default function AdminPage() {
                   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
-                        {lookupMode === "lookup" ? <Search className="h-5 w-5 text-[#333286]" /> : <UserPlus className="h-5 w-5 text-[#333286]" />}
+                        {lookupMode === "lookup" ? <Search className="h-5 w-5 text-brand-deep" /> : <UserPlus className="h-5 w-5 text-brand-deep" />}
                         {lookupMode === "lookup" ? "Lookup User" : "Onboard User"}
                       </DialogTitle>
                       <DialogDescription className="text-sm text-slate-600 pt-1">
@@ -3360,7 +3360,7 @@ export default function AdminPage() {
                     <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" data-testid="toggle-lookup-mode">
                       <button
                         onClick={() => { setLookupMode("lookup"); setLookupResult(null); setLookupError(null); setLookupNameResults([]); }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white text-brand-deep shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                         data-testid="button-mode-lookup"
                       >
                         <Search className="h-3 w-3" />
@@ -3368,7 +3368,7 @@ export default function AdminPage() {
                       </button>
                       <button
                         onClick={() => { setLookupMode("onboard"); setLookupResult(null); setLookupError(null); }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "onboard" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "onboard" ? "bg-white text-brand-deep shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
                         data-testid="button-mode-onboard"
                       >
                         <UserPlus className="h-3 w-3" />
@@ -3385,7 +3385,7 @@ export default function AdminPage() {
                             value={lookupInput}
                             onChange={e => { setLookupInput(e.target.value); setLookupError(null); setLookupNameResults([]); }}
                             onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
-                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                             data-testid="input-lookup-pubkey"
                           />
                           <Button
@@ -3409,15 +3409,15 @@ export default function AdminPage() {
                                 return (
                                   <div
                                     key={u.pubkey}
-                                    className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 transition-all cursor-pointer"
+                                    className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-brand-accent/30 hover:bg-indigo-50/10 transition-all cursor-pointer"
                                     onClick={() => jumpToUser(u.pubkey, u.name)}
                                     data-testid={`lookup-name-result-${u.pubkey.slice(0, 8)}`}
                                   >
                                     {u.picture ? (
                                       <img src={u.picture} alt="" className="h-7 w-7 rounded-full object-cover shrink-0 border border-slate-200" />
                                     ) : (
-                                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-                                        <User className="h-3.5 w-3.5 text-[#333286]/60" />
+                                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+                                        <User className="h-3.5 w-3.5 text-brand-deep/60" />
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -3441,7 +3441,7 @@ export default function AdminPage() {
                             value={onboardSearch}
                             onChange={e => { setOnboardSearch(e.target.value); setOnboardError(null); }}
                             onKeyDown={e => { if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(); }}
-                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                             data-testid="input-onboard-search"
                             disabled={onboardingAll}
                           />
@@ -3469,18 +3469,18 @@ export default function AdminPage() {
                               return (
                                 <div
                                   key={profile.pubkey}
-                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-[#7c86ff]/40 bg-indigo-50/40" : "border-slate-200 bg-white/80 hover:border-[#7c86ff]/20 hover:bg-indigo-50/10"}`}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-brand-accent/40 bg-indigo-50/40" : "border-slate-200 bg-white/80 hover:border-brand-accent/20 hover:bg-indigo-50/10"}`}
                                   onClick={() => isQueued ? removeFromOnboardQueue(profile.pubkey) : addToOnboardQueue(profile)}
                                   data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
                                 >
-                                  <div className={`h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isQueued ? "bg-[#333286] border-[#333286]" : "border-slate-300"}`}>
+                                  <div className={`h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isQueued ? "bg-brand-deep border-brand-deep" : "border-slate-300"}`}>
                                     {isQueued && <CheckCircle2 className="h-3 w-3 text-white" />}
                                   </div>
                                   {profile.picture ? (
                                     <img src={profile.picture} alt="" className="h-7 w-7 rounded-full object-cover border border-slate-200 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                                   ) : (
-                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-                                      <Users className="h-3 w-3 text-[#333286]/50" />
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+                                      <Users className="h-3 w-3 text-brand-deep/50" />
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0 overflow-hidden">
@@ -3497,7 +3497,7 @@ export default function AdminPage() {
                           <div className="border-t border-slate-200 pt-2">
                             <button
                               onClick={() => setBulkPasteOpen(prev => !prev)}
-                              className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-[#333286] transition-colors w-full"
+                              className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-brand-deep transition-colors w-full"
                               data-testid="button-toggle-bulk-paste"
                             >
                               <FileText className="h-3 w-3" />
@@ -3510,7 +3510,7 @@ export default function AdminPage() {
                                   placeholder={"Paste npubs or hex pubkeys\nOne per line or comma-separated"}
                                   value={bulkPasteInput}
                                   onChange={e => setBulkPasteInput(e.target.value)}
-                                  className="w-full px-3 py-2 text-[10px] font-mono rounded-lg border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 resize-none h-16"
+                                  className="w-full px-3 py-2 text-[10px] font-mono rounded-lg border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40 resize-none h-16"
                                   data-testid="textarea-bulk-paste"
                                 />
                                 <Button
@@ -3564,7 +3564,7 @@ export default function AdminPage() {
                                         ? progressItem.success
                                           ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                                           : "bg-red-50 border-red-200 text-red-700"
-                                        : "bg-indigo-50 border-[#7c86ff]/20 text-slate-700"
+                                        : "bg-indigo-50 border-brand-accent/20 text-slate-700"
                                     }`}
                                     data-testid={`queue-item-${profile.pubkey.slice(0, 8)}`}
                                   >
@@ -3587,7 +3587,7 @@ export default function AdminPage() {
                             {onboardingAll && onboardProgress && (
                               <div className="space-y-1.5">
                                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-gradient-to-r from-[#7c86ff] to-[#333286] rounded-full transition-all duration-300" style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }} />
+                                  <div className="h-full bg-gradient-to-r from-brand-accent to-brand-deep rounded-full transition-all duration-300" style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }} />
                                 </div>
                                 <p className="text-[10px] text-slate-500 text-center">{onboardProgress.done} of {onboardProgress.total} processed</p>
                               </div>
@@ -3669,14 +3669,14 @@ export default function AdminPage() {
                       }
                     };
                     return (
-                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
-                        <CheckSquare className="h-4 w-4 text-[#333286]" />
+                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
+                        <CheckSquare className="h-4 w-4 text-brand-deep" />
                         <span className="text-xs font-semibold text-slate-800">{dedupePubkeys.length} selected</span>
                         {canSelectAllMatching && (
                           <button
                             onClick={handleSelectAllMatching}
                             disabled={bulkRunning || fetchingMatching}
-                            className="text-[10px] font-semibold text-[#333286] hover:underline disabled:opacity-40 inline-flex items-center gap-1"
+                            className="text-[10px] font-semibold text-brand-deep hover:underline disabled:opacity-40 inline-flex items-center gap-1"
                             data-testid="button-bulk-select-all-matching-users"
                           >
                             {fetchingMatching && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -3693,7 +3693,7 @@ export default function AdminPage() {
                             size="sm"
                             onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "users" })}
                             disabled={bulkRunning || dedupePubkeys.length === 0}
-                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-brand-deep hover:bg-brand-accent text-white"
                             data-testid="button-bulk-retrigger-users"
                           >
                             {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -3754,7 +3754,7 @@ export default function AdminPage() {
               )}
 
               {kpiFilter && (
-                <div className="px-3 sm:px-5 py-2 border-b border-[#7c86ff]/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
+                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Filtered:</span>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     kpiFilter === "scored" ? "bg-emerald-50 border border-emerald-200 text-emerald-700" :
@@ -3805,8 +3805,8 @@ export default function AdminPage() {
                               data-testid="checkbox-users-select-all"
                               disabled={visiblePks.length === 0}
                             >
-                              {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                               someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                              {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                               someSelected ? <MinusSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                                <Square className={`h-3.5 w-3.5 ${visiblePks.length ? "text-slate-400" : "text-slate-200"}`} />}
                             </button>
                           );
@@ -3877,7 +3877,7 @@ export default function AdminPage() {
                                       {bs === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
                                        bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
                                        bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
-                                       isSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                                       isSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                                        <Square className="h-3.5 w-3.5 text-slate-400" />}
                                     </button>
                                   );
@@ -4018,7 +4018,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    className="text-[10px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
@@ -4104,7 +4104,7 @@ export default function AdminPage() {
                             {bs === "running" ? <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> :
                              bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
                              bs === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
-                             isSelected ? <CheckSquare className="h-4 w-4 text-[#333286]" /> :
+                             isSelected ? <CheckSquare className="h-4 w-4 text-brand-deep" /> :
                              <Square className="h-4 w-4 text-slate-300" />}
                           </button>
                           <Avatar className="h-9 w-9 shrink-0">
@@ -4156,7 +4156,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[11px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            className="text-[11px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-7"
                             onClick={(e) => { e.stopPropagation(); window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`); navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`); }}
                             data-testid={`card-button-view-${i}`}
                           >
@@ -4279,9 +4279,9 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-policies">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Tier cadences for automatic GrapeRank recalculation</p>
                 </div>
@@ -4289,9 +4289,9 @@ export default function AdminPage() {
                   <SchedulingCard active={activeTab === "scheduling"} />
                 </div>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
                 </div>
@@ -4305,9 +4305,9 @@ export default function AdminPage() {
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-api-health">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Live endpoint status from active queries</p>
                 </div>
@@ -4345,9 +4345,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-relay-status">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Relay Connectivity</h3>
                     <p className="text-xs text-slate-500 mt-0.5">Live WebSocket latency probes</p>
@@ -4480,14 +4480,14 @@ export default function AdminPage() {
                 const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
-                    <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
+                    <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <div>
                             <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput — <span className="font-semibold text-[#333286]">{rangeLabels[activityTimeRange]}</span></p>
+                            <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput — <span className="font-semibold text-brand-deep">{rangeLabels[activityTimeRange]}</span></p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -4501,8 +4501,8 @@ export default function AdminPage() {
                             onClick={() => setActivityTimeRange(p)}
                             className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                               activityTimeRange === p
-                                ? "bg-[#333286] text-white shadow-md shadow-indigo-200"
-                                : "bg-white/70 text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-[#333286]"
+                                ? "bg-brand-deep text-white shadow-md shadow-indigo-200"
+                                : "bg-white/70 text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-brand-deep"
                             }`}
                             data-testid={`time-range-${p}`}
                           >
@@ -4512,11 +4512,11 @@ export default function AdminPage() {
                       </div>
                       <div className="mt-3 sm:hidden" data-testid="time-range-selector-mobile">
                         <div className="relative">
-                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#333286] pointer-events-none" />
+                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-deep pointer-events-none" />
                           <select
                             value={activityTimeRange}
                             onChange={e => setActivityTimeRange(e.target.value as ActivityTimeRange)}
-                            className="w-full appearance-none pl-8 pr-8 py-2 rounded-lg text-xs font-semibold bg-white border border-[#7c86ff]/30 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 shadow-sm"
+                            className="w-full appearance-none pl-8 pr-8 py-2 rounded-lg text-xs font-semibold bg-white border border-brand-accent/30 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40 shadow-sm"
                             data-testid="select-time-range-mobile"
                           >
                             {presets.map(p => (
@@ -4538,7 +4538,7 @@ export default function AdminPage() {
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                           <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total">
-                            <Activity className="h-4 w-4 text-[#333286] mx-auto mb-1" />
+                            <Activity className="h-4 w-4 text-brand-deep mx-auto mb-1" />
                             <p className="text-lg font-bold text-slate-900">{filteredTotal.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Requests</p>
                           </div>
@@ -4558,7 +4558,7 @@ export default function AdminPage() {
                             <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Active Users</p>
                           </div>
                           <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total-calcs">
-                            <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
+                            <Hash className="h-4 w-4 text-brand-deep mx-auto mb-1" />
                             <p className="text-lg font-bold text-slate-900">{totalCalcsAll.toLocaleString()}</p>
                             <p className="text-[10px] text-slate-500">Total Calculations</p>
                           </div>
@@ -4607,9 +4607,9 @@ export default function AdminPage() {
                 }}
               />
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
-                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+                <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Platform Activity</h3>
@@ -4649,8 +4649,8 @@ export default function AdminPage() {
                         const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                         const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
                         return (
-                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
-                            <CheckSquare className="h-4 w-4 text-[#333286]" />
+                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
+                            <CheckSquare className="h-4 w-4 text-brand-deep" />
                             <span className="text-xs font-semibold text-slate-800">
                               {selectedCount} selected
                               {dedupePubkeys.length !== selectedCount && <span className="text-slate-500 font-normal"> ({dedupePubkeys.length} unique)</span>}
@@ -4665,7 +4665,7 @@ export default function AdminPage() {
                                 size="sm"
                                 onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "activity" })}
                                 disabled={bulkRunning || dedupePubkeys.length === 0}
-                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-brand-deep hover:bg-brand-accent text-white"
                                 data-testid="button-bulk-retrigger-activity"
                               >
                                 {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -4749,8 +4749,8 @@ export default function AdminPage() {
                                       data-testid="checkbox-activity-select-all"
                                       disabled={eligible.length === 0}
                                     >
-                                      {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                                       someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
+                                      {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                                       someSelected ? <MinusSquare className="h-3.5 w-3.5 text-brand-deep" /> :
                                        <Square className={`h-3.5 w-3.5 ${eligible.length ? "text-slate-400" : "text-slate-200"}`} />}
                                     </button>
                                   );
@@ -4846,7 +4846,7 @@ export default function AdminPage() {
                 <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-[#333286]" />
+                      <FileText className="h-5 w-5 text-brand-deep" />
                       Brainstorm Request #{detailRequestId}
                     </DialogTitle>
                     <DialogDescription className="text-sm text-slate-600 pt-1">
@@ -4856,7 +4856,7 @@ export default function AdminPage() {
                   <div className="pt-2">
                     {detailLoading && (
                       <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-[#333286]" />
+                        <Loader2 className="h-6 w-6 animate-spin text-brand-deep" />
                         <span className="ml-2 text-sm text-slate-500">Loading request detail...</span>
                       </div>
                     )}
@@ -4892,12 +4892,12 @@ export default function AdminPage() {
                 const statsLoading = assistantStatsQuery.isLoading;
                 const statsUnavailable = !statsLoading && stats === null;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-stats">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
                     <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
-                          <Sparkles className="h-4 w-4 text-[#7c86ff]" />
+                          <Sparkles className="h-4 w-4 text-brand-accent" />
                           Brainstorm Assistants
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5">Tracks each successful kind 0 publish from the assistant publish endpoint.</p>
@@ -4953,9 +4953,9 @@ export default function AdminPage() {
                 const total = data?.total ?? 0;
                 const totalPages = data?.pages ?? 1;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-list">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
                     <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
                         <p className="text-xs text-slate-500 mt-0.5">{total.toLocaleString()} owner{total === 1 ? "" : "s"} have published an assistant.</p>
@@ -4968,7 +4968,7 @@ export default function AdminPage() {
                             value={assistantSearch}
                             onChange={(e) => setAssistantSearch(e.target.value)}
                             placeholder="Search npub or hex…"
-                            className="pl-7 pr-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#7c86ff] w-44 sm:w-56"
+                            className="pl-7 pr-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-brand-accent w-44 sm:w-56"
                             data-testid="input-assistant-search"
                           />
                         </div>
@@ -5104,7 +5104,7 @@ export default function AdminPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-[#333286]" />
+              <RefreshCw className="h-5 w-5 text-brand-deep" />
               Confirm Bulk Re-trigger
             </DialogTitle>
             <DialogDescription className="text-sm text-slate-600 pt-1">
@@ -5155,7 +5155,7 @@ export default function AdminPage() {
                       if (target) runBulkRetrigger(target.pubkeys, target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source);
                     }}
                     disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
-                    className="text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+                    className="text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-confirm-bulk"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />

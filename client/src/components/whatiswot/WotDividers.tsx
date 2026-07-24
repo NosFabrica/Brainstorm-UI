@@ -7,7 +7,7 @@ export function ComputationDivider() {
           <div className="flex items-center justify-center gap-4 my-8">
             <motion.div 
               className="flex-1 h-px"
-              style={{ background: 'linear-gradient(to right, transparent, rgba(99, 102, 241, 0.3), rgba(100, 116, 139, 0.5))' }}
+              style={{ background: 'linear-gradient(to right, transparent, rgb(var(--brand-primary)/0.3), rgba(100, 116, 139, 0.5))' }}
               initial={{ scaleX: 0, originX: 0 }}
               animate={{ scaleX: 1 }}
               transition={{ duration: 0.8, delay: 0.1 }}
@@ -17,7 +17,7 @@ export function ComputationDivider() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
-              style={{ boxShadow: '0 0 20px rgba(99, 102, 241, 0.1)' }}
+              style={{ boxShadow: '0 0 20px rgb(var(--brand-primary)/0.1)' }}
             >
               {['Σ', '→', 'α', '×', 'T(u)'].map((symbol, i) => (
                 <motion.span 

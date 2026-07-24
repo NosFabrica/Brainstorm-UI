@@ -33,7 +33,7 @@ function Avatar({ j, size = "h-9 w-9" }: { j: NewJoiner; size?: string }) {
 }
 
 const cardShell =
-  "relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] shadow-sm";
+  "relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm";
 
 /**
  * Home "someone just joined & followed you" card + its premium payoff and growth
@@ -82,13 +82,13 @@ export function WelcomeBackCard() {
                 <Link href={`/p/${j.npub}`} className="flex items-center gap-3 min-w-0 flex-1 group" title={`View ${label(j)}'s profile`}>
                   <Avatar j={j} />
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-800 truncate group-hover:text-[#333286] transition-colors">{label(j)}</div>
+                    <div className="text-sm font-semibold text-slate-800 truncate group-hover:text-brand-deep transition-colors">{label(j)}</div>
                     <div className="text-xs text-emerald-600 inline-flex items-center gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Just joined Brainstorm
                     </div>
                   </div>
                 </Link>
-                <button type="button" onClick={() => doWelcome([j])} disabled={busy} className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-[#7c86ff]/40 bg-white px-2.5 py-1.5 text-xs font-semibold text-[#333286] hover:bg-[#7c86ff]/[0.06] disabled:opacity-50 transition-colors" data-testid={`joiner-follow-${j.pubkey}`}>
+                <button type="button" onClick={() => doWelcome([j])} disabled={busy} className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-brand-accent/40 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand-deep hover:bg-brand-accent/[0.06] disabled:opacity-50 transition-colors" data-testid={`joiner-follow-${j.pubkey}`}>
                   <UserPlus className="h-3.5 w-3.5" /> Follow back
                 </button>
                 <button type="button" onClick={() => dismiss([j.pubkey])} className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors" aria-label={`Dismiss ${label(j)}`}>
@@ -98,7 +98,7 @@ export function WelcomeBackCard() {
             ))}
           </ul>
 
-          <button type="button" onClick={() => doWelcome(joiners)} disabled={busy} className="mt-4 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] px-4 h-10 text-sm font-semibold text-white shadow-sm disabled:opacity-60 transition-colors" data-testid="button-welcome-back-all">
+          <button type="button" onClick={() => doWelcome(joiners)} disabled={busy} className="mt-4 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-4 h-10 text-sm font-semibold text-white shadow-sm disabled:opacity-60 transition-colors" data-testid="button-welcome-back-all">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             {many ? `Welcome them back (${joiners.length})` : "Welcome them back"}
           </button>
@@ -195,7 +195,7 @@ function InviteCta() {
         <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
           Invite friends — when they join and follow you, they'll show up here to welcome back.
         </p>
-        <button type="button" onClick={() => setOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] px-4 h-10 text-sm font-semibold text-white shadow-sm transition-colors" data-testid="button-invite-friends">
+        <button type="button" onClick={() => setOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-4 h-10 text-sm font-semibold text-white shadow-sm transition-colors" data-testid="button-invite-friends">
           <Users className="h-4 w-4" /> Invite friends
           <ArrowRight className="h-3.5 w-3.5" />
         </button>

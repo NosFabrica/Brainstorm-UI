@@ -253,14 +253,14 @@ export default function EventPage() {
         actions={
           <>
             {authorNpub && (
-              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-[#333286]">
+              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-brand-deep">
                 View profile <ArrowRight className="h-4 w-4" />
               </Link>
             )}
             <button
               type="button"
               onClick={onShare}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
               data-testid="event-share"
             >
               {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
@@ -274,7 +274,7 @@ export default function EventPage() {
           <div className="text-center py-20">
             <MessageSquare className="h-10 w-10 text-slate-300 mx-auto" />
             <p className="mt-3 text-slate-600 font-medium">That note link isn't valid.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-[#3730a3] hover:underline">Go to Brainstorm →</Link>
+            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
           </div>
         ) : eventQuery.isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
@@ -285,7 +285,7 @@ export default function EventPage() {
             <MessageSquare className="h-10 w-10 text-slate-300 mx-auto" />
             <p className="mt-3 text-slate-600 font-medium">We couldn't find this note on the relays.</p>
             {openInApp && (
-              <a href={openInApp} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white">
+              <a href={openInApp} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white">
                 <Smartphone className="h-4 w-4" /> Try opening in an app
               </a>
             )}
@@ -297,9 +297,9 @@ export default function EventPage() {
               <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2.5" data-testid="event-setup-nudge">
                 <div className="min-w-0 flex-1 text-[13px] leading-snug">
                   <span className="font-semibold text-slate-900">You're in.</span>{" "}
-                  <Link href="/settings?tab=profile&focus=backup" className="font-semibold text-[#3730a3] hover:underline">Save a backup</Link>
+                  <Link href="/settings?tab=profile&focus=backup" className="font-semibold text-brand-link hover:underline">Save a backup</Link>
                   <span className="text-slate-600"> so you never lose this account · </span>
-                  <Link href="/" className="font-semibold text-[#3730a3] hover:underline">Explore Brainstorm →</Link>
+                  <Link href="/" className="font-semibold text-brand-link hover:underline">Explore Brainstorm →</Link>
                 </div>
                 <button type="button" onClick={() => setSetupDismissed(true)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-amber-100 transition-colors" data-testid="event-setup-dismiss">
                   <X className="h-4 w-4" />
@@ -370,14 +370,14 @@ export default function EventPage() {
             {/* Anonymous signup funnel — same WoT hook as the profile page. Hidden
                 when the thread's own signup gate is already showing (no duplicate). */}
             {!threadGated && (
-            <div className="mt-6 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="event-funnel">
+            <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="event-funnel">
               <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
                 Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
-                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="event-cta"
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
@@ -385,7 +385,7 @@ export default function EventPage() {
               {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
               {!loggedIn && (
                 <p className="mt-2 text-xs text-slate-500">
-                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-[#3730a3] hover:underline" data-testid="event-funnel-signin">Sign in →</Link>
+                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-brand-link hover:underline" data-testid="event-funnel-signin">Sign in →</Link>
                 </p>
               )}
             </div>
@@ -398,7 +398,7 @@ export default function EventPage() {
 
             <div className="mt-8 text-center">
               <p className="text-xs text-slate-400">
-                Shared via <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
+                Shared via <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
               </p>
             </div>
           </ShareNavProvider>

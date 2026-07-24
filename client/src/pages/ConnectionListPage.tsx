@@ -143,7 +143,7 @@ export default function ConnectionListPage() {
 
   // "What does verified mean?" popover — POV-aware so it nudges the right next
   // step: sign in (logged out) → watch calculation (calculating) → tune it (yours).
-  const povLink = "font-medium text-[#6366f1] hover:text-[#4f46e5]";
+  const povLink = "font-medium text-brand-primary hover:text-brand-primary-hover";
   const currentPath = `/p/${rawId}/${type}`;
   const verifiedPopover = !signedIn ? (
     <>
@@ -170,7 +170,7 @@ export default function ConnectionListPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
       <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="conn-back">
+          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline" data-testid="conn-back">
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
           </Link>
           <Link href="/" className="ml-auto flex items-center gap-2" data-testid="conn-brand">
@@ -183,7 +183,7 @@ export default function ConnectionListPage() {
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#7c86ff]/30 bg-[#333286]/5 text-[#333286]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
               <Users className="h-4 w-4" />
             </span>
             <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
@@ -306,7 +306,7 @@ export default function ConnectionListPage() {
             type="button"
             onClick={() => connQuery.fetchNextPage()}
             disabled={connQuery.isFetchingNextPage}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
             data-testid="conn-load-more"
           >
             {connQuery.isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

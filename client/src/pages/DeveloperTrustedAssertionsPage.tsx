@@ -16,23 +16,23 @@ export default function DeveloperTrustedAssertionsPage() {
           <header className="max-w-3xl">
             <div className="mb-5"><DevBackLink /></div>
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 Trusted Assertions · NIP-85
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
               className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Portable scores, as <span className="text-[#333286]">signed nostr events</span>.
+              Portable scores, as <span className="text-brand-deep">signed nostr events</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">
               Web-of-trust scores published as ordinary nostr events, so any client can fetch and verify them.
             </p>
           </header>
 
-          <SectionCard icon={<BadgeCheck className="h-5 w-5 text-[#333286]" />} title="How it works" testId="card-ta-overview">
+          <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="How it works" testId="card-ta-overview">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               Trusted Assertions are{" "}
               <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> nostr events carrying web-of-trust
@@ -47,7 +47,7 @@ export default function DeveloperTrustedAssertionsPage() {
               href={NIP85_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-[15px] font-medium text-[#333286] hover:underline"
+              className="inline-flex items-center gap-1.5 text-[15px] font-medium text-brand-deep hover:underline"
               data-testid="link-nip85-spec"
             >
               Read about Trusted Assertions in the NIP-85 specification
@@ -56,7 +56,7 @@ export default function DeveloperTrustedAssertionsPage() {
             <p className="pt-2 text-[13px] text-slate-400">Documentation coming soon.</p>
           </SectionCard>
 
-          <SectionCard icon={<BadgeCheck className="h-5 w-5 text-[#333286]" />} title="Where to find them" testId="card-ta-fetch">
+          <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="Where to find them" testId="card-ta-fetch">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               Query <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> events from this
               instance's NIP-85 relay, authored by its trust-authority pubkey. See the NIP-85 spec for the tag

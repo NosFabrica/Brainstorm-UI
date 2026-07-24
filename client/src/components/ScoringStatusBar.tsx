@@ -58,7 +58,7 @@ export function ScoringStatusBar() {
             <ToastAction
               altText="View dashboard"
               onClick={() => navigate("/dashboard")}
-              className="bg-[#6366f1] text-white border-transparent hover:bg-[#4f46e5] hover:text-white"
+              className="bg-brand-primary text-white border-transparent hover:bg-brand-primary-hover hover:text-white"
             >
               View dashboard
             </ToastAction>
@@ -239,7 +239,7 @@ export function ScoringStatusBar() {
           <button
             type="button"
             onClick={() => { dismissReady(); navigate("/dashboard"); }}
-            className="inline-flex items-center gap-1 rounded-full bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold px-3 py-1.5 transition-colors"
+            className="inline-flex items-center gap-1 rounded-full bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold px-3 py-1.5 transition-colors"
             data-testid="scoring-status-view"
           >
             See your results <ArrowRight className="h-3.5 w-3.5" />

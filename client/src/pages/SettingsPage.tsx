@@ -108,7 +108,7 @@ Nostr client so my users see personalized trust.
 Explain each step, note anything I need to configure, and keep it simple.`;
 
 const inputCls =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 transition disabled:opacity-60";
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
@@ -422,7 +422,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-account">      <div className="border-b border-slate-200 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <ShieldCheck className="h-4 w-4 text-[#333286]" />
+            <ShieldCheck className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-account-title">Account</h2>
@@ -432,7 +432,7 @@ export default function SettingsPage() {
       </div>
       <div className="p-5 space-y-4">
         {hasStoredSecretKey() && (!backedUp || !user?.picture) && (
-          <div className="flex items-start rounded-xl bg-[#7c86ff]/8 border border-[#7c86ff]/20 px-3.5 py-3" data-testid="hint-finish-setup">
+          <div className="flex items-start rounded-xl bg-brand-accent/8 border border-brand-accent/20 px-3.5 py-3" data-testid="hint-finish-setup">
             <p className="text-xs text-slate-600 leading-relaxed">
               <span className="font-semibold text-slate-900">Finish setting up.</span>{" "}
               {!backedUp && !user?.picture
@@ -508,7 +508,7 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleBackupDownload}
                     disabled={!canBackup}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="button-account-download-backup"
                   >
                     <Download className="h-4 w-4" /> Download backup
@@ -526,10 +526,10 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setBackupMode(true)}
-                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-white p-3 hover:border-[#7c86ff]/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${highlightBackup ? "border-[#7c86ff]/70 animate-attention-ring" : "border-slate-200"}`}
+                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-white p-3 hover:border-brand-accent/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${highlightBackup ? "border-brand-accent/70 animate-attention-ring" : "border-slate-200"}`}
                 data-testid="button-account-backup"
               >
-                <div className="h-9 w-9 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                <div className="h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                   <ShieldCheck className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
@@ -576,7 +576,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleRevealSecret}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-[#333286] transition-colors"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-brand-deep transition-colors"
                   data-testid="button-account-reveal-secret"
                 >
                   <Key className="h-4 w-4" /> Show recovery key
@@ -609,7 +609,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-service-provider">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <BrainLogo size={18} className="text-[#333286]" />
+            <BrainLogo size={18} className="text-brand-deep" />
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-sp-title">Service Provider</h2>
@@ -663,7 +663,7 @@ export default function SettingsPage() {
                   <div className="relative group/info">
                     <button
                       type="button"
-                      className="h-4 w-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                      className="h-4 w-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                       onClick={(e) => e.currentTarget.focus()}
                       aria-label="What are Supported Clients?"
                       data-testid="button-supported-by-info"
@@ -676,7 +676,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors">Amethyst</a>
+                  <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-brand-deep hover:text-brand-accent transition-colors">Amethyst</a>
                   <span className="text-[10px] text-slate-500">&middot;</span>
                   <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
                 </div>
@@ -701,7 +701,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => setNip85ConfirmOpen(true)}
                   disabled={republishState === "signing" || republishState === "publishing" || republishState === "success" || !taPubkey}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   data-testid="button-sp-republish"
                 >
                   {republishState === "signing" || republishState === "publishing" ? (
@@ -717,18 +717,18 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-[#7c86ff]/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(124,134,255,0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
                   data-testid="dialog-confirm-nip85-update"
                 >
                   <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#7c86ff]/15 to-transparent" />
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-accent/15 to-transparent" />
                   </div>
                   <div className="relative p-4 sm:p-5">
                     <AlertDialogHeader className="space-y-2">
                       <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-2xl bg-[#333286]/10 border border-[#333286]/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(124,134,255,0.22)] shrink-0" data-testid="icon-confirm-nip85-update">
-                          <BrainLogo size={18} className="text-[#333286]" />
+                        <div className="h-9 w-9 rounded-2xl bg-brand-deep/10 border border-brand-deep/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-accent)/0.22)] shrink-0" data-testid="icon-confirm-nip85-update">
+                          <BrainLogo size={18} className="text-brand-deep" />
                         </div>
                         <div className="min-w-0">
                           <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
@@ -743,7 +743,7 @@ export default function SettingsPage() {
                     <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-nip85-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-[#6366f1] hover:bg-[#4f46e5]"
+                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover"
                         onClick={() => {
                           setNip85ConfirmOpen(false);
                           handleRepublishNip85();
@@ -851,7 +851,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => navigate("/dashboard")}
                 disabled={hasNoFollowing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                 data-testid="button-sp-go-to-dashboard"
               >
                 Go to Dashboard
@@ -868,7 +868,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-graperank">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#333286]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-brand-deep">
               <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path opacity="0.4" d="M14.4209 15.3301H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -988,7 +988,7 @@ export default function SettingsPage() {
                   type="button"
                   disabled={triggerGrapeRankMutation.isPending || isRecalcInProgress || hasNoFollowing}
                   onClick={() => setRecalcConfirmOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
                   data-testid="button-gr-recalculate"
                 >
                   {triggerGrapeRankMutation.isPending || isRecalcInProgress ? (
@@ -1010,18 +1010,18 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-[#7c86ff]/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(124,134,255,0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
                   data-testid="dialog-confirm-recalculate-settings"
                 >
                   <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#7c86ff]/15 to-transparent" />
+                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-accent/15 to-transparent" />
                   </div>
                   <div className="relative p-4 sm:p-5">
                     <AlertDialogHeader className="space-y-2">
                       <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-2xl bg-[#333286]/10 border border-[#333286]/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(124,134,255,0.22)] shrink-0" data-testid="icon-confirm-recalculate-settings">
-                          <BrainLogo size={18} className="text-[#333286]" />
+                        <div className="h-9 w-9 rounded-2xl bg-brand-deep/10 border border-brand-deep/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-accent)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-settings">
+                          <BrainLogo size={18} className="text-brand-deep" />
                         </div>
                         <div className="min-w-0">
                           <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-settings-title">
@@ -1036,7 +1036,7 @@ export default function SettingsPage() {
                     <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-settings-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-[#6366f1] hover:bg-[#4f46e5]"
+                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover"
                         onClick={() => {
                           setRecalcConfirmOpen(false);
                           triggerGrapeRankMutation.mutate();
@@ -1060,7 +1060,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-presets">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#333286]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-deep">
               <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
               <circle cx="12" cy="12" r="3" />
             </svg>
@@ -1103,14 +1103,14 @@ export default function SettingsPage() {
                   className={
                     "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 " +
                     (isActive
-                      ? "border-[#7c86ff]/30 bg-[#333286]/5 ring-1 ring-[#7c86ff]/20"
+                      ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
                       : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100")
                   }
                   data-testid={`chip-preset-${preset.key}`}
                 >
                   <span className={
                     "text-xs font-bold block " +
-                    (isActive ? "text-[#333286]" : "text-slate-500")
+                    (isActive ? "text-brand-deep" : "text-slate-500")
                   }>
                     {preset.label}
                     {isPendingThis && <Loader2 className="inline ml-1 h-3 w-3 animate-spin" />}
@@ -1130,7 +1130,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-personalization">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <IdCard className="h-4 w-4 text-[#333286]" />
+            <IdCard className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1146,7 +1146,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => navigate(`/p/${user.npub}`)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="link-customize-profile"
           >
             <SlidersHorizontal className="h-4 w-4" /> Customize your public profile
@@ -1168,12 +1168,12 @@ export default function SettingsPage() {
         type="button"
         onClick={() => setAdvancedOpen((v) => !v)}
         aria-expanded={advancedOpen}
-        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 border border-[#7c86ff]/15 px-5 py-4 text-left hover:border-[#7c86ff]/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40"
+        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
         data-testid="button-advanced-toggle"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <SettingsIcon className="h-4 w-4 text-[#333286]" />
+            <SettingsIcon className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-advanced-title">Advanced</h2>
@@ -1199,12 +1199,12 @@ export default function SettingsPage() {
         type="button"
         onClick={() => setAgentSetupOpen((v) => !v)}
         aria-expanded={agentSetupOpen}
-        className={`w-full text-left bg-slate-50 px-5 py-4 transition-colors hover:bg-slate-100 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${agentSetupOpen ? "border-b border-slate-200" : ""}`}
+        className={`w-full text-left bg-slate-50 px-5 py-4 transition-colors hover:bg-slate-100 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${agentSetupOpen ? "border-b border-slate-200" : ""}`}
         data-testid="button-agent-setup-toggle"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-[#333286]" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-brand-deep" aria-hidden="true">
               <path d="M13.16 12.88V17.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M10.3 17.42L8.09 12.88L5.88 17.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M6.43 16.38H9.76" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1215,8 +1215,8 @@ export default function SettingsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agent-setup-title">Set up with your AI agent</h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[9px] font-bold uppercase tracking-widest text-[#333286]" data-testid="badge-agent-preview">
-                <span className="h-1 w-1 rounded-full bg-[#7c86ff]" /> Preview · coming soon
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-[9px] font-bold uppercase tracking-widest text-brand-deep" data-testid="badge-agent-preview">
+                <span className="h-1 w-1 rounded-full bg-brand-accent" /> Preview · coming soon
               </span>
             </div>
             <p className="text-xs text-slate-500" data-testid="text-agent-setup-subtitle">Let an AI agent run Brainstorm for you — or wire it into your own client</p>
@@ -1228,7 +1228,7 @@ export default function SettingsPage() {
       {agentSetupOpen && (
       <div className="p-5 space-y-4">
         {/* Path toggle */}
-        <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm" data-testid="agent-path-toggle">
+        <div className="inline-flex rounded-full p-1 bg-white/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm" data-testid="agent-path-toggle">
           {([
             { key: "selfhost" as const, label: "Self-host" },
             { key: "integrate" as const, label: "Integrate into your client" },
@@ -1240,8 +1240,8 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setAgentPath(opt.key)}
                 aria-current={active ? "true" : undefined}
-                className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${
-                  active ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30" : "text-slate-500 hover:text-[#333286]"
+                className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
+                  active ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30" : "text-slate-500 hover:text-brand-deep"
                 }`}
                 data-testid={`agent-path-${opt.key}`}
               >
@@ -1267,7 +1267,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Point the agent at the guide */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-[#7c86ff]/15 bg-white/70 px-3.5 py-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-brand-accent/15 bg-white/70 px-3.5 py-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Or point your agent here</p>
             <p className="text-xs font-mono text-slate-600 truncate">{`${typeof window !== "undefined" ? window.location.origin : ""}/developers`}</p>
@@ -1288,7 +1288,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => navigate("/developers")}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs font-semibold transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors"
               data-testid="button-agent-view-guide"
             >
               View the guide <ArrowRight className="h-3.5 w-3.5" />
@@ -1300,7 +1300,7 @@ export default function SettingsPage() {
           Works with Claude, ChatGPT, or any capable agent. Want early access or to help shape this?{" "}
           <a
             href={`mailto:support@nosfabrica.com?subject=${agentPath === "integrate" ? "NIP-85%20Client%20Integration" : "Brainstorm%20Agent%20Setup"}`}
-            className="font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+            className="font-semibold text-brand-deep hover:text-brand-accent transition-colors"
             data-testid="link-agent-contact"
           >
             Get in touch
@@ -1316,7 +1316,7 @@ export default function SettingsPage() {
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-contact-support">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
-            <Mail className="h-4 w-4 text-[#333286]" />
+            <Mail className="h-4 w-4 text-brand-deep" />
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-contact-support-title">Contact & Support</h2>
@@ -1327,10 +1327,10 @@ export default function SettingsPage() {
 
       <div className="p-5">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm p-5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300" data-testid="card-list-your-client">
+          <div className="rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-list-your-client">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                <Code2 className="h-4 w-4 text-[#333286]" />
+                <Code2 className="h-4 w-4 text-brand-deep" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-client-title">List Your Client</h3>
@@ -1342,7 +1342,7 @@ export default function SettingsPage() {
             </p>
             <a
               href="mailto:support@nosfabrica.com?subject=NIP-85%20Client%20Listing"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
               data-testid="link-list-client-email"
             >
               <Mail className="h-4 w-4" />
@@ -1351,10 +1351,10 @@ export default function SettingsPage() {
             <p className="text-xs text-slate-500 mt-2" data-testid="text-list-client-helper">Include your client name, platform, and a brief description</p>
           </div>
 
-          <div className="rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm p-5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300" data-testid="card-get-in-touch">
+          <div className="rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-get-in-touch">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                <Mail className="h-4 w-4 text-[#333286]" />
+                <Mail className="h-4 w-4 text-brand-deep" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-get-in-touch-title">Get in Touch</h3>
@@ -1366,7 +1366,7 @@ export default function SettingsPage() {
             </p>
             <a
               href="mailto:support@nosfabrica.com?subject=Brainstorm%20Support"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
               data-testid="link-get-in-touch-email"
             >
               <Mail className="h-4 w-4" />
@@ -1401,7 +1401,7 @@ export default function SettingsPage() {
             href="https://github.com/NosFabrica"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-github"
           >
             <div className="h-9 w-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 group-hover/link:bg-slate-800 transition-colors">
@@ -1411,14 +1411,14 @@ export default function SettingsPage() {
               <span className="text-sm font-bold text-slate-900 block" data-testid="text-github-label">GitHub</span>
               <span className="text-[11px] text-slate-500">Open-source projects</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
 
           <a
             href="https://njump.me/npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-nostr"
           >
             <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0">
@@ -1428,14 +1428,14 @@ export default function SettingsPage() {
               <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
               <span className="text-[11px] text-slate-500">Follow on Nostr</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
 
           <a
             href="https://nosfabrica.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-[#7c86ff]/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-[#7c86ff]/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-website"
           >
             <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
@@ -1445,7 +1445,7 @@ export default function SettingsPage() {
               <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
               <span className="text-[11px] text-slate-500">nosfabrica.com</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-[#7c86ff] transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
         </div>
 
@@ -1474,7 +1474,7 @@ export default function SettingsPage() {
 
           {/* Tab navigation — segmented pill, matching the FAQ page */}
           <div className="max-w-full overflow-x-auto scrollbar-hide" data-testid="settings-tab-bar">
-            <div className="inline-flex rounded-full p-1 bg-white/70 border border-[#7c86ff]/12 shadow-sm backdrop-blur-sm">
+            <div className="inline-flex rounded-full p-1 bg-white/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm">
               {TABS.map((tab) => {
                 const active = activeTab === tab.key;
                 return (
@@ -1482,10 +1482,10 @@ export default function SettingsPage() {
                     key={tab.key}
                     onClick={() => goTab(tab.key)}
                     aria-current={active ? "page" : undefined}
-                    className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40 ${
+                    className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
                       active
-                        ? "bg-[#6366f1] text-white shadow-lg shadow-[#6366f1]/30"
-                        : "text-slate-500 hover:text-[#333286]"
+                        ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                        : "text-slate-500 hover:text-brand-deep"
                     }`}
                     data-testid={`tab-${tab.key}`}
                   >

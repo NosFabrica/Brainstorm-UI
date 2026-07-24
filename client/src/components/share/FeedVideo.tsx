@@ -71,7 +71,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
           data-testid="feed-video-play"
         >
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/95 shadow-lg transition-transform group-hover:scale-105">
-            <Play className="h-6 w-6 translate-x-0.5 fill-current text-[#3730a3]" />
+            <Play className="h-6 w-6 translate-x-0.5 fill-current text-brand-link" />
           </span>
         </button>
       </div>

@@ -342,7 +342,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-12 w-12 border-2 border-[#7c86ff]/20 shrink-0 shadow-sm">
+              <Avatar className="h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm">
                 {profile?.picture ? (
                   <AvatarImage
                     src={profile.picture}
@@ -550,7 +550,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                     <div className="flex items-center gap-2 mt-0.5">
                       <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286]"
+                          className="h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep"
                           style={{
                             width: `${Math.min((typeof effectiveDetail.influence === "number" ? effectiveDetail.influence : 0) * 100, 100)}%`,
                           }}
@@ -640,7 +640,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                               ? cardFollowHovered
                                 ? "bg-red-50 border border-red-200 text-red-600"
                                 : "bg-white border border-slate-200 text-slate-600"
-                              : "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+                              : "bg-brand-primary text-white hover:bg-brand-primary-hover"
                           }`}
                           data-testid={`button-follow-${pkShort}`}
                         >
@@ -705,7 +705,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   </div>
                 )}
                 <button
-                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-[#6366f1] text-white shadow-md hover:shadow-lg hover:bg-[#4f46e5] transition-all duration-200"
+                  className="gap-2 ml-auto inline-flex items-center h-9 px-4 text-xs font-bold rounded-xl bg-brand-primary text-white shadow-md hover:shadow-lg hover:bg-brand-primary-hover transition-all duration-200"
                   onClick={(e) => {
                     e.stopPropagation();
                     onNavigate(`/p/${npub}`);
@@ -769,7 +769,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     return (
       <>
         <div
-          className={`bg-white/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
+          className={`bg-white/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200"}`}
           onClick={() => onToggleExpanded(pk)}
           onMouseEnter={() => onPrefetchEnter?.(pk)}
           onMouseLeave={() => onPrefetchLeave?.(pk)}
@@ -856,7 +856,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   return (
     <>
       <div
-        className={`bg-white/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgba(99,102,241,0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgba(99,102,241,0.12)]" : "border-slate-200"}`}
+        className={`bg-white/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200"}`}
         onClick={() => onToggleExpanded(pk)}
         onMouseEnter={() => onPrefetchEnter?.(pk)}
         onMouseLeave={() => onPrefetchLeave?.(pk)}

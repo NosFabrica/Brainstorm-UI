@@ -85,6 +85,18 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        // Brand palette — single source of truth in index.css (--brand-*).
+        // RGB channels keep these exact to the legacy hex while `<alpha-value>`
+        // preserves `/opacity` (e.g. bg-brand-accent/20). Reskin swaps the
+        // values in index.css; these mappings don't change.
+        brand: {
+          primary: "rgb(var(--brand-primary) / <alpha-value>)",
+          "primary-hover": "rgb(var(--brand-primary-hover) / <alpha-value>)",
+          accent: "rgb(var(--brand-accent) / <alpha-value>)",
+          "accent-hover": "rgb(var(--brand-accent-hover) / <alpha-value>)",
+          deep: "rgb(var(--brand-deep) / <alpha-value>)",
+          link: "rgb(var(--brand-link) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

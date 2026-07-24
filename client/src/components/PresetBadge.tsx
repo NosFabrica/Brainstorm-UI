@@ -16,9 +16,9 @@ const STYLES: Record<TrustPreset, { bg: string; text: string; border: string; do
   },
   default: {
     bg: "bg-indigo-50",
-    text: "text-[#333286]",
-    border: "border-[#7c86ff]/30",
-    dot: "bg-[#7c86ff]",
+    text: "text-brand-deep",
+    border: "border-brand-accent/30",
+    dot: "bg-brand-accent",
   },
   strict: {
     bg: "bg-amber-50",

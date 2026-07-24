@@ -40,7 +40,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
             data-testid="share-video-play"
           >
             <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-              <Play className="h-5 w-5 text-[#333286] ml-0.5" />
+              <Play className="h-5 w-5 text-brand-deep ml-0.5" />
             </span>
           </button>
         )}

@@ -86,7 +86,7 @@ export function ProfileActions({
         className={
           following
             ? "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg border border-slate-200 bg-white text-sm md:text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-            : "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm md:text-[13px] font-semibold shadow-sm disabled:opacity-50 transition-colors"
+            : "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm md:text-[13px] font-semibold shadow-sm disabled:opacity-50 transition-colors"
         }
         data-testid="share-follow"
       >

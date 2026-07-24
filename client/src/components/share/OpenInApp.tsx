@@ -24,7 +24,7 @@ function primalUrl(e: OpenEntity): string {
 }
 
 const btn =
-  "inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 bg-white hover:border-[#7c86ff]/50 hover:shadow-sm text-sm font-semibold text-slate-700 transition-all";
+  "inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 bg-white hover:border-brand-accent/50 hover:shadow-sm text-sm font-semibold text-slate-700 transition-all";
 const logoCls = "w-5 h-5 rounded-md object-contain";
 
 export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; className?: string }) {
@@ -58,7 +58,7 @@ export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; clas
           </a>
         ))}
       </div>
-      <a href={uri} className="mt-2.5 block text-center text-xs text-slate-400 hover:text-[#333286] transition-colors" data-testid="open-default">
+      <a href={uri} className="mt-2.5 block text-center text-xs text-slate-400 hover:text-brand-deep transition-colors" data-testid="open-default">
         or open in your default app →
       </a>
     </section>

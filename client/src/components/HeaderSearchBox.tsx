@@ -123,7 +123,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
             placeholder="Search Brainstorm"
             aria-label="Search Brainstorm"
             autoComplete="off"
-            className="w-full rounded-full border border-slate-200 bg-white/80 py-2 pl-9 pr-9 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+            className="w-full rounded-full border border-slate-200 bg-white/80 py-2 pl-9 pr-9 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
             data-testid="header-search-input"
           />
           {q && (
@@ -161,7 +161,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
               >
                 <Avatar className="h-8 w-8 shrink-0 border border-slate-200">
                   {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="bg-indigo-50 text-[11px] font-bold text-[#6366f1]">{initialsFor(nameOf(r))}</AvatarFallback>
+                  <AvatarFallback className="bg-indigo-50 text-[11px] font-bold text-brand-primary">{initialsFor(nameOf(r))}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-900">{nameOf(r)}</p>

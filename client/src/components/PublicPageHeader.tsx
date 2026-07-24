@@ -36,7 +36,7 @@ export function PublicPageHeader({
           <Link
             href="/"
             aria-label="Search"
-            className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#333286] sm:hidden"
+            className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep sm:hidden"
             data-testid="public-search-mobile"
           >
             <Search className="h-5 w-5" />

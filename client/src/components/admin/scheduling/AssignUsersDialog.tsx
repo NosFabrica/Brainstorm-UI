@@ -240,7 +240,7 @@ export function AssignUsersDialog({
       <DialogContent className="sm:max-w-2xl" data-testid="assign-users-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Users2 className="h-5 w-5 text-[#333286]" />
+            <Users2 className="h-5 w-5 text-brand-deep" />
             Assign users to “{policyName}”
           </DialogTitle>
           <DialogDescription>
@@ -260,7 +260,7 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "brainstorm"
-                ? "bg-white text-[#333286] shadow-sm border border-slate-200"
+                ? "bg-white text-brand-deep shadow-sm border border-slate-200"
                 : "text-slate-500 hover:text-slate-700"
             }`}
             data-testid="assign-mode-brainstorm"
@@ -276,7 +276,7 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "nostr"
-                ? "bg-white text-[#333286] shadow-sm border border-slate-200"
+                ? "bg-white text-brand-deep shadow-sm border border-slate-200"
                 : "text-slate-500 hover:text-slate-700"
             }`}
             data-testid="assign-mode-nostr"
@@ -301,7 +301,7 @@ export function AssignUsersDialog({
                   ? "Search Nostr by name…"
                   : "Search Brainstorm users by name or npub…"
               }
-              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               data-testid="assign-search-input"
             />
           </div>
@@ -309,7 +309,7 @@ export function AssignUsersDialog({
             size="sm"
             onClick={runSearch}
             disabled={searching || !query.trim()}
-            className="text-xs gap-1.5 shrink-0 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+            className="text-xs gap-1.5 shrink-0 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
           >
             {searching ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -371,7 +371,7 @@ export function AssignUsersDialog({
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="hex or npub, one per line"
-                className="h-20 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                className="h-20 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 tabular-nums">
@@ -444,7 +444,7 @@ export function AssignUsersDialog({
           <Button
             disabled={assigning || tray.length === 0}
             onClick={handleAssign}
-            className="gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+            className="gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
             data-testid="assign-confirm"
           >
             {assigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

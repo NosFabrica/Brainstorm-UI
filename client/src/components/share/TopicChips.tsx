@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 
-const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#3730a3]";
+const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-brand-link";
 const GAP_PX = 6; // gap-1.5
 
 /**

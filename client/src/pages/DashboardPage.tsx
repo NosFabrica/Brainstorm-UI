@@ -188,8 +188,8 @@ const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLower
 const INTEREST_CLUSTERS = [
   { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
   { id: "btc", label: "Bitcoiners", icon: Bitcoin, count: 8500, color: "bg-orange-500", unit: "peers", image: bitcoinImg },
-  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-[#333286]", unit: "creators", image: digitalArtImg },
-  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-[#7c86ff]", unit: "artists", image: musicSceneImg },
+  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-brand-deep", unit: "creators", image: digitalArtImg },
+  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-brand-accent", unit: "artists", image: musicSceneImg },
 ];
 
 
@@ -835,7 +835,7 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <PageHeader
                 kicker="Brainstorm Dashboard"
-                title={<>Welcome back, <span className="text-[#333286]">{user.displayName || "Traveler"}</span></>}
+                title={<>Welcome back, <span className="text-brand-deep">{user.displayName || "Traveler"}</span></>}
                 subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
                 testId="section-dashboard-header-copy"
               />
@@ -852,8 +852,8 @@ export default function DashboardPage() {
                   className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 transition-colors"
                   data-testid="button-wot-expand"
                 >
-                  <div className="h-7 w-7 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                    <BrainLogo size={14} className="text-[#333286]" />
+                  <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                    <BrainLogo size={14} className="text-brand-deep" />
                   </div>
                   <span className="text-[13px] font-semibold text-slate-900 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
@@ -895,12 +895,12 @@ export default function DashboardPage() {
                         className="overflow-hidden"
                         data-testid="container-assistant-inline-prompt"
                       >
-                        <div className="rounded-lg bg-gradient-to-br from-[#7c86ff]/8 via-white to-indigo-50/40 border border-[#7c86ff]/20 px-2.5 py-2 flex items-center gap-2.5">
+                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-indigo-50/40 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
                           <img
                             src="/assistant-default.webp"
                             alt=""
                             aria-hidden="true"
-                            className="w-7 h-7 rounded-full ring-1 ring-[#7c86ff]/30 shrink-0 object-cover"
+                            className="w-7 h-7 rounded-full ring-1 ring-brand-accent/30 shrink-0 object-cover"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
                           />
                           <div className="min-w-0 flex-1">
@@ -915,7 +915,7 @@ export default function DashboardPage() {
                             type="button"
                             onClick={() => publishAssistantMutation.mutate()}
                             disabled={publishAssistantMutation.isPending}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-brand-accent to-brand-deep text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
                             data-testid="button-assistant-inline-publish"
                           >
                             {publishAssistantMutation.isPending ? (
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                               setAssistantDismissedStorage(true);
                               setAssistantDismissed(true);
                             }}
-                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0"
                             aria-label="Dismiss publish assistant prompt"
                             data-testid="button-assistant-inline-dismiss"
                           >
@@ -950,7 +950,7 @@ export default function DashboardPage() {
                           <div className="relative group/info">
                             <button
                               type="button"
-                              className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                               onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Compatible Clients?"
                               data-testid="button-compatible-clients-info"
@@ -963,9 +963,9 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-[#7c86ff] hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-[#333286] transition-colors">Amethyst</span>
+                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
                           </a>
                           <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
@@ -975,7 +975,7 @@ export default function DashboardPage() {
                         <button
                           onClick={() => setRecalcConfirmOpen(true)}
                           disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#333286]/[0.06] text-[#333286] hover:bg-[#333286]/[0.12] border border-[#7c86ff]/15 hover:border-[#7c86ff]/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-brand-deep/[0.06] text-brand-deep hover:bg-brand-deep/[0.12] border border-brand-accent/15 hover:border-brand-accent/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
                           data-testid="button-recalculate-wot-card"
                         >
                           {triggerGrapeRankMutation.isPending ? (
@@ -1042,7 +1042,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => setRecalcConfirmOpen(true)}
                   disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-deep/10 text-brand-deep hover:bg-brand-deep/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-brand-accent/20"
                   data-testid="button-trigger-graperank"
                 >
                   {triggerGrapeRankMutation.isPending ? (
@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
                 <div className="absolute inset-0 pointer-events-none">
@@ -1074,7 +1074,7 @@ export default function DashboardPage() {
                 <div className="relative p-4 sm:p-5">
                   <AlertDialogHeader className="space-y-2">
                     <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
+                      <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-primary)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
                         <BrainLogo size={18} className="text-indigo-800" />
                       </div>
                       <div className="min-w-0">
@@ -1140,7 +1140,7 @@ export default function DashboardPage() {
                 className="mb-6"
               >
                 <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
-                  <div className="h-8 w-8 rounded-lg bg-[#6366f1]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
+                  <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
                   <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
@@ -1150,7 +1150,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                    className="shrink-0 h-9 px-4 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    className="shrink-0 h-9 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
                     data-testid="button-invite-grow"
                   >
                     <Users className="h-4 w-4" />
@@ -1189,7 +1189,7 @@ export default function DashboardPage() {
 
             {(showOnboarding || isRecalculating) && (
               <div
-                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 border border-white/10 shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:shadow-[0_28px_70px_-20px_rgba(124,134,255,0.35)] overflow-hidden relative transition-shadow"
+                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 border border-white/10 shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:shadow-[0_28px_70px_-20px_rgb(var(--brand-accent)/0.35)] overflow-hidden relative transition-shadow"
                 onMouseMove={handleMouseMove}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "0");
@@ -1209,8 +1209,8 @@ export default function DashboardPage() {
                   style={{
                     opacity: "var(--flash-o, 0)" as any,
                     background: [
-                      "radial-gradient(520px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(124,134,255,0.26), rgba(124,134,255,0.08) 32%, rgba(2,6,23,0) 66%)",
-                      "radial-gradient(860px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(51,50,134,0.11), rgba(2,6,23,0) 70%)",
+                      "radial-gradient(520px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgb(var(--brand-accent)/0.26), rgb(var(--brand-accent)/0.08) 32%, rgba(2,6,23,0) 66%)",
+                      "radial-gradient(860px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgb(var(--brand-deep)/0.11), rgba(2,6,23,0) 70%)",
                     ].join(", "),
                   }}
                   data-testid="overlay-onboarding-flashlight"
@@ -1232,7 +1232,7 @@ export default function DashboardPage() {
                     className="absolute inset-0 mix-blend-screen"
                     style={{
                       opacity: 0.22,
-                      background: "linear-gradient(180deg, rgba(124,134,255,0.16), rgba(255,255,255,0.03) 55%, rgba(124,134,255,0.06))",
+                      background: "linear-gradient(180deg, rgb(var(--brand-accent)/0.16), rgba(255,255,255,0.03) 55%, rgb(var(--brand-accent)/0.06))",
                     }}
                   />
                   <div
@@ -1242,7 +1242,7 @@ export default function DashboardPage() {
                       transform: "translateZ(0)",
                       fontFamily: "var(--font-mono)",
                       color: "rgba(226,232,240,0.70)",
-                      textShadow: "0 1px 0 rgba(0,0,0,0.22), 0 0 12px rgba(124,134,255,0.12)",
+                      textShadow: "0 1px 0 rgba(0,0,0,0.22), 0 0 12px rgb(var(--brand-accent)/0.12)",
                     }}
                     data-testid="container-onboarding-equations-safe"
                   >
@@ -1277,7 +1277,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.18),_transparent_55%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgb(var(--brand-primary)/0.18),_transparent_55%)]" />
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:28px_28px] opacity-25" />
 
                 <div className="relative p-5 sm:p-6">
@@ -1309,7 +1309,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
+                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgb(var(--brand-primary)/0.06)]" : ""}`}
                         data-testid="button-toggle-onboarding"
                         aria-expanded={!isOnboardingCollapsed}
                       >
@@ -1577,7 +1577,7 @@ export default function DashboardPage() {
               >
 
                 <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-12 w-12 rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0">
                     <BrainLogo size={24} />
                   </div>
 
@@ -1594,7 +1594,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => setNip85ModalOpen(true)}
-                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                       data-testid="button-nip85-cta"
                     >
                       <BrainLogo size={14} className="text-white/80" />
@@ -1639,11 +1639,11 @@ export default function DashboardPage() {
                 title={!isCalculationComplete ? "Available after calculation completes" : undefined}
                 data-testid="card-social-graph"
               >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
                       <Users className="h-3.5 w-3.5" />
                     </div>
                     <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -1653,7 +1653,7 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1661,7 +1661,7 @@ export default function DashboardPage() {
                       data-testid="card-trusted-followers"
                     >
                       <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                        <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
                           <Award className="h-3 w-3" />
                         </div>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
@@ -1671,7 +1671,7 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
                       {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
                           <span>Explore</span>
                           <ChevronRight className="h-2.5 w-2.5" />
                         </div>
@@ -1679,7 +1679,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1687,7 +1687,7 @@ export default function DashboardPage() {
                       data-testid="card-trusted-following"
                     >
                       <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
+                        <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
                           <UserPlus className="h-3 w-3" />
                         </div>
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
@@ -1697,7 +1697,7 @@ export default function DashboardPage() {
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
+                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
                           <span>Explore</span>
                           <ChevronRight className="h-2.5 w-2.5" />
                         </div>
@@ -1727,17 +1727,17 @@ export default function DashboardPage() {
 
             <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
               <DialogContent
-                className="sm:max-w-[620px] rounded-3xl border border-[#7c86ff]/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgba(51,50,134,0.75)] overflow-hidden p-0"
+                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
                 data-testid="dialog-network-alerts-preview"
               >
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
-                  <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/15 blur-[110px]" />
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(124,134,255,0.14)_0%,rgba(255,255,255,0.00)_40%,rgba(51,50,134,0.12)_100%)]" />
+                  <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-brand-accent/20 blur-[90px]" />
+                  <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-brand-deep/15 blur-[110px]" />
+                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgb(var(--brand-accent)/0.14)_0%,rgba(255,255,255,0.00)_40%,rgb(var(--brand-deep)/0.12)_100%)]" />
                 </div>
 
                 <div
-                  className="absolute -right-14 top-[1.1rem] z-30 rotate-45 bg-[#333286] px-14 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                  className="absolute -right-14 top-[1.1rem] z-30 rotate-45 bg-brand-deep px-14 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
                   data-testid="ribbon-dialog-network-alerts-coming-soon"
                   aria-label="Coming soon"
                 >
@@ -1749,7 +1749,7 @@ export default function DashboardPage() {
                     <DialogHeader>
                       <div className="flex items-start justify-between gap-4 pr-10">
                         <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286]" data-testid="icon-network-alerts-dialog">
+                          <div className="h-10 w-10 rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep" data-testid="icon-network-alerts-dialog">
                             <ShieldAlert className="h-5 w-5" />
                           </div>
                           <div className="min-w-0">
@@ -1839,7 +1839,7 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card
-                className="bg-white border-slate-200 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
+                className="bg-white border-slate-200 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
                 onClick={() => {
                   setRiskDialogOpen(true);
                   if (riskTeaserTimerRef.current) { window.clearTimeout(riskTeaserTimerRef.current); riskTeaserTimerRef.current = null; }
@@ -1852,10 +1852,10 @@ export default function DashboardPage() {
                 data-testid="card-network-alerts"
                 aria-label="Open Network Alerts preview"
               >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div
-                  className="absolute -right-12 top-[0.85rem] z-30 rotate-45 bg-[#333286] px-12 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
+                  className="absolute -right-12 top-[0.85rem] z-30 rotate-45 bg-brand-deep px-12 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
                   data-testid="ribbon-network-alerts-coming-soon"
                   aria-label="Coming soon"
                 >
@@ -1870,7 +1870,7 @@ export default function DashboardPage() {
                   aria-hidden="true"
                   style={{ pointerEvents: "auto" }}
                 >
-                  <div className="absolute -inset-16 bg-[conic-gradient(from_210deg_at_50%_50%,rgba(124,134,255,0.0),rgba(124,134,255,0.10),rgba(51,50,134,0.10),rgba(124,134,255,0.0))] blur-2xl opacity-70" />
+                  <div className="absolute -inset-16 bg-[conic-gradient(from_210deg_at_50%_50%,rgb(var(--brand-accent)/0.0),rgb(var(--brand-accent)/0.10),rgb(var(--brand-deep)/0.10),rgb(var(--brand-accent)/0.0))] blur-2xl opacity-70" />
                   <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px]" />
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.02)_45%,rgba(15,23,42,0.00)_60%)]" />
                 </div>
@@ -1881,7 +1881,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
                       <ShieldAlert className="h-3.5 w-3.5" />
                     </div>
                     <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -1932,7 +1932,7 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
                     {isErrorState ? (
@@ -1948,12 +1948,12 @@ export default function DashboardPage() {
                     )}
                   </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
                         <Network className="h-3.5 w-3.5" />
                       </div>
                       <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -1964,9 +1964,9 @@ export default function DashboardPage() {
                       <TooltipTrigger>
                         <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 transition-colors" />
                       </TooltipTrigger>
-                      <TooltipContent className="bg-white/95 backdrop-blur-xl border-[#7c86ff]/20 text-slate-700 shadow-xl p-3">
+                      <TooltipContent className="bg-white/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 shadow-xl p-3">
                         <div className="space-y-1 max-w-xs">
-                          <p className="font-bold text-xs text-[#333286]">About Extended Reach</p>
+                          <p className="font-bold text-xs text-brand-deep">About Extended Reach</p>
                           <p className="text-xs leading-relaxed">
                             This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
                           </p>
@@ -2019,7 +2019,7 @@ export default function DashboardPage() {
           {!hasNoFollowing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
                     {isErrorState ? (
@@ -2037,13 +2037,13 @@ export default function DashboardPage() {
                     )}
                   </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
                 <CardHeader className="bg-slate-50 border-b border-slate-200 py-3 px-5">
                   <div className="flex flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
+                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
                         <Users className="h-3.5 w-3.5" />
                       </div>
                       <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
@@ -2055,8 +2055,8 @@ export default function DashboardPage() {
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="px-2 py-0.5 rounded-full bg-[#7c86ff]/10 text-xs font-bold text-[#333286] border border-[#7c86ff]/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                      <span className="text-[#333286]">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
+                    <div className="px-2 py-0.5 rounded-full bg-brand-accent/10 text-xs font-bold text-brand-deep border border-brand-accent/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                      <span className="text-brand-deep">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
                     </div>
                   </div>
                 </CardHeader>
@@ -2108,8 +2108,8 @@ export default function DashboardPage() {
                           </div>
                           {isHop1 && (
                             <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
                             </div>
                           )}
                         </div>
@@ -2157,7 +2157,7 @@ export default function DashboardPage() {
 
           {false && (
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mb-8">
-              <Card className="bg-gradient-to-br from-[#333286] via-[#1e1b4b] to-slate-950 text-white border-[#7c86ff]/20 shadow-[0_20px_60px_-15px_rgba(51,50,134,0.3)] overflow-hidden relative group" onMouseMove={handleMouseMove}>
+              <Card className="bg-gradient-to-br from-brand-deep via-[#1e1b4b] to-slate-950 text-white border-brand-accent/20 shadow-[0_20px_60px_-15px_rgb(var(--brand-deep)/0.3)] overflow-hidden relative group" onMouseMove={handleMouseMove}>
                 <div className="relative z-10 p-6 sm:p-8">
                   <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                     Discover Your Tribe
@@ -2185,7 +2185,7 @@ export default function DashboardPage() {
           {false && (
             <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mb-8 text-center">
               <h2 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-deep via-brand-accent to-brand-deep bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Grow Your Network
                 </span>
               </h2>
@@ -2196,14 +2196,14 @@ export default function DashboardPage() {
             <div className="absolute inset-0 bg-[#020617] border-y border-indigo-500/20">
               <div className="absolute inset-0 bg-[linear-gradient(to_right,#818cf810_1px,transparent_1px),linear-gradient(to_bottom,#818cf810_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
               <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-indigo-600/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
-              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-[#7c86ff]/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
+              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-brand-accent/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
               <div className="flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12">
                 <div className="flex-shrink-0 relative group-hover:scale-110 transition-transform duration-700 ease-out">
                   <div className="absolute -inset-8 bg-indigo-500/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
-                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] text-indigo-400" />
+                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgb(var(--brand-primary)/0.5)] text-indigo-400" />
                 </div>
 
                 <div className="flex-1 text-center md:text-left">
@@ -2265,7 +2265,7 @@ export default function DashboardPage() {
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
                         <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#c7d2fe] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-[#c7d2fe] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
                               <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
                               <line x1="12" y1="18" x2="12.01" y2="18" />
@@ -2275,7 +2275,7 @@ export default function DashboardPage() {
                           <div className="relative group/info">
                             <button
                               type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[#c7d2fe] hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/50"
+                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[#c7d2fe] hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
                               onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
                               aria-label="What are Supported Clients?"
                               data-testid="button-supported-clients-info"
@@ -2296,7 +2296,7 @@ export default function DashboardPage() {
                                 Amethyst
                               </h2>
                               <p className="text-xs sm:text-sm font-medium text-[#c7d2fe]/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/15 border border-[#7c86ff]/25 text-[#ddd6fe] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
+                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/15 border border-brand-accent/25 text-[#ddd6fe] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
                                 <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                                 <span>NIP-85</span>
                               </div>
@@ -2313,7 +2313,7 @@ export default function DashboardPage() {
                             </Button>
                           </a>
                           <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-learn">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-brand-deep/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-learn">
                               Learn More
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -2322,9 +2322,9 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/20 rounded-full blur-[80px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-[#7c86ff]/20 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-[#7c86ff]/10 rounded-full pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-accent/20 rounded-full blur-[80px] pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-brand-accent/20 rounded-full animate-pulse pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-brand-accent/10 rounded-full pointer-events-none" />
                       </div>
                     </div>
                   </Card>
@@ -2509,7 +2509,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/15 rounded-full blur-[90px] pointer-events-none" />
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-accent/15 rounded-full blur-[90px] pointer-events-none" />
                       </div>
                     </div>
                   </Card>

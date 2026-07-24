@@ -34,9 +34,9 @@ function MetricCard({
   subtitle?: string;
 }) {
   return (
-    <div className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 flex flex-col">
-      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center mb-2">
-        <Icon className="h-4 w-4 text-[#333286]" />
+    <div className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 flex flex-col">
+      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-accent/10 to-brand-deep/10 border border-brand-accent/15 flex items-center justify-center mb-2">
+        <Icon className="h-4 w-4 text-brand-deep" />
       </div>
       <p
         className="text-xl font-bold tracking-tight text-slate-900 tabular-nums"
@@ -66,7 +66,7 @@ function StatBar({
   const fill =
     tone === "warn"
       ? "bg-gradient-to-r from-amber-400 to-orange-500"
-      : "bg-gradient-to-r from-[#7c86ff] to-[#333286]";
+      : "bg-gradient-to-r from-brand-accent to-brand-deep";
   return (
     <div className="flex items-center gap-3">
       <span className="w-44 shrink-0 truncate text-xs text-slate-600" title={label}>

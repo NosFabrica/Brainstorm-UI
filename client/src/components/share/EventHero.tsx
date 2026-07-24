@@ -46,15 +46,15 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       <div className="mt-3 space-y-1.5 text-sm text-slate-600">
         {e.startSec > 0 && (
           <div className="flex items-center gap-2" data-testid="event-hero-date">
-            <Calendar className="h-4 w-4 shrink-0 text-[#3730a3]" />
+            <Calendar className="h-4 w-4 shrink-0 text-brand-link" />
             <span className="font-medium">{formatEventDate(e.startSec, e.isDateOnly)}</span>
           </div>
         )}
         {e.location && (
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 shrink-0 text-[#3730a3]" />
+            <MapPin className="h-4 w-4 shrink-0 text-brand-link" />
             {mapUrl ? (
-              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-[#3730a3] hover:underline">{e.location}</a>
+              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">{e.location}</a>
             ) : (
               <span className="font-medium">{e.location}</span>
             )}
@@ -72,7 +72,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             href={googleCalendarUrl(e)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="event-add-calendar"
           >
             <CalendarPlus className="h-4 w-4" /> Add to calendar
@@ -83,7 +83,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             href={e.recordingUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="event-watch-recording"
           >
             <PlayCircle className="h-4 w-4" /> Watch recording

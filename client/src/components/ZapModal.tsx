@@ -238,7 +238,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 type="button"
                 onClick={handleContinue}
                 disabled={!amountValid}
-                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
                 data-testid="zap-continue"
               >
                 <FlashIcon className="h-4 w-4" /> {verb} {amountValid ? `${amountNum.toLocaleString()} sats` : noun}
@@ -278,7 +278,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                       type="button"
                       onClick={handleWebLN}
                       disabled={paying}
-                      className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-60 text-white text-sm font-semibold transition-colors"
+                      className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                       data-testid="zap-webln"
                     >
                       {paying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />} Pay with wallet
@@ -355,7 +355,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline"
               >
                 Close
               </button>
@@ -372,7 +372,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <button
                 type="button"
                 onClick={() => setStep("compose")}
-                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline"
               >
                 Try again <ArrowRight className="h-4 w-4" />
               </button>

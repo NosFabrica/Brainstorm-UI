@@ -630,8 +630,8 @@ export default function Landing() {
 
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#7c86ff]/0 via-[#7c86ff]/15 to-[#7c86ff]/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
+              <div className="absolute -inset-1 bg-gradient-to-r from-brand-accent/0 via-brand-accent/15 to-brand-accent/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 shrink-0" />
                 <div className="relative flex-1 min-w-0">
                 <input
@@ -707,7 +707,7 @@ export default function Landing() {
                 <button
                   type="submit"
                   disabled={isSearching || !query.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-[#6366f1] hover:bg-[#4f46e5] rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (

@@ -33,14 +33,14 @@ export default function PersonalizationPage() {
           <PageHeader
             size="hero"
             kicker="Your perspective"
-            title={<>Every search has a <span className="text-[#333286]">point of view</span>.</>}
+            title={<>Every search has a <span className="text-brand-deep">point of view</span>.</>}
             subtitle="By default, you see the network through a trusted community curated by the house. Sign in, and you can see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you see."
             testId="section-personalization-header"
           />
 
           {/* The big idea — tinted two-column */}
           <section
-            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] overflow-hidden"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] overflow-hidden"
             data-testid="section-personalization-idea"
           >
             <div className="grid md:grid-cols-2 md:items-stretch">
@@ -53,17 +53,17 @@ export default function PersonalizationPage() {
                   className="absolute inset-0 h-full w-full object-cover"
                   data-testid="section-personalization-image"
                 />
-                <div className="absolute inset-0 bg-gradient-to-tl from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tl from-brand-deep/30 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
               </div>
 
               {/* Copy */}
               <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                    <Eye className="h-[18px] w-[18px] text-[#333286]" />
+                  <div className="h-9 w-9 rounded-xl bg-white border border-brand-accent/25 flex items-center justify-center shrink-0">
+                    <Eye className="h-[18px] w-[18px] text-brand-deep" />
                   </div>
-                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                     The big idea
                   </span>
                 </div>
@@ -104,10 +104,10 @@ export default function PersonalizationPage() {
                 data-testid="card-house-pov"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                    <Building2 className="h-5 w-5 text-[#333286]" />
+                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                    <Building2 className="h-5 w-5 text-brand-deep" />
                   </div>
-                  <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-[#7c86ff] uppercase">
+                  <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-brand-accent uppercase">
                     Default
                   </span>
                 </div>
@@ -188,8 +188,8 @@ export default function PersonalizationPage() {
                     >
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <div className="h-9 w-9 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                      <Icon className="h-[18px] w-[18px] text-[#333286]" />
+                    <div className="h-9 w-9 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                      <Icon className="h-[18px] w-[18px] text-brand-deep" />
                     </div>
                     <p className="min-w-0 text-[14px] sm:text-[15px] text-slate-700 leading-snug">{step.text}</p>
                   </div>
@@ -198,7 +198,7 @@ export default function PersonalizationPage() {
             </div>
 
             {/* Optional note callout */}
-            <div className="mt-6 rounded-2xl bg-[#333286] px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">
+            <div className="mt-6 rounded-2xl bg-brand-deep px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">
               <div className="flex items-start gap-3">
                 <div className="h-9 w-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
                   <UserCheck className="h-4 w-4 text-white" />
@@ -215,11 +215,11 @@ export default function PersonalizationPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                 Keep reading
               </p>
               <p className="text-base font-semibold text-slate-900">
@@ -227,7 +227,7 @@ export default function PersonalizationPage() {
               </p>
               <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>

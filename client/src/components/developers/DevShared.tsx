@@ -32,7 +32,7 @@ export function DevBackLink() {
   return (
     <Link
       href="/developers"
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-[#333286]"
+      className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-brand-deep"
       data-testid="link-dev-back"
     >
       <ArrowLeft className="h-4 w-4" /> Developers
@@ -55,7 +55,7 @@ export function SectionCard({
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden" data-testid={testId}>
       <div className="p-6 sm:p-8 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+          <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
             {icon}
           </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
@@ -79,7 +79,7 @@ export const GITHUB_REPOS: { label: string; description: string; href: string }[
 /** The shared open-source section (repo links), used on the landing. */
 export function OpenSourceSection() {
   return (
-    <SectionCard icon={<Github className="h-5 w-5 text-[#333286]" />} title="Open-source" testId="card-dev-opensource">
+    <SectionCard icon={<Github className="h-5 w-5 text-brand-deep" />} title="Open-source" testId="card-dev-opensource">
       <p className="text-[15px] text-slate-600 leading-relaxed">
         Brainstorm is built in the open. Explore the code, file issues, or contribute:
       </p>
@@ -90,17 +90,17 @@ export function OpenSourceSection() {
             href={repo.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="group inline-flex items-center gap-3 rounded-xl bg-white border border-slate-200 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all pl-3 pr-4 py-2.5"
+            className="group inline-flex items-center gap-3 rounded-xl bg-white border border-slate-200 hover:border-brand-accent/40 hover:shadow-sm transition-all pl-3 pr-4 py-2.5"
             data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
           >
-            <div className="h-9 w-9 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-              <Github className="h-4 w-4 text-[#333286]" />
+            <div className="h-9 w-9 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+              <Github className="h-4 w-4 text-brand-deep" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">{repo.label}</p>
               <p className="text-xs text-slate-500 leading-snug whitespace-nowrap">{repo.description}</p>
             </div>
-            <ExternalLink className="h-4 w-4 text-[#7c86ff] shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
+            <ExternalLink className="h-4 w-4 text-brand-accent shrink-0 ml-1 group-hover:translate-x-0.5 transition-transform" />
           </a>
         ))}
       </div>

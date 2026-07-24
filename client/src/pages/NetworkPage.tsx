@@ -1162,7 +1162,7 @@ export default function NetworkPage() {
           </p>
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
             onClick={() => navigate("/dashboard")}
             data-testid="button-back-to-dashboard"
           >
@@ -1199,7 +1199,7 @@ export default function NetworkPage() {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
-              title={<>Your <span className="text-[#333286]">Network</span></>}
+              title={<>Your <span className="text-brand-deep">Network</span></>}
               subtitle="Browse and manage your social graph connections."
               testId="section-network-header"
             />
@@ -1624,7 +1624,7 @@ export default function NetworkPage() {
                           ? "Loading your network…"
                           : "Search by name or npub..."
                       }
-                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
+                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => {
                         setSearchFilter(e.target.value);

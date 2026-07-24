@@ -20,7 +20,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
             <div 
               className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
               style={{ 
-                boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
+                boxShadow: '0 12px 48px rgb(var(--brand-primary)/0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgb(var(--brand-primary)/0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
               }}
             >
               <div 
@@ -81,7 +81,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           <motion.div 
                             className={`${node.size} rounded-full overflow-hidden shadow-lg ${node.glow} transition-all relative`}
                             animate={{ 
-                              boxShadow: selectedTrustNode === i ? '0 0 25px rgba(99, 102, 241, 0.6)' : undefined
+                              boxShadow: selectedTrustNode === i ? '0 0 25px rgb(var(--brand-primary)/0.6)' : undefined
                             }}
                           >
                             <AnimatePresence mode="wait">
@@ -127,7 +127,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 25 }}
                           className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
                           style={{ 
-                            boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                            boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                           }}
                         >
                           <p className="text-xs text-slate-200 leading-relaxed">
@@ -212,7 +212,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           transition={{ duration: 0.2 }}
                           className="text-center max-w-md px-4 py-2.5 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
                           style={{ 
-                            boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                            boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                           }}
                         >
                           <p className="text-xs text-slate-200 leading-relaxed">
@@ -318,7 +318,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                       transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 25 }}
                       className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
                       style={{ 
-                        boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                        boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                       }}
                     >
                       <p className="text-xs text-slate-200 leading-relaxed">

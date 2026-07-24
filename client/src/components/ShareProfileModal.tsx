@@ -89,17 +89,17 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             <button
               type="button"
               onClick={() => { onOpenChange(false); navigate("/settings?tab=profile"); }}
-              className="w-full flex items-center gap-2.5 rounded-xl border border-[#7c86ff]/30 bg-[#7c86ff]/[0.06] px-3.5 py-2.5 text-left hover:border-[#7c86ff]/50 transition-colors"
+              className="w-full flex items-center gap-2.5 rounded-xl border border-brand-accent/30 bg-brand-accent/[0.06] px-3.5 py-2.5 text-left hover:border-brand-accent/50 transition-colors"
               data-testid="share-add-photo-nudge"
             >
-              <span className="h-8 w-8 rounded-lg bg-white border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+              <span className="h-8 w-8 rounded-lg bg-white border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                 <ImagePlus className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] font-semibold text-slate-900">Add a photo first</span>
                 <span className="block text-[12px] text-slate-500">Your shared profile looks more complete with one.</span>
               </span>
-              <ArrowRight className="h-4 w-4 text-[#3730a3] shrink-0" />
+              <ArrowRight className="h-4 w-4 text-brand-link shrink-0" />
             </button>
           )}
 
@@ -115,7 +115,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             <button
               type="button"
               onClick={copy}
-              className="shrink-0 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
               data-testid="share-copy-link"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -128,7 +128,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
               href={canonicalUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#3730a3] hover:underline"
+              className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline"
               data-testid="share-open-page-link"
             >
               Open the page <ExternalLink className="h-3 w-3" />

@@ -22,11 +22,11 @@ export function ProfileEditModal({ open, onOpenChange, onSaved }: ProfileEditMod
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[520px] max-h-[90vh] rounded-3xl border border-[#7c86ff]/20 bg-gradient-to-b from-white/95 via-white/92 to-indigo-50/50 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgba(51,50,134,0.75)] overflow-hidden p-0"
+        className="sm:max-w-[520px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/95 via-white/92 to-indigo-50/50 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
         data-testid="modal-edit-profile"
       >
         <div className="relative flex flex-col max-h-[90vh]">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x shrink-0" />
+          <div className="h-1.5 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent animate-gradient-x shrink-0" />
 
           <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2 shrink-0">
             <DialogHeader>
@@ -35,7 +35,7 @@ export function ProfileEditModal({ open, onOpenChange, onSaved }: ProfileEditMod
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-edit-profile-title"
               >
-                Edit your <span className="text-[#333286]">profile</span>
+                Edit your <span className="text-brand-deep">profile</span>
               </DialogTitle>
               <DialogDescription className="text-sm text-slate-500 mt-1 leading-relaxed">
                 Add a photo, bio, and details. Everything's optional.

@@ -128,7 +128,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   return (
     <div className={`rounded-2xl border border-indigo-200/70 bg-white/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
       <div className="flex items-center gap-2 mb-1">
-        <Users className="h-4 w-4 text-[#3730a3]" />
+        <Users className="h-4 w-4 text-brand-link" />
         <h3 className="text-sm font-bold text-slate-900">Follow a few accounts to begin</h3>
       </div>
       <p className="text-xs text-slate-500 mb-3">Your Web of Trust is built from who you follow. Pick at least one so we can calculate your scores.</p>
@@ -139,7 +139,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         ))}
       </div>
       {!showAll && hiddenCount > 0 && (
-        <button type="button" onClick={() => setShowAll(true)} className="mt-1 text-xs font-semibold text-[#3730a3] hover:underline" data-testid="follow-card-show-more">
+        <button type="button" onClick={() => setShowAll(true)} className="mt-1 text-xs font-semibold text-brand-link hover:underline" data-testid="follow-card-show-more">
           Show {hiddenCount} more
         </button>
       )}
@@ -198,7 +198,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           type="button"
           onClick={commit}
           disabled={count === 0 || busy}
-          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed h-11 text-sm font-semibold text-white transition-colors"
+          className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed h-11 text-sm font-semibold text-white transition-colors"
           data-testid="follow-card-commit"
         >
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}

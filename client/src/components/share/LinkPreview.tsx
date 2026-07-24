@@ -47,7 +47,7 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[13px] font-medium text-[#3730a3] no-underline hover:bg-slate-200 transition-colors"
+      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 transition-colors"
       data-testid="link-chip"
     >
       <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 rounded-sm shrink-0 object-contain" />
@@ -144,7 +144,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
           <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="h-11 w-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-              <Play className="h-4 w-4 text-[#333286] ml-0.5" />
+              <Play className="h-4 w-4 text-brand-deep ml-0.5" />
             </span>
           </div>
         </div>

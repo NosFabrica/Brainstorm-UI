@@ -12,7 +12,7 @@ function Equalizer({ playing }: { playing: boolean }) {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className={`w-[2px] flex-1 origin-bottom rounded-full bg-[#6366f1] ${playing ? "eq-bar" : ""}`}
+          className={`w-[2px] flex-1 origin-bottom rounded-full bg-brand-primary ${playing ? "eq-bar" : ""}`}
           style={{ height: "100%", animationDelay: `${i * 0.18}s`, ...(playing ? {} : { transform: "scaleY(0.4)" }) }}
         />
       ))}
@@ -78,7 +78,7 @@ export function EmbeddedTrackCard({
     <div
       onClick={onRowClick}
       className={`group flex items-center gap-3 rounded-xl border bg-white p-2.5 transition-colors ${
-        player.isActive ? "border-[#3730a3]/30 ring-1 ring-[#3730a3]/10" : "border-slate-200"
+        player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200"
       } ${href ? "cursor-pointer hover:border-slate-300" : ""}`}
       data-testid="embedded-track"
     >
@@ -96,11 +96,11 @@ export function EmbeddedTrackCard({
           alt=""
           loading="lazy"
           onError={(e) => { if (!e.currentTarget.src.includes("audio-default")) e.currentTarget.src = audioDefault; }}
-          className="h-full w-full bg-[#333286]/10 object-cover"
+          className="h-full w-full bg-brand-deep/10 object-cover"
         />
         {playable && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#3730a3] shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105">
               {player.isError ? (
                 <AlertCircle className="h-4 w-4 text-red-500" />
               ) : player.isLoading ? (
@@ -118,7 +118,7 @@ export function EmbeddedTrackCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {player.isActive && <Equalizer playing={player.isPlaying} />}
-          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-[#3730a3]" : "text-slate-900"}`}>{title}</p>
+          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900"}`}>{title}</p>
         </div>
         {artist && <p className="truncate text-xs text-slate-500">{artist}</p>}
 
@@ -135,9 +135,9 @@ export function EmbeddedTrackCard({
               }}
               className="group/bar relative h-1.5 flex-1 cursor-pointer rounded-full bg-slate-200"
             >
-              <div className="absolute inset-y-0 left-0 rounded-full bg-[#6366f1]" style={{ width: `${pct}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
               <div
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full bg-[#6366f1] opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
+                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full bg-brand-primary opacity-0 shadow transition-opacity group-hover/bar:opacity-100"
                 style={{ left: `${pct}%` }}
               />
             </div>

@@ -112,7 +112,7 @@ export default function ArticlePage() {
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
         actions={authorNpub ? (
-          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline">
+          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
             <ArrowLeft className="h-4 w-4" /> Profile
           </Link>
         ) : undefined}
@@ -123,7 +123,7 @@ export default function ArticlePage() {
           <div className="text-center py-20">
             <FileText className="h-10 w-10 text-slate-300 mx-auto" />
             <p className="mt-3 text-slate-600 font-medium">That article link isn’t valid.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-[#3730a3] hover:underline">Go to Brainstorm →</Link>
+            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
           </div>
         ) : articleQuery.isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
@@ -136,7 +136,7 @@ export default function ArticlePage() {
             <button
               type="button"
               onClick={() => openArticleInApp(naddr)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white"
             >
               <Smartphone className="h-4 w-4" /> Try opening in an app
             </button>
@@ -172,7 +172,7 @@ export default function ArticlePage() {
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
-            <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-[#3730a3] prose-img:rounded-xl" data-testid="article-body">
+            <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                 {ev.content || ""}
               </ReactMarkdown>
@@ -188,14 +188,14 @@ export default function ArticlePage() {
 
             {/* WoT signup funnel — hidden when the thread's own signup gate is showing. */}
             {!threadGated && (
-            <div className="mt-6 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="article-funnel">
+            <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="article-funnel">
               <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
                 Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
-                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="article-cta"
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
@@ -203,7 +203,7 @@ export default function ArticlePage() {
               {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
               {!loggedIn && (
                 <p className="mt-2 text-xs text-slate-500">
-                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-[#3730a3] hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
+                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-brand-link hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
                 </p>
               )}
             </div>
@@ -216,7 +216,7 @@ export default function ArticlePage() {
 
         <div className="mt-10 text-center">
           <p className="text-xs text-slate-400">
-            Read on <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
+            Read on <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
           </p>
         </div>
       </main>

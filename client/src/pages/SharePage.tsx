@@ -755,7 +755,7 @@ export default function SharePage() {
           href={normalizeUrl(profile.website)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#6366f1]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-primary"
           title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           aria-label="Website"
           data-testid="share-website"
@@ -843,7 +843,7 @@ export default function SharePage() {
           ) : (
             <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
               <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
             </div>
           )}
         </div>
@@ -882,7 +882,7 @@ export default function SharePage() {
               {displayName}
             </h1>
             {profile.nip05 && (
-              <span className="inline-flex items-center gap-1 text-sm text-[#3730a3] font-medium">
+              <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
               </span>
             )}
@@ -918,7 +918,7 @@ export default function SharePage() {
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
               {roleLabels.map((label) => (
-                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#333286]/5 border border-[#7c86ff]/30 text-xs font-semibold text-[#333286]">
+                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-brand-deep/5 border border-brand-accent/30 text-xs font-semibold text-brand-deep">
                   {label}
                 </span>
               ))}
@@ -1043,7 +1043,7 @@ export default function SharePage() {
               connection). Logged-in relationship actions live under the WoT card
               (loggedInActions), not here. */}
           {!loggedIn && (
-            <div className="mt-4 w-full rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.05] to-[#7c86ff]/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
+            <div className="mt-4 w-full rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 {/* Personal connection + value */}
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -1064,7 +1064,7 @@ export default function SharePage() {
                 <div className="shrink-0 sm:text-right">
                   <Link
                     href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
                     data-testid="share-wot-cta"
                   >
                     Join free <ArrowRight className="h-4 w-4" />
@@ -1184,7 +1184,7 @@ export default function SharePage() {
                     ) : null}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
                       <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-                        <Play className="h-5 w-5 text-[#333286] ml-0.5" />
+                        <Play className="h-5 w-5 text-brand-deep ml-0.5" />
                       </span>
                     </div>
                   </Link>
@@ -1262,15 +1262,15 @@ export default function SharePage() {
       </section>
 
       {/* Learn more (Brainstorm public resources) + funnel */}
-      <section className="mt-6 rounded-2xl bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] border border-[#7c86ff]/20 p-5 text-center" data-testid="share-learn-more">
+      <section className="mt-6 rounded-2xl bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] border border-brand-accent/20 p-5 text-center" data-testid="share-learn-more">
         <h3 className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
         <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-about">About Brainstorm</a>
+          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
+          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
         </div>
         {!loggedIn && (
-          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
+          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
         )}
@@ -1279,7 +1279,7 @@ export default function SharePage() {
       {/* Footer */}
       <div className="mt-6 mb-2 text-center">
         <p className="text-xs text-slate-400">
-          Shared via <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
+          Shared via <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
         </p>
       </div>
 
@@ -1290,7 +1290,7 @@ export default function SharePage() {
           <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
             <Link
               href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
+              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors"
               data-testid="share-wot-cta-sticky"
             >
               Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
@@ -1314,7 +1314,7 @@ export default function SharePage() {
         <button
           type="button"
           onClick={startCustomize}
-          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-[#6366f1] px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#4f46e5]"
+          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
           data-testid="customize-open"
         >
           <SlidersHorizontal className="h-4 w-4" /> Customize
@@ -1334,7 +1334,7 @@ function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?
       <PublicPageHeader
         maxWidthClass="max-w-4xl"
         actions={onShare ? (
-          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
+          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
             Share
           </button>
         ) : undefined}
@@ -1351,7 +1351,7 @@ function NotFoundCard({ rawId }: { rawId: string }) {
       <p className="mt-2 text-sm text-slate-500">
         "{rawId.slice(0, 24)}{rawId.length > 24 ? "…" : ""}" isn't a valid profile link. Share links look like <span className="font-mono">/p/npub1…</span>.
       </p>
-      <Link href="/" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#3730a3] hover:underline">Go to Brainstorm <ArrowRight className="h-4 w-4" /></Link>
+      <Link href="/" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm <ArrowRight className="h-4 w-4" /></Link>
     </div>
   );
 }

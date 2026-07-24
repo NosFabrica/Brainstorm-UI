@@ -20,7 +20,7 @@ export function FaqSection({ mode }: { mode: UserMode }) {
             <div 
               className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
               style={{ 
-                boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
+                boxShadow: '0 12px 48px rgb(var(--brand-primary)/0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgb(var(--brand-primary)/0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
               }}
             >
               {/* Network background */}
@@ -69,7 +69,7 @@ export function FaqSection({ mode }: { mode: UserMode }) {
                     transition={{ delay: 0.4 + i * 0.08 }}
                     style={{ 
                       boxShadow: expandedFaq === i 
-                        ? '0 4px 20px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)' 
+                        ? '0 4px 20px rgb(var(--brand-primary)/0.15), inset 0 1px 0 rgba(255,255,255,0.05)' 
                         : 'inset 0 1px 0 rgba(255,255,255,0.02)'
                     }}
                   >
@@ -78,7 +78,7 @@ export function FaqSection({ mode }: { mode: UserMode }) {
                       <motion.div 
                         className="absolute inset-0 rounded-xl pointer-events-none"
                         animate={{ 
-                          boxShadow: ['inset 0 0 0 1px rgba(99, 102, 241, 0)', 'inset 0 0 0 1px rgba(99, 102, 241, 0.2)', 'inset 0 0 0 1px rgba(99, 102, 241, 0)']
+                          boxShadow: ['inset 0 0 0 1px rgb(var(--brand-primary)/0)', 'inset 0 0 0 1px rgb(var(--brand-primary)/0.2)', 'inset 0 0 0 1px rgb(var(--brand-primary)/0)']
                         }}
                         transition={{ duration: 3, repeat: Infinity, delay: i * 0.3 }}
                       />
@@ -122,7 +122,7 @@ export function FaqSection({ mode }: { mode: UserMode }) {
                               animate={{ scale: 2, opacity: 0 }}
                               transition={{ duration: 0.6, ease: "easeOut" }}
                               style={{ 
-                                background: 'radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%)',
+                                background: 'radial-gradient(circle, rgb(var(--brand-primary)/0.4) 0%, transparent 70%)',
                               }}
                             />
                           )}

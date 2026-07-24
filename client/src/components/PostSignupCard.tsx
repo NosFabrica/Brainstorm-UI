@@ -145,8 +145,8 @@ export function PostSignupCard() {
   };
 
   const tileBase =
-    "group relative w-full text-left rounded-2xl bg-white/80 border border-slate-200 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40";
-  const tileClickable = tileBase + " hover:border-[#7c86ff]/50 hover:shadow-md active:scale-[0.995]";
+    "group relative w-full text-left rounded-2xl bg-white/80 border border-slate-200 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const tileClickable = tileBase + " hover:border-brand-accent/50 hover:shadow-md active:scale-[0.995]";
 
   // Returning user (own key) whose profile + backup are already theirs and just
   // hasn't built a Web of Trust yet → one focused nudge, no "Welcome / new
@@ -154,7 +154,7 @@ export function PostSignupCard() {
   if (returningNeedsFollow) {
     return (
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm"
         data-testid="card-returning-follow-nudge"
       >
         <div className="relative p-5 sm:p-6">
@@ -179,16 +179,16 @@ export function PostSignupCard() {
           <button
             type="button"
             onClick={() => navigate("/welcome")}
-            className={`${tileClickable} mt-4 !border-[#7c86ff]/50 !bg-[#7c86ff]/[0.06]`}
+            className={`${tileClickable} mt-4 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
             data-testid="tile-build-network"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center text-white shrink-0">
                 <Users className="h-5 w-5" />
               </div>
               <div className="min-w-0">
                 <div className="text-[15px] font-bold text-slate-900">Follow a few accounts</div>
-                <div className="text-[13px] font-semibold text-[#3730a3] inline-flex items-center gap-1">
+                <div className="text-[13px] font-semibold text-brand-link inline-flex items-center gap-1">
                   Turn on your trust scores
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
@@ -244,7 +244,7 @@ export function PostSignupCard() {
             className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Welcome to <span className="text-[#333286]">Brainstorm</span>
+            Welcome to <span className="text-brand-deep">Brainstorm</span>
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
@@ -269,16 +269,16 @@ export function PostSignupCard() {
             <button
               type="button"
               onClick={() => navigate("/welcome")}
-              className={`${tileClickable} mt-5 !border-[#7c86ff]/50 !bg-[#7c86ff]/[0.06]`}
+              className={`${tileClickable} mt-5 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
               data-testid="tile-build-network"
             >
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center text-white shrink-0">
                   <Users className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[15px] font-bold text-slate-900">Build your network</div>
-                  <div className="text-[13px] font-semibold text-[#3730a3] inline-flex items-center gap-1">
+                  <div className="text-[13px] font-semibold text-brand-link inline-flex items-center gap-1">
                     Follow accounts to turn on trust scores
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -309,7 +309,7 @@ export function PostSignupCard() {
                 data-testid="tile-complete-profile"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                     <ProfileIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
@@ -339,7 +339,7 @@ export function PostSignupCard() {
             ) : backupMode ? (
               <div className={tileBase} data-testid="tile-backup-form">
                 <div className="flex items-center gap-2.5 mb-2.5">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <span className="text-[15px] font-semibold text-slate-900">Back up your account</span>
@@ -353,7 +353,7 @@ export function PostSignupCard() {
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="Password — at least 8 characters"
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-password"
                 />
                 <input
@@ -362,7 +362,7 @@ export function PostSignupCard() {
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Confirm password"
                   autoComplete="new-password"
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-confirm"
                 />
                 {mismatch && (
@@ -372,7 +372,7 @@ export function PostSignupCard() {
                   type="button"
                   onClick={handleDownload}
                   disabled={!canBackup}
-                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   data-testid="button-download-backup"
                 >
                   <Download className="h-4 w-4" /> Download backup
@@ -394,7 +394,7 @@ export function PostSignupCard() {
                 data-testid="tile-backup"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">

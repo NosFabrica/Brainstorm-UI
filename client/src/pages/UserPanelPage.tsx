@@ -701,7 +701,7 @@ export default function UserPanelPage() {
             <div className="bg-gradient-to-br from-slate-950 via-[#0c1929] to-slate-950 relative">
               <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: `url(${workshopBg})`, backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "luminosity" }} />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.12),transparent_60%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(124,134,255,0.08),transparent_60%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgb(var(--brand-accent)/0.08),transparent_60%)]" />
               <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(rgba(6,182,212,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.4) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-400/20 to-transparent" />
@@ -1044,7 +1044,7 @@ export default function UserPanelPage() {
             </div>
           )}
 
-          <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 border border-[#7c86ff]/30 shadow-lg p-4 sm:p-5" data-testid="section-account-overview">
+          <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 border border-brand-accent/30 shadow-lg p-4 sm:p-5" data-testid="section-account-overview">
             {selfLoading ? (
               <div className="flex gap-4 animate-pulse">
                 <div className="h-4 w-24 bg-white/10 rounded" />
@@ -1165,7 +1165,7 @@ export default function UserPanelPage() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Add by npub</label>
                   <div className="flex gap-2">
                     <Input placeholder="npub1... or hex pubkey" value={npubInput} onChange={e => setNpubInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLookupNpub()} className="text-sm" data-testid="input-add-npub" />
-                    <Button size="sm" onClick={handleLookupNpub} disabled={lookupLoading} className="bg-[#333286] hover:bg-[#292873] text-white gap-1.5 shrink-0" data-testid="button-add-npub">
+                    <Button size="sm" onClick={handleLookupNpub} disabled={lookupLoading} className="bg-brand-deep hover:bg-[#292873] text-white gap-1.5 shrink-0" data-testid="button-add-npub">
                       {lookupLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />} Look Up
                     </Button>
                   </div>

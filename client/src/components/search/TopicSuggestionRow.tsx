@@ -34,7 +34,7 @@ export function TopicSuggestionRow({
       className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${active ? "bg-slate-50" : "hover:bg-slate-50"}`}
       data-testid={testId}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[#6366f1]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-brand-primary">
         <Hash className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">

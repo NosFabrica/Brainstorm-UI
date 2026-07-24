@@ -27,7 +27,7 @@ export function ParameterTuning() {
               <div 
                 className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
                 style={{ 
-                  boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
+                  boxShadow: '0 12px 48px rgb(var(--brand-primary)/0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgb(var(--brand-primary)/0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
                 }}
               >
                 {/* Background effects */}
@@ -148,7 +148,7 @@ export function ParameterTuning() {
                                 borderColor: i === 0 ? 'rgba(52, 211, 153, 0.6)' : `rgba(139, 92, 246, ${0.6 - i * 0.1})`,
                                 background: i === 0 
                                   ? 'linear-gradient(135deg, rgba(52, 211, 153, 0.2), rgba(16, 185, 129, 0.1))'
-                                  : `linear-gradient(135deg, rgba(139, 92, 246, ${0.2 - i * 0.03}), rgba(99, 102, 241, ${0.1 - i * 0.02}))`
+                                  : `linear-gradient(135deg, rgba(139, 92, 246, ${0.2 - i * 0.03}), rgb(var(--brand-primary)/${0.1 - i * 0.02}))`
                               }}
                               animate={{ 
                                 boxShadow: i === 0 

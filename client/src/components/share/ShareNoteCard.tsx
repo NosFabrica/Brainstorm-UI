@@ -238,7 +238,7 @@ export function ShareNoteCard({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-1 text-xs font-semibold text-[#3730a3] hover:underline"
+          className="mt-1 text-xs font-semibold text-brand-link hover:underline"
           data-testid="note-show-more"
         >
           {expanded ? "Show less" : "Show more"}

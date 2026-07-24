@@ -19,19 +19,19 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
             <motion.div 
               className="relative bg-gradient-to-br from-indigo-500/20 via-slate-900/95 to-violet-500/20 backdrop-blur-xl rounded-2xl p-6 overflow-hidden border border-indigo-500/50"
               initial={{ 
-                boxShadow: '0 8px 40px rgba(99, 102, 241, 0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+                boxShadow: '0 8px 40px rgb(var(--brand-primary)/0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgb(var(--brand-primary)/0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
               }}
               animate={{ 
                 boxShadow: [
-                  '0 8px 40px rgba(99, 102, 241, 0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
-                  '0 12px 60px rgba(99, 102, 241, 0.4), 0 24px 100px rgba(139, 92, 246, 0.28), 0 0 0 1px rgba(99, 102, 241, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                  '0 8px 40px rgba(99, 102, 241, 0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+                  '0 8px 40px rgb(var(--brand-primary)/0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgb(var(--brand-primary)/0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                  '0 12px 60px rgb(var(--brand-primary)/0.4), 0 24px 100px rgba(139, 92, 246, 0.28), 0 0 0 1px rgb(var(--brand-primary)/0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                  '0 8px 40px rgb(var(--brand-primary)/0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgb(var(--brand-primary)/0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
                 ]
               }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               whileHover={{ 
                 y: -4,
-                boxShadow: '0 20px 80px rgba(99, 102, 241, 0.5), 0 40px 120px rgba(139, 92, 246, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
+                boxShadow: '0 20px 80px rgb(var(--brand-primary)/0.5), 0 40px 120px rgba(139, 92, 246, 0.35), 0 0 0 1px rgb(var(--brand-primary)/0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
               }}
             >
               {/* Network background */}
@@ -115,7 +115,7 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
 
               <motion.div
                 className="absolute top-1/2 left-1/2 w-40 h-40 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 70%)' }}
+                style={{ background: 'radial-gradient(circle, rgb(var(--brand-primary)/0.2) 0%, transparent 70%)' }}
                 animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0.7, 0.4] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               />

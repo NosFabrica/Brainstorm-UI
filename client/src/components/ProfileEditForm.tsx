@@ -19,7 +19,7 @@ type SaveState = "idle" | "saving" | "success" | "error";
 
 // Editable fields look like normal inputs; in view mode they read as flat values.
 const inputEditCls =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 transition disabled:opacity-60";
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 const inputViewCls =
   "w-full rounded-xl border border-transparent bg-slate-50 px-3.5 py-2.5 text-[15px] text-slate-700 placeholder:text-slate-300 transition cursor-default focus:outline-none";
 
@@ -213,7 +213,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
         placeholder={
           <div className={`relative w-full h-full ${DEFAULT_BANNER_CLASS}`}>
             <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+            <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
           </div>
         }
@@ -254,7 +254,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             <button
               type="button"
               onClick={enterEdit}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:border-[#7c86ff]/50 hover:bg-slate-50 px-3.5 h-9 text-sm font-semibold text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40"
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:border-brand-accent/50 hover:bg-slate-50 px-3.5 h-9 text-sm font-semibold text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
               data-testid="button-edit-profile"
             >
               <Pencil className="h-3.5 w-3.5" /> Edit
@@ -266,7 +266,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
           <div>
             <label htmlFor="pe-name" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
               Display name
-              <span className="text-[#3730a3]" aria-hidden="true">*</span>
+              <span className="text-brand-link" aria-hidden="true">*</span>
               <span className="text-xs font-normal text-slate-400">Required</span>
             </label>
             <input
@@ -357,7 +357,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                         value={row.platform}
                         disabled={!editing || busy}
                         onChange={(e) => updateIdentity(i, "platform", e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 transition focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 disabled:opacity-60"
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
                         data-testid={`select-linked-platform-${i}`}
                       >
                         {IDENTITY_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -368,7 +368,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                         disabled={!editing || busy}
                         onChange={(e) => updateIdentity(i, "identity", e.target.value)}
                         placeholder={IDENTITY_PLATFORMS.find((p) => p.value === row.platform)?.placeholder || "identity"}
-                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 disabled:opacity-60"
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
                         data-testid={`input-linked-identity-${i}`}
                       />
                       {editing && (
@@ -389,7 +389,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                         value={row.proof}
                         onChange={(e) => updateIdentity(i, "proof", e.target.value)}
                         placeholder="Proof link — optional"
-                        className="w-full rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 placeholder:text-slate-300 transition focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/20"
+                        className="w-full rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 placeholder:text-slate-300 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
                         data-testid={`input-linked-proof-${i}`}
                       />
                     )}
@@ -399,7 +399,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                   <button
                     type="button"
                     onClick={addIdentity}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-[#6366f1] transition-colors hover:text-[#4f46e5]"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary transition-colors hover:text-brand-primary-hover"
                     data-testid="button-linked-add"
                   >
                     <Plus className="h-4 w-4" /> Add {identities.length > 0 ? "another" : "account"}
@@ -439,7 +439,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                   <button
                     type="submit"
                     disabled={busy}
-                    className="h-11 px-6 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="h-11 px-6 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     data-testid="button-edit-save"
                   >
                     {busy ? (<><Loader2 className="h-5 w-5 animate-spin" /> Saving…</>) : submitLabel}

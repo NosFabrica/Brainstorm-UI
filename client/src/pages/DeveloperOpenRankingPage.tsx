@@ -56,16 +56,16 @@ export default function DeveloperOpenRankingPage() {
           <header className="max-w-3xl">
             <div className="mb-5"><DevBackLink /></div>
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 Open Ranking (ORE)
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
               className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              The web of trust over <span className="text-[#333286]">plain HTTP</span>.
+              The web of trust over <span className="text-brand-deep">plain HTTP</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">
               This instance is an Open Ranking provider — a plain HTTP/JSON interface to its web of trust. Any
@@ -76,7 +76,7 @@ export default function DeveloperOpenRankingPage() {
           </header>
 
           {/* 1. Discover capabilities */}
-          <SectionCard icon={<Compass className="h-5 w-5 text-[#333286]" />} title="1 · Discover capabilities" testId="card-ore-discover">
+          <SectionCard icon={<Compass className="h-5 w-5 text-brand-deep" />} title="1 · Discover capabilities" testId="card-ore-discover">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               Fetch the capability document (<code className="font-mono text-[13px] text-indigo-600">GET</code>) to see which
               endpoints and algorithms this provider offers:
@@ -90,7 +90,7 @@ export default function DeveloperOpenRankingPage() {
           </SectionCard>
 
           {/* 2. Stats */}
-          <SectionCard icon={<BarChart3 className="h-5 w-5 text-[#333286]" />} title="2 · Web-of-trust stats" testId="card-ore-stats">
+          <SectionCard icon={<BarChart3 className="h-5 w-5 text-brand-deep" />} title="2 · Web-of-trust stats" testId="card-ore-stats">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               <code className="font-mono text-[13px] font-semibold text-indigo-600">POST /stats/pubkey</code> — returns this
               instance's web-of-trust metrics for one pubkey. Algorithms:{" "}
@@ -105,8 +105,8 @@ export default function DeveloperOpenRankingPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">Field</th>
-                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-[#333286]">Meaning</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-deep">Field</th>
+                    <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-brand-deep">Meaning</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,7 +122,7 @@ export default function DeveloperOpenRankingPage() {
           </SectionCard>
 
           {/* 3. Search */}
-          <SectionCard icon={<Search className="h-5 w-5 text-[#333286]" />} title="3 · Profile search" testId="card-ore-search">
+          <SectionCard icon={<Search className="h-5 w-5 text-brand-deep" />} title="3 · Profile search" testId="card-ore-search">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               <code className="font-mono text-[13px] font-semibold text-indigo-600">POST /search/pubkeys</code> — free-text
               profile search, returning pubkeys ranked by this instance's global GrapeRank, highest first.
@@ -133,7 +133,7 @@ export default function DeveloperOpenRankingPage() {
           </SectionCard>
 
           {/* Conventions */}
-          <SectionCard icon={<Settings2 className="h-5 w-5 text-[#333286]" />} title="Conventions" testId="card-ore-conventions">
+          <SectionCard icon={<Settings2 className="h-5 w-5 text-brand-deep" />} title="Conventions" testId="card-ore-conventions">
             <p className="text-[15px] text-slate-600 leading-relaxed">
               All endpoints are JSON over HTTP with{" "}
               <code className="font-mono text-[13px] text-slate-700">Access-Control-Allow-Origin: *</code>. Pubkeys are
@@ -146,7 +146,7 @@ export default function DeveloperOpenRankingPage() {
           </SectionCard>
 
           {/* Reference */}
-          <SectionCard icon={<BookOpen className="h-5 w-5 text-[#333286]" />} title="Reference" testId="card-ore-reference">
+          <SectionCard icon={<BookOpen className="h-5 w-5 text-brand-deep" />} title="Reference" testId="card-ore-reference">
             <ul className="space-y-2 text-[15px] text-slate-600 leading-relaxed list-disc pl-5">
               <li>
                 Open Ranking protocol spec — <span className="font-mono text-[13px]">ORE-01</span> (discovery),{" "}

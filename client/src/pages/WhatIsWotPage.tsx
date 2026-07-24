@@ -154,12 +154,12 @@ const exampleQueries = ["Authors", "Journalists", "Podcasts"];
 // Trust-ring cards visually fade with distance: bold indigo at "You",
 // receding to muted grey at "Strangers", so the section shows its own point.
 const ringChip = [
-  "bg-[#7c86ff]/15 border-[#7c86ff]/30",
-  "bg-[#7c86ff]/10 border-[#7c86ff]/20",
+  "bg-brand-accent/15 border-brand-accent/30",
+  "bg-brand-accent/10 border-brand-accent/20",
   "bg-slate-100 border-slate-200",
   "bg-slate-50 border-slate-200",
 ];
-const ringIcon = ["text-[#333286]", "text-[#4b49a0]", "text-slate-500", "text-slate-400"];
+const ringIcon = ["text-brand-deep", "text-[#4b49a0]", "text-slate-500", "text-slate-400"];
 const ringFade = [1, 0.94, 0.88, 0.82];
 
 /**
@@ -231,18 +231,18 @@ export default function WhatIsWotPage() {
           {/* Hero */}
           <header className="text-center max-w-3xl mx-auto" data-testid="section-wot-header">
             <div className="flex items-center justify-center gap-2.5 mb-5">
-              <div className="h-px w-8 bg-[#7c86ff]/40" />
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <div className="h-px w-8 bg-brand-accent/40" />
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 How it works
               </span>
-              <div className="h-px w-8 bg-[#7c86ff]/40" />
+              <div className="h-px w-8 bg-brand-accent/40" />
             </div>
             <h1
               className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-wot-title"
             >
-              Search that knows <span className="text-[#333286]">who to trust</span>.
+              Search that knows <span className="text-brand-deep">who to trust</span>.
             </h1>
             <p
               className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto"
@@ -267,13 +267,13 @@ export default function WhatIsWotPage() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for real people and trusted voices"
                   aria-label="Search Brainstorm"
-                  className="w-full rounded-full border border-slate-200 bg-white py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 placeholder:text-slate-400 shadow-[0_10px_34px_-12px_rgba(51,50,134,0.25)] focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 transition"
+                  className="w-full rounded-full border border-slate-200 bg-white py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 placeholder:text-slate-400 shadow-[0_10px_34px_-12px_rgb(var(--brand-deep)/0.25)] focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition"
                   data-testid="input-wot-search"
                 />
                 <button
                   type="submit"
                   aria-label="Search"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
                   data-testid="button-wot-search-submit"
                 >
                   <Search className="h-4 w-4" />
@@ -290,7 +290,7 @@ export default function WhatIsWotPage() {
                   key={q}
                   type="button"
                   onClick={() => runSearch(q)}
-                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 hover:border-[#7c86ff]/40 hover:text-indigo-600 transition-colors"
+                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 hover:border-brand-accent/40 hover:text-indigo-600 transition-colors"
                   data-testid={`chip-${q.toLowerCase()}`}
                 >
                   {q}
@@ -310,7 +310,7 @@ export default function WhatIsWotPage() {
 
           {/* Wide cinematic photo band */}
           <div
-            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.30)] aspect-[3/2] sm:aspect-[2/1] bg-slate-900"
+            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.30)] aspect-[3/2] sm:aspect-[2/1] bg-slate-900"
             data-testid="wot-hero-media"
           >
             <motion.img
@@ -331,20 +331,20 @@ export default function WhatIsWotPage() {
                   : { duration: 26, repeat: Infinity, ease: "easeInOut" }
               }
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#333286]/15 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-deep/15 via-transparent to-transparent pointer-events-none" />
             <div className="absolute inset-0 ring-1 ring-inset ring-white/10 pointer-events-none" />
           </div>
 
           {/* Think of it like this — tinted callout */}
           <section
-            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] p-6 sm:p-10"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] p-6 sm:p-10"
             data-testid="section-wot-simple"
           >
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                <TrustedTipIcon className="h-[18px] w-[18px] text-[#333286]" />
+              <div className="h-9 w-9 rounded-xl bg-white border border-brand-accent/25 flex items-center justify-center shrink-0">
+                <TrustedTipIcon className="h-[18px] w-[18px] text-brand-deep" />
               </div>
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                 Think of it like this
               </span>
             </div>
@@ -393,12 +393,12 @@ export default function WhatIsWotPage() {
                     <p className="mt-1.5 text-[14px] text-slate-600 leading-relaxed flex-1">{ring.detail}</p>
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-mono font-semibold tracking-[0.15em] text-[#7c86ff] uppercase">
+                        <span className="text-[11px] font-mono font-semibold tracking-[0.15em] text-brand-accent uppercase">
                           {ring.levelLabel}
                         </span>
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                        <div className={`h-full rounded-full bg-gradient-to-r from-[#7c86ff] to-[#333286] ${ringWidth[ring.level]}`} />
+                        <div className={`h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep ${ringWidth[ring.level]}`} />
                       </div>
                     </div>
                   </div>
@@ -434,10 +434,10 @@ export default function WhatIsWotPage() {
                     data-testid={`card-signal-${i}`}
                   >
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                        <Icon className="h-5 w-5 text-[#333286]" />
+                      <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                        <Icon className="h-5 w-5 text-brand-deep" />
                       </div>
-                      <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-[#7c86ff] uppercase">
+                      <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-brand-accent uppercase">
                         {col.kicker}
                       </span>
                     </div>
@@ -445,7 +445,7 @@ export default function WhatIsWotPage() {
                     <ul className="space-y-2 mb-4">
                       {col.examples.map((ex, j) => (
                         <li key={j} className="flex items-start gap-2.5 text-[15px] text-slate-600 leading-snug">
-                          <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-[#7c86ff] shrink-0" />
+                          <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-brand-accent shrink-0" />
                           {ex}
                         </li>
                       ))}
@@ -461,7 +461,7 @@ export default function WhatIsWotPage() {
 
           {/* Your network goes with you — dark callout */}
           <section
-            className="rounded-2xl bg-[#333286] px-6 py-7 sm:px-10 sm:py-9"
+            className="rounded-2xl bg-brand-deep px-6 py-7 sm:px-10 sm:py-9"
             data-testid="section-wot-portable"
           >
             <div className="flex items-start gap-4 max-w-3xl">
@@ -501,11 +501,11 @@ export default function WhatIsWotPage() {
                 return (
                   <div
                     key={i}
-                    className="rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#7c86ff]/50 hover:shadow-md transition-all p-5 sm:p-6"
+                    className="rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6"
                     data-testid={`card-usecase-${i}`}
                   >
-                    <div className="h-11 w-11 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center mb-4">
-                      <Icon className="h-5 w-5 text-[#333286]" />
+                    <div className="h-11 w-11 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
+                      <Icon className="h-5 w-5 text-brand-deep" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">{uc.title}</h3>
                     <p className="text-[15px] text-slate-600 leading-relaxed">{uc.body}</p>
@@ -519,7 +519,7 @@ export default function WhatIsWotPage() {
               {facts.map((f, i) => (
                 <div key={i} className="bg-white p-5 sm:p-6" data-testid={`fact-${i}`}>
                   <div
-                    className="text-xl sm:text-2xl font-bold text-[#333286] tracking-tight"
+                    className="text-xl sm:text-2xl font-bold text-brand-deep tracking-tight"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {f.value}
@@ -550,7 +550,7 @@ export default function WhatIsWotPage() {
                     className="border-slate-100 last:border-0"
                     data-testid={`faq-${i}`}
                   >
-                    <AccordionTrigger className="text-left text-[15px] sm:text-base font-semibold text-slate-900 hover:no-underline hover:text-[#333286]">
+                    <AccordionTrigger className="text-left text-[15px] sm:text-base font-semibold text-slate-900 hover:no-underline hover:text-brand-deep">
                       {faq.q}
                     </AccordionTrigger>
                     <AccordionContent className="text-[15px] text-slate-600 leading-relaxed">
@@ -564,7 +564,7 @@ export default function WhatIsWotPage() {
 
           {/* CTA + cross-link — photographic enterprise band */}
           <section
-            className="relative overflow-hidden rounded-2xl ring-1 ring-[#333286]/20 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)]"
+            className="relative overflow-hidden rounded-2xl ring-1 ring-brand-deep/20 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.45)]"
             data-testid="section-wot-cta"
           >
             <div className="grid md:grid-cols-2">
@@ -586,7 +586,7 @@ export default function WhatIsWotPage() {
                   <circle cx="100" cy="100" r="6" fill="currentColor" stroke="none" opacity="0.5" />
                 </svg>
                 {/* soft brand glow */}
-                <div className="absolute -left-12 bottom-0 w-56 h-56 rounded-full bg-[#7c86ff]/20 blur-3xl pointer-events-none" />
+                <div className="absolute -left-12 bottom-0 w-56 h-56 rounded-full bg-brand-accent/20 blur-3xl pointer-events-none" />
 
                 <div className="relative z-10 max-w-md">
                   <div className="h-11 w-11 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center mb-5">
@@ -604,7 +604,7 @@ export default function WhatIsWotPage() {
                   <div className="mt-7 flex flex-wrap items-center gap-3">
                     <button
                       onClick={() => navigate("/")}
-                      className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-[#333286] bg-white hover:bg-slate-100 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_20px_rgba(0,0,0,0.25)]"
+                      className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-brand-deep bg-white hover:bg-slate-100 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_20px_rgba(0,0,0,0.25)]"
                       data-testid="button-wot-cta-search"
                     >
                       <Search className="h-4 w-4" />

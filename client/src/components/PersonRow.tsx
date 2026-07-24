@@ -38,7 +38,7 @@ export function PersonRow({
         aria-pressed={selected}
         className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 h-9 text-sm font-semibold transition-colors ${
           selected
-            ? "bg-[#6366f1] text-white hover:bg-[#4f46e5]"
+            ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
             : "border border-slate-300 text-slate-700 hover:border-indigo-400 hover:text-indigo-700"
         }`}
         data-testid={`person-toggle-${person.pubkey.slice(0, 8)}`}

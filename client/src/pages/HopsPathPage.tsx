@@ -176,12 +176,12 @@ export default function HopsPathPage() {
 
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-3">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">Connection</span>
-          <div className="h-px w-10 bg-[#7c86ff]/40" />
+          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Connection</span>
+          <div className="h-px w-10 bg-brand-accent/40" />
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
-          Your connection to <span className="text-[#333286]">{subjectName}</span>
+          Your connection to <span className="text-brand-deep">{subjectName}</span>
         </h1>
 
         {pathQuery.isPending ? (
@@ -256,7 +256,7 @@ export default function HopsPathPage() {
                         <div className="flex items-start justify-between gap-2">
                           <Link href={`/p/${npub}`} className="group min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-semibold text-slate-800 truncate group-hover:text-[#333286] transition-colors">{name}</span>
+                              <span className="text-sm font-semibold text-slate-800 truncate group-hover:text-brand-deep transition-colors">{name}</span>
                               {isWeakLink && (
                                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a flagged account into your network">
                                   Weak link
@@ -343,7 +343,7 @@ export default function HopsPathPage() {
         {/* What the metric means + the practical use. */}
         <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5 text-sm text-slate-600 leading-relaxed">
           <div className="flex items-center gap-2 font-semibold text-slate-800">
-            <ShieldAlert className="h-4 w-4 text-[#7c86ff]" /> What "degree" means
+            <ShieldAlert className="h-4 w-4 text-brand-accent" /> What "degree" means
           </div>
           <p className="mt-1.5">
             Your degree shows how closely you're connected to someone.{" "}
@@ -451,7 +451,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
       type="button"
       onClick={follow}
       disabled={busy}
-      className="shrink-0 inline-flex items-center gap-1 rounded-md border border-[#7c86ff]/40 bg-white px-2 py-1 text-[11px] font-semibold text-[#333286] hover:bg-[#7c86ff]/[0.06] disabled:opacity-50 transition-colors"
+      className="shrink-0 inline-flex items-center gap-1 rounded-md border border-brand-accent/40 bg-white px-2 py-1 text-[11px] font-semibold text-brand-deep hover:bg-brand-accent/[0.06] disabled:opacity-50 transition-colors"
       data-testid="hops-follow"
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />} Follow

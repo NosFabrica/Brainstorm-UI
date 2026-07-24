@@ -48,9 +48,9 @@ export function UserResultRow({
     <div
       className={`flex items-center gap-2.5 p-2 rounded-lg border transition-all ${
         active
-          ? "border-[#7c86ff]/40 bg-indigo-50/40"
+          ? "border-brand-accent/40 bg-indigo-50/40"
           : "border-slate-200 bg-white/80"
-      } ${clickable ? "cursor-pointer hover:border-[#7c86ff]/30 hover:bg-indigo-50/10" : ""}`}
+      } ${clickable ? "cursor-pointer hover:border-brand-accent/30 hover:bg-indigo-50/10" : ""}`}
       onClick={onClick}
       role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
@@ -74,8 +74,8 @@ export function UserResultRow({
           onError={() => setImgOk(false)}
         />
       ) : (
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-          <User className="h-4 w-4 text-[#333286]/60" />
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+          <User className="h-4 w-4 text-brand-deep/60" />
         </div>
       )}
       <div className="flex-1 min-w-0">

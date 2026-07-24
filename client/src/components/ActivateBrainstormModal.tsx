@@ -122,7 +122,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             href={NIP85_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#3730a3] hover:text-[#312e81] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-[#312e81] transition-colors"
             data-testid="link-nip85-learn-more-what"
           >
             Learn more in NIP-85: Trusted Assertions
@@ -163,7 +163,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             href={NIP85_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#3730a3] hover:text-[#312e81] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-[#312e81] transition-colors"
             data-testid="link-nip85-learn-more-next"
           >
             Learn more about NIP-85: Trusted Assertions
@@ -177,23 +177,23 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-[#7c86ff]/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgba(51,50,134,0.75)] overflow-hidden p-0"
+        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
         data-testid="dialog-activate-brainstorm"
       >
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
-          <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/15 blur-[110px]" />
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(124,134,255,0.14)_0%,rgba(255,255,255,0.00)_40%,rgba(51,50,134,0.12)_100%)]" />
+          <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-brand-accent/20 blur-[90px]" />
+          <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-brand-deep/15 blur-[110px]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgb(var(--brand-accent)/0.14)_0%,rgba(255,255,255,0.00)_40%,rgb(var(--brand-deep)/0.12)_100%)]" />
         </div>
 
         <div className="relative flex flex-col max-h-[90vh]">
-          <div className="h-1.5 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff] animate-gradient-x shrink-0" />
+          <div className="h-1.5 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent animate-gradient-x shrink-0" />
 
           <div className="overflow-y-auto flex-1 min-h-0">
           <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
             <DialogHeader>
               <div className="flex items-start gap-3">
-                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286] shrink-0" data-testid="icon-activate-brainstorm">
+                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0" data-testid="icon-activate-brainstorm">
                   <BrainLogo size={18} className="sm:hidden" />
                   <BrainLogo size={22} className="hidden sm:block" />
                 </div>
@@ -230,7 +230,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-left"
                     data-testid={`button-toggle-${section.key}`}
                   >
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#3730a3] shrink-0">
+                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-brand-link shrink-0">
                       {section.icon}
                     </div>
                     <span className="text-xs sm:text-sm font-semibold text-slate-800 flex-1">{section.title}</span>
@@ -252,7 +252,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
               <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-[#3730a3] text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-brand-link text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
@@ -289,7 +289,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -307,7 +307,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                   <button
                     type="button"
                     onClick={handleActivate}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-retry"
                   >
                     Try Again
@@ -336,7 +336,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     type="button"
                     onClick={handleActivate}
                     disabled={activateState === "signing" || activateState === "publishing"}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                     data-testid="button-activate-confirm"
                   >
                   {activateState === "signing" ? (

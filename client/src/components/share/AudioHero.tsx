@@ -35,7 +35,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
     <div data-testid="audio-hero">
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         {/* Cover */}
-        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-[#333286]/10 sm:h-44 sm:w-44">
+        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-brand-deep/10 sm:h-44 sm:w-44">
           <img
             src={cover || audioDefault}
             alt=""
@@ -47,7 +47,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
 
         {/* Title, artist, genre, player */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#3730a3]">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-link">
             <MusicIcon className="h-3 w-3" /> Track
           </span>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }}>
@@ -69,7 +69,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
               type="button"
               disabled={!playable}
               onClick={() => { if (audio) toggleTrack(id, audio); }}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#6366f1] text-white shadow-sm transition-colors hover:bg-[#4f46e5] disabled:opacity-40"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-primary text-white shadow-sm transition-colors hover:bg-brand-primary-hover disabled:opacity-40"
               aria-label={player.isPlaying ? "Pause" : "Play"}
               data-testid="audio-hero-play"
             >
@@ -94,8 +94,8 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
                 }}
                 className="group relative h-1.5 cursor-pointer rounded-full bg-slate-200"
               >
-                <div className="absolute inset-y-0 left-0 rounded-full bg-[#6366f1]" style={{ width: `${pct}%` }} />
-                <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#6366f1] opacity-0 shadow transition-opacity group-hover:opacity-100" style={{ left: `${pct}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
+                <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary opacity-0 shadow transition-opacity group-hover:opacity-100" style={{ left: `${pct}%` }} />
               </div>
               <div className="mt-1.5 flex justify-between text-[11px] font-medium tabular-nums text-slate-400">
                 <span>{player.isError ? "Couldn't play this track" : formatTime(player.currentTime)}</span>
