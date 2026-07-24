@@ -2,14 +2,19 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Canonical surface for the Brainstorm Design System (brand guidelines p17
+// "Card"). Uses semantic tokens so it's theme-aware by construction. The
+// hover-lift is opt-in via `interactive` — static cards should stay quiet
+// ("Use colour to communicate, not decorate").
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }
+>(({ className, interactive = false, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-xl border border-border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md",
+      "rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none",
+      interactive && "cursor-pointer transition-all hover:shadow-md hover:border-brand-accent/40",
       className
     )}
     {...props}
