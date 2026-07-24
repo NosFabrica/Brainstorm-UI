@@ -807,43 +807,48 @@ export default function Landing() {
           </div>
 
           {!user ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
-              <span data-testid="text-home-pov-label">Not Personalized</span>
-              <span className="text-slate-300 dark:text-slate-600">·</span>
+            <div className="mt-6 flex flex-col items-center gap-2.5" data-testid="text-home-hint">
+              {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill (guidelines homepage). */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
+                  <Globe className="h-3 w-3" /> Default view
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/login")}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:text-brand-deep dark:hover:text-white"
+                  data-testid="toggle-home-pov-signin"
+                >
+                  <UserRound className="h-3 w-3" /> My perspective
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                className="text-xs text-brand-link hover:underline transition-colors"
                 data-testid="link-home-learn-more"
               >
                 What is this?
               </button>
-            </p>
+            </div>
           ) : (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400" data-testid="text-home-hint">
-              <div
-                role="group"
-                aria-label="Trust perspective"
-                className="inline-flex items-center gap-2"
-                data-testid="toggle-home-pov"
-              >
-                {/* Segmented control using the sitewide POV language: globe =
-                    Brainstorm's global view (neutral), person + indigo fill =
-                    your personalized view. Selected = filled pill, unmistakable. */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs" data-testid="text-home-hint">
+              {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill — the active segment
+                  carries the Aurora gradient fill. */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5" data-testid="toggle-home-pov">
                 <button
                   type="button"
                   onClick={() => setPov("nosfabrica")}
                   aria-pressed={effectivePov === "nosfabrica"}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300")
+                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
+                      : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  <Globe className={"h-3 w-3 " + (effectivePov === "nosfabrica" ? "text-slate-500 dark:text-slate-400" : "text-slate-300 dark:text-slate-600")} />
-                  Brainstorm
+                  <Globe className="h-3 w-3" /> Default view
                 </button>
                 <button
                   type="button"
@@ -860,33 +865,32 @@ export default function Landing() {
                         : undefined
                   }
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "mywot"
-                      ? "border-indigo-300 bg-indigo-50 font-semibold text-indigo-700 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300") +
+                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
+                      : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  <UserRound className={"h-3 w-3 " + (effectivePov === "mywot" ? "text-indigo-500" : "text-slate-300 dark:text-slate-600")} />
-                  {user.displayName || "My results"}
+                  <UserRound className="h-3 w-3" /> My perspective
                 </button>
               </div>
               {!hasMywot && (
                 <button
                   type="button"
                   onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors"
                   data-testid="link-home-calculate-yours"
                 >
                   Calculate yours <ArrowRight className="h-3 w-3" />
                 </button>
               )}
-              <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
+              <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                className="text-brand-link hover:underline transition-colors"
                 data-testid="link-home-learn-more"
               >
                 What is this?
