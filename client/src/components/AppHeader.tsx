@@ -53,15 +53,24 @@ export function AppHeader({ user, onLogout, calcDone = false, active, actions }:
               </Button>
             </div>
 
-            {/* Brand: the compact B mark only (no wordmark), Google-style. */}
+            {/* Brand lockup: B mark + wordmark. App-chrome pages (dashboard,
+                network, settings, FAQ, admin, /profile) have no header search
+                bar, so there's room to anchor the page with the full name. The
+                search-bar headers (home, /p share pages) keep the B mark only. */}
             <button
               type="button"
-              className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+              className="flex shrink-0 items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
               onClick={() => navigate("/")}
               aria-label="Brainstorm home"
               data-testid="button-app-brand"
             >
               <BrainLogo size={28} className="shrink-0" />
+              <span
+                className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900 dark:text-white"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Brainstorm
+              </span>
             </button>
           </div>
 
