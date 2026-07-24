@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
-import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X } from "lucide-react";
+import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X, UserRound, AtSign } from "lucide-react";
 import { publishProfile, getCurrentUser, fetchProfile, fetchProfileEvent } from "@/services/nostr";
 import { IDENTITY_PLATFORMS, splitIdentityClaim, formatIdentityClaim } from "@/lib/externalIdentity";
 import { queryClient } from "@/lib/queryClient";
@@ -21,7 +21,7 @@ type SaveState = "idle" | "saving" | "success" | "error";
 const inputEditCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 const inputViewCls =
-  "w-full rounded-xl border border-transparent bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 transition cursor-default focus:outline-none";
+  "w-full rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3.5 py-2.5 text-[15px] text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 transition cursor-default focus:outline-none";
 
 /**
  * Reusable editor for the user's own Nostr profile (kind 0). The single source of
@@ -262,7 +262,13 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
+          {/* Section: Identity */}
+          <div className="flex items-center gap-2">
+            <UserRound className="h-3.5 w-3.5 text-brand-accent" />
+            <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-brand-accent">Identity</span>
+            <span className="h-px flex-1 bg-gradient-to-r from-brand-accent/25 to-transparent" />
+          </div>
           <div>
             <label htmlFor="pe-name" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
               Display name
@@ -298,6 +304,12 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                 <span className={`text-xs tabular-nums ${about.length >= 460 ? "text-amber-600" : "text-slate-400 dark:text-slate-500"}`}>{about.length}/500</span>
               </div>
             )}
+          </div>
+          {/* Section: Contact & links */}
+          <div className="flex items-center gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-5">
+            <AtSign className="h-3.5 w-3.5 text-brand-accent" />
+            <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-brand-accent">Contact &amp; links</span>
+            <span className="h-px flex-1 bg-gradient-to-r from-brand-accent/25 to-transparent" />
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
