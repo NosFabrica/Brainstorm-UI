@@ -130,8 +130,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans lg:overflow-hidden" data-testid="page-login">
       {/* Left column — editorial value panel */}
-      <div className="hidden lg:flex w-[45%] flex-col relative bg-slate-950 text-white overflow-hidden p-12 justify-between">
+      <div className="hidden lg:flex w-[45%] flex-col relative bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
+          {/* Branded base: a soft Aurora glow over the violet→ink gradient so the
+              panel reads as an intentional brand surface before the hero photo
+              loads (or if it ever fails). The opaque photos cover it once in. */}
+          <div className="absolute -top-1/4 -left-1/4 h-2/3 w-2/3 rounded-full bg-brand-primary/25 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-1/2 w-1/2 rounded-full bg-brand-accent/10 blur-3xl" />
           {HERO_IMAGES.map((src, i) => (
             <img
               key={src}
