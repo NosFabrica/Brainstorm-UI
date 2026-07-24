@@ -18,7 +18,7 @@ export function Footer() {
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="opacity-70 hover:opacity-100 transition-opacity"
+              
               data-testid="link-nosfabrica"
             >
               <img src="/nosfabrica-logo.png" alt="Nosfabrica" className="h-6 w-auto rounded" />
@@ -29,7 +29,7 @@ export function Footer() {
             <button
               onClick={() => setLocation('/nostr')}
               data-testid="link-built-on-nostr"
-              className="flex items-center gap-2 text-[10px] text-slate-500 opacity-80 hover:opacity-100 transition-opacity cursor-pointer"
+              className="flex items-center gap-2 text-[10px] text-slate-500 cursor-pointer"
             >
               <img src="/nostr-ostrich.gif" alt="Nostr" className="h-6 w-auto" />
               <span className="text-slate-600 dark:text-slate-400">Built on Nostr</span>
@@ -63,7 +63,7 @@ export function Footer() {
               href="https://megistus.xyz/"
               target="_blank"
               rel="noopener noreferrer"
-              className="opacity-70 hover:opacity-100 transition-opacity"
+              
               data-testid="link-megistus"
             >
               <img src="/megistus-icon-white.png" alt="Megistus" className="invert dark:invert-0 h-10 w-auto" />
@@ -88,7 +88,7 @@ export function Footer() {
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="opacity-70 hover:opacity-100 transition-opacity"
+              
               data-testid="link-nosfabrica-mobile"
             >
               <img src="/nosfabrica-logo.png" alt="Nosfabrica" className="h-5 w-auto rounded" />
@@ -99,7 +99,7 @@ export function Footer() {
             <button
               onClick={() => setLocation('/nostr')}
               data-testid="link-built-on-nostr-mobile"
-              className="flex items-center gap-1.5 opacity-70 hover:opacity-100 transition-opacity"
+              className="flex items-center gap-1.5"
             >
               <img src="/nostr-ostrich.gif" alt="Nostr" className="h-5 w-auto" />
               <span className="text-[10px] text-slate-600 dark:text-slate-400">Nostr</span>
@@ -111,7 +111,7 @@ export function Footer() {
               href="https://megistus.xyz/"
               target="_blank"
               rel="noopener noreferrer"
-              className="opacity-70 hover:opacity-100 transition-opacity"
+              
               data-testid="link-megistus-mobile"
             >
               <img src="/megistus-icon-white.png" alt="Megistus" className="invert dark:invert-0 h-8 w-auto" />
