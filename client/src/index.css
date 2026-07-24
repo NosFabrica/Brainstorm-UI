@@ -101,40 +101,46 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 3.7% 15.9%;
+  --background: 223 41% 7%;
+  --foreground: 80 8% 95%;
+  --border: 214 22% 21%;
+  --card: 219 33% 12%;
+  --card-foreground: 80 8% 95%;
+  --card-border: 214 22% 21%;
   --sidebar: 240 5.9% 10%;
   --sidebar-foreground: 240 4.8% 95.9%;
-  --sidebar-border: 240 3.7% 15.9%;
-  --sidebar-primary: 262 83% 58%;
+  --sidebar-border: 214 22% 21%;
+  --sidebar-primary: 258 100% 61%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 3.7% 15.9%;
+  --sidebar-accent: 214 22% 21%;
   --sidebar-accent-foreground: 240 4.8% 95.9%;
-  --sidebar-ring: 262 83% 58%;
-  --popover: 240 10% 3.9%;
+  --sidebar-ring: 258 100% 61%;
+  --popover: 223 41% 7%;
   --popover-foreground: 0 0% 98%;
-  --popover-border: 240 3.7% 15.9%;
-  --primary: 262 83% 58%;
+  --popover-border: 214 22% 21%;
+  --primary: 258 100% 61%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 3.7% 15.9%;
+  --secondary: 214 22% 21%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
+  --muted: 214 22% 21%;
   --muted-foreground: 240 5% 64.9%;
   --accent: 262 83% 58%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --input: 240 3.7% 15.9%;
-  --ring: 262 83% 58%;
-  --chart-1: 262 83% 65%;
+  --input: 214 22% 21%;
+  --ring: 258 100% 61%;
+  --chart-1: 258 100% 68%;
   --chart-2: 160 60% 45%;
   --chart-3: 30 80% 55%;
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
+
+  /* Brand palette — dark overrides. The bright brand fills (Aurora Purple/Cyan)
+     already pop on dark, so only the dark-toned accents that are used as text/
+     borders need to lighten for legibility on the Ink background. */
+  --brand-deep: 185 165 255;   /* light Aurora violet — was Deep Violet (too dark on dark) */
+  --brand-link: 167 139 250;   /* lighter Aurora Purple for readable links on dark */
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.2);
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
