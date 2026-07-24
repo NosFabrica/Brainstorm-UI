@@ -141,13 +141,20 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
             ) : (
               <button
                 type="button"
-                className="flex items-center min-w-0"
+                className="flex items-center gap-2 min-w-0"
                 onClick={() => navigate("/")}
                 data-testid="button-app-brand"
               >
-                {/* Handwritten wordmark — the default brand signature. On the
-                    dark Ink header the gradient reads in both light and dark. */}
-                <Wordmark height={24} className="shrink-0" />
+                {/* Navigation uses the compact B symbol (per the logo context
+                    table); the handwritten wordmark is reserved for hero/
+                    marketing. Plain-text label alongside for legibility. */}
+                <BrainLogo size={26} className="shrink-0" />
+                <span
+                  className="text-lg sm:text-xl font-semibold tracking-tight text-white"
+                  data-testid="text-logo"
+                >
+                  Brainstorm
+                </span>
               </button>
             )}
           </div>

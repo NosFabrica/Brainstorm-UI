@@ -26,8 +26,9 @@ export function PublicPageHeader({
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
-        <Link href="/" className="flex shrink-0 items-center" data-testid="public-brand">
-          <Wordmark height={22} />
+        <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="public-brand">
+          <BrainLogo size={24} />
+          <span className="hidden text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:inline">Brainstorm</span>
         </Link>
 
         <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />

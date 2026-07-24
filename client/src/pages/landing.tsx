@@ -619,8 +619,8 @@ export default function Landing() {
               <span className="sr-only">Brainstorm</span>
               <Wordmark height={44} className="mx-auto" />
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base" data-testid="text-home-subtitle">
-              Search across millions of profiles
+            <p className="text-slate-600 dark:text-slate-300 text-base sm:text-lg" data-testid="text-home-subtitle">
+              Search through the people you trust.
             </p>
           </div>
 
