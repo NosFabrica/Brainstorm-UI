@@ -198,7 +198,7 @@ const SharedConnectionIcon = ({ className }: { className?: string }) => (
 
 
 function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: "status" | "ta" | "pub" }) {
-  if (!value) return <span className="text-slate-300">—</span>;
+  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "success" || lower === "done" || lower === "published"
     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -206,14 +206,14 @@ function AdminHistoryStatusBadge({ value, type }: { value: string | null; type: 
     ? "bg-red-50 text-red-700 border-red-200"
     : lower === "pending" || lower === "queued" || lower === "in_progress"
     ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-slate-50 text-slate-600 border-slate-200";
+    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`}>{value}</span>;
 }
 
 // Why this run was queued: manual (user asked), scheduled (tier auto-scheduler),
 // admin (admin action), periodic (cron). Colored distinctly from status badges.
 function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-slate-300">—</span>;
+  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
     ? "bg-violet-50 text-violet-700 border-violet-200"
@@ -221,7 +221,7 @@ function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
     ? "bg-sky-50 text-sky-700 border-sky-200"
     : lower === "admin"
     ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-slate-50 text-slate-600 border-slate-200";
+    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`}>{value}</span>;
 }
 
@@ -298,19 +298,19 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
   return (
     <>
       <tr
-        className={`border-b border-amber-100/40 cursor-pointer hover:bg-amber-50/40 transition-colors ${idx % 2 === 0 ? "bg-white/40" : "bg-amber-50/20"}`}
+        className={`border-b border-amber-100/40 cursor-pointer hover:bg-amber-50/40 transition-colors ${idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-amber-50/20"}`}
         onClick={() => setExpanded(prev => !prev)}
         data-testid={`row-admin-history-${item.private_id || idx}`}
       >
-        <td className="px-2 py-2 font-mono text-slate-600">{item.private_id}</td>
+        <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.private_id}</td>
         <td className="px-2 py-2"><AdminHistoryTriggerBadge value={item.trigger_source} /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.status} type="status" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.ta_status} type="ta" /></td>
         <td className="px-2 py-2"><AdminHistoryStatusBadge value={item.internal_publication_status} type="pub" /></td>
-        <td className="px-2 py-2 font-mono text-slate-600">{item.algorithm || "—"}</td>
-        <td className="px-2 py-2 text-center text-slate-600">{item.how_many_others_with_priority}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap" title={fmtDateFull(item.created_at)}>{fmtDate(item.created_at)}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap" title={fmtDateFull(item.updated_at)}>{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300">{item.algorithm || "—"}</td>
+        <td className="px-2 py-2 text-center text-slate-600 dark:text-slate-300">{item.how_many_others_with_priority}</td>
+        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" title={fmtDateFull(item.created_at)}>{fmtDate(item.created_at)}</td>
+        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap" title={fmtDateFull(item.updated_at)}>{fmtDate(item.updated_at)}</td>
       </tr>
       {expanded && (
         <tr className="bg-amber-50/30">
@@ -325,7 +325,7 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
                 ) : (
                   <p className="text-[11px] text-red-600/80 italic">No error details captured — check server logs.</p>
                 )}
-                <p className="text-slate-600 text-[11px] leading-snug mt-1">
+                <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-snug mt-1">
                   <span className="font-semibold">Where to look · {failureInfo.label}:</span> {failureInfo.hint}
                 </p>
               </div>
@@ -333,31 +333,31 @@ function AdminHistoryRow({ item, idx }: { item: AdminHistoryItem; idx: number })
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
               {item.error?.message && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Error</span>
+                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.error.message}</p>
                 </div>
               )}
               {item.count_values && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Count Values</span>
+                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.count_values}</p>
                 </div>
               )}
               {item.parameters && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Parameters</span>
+                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.parameters}</p>
                 </div>
               )}
               {item.password && (
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[10px]">Password</span>
-                  <p className="text-slate-700 font-mono mt-0.5 break-all">{item.password}</p>
+                  <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Password</span>
+                  <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.password}</p>
                 </div>
               )}
               <div>
-                <span className="font-bold text-slate-500 uppercase text-[10px]">Pubkey</span>
-                <p className="text-slate-700 font-mono mt-0.5 break-all">{item.pubkey}</p>
+                <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Pubkey</span>
+                <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.pubkey}</p>
               </div>
             </div>
           </td>
@@ -459,7 +459,7 @@ const GROUP_DEFS: GroupDef[] = [
   { key: "muted_by", label: "Muted By", colors: "bg-amber-50 text-amber-500 border-amber-200" },
   { key: "muting", label: "Muting", colors: "bg-amber-50 text-amber-500 border-amber-200" },
   { key: "reported_by", label: "Reported", colors: "bg-red-50 text-red-500 border-red-200" },
-  { key: "reporting", label: "Reporting", colors: "bg-slate-50 text-slate-500 border-slate-200" },
+  { key: "reporting", label: "Reporting", colors: "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800" },
 ];
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
@@ -470,7 +470,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 ];
 
 const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
-  { value: "all", label: "All", color: "bg-slate-100 text-slate-600" },
+  { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
   { value: "verified", label: "Verified", color: "bg-indigo-50 text-indigo-600" },
   { value: "high", label: "Highly Trusted", color: "bg-emerald-50 text-emerald-600" },
   { value: "trusted", label: "Trusted", color: "bg-sky-50 text-sky-600" },
@@ -480,14 +480,14 @@ const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
 ];
 
 const REPORT_TYPE_OPTIONS: { value: ReportTypeFilter; label: string; dotColor: string }[] = [
-  { value: "all", label: "All Types", dotColor: "bg-slate-300" },
+  { value: "all", label: "All Types", dotColor: "bg-slate-300 dark:bg-slate-700" },
   { value: "spam", label: "Spam", dotColor: "bg-amber-500" },
   { value: "impersonation", label: "Impersonation", dotColor: "bg-red-500" },
   { value: "nudity", label: "Nudity", dotColor: "bg-pink-500" },
   { value: "illegal", label: "Illegal", dotColor: "bg-red-700" },
   { value: "profanity", label: "Profanity", dotColor: "bg-orange-500" },
-  { value: "other", label: "Other", dotColor: "bg-slate-400" },
-  { value: "unavailable", label: "Unavailable", dotColor: "bg-slate-300" },
+  { value: "other", label: "Other", dotColor: "bg-slate-400 dark:bg-slate-600" },
+  { value: "unavailable", label: "Unavailable", dotColor: "bg-slate-300 dark:bg-slate-700" },
 ];
 
 const SECTION_BORDER_COLORS: Record<string, string> = {
@@ -499,7 +499,7 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
   muted_by: "border-amber-300",
   reported_by: "border-red-300",
   muting: "border-amber-200",
-  reporting: "border-slate-300",
+  reporting: "border-slate-300 dark:border-slate-700",
 };
 
 function getTierKey(score: number): string {
@@ -638,7 +638,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   const isReportFilterSection = key === "reported_by" || key === "reporting";
   const isFiltered = filter !== "all" || debouncedSearch.trim().length > 0 || reportTypeFilter !== "all";
   const visiblePubkeys = useMemo(() => processed.slice(0, visibleCount), [processed, visibleCount]);
-  const borderColor = SECTION_BORDER_COLORS[key] || "border-slate-300";
+  const borderColor = SECTION_BORDER_COLORS[key] || "border-slate-300 dark:border-slate-700";
 
   useEffect(() => {
     if (visiblePubkeys.length === 0) return;
@@ -647,17 +647,17 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
   }, [key, visiblePubkeys, onEnsureVisibleFetched]);
 
   return (
-    <div className="border-t border-slate-100 bg-slate-50/50">
-      <div className="px-3 py-2 space-y-2 border-b border-slate-200 bg-slate-50">
+    <div className="border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50">
+      <div className="px-3 py-2 space-y-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 mr-1">
-            <ArrowUpDown className="h-3 w-3 text-slate-400" />
-            <div className="flex rounded-md overflow-hidden border border-slate-200">
+            <ArrowUpDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+            <div className="flex rounded-md overflow-hidden border border-slate-200 dark:border-slate-800">
               {SORT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={(e) => { e.stopPropagation(); onSetSort(key, opt.value); }}
-                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
+                  className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${sort === opt.value ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                   data-testid={`sort-${opt.value}-${key}`}
                 >
                   {opt.label}
@@ -669,7 +669,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, !filterDropdownOpen); }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
@@ -679,7 +679,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             {filterDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
                   {FILTER_OPTIONS.map(opt => (
                     <button
                       key={opt.value}
@@ -689,10 +689,10 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                         onSetVisibleCount(key, 10);
                         onToggleFilterDropdown(key, false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"}`}
+                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 text-indigo-700" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                       data-testid={`filter-${opt.value}-${key}`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400"}`} />
+                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`} />
                       {opt.label}
                     </button>
                   ))}
@@ -705,7 +705,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, !reportTypeDropdownOpen); }}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${reportTypeFilter !== "all" ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                 data-testid={`report-type-filter-toggle-${key}`}
               >
                 <span className="w-2 h-2 rounded-full bg-current opacity-50" />
@@ -715,7 +715,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               {reportTypeDropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleReportTypeDropdown(key, false); }} />
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg shadow-lg border border-slate-200 py-1 min-w-[140px]">
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
                     {REPORT_TYPE_OPTIONS.map(opt => (
                       <button
                         key={opt.value}
@@ -725,7 +725,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                           onSetVisibleCount(key, 10);
                           onToggleReportTypeDropdown(key, false);
                         }}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 hover:bg-slate-50"}`}
+                        className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${reportTypeFilter === opt.value ? "bg-red-50 text-red-700" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                         data-testid={`report-type-filter-${opt.value}-${key}`}
                       >
                         <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
@@ -745,26 +745,26 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             </span>
           )}
           {isFiltered && (
-            <span className={`text-[10px] text-slate-400 ${reportMetaLoading ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
+            <span className={`text-[10px] text-slate-400 dark:text-slate-500 ${reportMetaLoading ? "" : "ml-auto"}`} data-testid={`filter-count-${key}`}>
               {processed.length} of {pubkeys.length}
             </span>
           )}
         </div>
         <div className="relative">
-          <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+          <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 dark:text-slate-500 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => { onSetSearch(key, e.target.value); onSetVisibleCount(key, 10); }}
             onClick={(e) => e.stopPropagation()}
             placeholder="Search by name or npub..."
-            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 bg-white text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
             data-testid={`search-input-${key}`}
           />
           {search && (
             <button
               onClick={(e) => { e.stopPropagation(); onSetSearch(key, ""); onSetVisibleCount(key, 10); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
               data-testid={`search-clear-${key}`}
             >
               <X className="h-3 w-3" />
@@ -788,10 +788,10 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           if (profile === undefined && !expandProfileAttempted.has(pk)) {
             return (
               <div key={pk} className="flex items-center gap-3 px-4 py-2" data-testid={`expand-profile-${pk.slice(0,8)}`}>
-                <div className="h-7 w-7 rounded-full bg-slate-200 animate-pulse shrink-0" />
+                <div className="h-7 w-7 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
-                  <div className="h-2 w-16 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                  <div className="h-2 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                 </div>
               </div>
             );
@@ -805,41 +805,41 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           return (
             <div
               key={pk}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 cursor-pointer transition-colors"
+              className="flex items-center gap-3 px-4 py-2 hover:bg-white/80 dark:hover:bg-slate-900/80 cursor-pointer transition-colors"
               onClick={() => navigateToProfile(pk)}
               data-testid={`expand-profile-${pk.slice(0,8)}`}
             >
-              <Avatar className="h-7 w-7 border border-slate-200/60 shrink-0">
+              <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
                 {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
                 <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-700 truncate">{displayName}</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{displayName}</p>
                 {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
                 {isReportSection && reportMeta && (
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
                       {reportMeta.reportType}
                     </Badge>
-                    <span className="text-[10px] text-slate-400" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500" data-testid={`report-time-${pk.slice(0,8)}`}>{formatRelativeTime(reportMeta.timestamp)}</span>
                     {reportMeta.reason && (
-                      <span className="text-[10px] text-slate-400 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 italic truncate max-w-[140px]" title={reportMeta.reason} data-testid={`report-reason-${pk.slice(0,8)}`}>"{reportMeta.reason}"</span>
                     )}
                   </div>
                 )}
                 {isReportSection && !reportMeta && reportMetaLoading && (
                   <div className="flex items-center gap-1 mt-0.5">
-                    <div className="h-2 w-10 bg-slate-100 rounded animate-pulse" />
-                    <div className="h-2 w-8 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-2 w-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div className="h-2 w-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                   </div>
                 )}
                 {isReportSection && !reportMeta && !reportMetaLoading && (
-                  <span className="text-[10px] text-slate-300 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
+                  <span className="text-[10px] text-slate-300 dark:text-slate-600 italic mt-0.5 block" data-testid={`report-unavailable-${pk.slice(0,8)}`}>report details unavailable</span>
                 )}
                 {isMuteSection && muteMeta && (
-                  <span className="text-[10px] text-slate-400" data-testid={`mute-time-${pk.slice(0,8)}`}>{formatRelativeTime(muteMeta.timestamp)}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500" data-testid={`mute-time-${pk.slice(0,8)}`}>{formatRelativeTime(muteMeta.timestamp)}</span>
                 )}
               </div>
               {(() => {
@@ -910,7 +910,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
         )}
         {processed.length === 0 && isFiltered && (
           <div className="px-4 py-6 text-center">
-            <p className="text-xs text-slate-400">No users match this filter</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">No users match this filter</p>
             <button
               onClick={(e) => { e.stopPropagation(); onSetFilter(key, "all"); onSetReportTypeFilter(key, "all"); }}
               className="text-xs text-brand-link font-medium mt-1.5 hover:underline"
@@ -1669,7 +1669,7 @@ export default function ProfilePage() {
     { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50", text: "text-cyan-700", border: "border-cyan-200", ring: "stroke-cyan-500" },
     { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10", text: "text-[#665487]", border: "border-[#665487]/30", ring: "stroke-[#665487]" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100", text: "text-slate-500", border: "border-slate-200", ring: "stroke-slate-400" },
+    { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
   const profileTier = useMemo(() => {
@@ -1685,7 +1685,7 @@ export default function ProfilePage() {
     const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
     if (pct >= 50) return { label: "High confidence", color: "text-emerald-700", iconColor: "text-emerald-500", iconBg: "bg-emerald-100", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40", border: "border-emerald-200/60", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
     if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-700", iconColor: "text-indigo-500", iconBg: "bg-indigo-100", bg: "bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40", border: "border-indigo-200/60", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
-    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600", iconColor: "text-slate-400", iconBg: "bg-slate-100", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40", border: "border-slate-200/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
+    if (pct >= 7) return { label: "Low confidence", color: "text-slate-600 dark:text-slate-300", iconColor: "text-slate-400 dark:text-slate-500", iconBg: "bg-slate-100 dark:bg-slate-800", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40", border: "border-slate-200/60 dark:border-slate-800/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
     return { label: "Very low confidence", color: "text-amber-700", iconColor: "text-amber-500", iconBg: "bg-amber-100", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40", border: "border-amber-200/60", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
   }, [profileResult, nostrProfile]);
 
@@ -2037,7 +2037,7 @@ export default function ProfilePage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-profile"
     >
       <GlossBackground />
@@ -2047,7 +2047,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/about")}
-            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
             data-testid="link-profile-about"
           >
             About
@@ -2102,7 +2102,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-amber-700 hover:bg-amber-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
                   onClick={() => goBack(fallback)}
                   data-testid="button-back-to-admin"
                 >
@@ -2116,7 +2116,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
                   onClick={() => goBack(`/network?group=${fromGroup}`)}
                   data-testid="button-back-to-network"
                 >
@@ -2129,7 +2129,7 @@ export default function ProfilePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 hover:bg-indigo-50/60 -ml-1 no-default-hover-elevate no-default-active-elevate"
                 onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
@@ -2142,27 +2142,27 @@ export default function ProfilePage() {
 
         {isLoading && (
           <div data-testid="panel-profile-skeleton">
-            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden">
               <div className="p-6 sm:p-8 animate-pulse">
                 <div className="flex items-start gap-4">
-                  <div className="h-14 w-14 rounded-full bg-slate-200 shrink-0" />
+                  <div className="h-14 w-14 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
                   <div className="flex-1 space-y-2.5 pt-1">
-                    <div className="h-4 bg-slate-200 rounded w-36" />
-                    <div className="h-3 bg-slate-100 rounded w-48" />
+                    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-36" />
+                    <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-48" />
                   </div>
                 </div>
                 <div className="mt-5 space-y-2">
-                  <div className="h-3 bg-slate-100 rounded w-full" />
-                  <div className="h-3 bg-slate-100 rounded w-3/4" />
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-full" />
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-3/4" />
                 </div>
                 <div className="mt-5 grid grid-cols-3 gap-3">
-                  <div className="h-16 bg-slate-100 rounded-xl" />
-                  <div className="h-16 bg-slate-100 rounded-xl" />
-                  <div className="h-16 bg-slate-100 rounded-xl" />
+                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl" />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="h-12 bg-slate-50 rounded-xl" />
-                  <div className="h-12 bg-slate-50 rounded-xl" />
+                  <div className="h-12 bg-slate-50 dark:bg-slate-900 rounded-xl" />
+                  <div className="h-12 bg-slate-50 dark:bg-slate-900 rounded-xl" />
                 </div>
               </div>
             </Card>
@@ -2171,20 +2171,20 @@ export default function ProfilePage() {
 
         {!isLoading && loadError && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white border-slate-200 shadow-sm rounded-xl overflow-hidden relative" data-testid="card-profile-error">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl overflow-hidden relative" data-testid="card-profile-error">
               <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-indigo-500/40 to-indigo-800/25" />
-                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 bg-slate-50 text-indigo-800 shadow-sm flex items-center justify-center" data-testid="icon-profile-error">
+                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 shadow-sm flex items-center justify-center" data-testid="icon-profile-error">
                     <User className="h-6 w-6" />
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold tracking-wider uppercase text-slate-400">Profile</p>
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                  <p className="text-xs font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500">Profile</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                     Profile not found
                   </h3>
-                  <p className="mt-2 text-sm text-slate-600 leading-relaxed">{loadError}</p>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{loadError}</p>
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
@@ -2203,7 +2203,7 @@ export default function ProfilePage() {
 
         {!loadError && !profileResult && seed && (
           <div data-testid="card-profile-seed-preview">
-            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
                   <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 shadow-md shrink-0">
@@ -2218,10 +2218,10 @@ export default function ProfilePage() {
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title-seed">
+                          <h3 className="text-base sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title-seed">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
-                          <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-slate-50 text-slate-500 border border-slate-200">
+                          <Badge variant="secondary" className="text-[10px] font-bold tracking-wider uppercase bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
                             <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
                             Loading
                           </Badge>
@@ -2230,7 +2230,7 @@ export default function ProfilePage() {
                           <p className="text-xs text-indigo-600 font-medium mt-0.5 truncate">{displayNostrProfile.nip05}</p>
                         )}
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]">{displayNpub}</code>
+                          <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]">{displayNpub}</code>
                         </div>
                       </div>
                       <div
@@ -2255,15 +2255,15 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 {displayNostrProfile?.about && (
-                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 mb-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-3 mb-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {displayNostrProfile.about}
                   </p>
                 )}
                 <div className="animate-pulse space-y-3">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="h-14 bg-slate-100 rounded-xl" />
-                    <div className="h-14 bg-slate-100 rounded-xl" />
-                    <div className="h-14 bg-slate-100 rounded-xl" />
+                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+                    <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
                   </div>
                 </div>
               </div>
@@ -2273,7 +2273,7 @@ export default function ProfilePage() {
 
         {!isLoading && !loadError && profileResult && (
           <div style={{ animation: "profileFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both" }}>
-            <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
+            <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden relative" data-testid="card-profile-result">
 
               <div className="relative overflow-hidden">
                 {/* Cover banner — matches the public /p page; fills the top space. */}
@@ -2297,7 +2297,7 @@ export default function ProfilePage() {
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white shrink-0 -mt-12 sm:-mt-16">
+                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
                         {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
                         <AvatarFallback className="bg-indigo-50 text-indigo-600 text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
@@ -2312,11 +2312,11 @@ export default function ProfilePage() {
                 <div className="md:flex-1 min-w-0">
                     <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
-                          <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
+                          <h3 className="w-full sm:w-auto text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
                             {displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "..."}
                           </h3>
                           {displayNostrProfile?.nip05 && (
-                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
+                            <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
                               <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-indigo-500" />
                               <span className="truncate">{displayNostrProfile.nip05}</span>
                             </span>
@@ -2334,8 +2334,8 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <code className="text-xs text-slate-400 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
-                          <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
+                          <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
+                          <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
@@ -2345,16 +2345,16 @@ export default function ProfilePage() {
                 {/* X-style inline counts — full-width so they sit on one line. */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-[13px] sm:text-sm" data-testid="row-profile-stats">
                   <span data-testid="stat-profile-following">
-                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followingTotal)}</span>
-                    <span className="text-slate-500 ml-1">Following</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(verifiedCounts.followingTotal)}</span>
+                    <span className="text-slate-500 dark:text-slate-400 ml-1">Following</span>
                   </span>
                   <span data-testid="stat-profile-followers">
-                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(verifiedCounts.followersTotal)}</span>
-                    <span className="text-slate-500 ml-1">Followers</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(verifiedCounts.followersTotal)}</span>
+                    <span className="text-slate-500 dark:text-slate-400 ml-1">Followers</span>
                   </span>
                   <span data-testid="stat-profile-mutual">
-                    <span className="font-bold text-slate-900 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
-                    <span className="text-slate-500 ml-1">Mutual</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtStat(mutualPubkeys.length)}</span>
+                    <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
                   </span>
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
                   {hasSessionToken() && !isOwnProfile && user?.pubkey && hexPubkey &&
@@ -2373,7 +2373,7 @@ export default function ProfilePage() {
                   {hexPubkey && !isAnon && !social.isSelf(hexPubkey) ? (
                     <>
                       {social.listsLoading ? (
-                        <div className="h-8 w-24 rounded-lg bg-slate-100 animate-pulse" data-testid="skeleton-follow-button" />
+                        <div className="h-8 w-24 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" data-testid="skeleton-follow-button" />
                       ) : (() => {
                         const following = social.isFollowing(hexPubkey);
                         const pending = social.isPending("follow", hexPubkey) || social.isPending("unfollow", hexPubkey);
@@ -2396,7 +2396,7 @@ export default function ProfilePage() {
                               following
                                 ? followHovered
                                   ? "bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
-                                  : "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                                  : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
                                 : "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
                             }`}
                             data-testid="button-follow-toggle"
@@ -2409,7 +2409,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                         data-testid="link-public-page"
                         title="See the public, shareable version of this profile"
                       >
@@ -2419,7 +2419,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => setZapOpen(true)}
-                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                           data-testid="button-zap"
                           title="Send a zap"
                         >
@@ -2428,13 +2428,13 @@ export default function ProfilePage() {
                       )}
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-colors" aria-label="More actions" data-testid="button-profile-more">
+                          <button type="button" className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors" aria-label="More actions" data-testid="button-profile-more">
                             <MoreVertical className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-44 bg-white/95 backdrop-blur-xl">
+                        <DropdownMenuContent align="start" className="w-44 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
                           <DropdownMenuItem className="cursor-pointer" onClick={() => setShareOpen(true)} data-testid="button-share-profile">
-                            <Share2 className="h-4 w-4 mr-2 text-slate-500" /> Share
+                            <Share2 className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" /> Share
                           </DropdownMenuItem>
                           {(() => {
                             const muted = social.isMuted(hexPubkey);
@@ -2451,7 +2451,7 @@ export default function ProfilePage() {
                                 }}
                                 data-testid="button-mute-toggle"
                               >
-                                {muted ? <Volume2 className="h-4 w-4 mr-2 text-slate-500" /> : <VolumeX className="h-4 w-4 mr-2 text-slate-500" />}
+                                {muted ? <Volume2 className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" /> : <VolumeX className="h-4 w-4 mr-2 text-slate-500 dark:text-slate-400" />}
                                 {muted ? "Unmute" : "Mute"}
                               </DropdownMenuItem>
                             );
@@ -2496,7 +2496,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 bg-white dark:bg-slate-900 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
                         data-testid="link-public-page"
                         title="See the public, shareable version of this profile"
                       >
@@ -2506,7 +2506,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => setZapOpen(true)}
-                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                          className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                           data-testid="button-zap"
                           title="Send a zap"
                         >
@@ -2530,7 +2530,7 @@ export default function ProfilePage() {
                 </div>
                 {displayNostrProfile?.about && (
                   <div className="mb-4 overflow-hidden" data-testid="text-profile-about">
-                    <p className={`text-xs text-slate-500 leading-relaxed whitespace-pre-line break-words overflow-wrap-anywhere ${!aboutExpanded ? "line-clamp-3" : ""}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                    <p className={`text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-line break-words overflow-wrap-anywhere ${!aboutExpanded ? "line-clamp-3" : ""}`} style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                       {renderLinkedText(displayNostrProfile.about)}
                     </p>
                     {displayNostrProfile.about.length > 140 && (
@@ -2552,7 +2552,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-xs sm:text-sm font-bold text-indigo-700">This is how others see you</span>
-                      <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                         {houseInfluence01 != null
                           ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
                           : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so others can see your standing."}
@@ -2582,7 +2582,7 @@ export default function ProfilePage() {
                         <span className={`text-xs sm:text-sm font-bold ${confidenceGuidance.color}`} data-testid="text-confidence-label">{confidenceGuidance.label}</span>
                         <span className={`text-[10px] font-bold font-mono tabular-nums px-1.5 py-0.5 rounded ${confidenceGuidance.iconBg} ${confidenceGuidance.iconColor}`}>{confidenceGuidance.pct}%</span>
                       </div>
-                      <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-relaxed">{confidenceGuidance.message}</p>
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{confidenceGuidance.message}</p>
                     </div>
                   </div>
                 )}
@@ -2632,9 +2632,9 @@ export default function ProfilePage() {
                             </>
                           ) : (
                             <>
-                              <p className="text-sm text-slate-400 font-medium">No shared connections</p>
+                              <p className="text-sm text-slate-400 dark:text-slate-500 font-medium">No shared connections</p>
                               {capHit && (
-                                <p className="text-[11px] text-slate-400/70 italic mt-1" data-testid="text-shared-connections-cap-notice">
+                                <p className="text-[11px] text-slate-400/70 dark:text-slate-500/70 italic mt-1" data-testid="text-shared-connections-cap-notice">
                                   Based on top 200 connections — overlap may exist beyond this sample
                                 </p>
                               )}
@@ -2702,15 +2702,15 @@ export default function ProfilePage() {
 
                   return (
                   <div className="space-y-5">
-                    <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
+                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
+                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
                         </div>
-                        <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">Network Position</span>
+                        <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">Network Position</span>
                       </div>
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {profileResult.followed_by !== undefined && (() => {
                           const fbValue = profileResult.followed_by;
                           const fbArray = Array.isArray(fbValue) ? fbValue : null;
@@ -2728,21 +2728,21 @@ export default function ProfilePage() {
                                   <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.followersTotal > 0 ? "Verified Followers" : "Followers"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">People following this account</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.followersTotal > 0 ? "Verified Followers" : "Followers"}</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">People following this account</p>
                                   {renderTierBadges("followed_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
+                                  <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
                                     {verifiedCounts.followersTotal > 0 ? verifiedCounts.followers.toLocaleString() : fbCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.followersTotal > 0 && (
-                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-followers">of {fbCount.toLocaleString()} total</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-followers">of {fbCount.toLocaleString()} total</p>
                                   )}
                                 </div>
-                                {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
+                                {fbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["followed_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {fbExpandable && fbArray && renderExpandedPanel("followed_by", toPubkeys(fbArray))}
@@ -2766,21 +2766,21 @@ export default function ProfilePage() {
                                   <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.followingTotal > 0 ? "Verified Following" : "Following"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person follows</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.followingTotal > 0 ? "Verified Following" : "Following"}</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Accounts this person follows</p>
                                   {renderTierBadges("following")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
+                                  <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
                                     {verifiedCounts.followingTotal > 0 ? verifiedCounts.following.toLocaleString() : fgCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.followingTotal > 0 && (
-                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-following">of {fgCount.toLocaleString()} total</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-following">of {fgCount.toLocaleString()} total</p>
                                   )}
                                 </div>
-                                {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
+                                {fgExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["following"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {fgExpandable && fgArray && renderExpandedPanel("following", toPubkeys(fgArray))}
@@ -2803,15 +2803,15 @@ export default function ProfilePage() {
                                   <MutualIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-teal-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Mutual</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Follow each other mutually</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Mutual</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Follow each other mutually</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-mutual">
+                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-mutual">
                                   {mtCount.toLocaleString()}
                                 </p>
-                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["mutual"] ? "rotate-180" : ""}`} />}
+                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["mutual"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {mtExpandable && renderExpandedPanel("mutual", mutualPubkeys)}
@@ -2836,15 +2836,15 @@ export default function ProfilePage() {
                                 <BrainLogo size={16} className="text-indigo-500 hidden sm:block" />
                               </div>
                               <div>
-                                <p className="text-xs sm:text-sm font-semibold text-slate-700">Influence</p>
-                                <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Network influence rating (0-1)</p>
+                                <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Influence</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Network influence rating (0-1)</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-2.5">
-                              <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                 <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
                               </div>
-                              <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
+                              <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
                                 {typeof inf === "number" ? inf.toFixed(2) : "—"}
                               </p>
                             </div>
@@ -2852,15 +2852,15 @@ export default function ProfilePage() {
                           );
                         })()}
                         {followerTierBreakdown && followerTierBreakdown.total > 0 && (
-                          <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30" data-testid="card-audience-quality">
+                          <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30" data-testid="card-audience-quality">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-1.5">
                                 <div className="w-1 h-1 rounded-full bg-indigo-400" />
-                                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Audience Quality</span>
+                                <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Audience Quality</span>
                               </div>
-                              <span className="text-[10px] text-slate-400 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
                             </div>
-                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-audience-quality">
+                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800" data-testid="bar-audience-quality">
                               {TIER_DISPLAY_CONFIG.map(tier => {
                                 const count = followerTierBreakdown.counts[tier.key] || 0;
                                 if (count === 0) return null;
@@ -2882,8 +2882,8 @@ export default function ProfilePage() {
                                 return (
                                   <div key={tier.key} className="flex items-center gap-1.5" data-testid={`legend-tier-${tier.key}`}>
                                     <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: tier.color }} />
-                                    <span className="text-[10px] text-slate-500 font-medium">{tier.name}</span>
-                                    <span className="text-[10px] text-slate-900 font-bold font-mono">{count.toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{tier.name}</span>
+                                    <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{count.toLocaleString()}</span>
                                   </div>
                                 );
                               })}
@@ -2893,15 +2893,15 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm">
-                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 flex items-center justify-between gap-2">
+                    <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+                      <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-indigo-500" : "bg-slate-300"}`} />
-                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
+                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-indigo-500" : "bg-slate-300 dark:bg-slate-700"}`} />
+                          <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
                         </div>
-                        <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">{totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}</span>
+                        <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">{totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}</span>
                       </div>
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {isProfileFlagged && (
                           <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3.5 bg-red-50/60" data-testid="metric-profile-flagged-indicator">
                             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 border border-red-200 flex items-center justify-center shrink-0">
@@ -2925,25 +2925,25 @@ export default function ProfilePage() {
                               data-testid="metric-profile-muted-by"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-100"}`}>
-                                  <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400"}`} />
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${mutedByCount > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
+                                  <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.mutedBy > 0 ? "Verified Muted By" : "Muted By"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Others who muted this account</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.mutedBy > 0 ? "Verified Muted By" : "Muted By"}</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Others who muted this account</p>
                                   {renderTierBadges("muted_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900"}`} data-testid="text-profile-muted-by">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-muted-by">
                                     {verifiedCounts.mutedBy > 0 ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.mutedBy > 0 && (
-                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-muted-by">of {mutedByCount.toLocaleString()} total</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-muted-by">of {mutedByCount.toLocaleString()} total</p>
                                   )}
                                 </div>
-                                {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
+                                {mbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["muted_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {mbExpandable && Array.isArray(profileResult.muted_by) && renderExpandedPanel("muted_by", toPubkeys(profileResult.muted_by))}
@@ -2962,25 +2962,25 @@ export default function ProfilePage() {
                               data-testid="metric-profile-reported-by"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-100"}`}>
-                                  <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400"}`} />
+                                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0 ${reportedByCount > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800/60"}`}>
+                                  <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">{verifiedCounts.reportedBy > 0 ? "Verified Reported By" : "Reported By"}</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed against this account</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.reportedBy > 0 ? "Verified Reported By" : "Reported By"}</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Reports filed against this account</p>
                                   {renderTierBadges("reported_by")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
-                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900"}`} data-testid="text-profile-reported-by">
+                                  <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-reported-by">
                                     {verifiedCounts.reportedBy > 0 ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
                                   </p>
                                   {verifiedCounts.reportedBy > 0 && (
-                                    <p className="text-[10px] text-slate-400 font-mono tabular-nums" data-testid="text-verified-reported-by">of {reportedByCount.toLocaleString()} total</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-reported-by">of {reportedByCount.toLocaleString()} total</p>
                                   )}
                                 </div>
-                                {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
+                                {rbExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["reported_by"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {rbExpandable && Array.isArray(profileResult.reported_by) && renderExpandedPanel("reported_by", toPubkeys(profileResult.reported_by))}
@@ -2998,20 +2998,20 @@ export default function ProfilePage() {
                               data-testid="metric-profile-muting"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                  <MutingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 flex items-center justify-center shrink-0">
+                                  <MutingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400 dark:text-slate-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Muting</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Accounts this person has muted</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Muting</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Accounts this person has muted</p>
                                   {renderTierBadges("muting")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-muting">
+                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-muting">
                                   {mutingCount.toLocaleString()}
                                 </p>
-                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
+                                {mtExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["muting"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {mtExpandable && Array.isArray(profileResult.muting) && renderExpandedPanel("muting", toPubkeys(profileResult.muting))}
@@ -3029,20 +3029,20 @@ export default function ProfilePage() {
                               data-testid="metric-profile-reporting"
                             >
                               <div className="flex items-center gap-2 sm:gap-3">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
-                                  <ReportingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400" />
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 flex items-center justify-center shrink-0">
+                                  <ReportingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-400 dark:text-slate-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700">Reporting</p>
-                                  <p className="text-[10px] sm:text-xs text-slate-400 leading-tight hidden sm:block">Reports filed by this person</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Reporting</p>
+                                  <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Reports filed by this person</p>
                                   {renderTierBadges("reporting")}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <p className="text-lg sm:text-xl font-bold text-slate-900 font-mono tabular-nums tracking-tight" data-testid="text-profile-reporting">
+                                <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-reporting">
                                   {reportingCount.toLocaleString()}
                                 </p>
-                                {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
+                                {rpExpandable && <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${expandedSections["reporting"] ? "rotate-180" : ""}`} />}
                               </div>
                             </div>
                             {rpExpandable && Array.isArray(profileResult.reporting) && renderExpandedPanel("reporting", toPubkeys(profileResult.reporting))}
@@ -3057,22 +3057,22 @@ export default function ProfilePage() {
                       const mutedPct = barTotal > 0 ? (mutedByCount / barTotal) * 100 : 0;
                       const reportedPct = barTotal > 0 ? (reportedByCount / barTotal) * 100 : 0;
                       return (
-                      <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-sm" data-testid="alert-profile-trust-warning">
-                        <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30">
+                      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm" data-testid="alert-profile-trust-warning">
+                        <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
                               <div className="w-1 h-1 rounded-full bg-indigo-400" />
-                              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Social Context</span>
+                              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Social Context</span>
                             </div>
                             <div className="flex items-center gap-2">
                               {isProfileFlagged && (
                                 <span className="text-[10px] font-medium text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md">Flagged</span>
                               )}
-                              <span className="text-[10px] text-slate-400 font-mono">{barTotal.toLocaleString()} total</span>
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{barTotal.toLocaleString()} total</span>
                             </div>
                           </div>
                           {barTotal > 0 && (
-                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100" data-testid="bar-social-context">
+                            <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800" data-testid="bar-social-context">
                               {mutedByCount > 0 && (
                                 <div
                                   className="h-full transition-all duration-500"
@@ -3093,28 +3093,28 @@ export default function ProfilePage() {
                             {mutedByCount > 0 && (
                               <div className="flex items-center gap-1.5" data-testid="legend-muted-by">
                                 <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#f59e0b" }} />
-                                <span className="text-[10px] text-slate-500 font-medium">Muted by</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Muted by</span>
                                 {vMuted > 0 ? (
                                   <>
                                     <span className="text-[10px] text-amber-600 font-bold font-mono">{vMuted} verified</span>
-                                    <span className="text-[10px] text-slate-300 font-medium">of {mutedByCount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {mutedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
-                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
+                                  <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{mutedByCount.toLocaleString()}</span>
                                 )}
                               </div>
                             )}
                             {reportedByCount > 0 && (
                               <div className="flex items-center gap-1.5" data-testid="legend-reported-by">
                                 <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: "#ef4444" }} />
-                                <span className="text-[10px] text-slate-500 font-medium">Reported by</span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Reported by</span>
                                 {vReported > 0 ? (
                                   <>
                                     <span className="text-[10px] text-red-600 font-bold font-mono">{vReported} verified</span>
-                                    <span className="text-[10px] text-slate-300 font-medium">of {reportedByCount.toLocaleString()}</span>
+                                    <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">of {reportedByCount.toLocaleString()}</span>
                                   </>
                                 ) : (
-                                  <span className="text-[10px] text-slate-900 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
+                                  <span className="text-[10px] text-slate-900 dark:text-slate-100 font-bold font-mono">{reportedByCount.toLocaleString()}</span>
                                 )}
                               </div>
                             )}
@@ -3140,34 +3140,34 @@ export default function ProfilePage() {
                       {adminHistoryQuery.isLoading ? (
                         <div className="flex items-center gap-2 justify-center py-6">
                           <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                          <span className="text-xs text-slate-500">Loading history...</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">Loading history...</span>
                         </div>
                       ) : adminHistoryQuery.isError ? (
                         <div className="text-center py-6">
                           <p className="text-xs text-red-500">Failed to load admin history</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{adminHistoryQuery.error instanceof Error ? adminHistoryQuery.error.message : "Unknown error"}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{adminHistoryQuery.error instanceof Error ? adminHistoryQuery.error.message : "Unknown error"}</p>
                         </div>
                       ) : !adminHistoryQuery.data?.items?.length ? (
                         <div className="text-center py-6" data-testid="empty-admin-history">
-                          <Shield className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-xs text-slate-500">No Brainstorm calculation history for this user</p>
+                          <Shield className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400">No Brainstorm calculation history for this user</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          <p className="text-[10px] text-slate-500">{adminHistoryQuery.data.total} calculation record{adminHistoryQuery.data.total !== 1 ? "s" : ""}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{adminHistoryQuery.data.total} calculation record{adminHistoryQuery.data.total !== 1 ? "s" : ""}</p>
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="border-b border-amber-200/40">
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">ID</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Source</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">TA Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Pub Status</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Algorithm</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Queue</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Created</th>
-                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 uppercase">Updated</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">ID</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Source</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">TA Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Pub Status</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Algorithm</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Queue</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Created</th>
+                                  <th className="px-2 py-1.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Updated</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -3188,7 +3188,7 @@ export default function ProfilePage() {
                     type="button"
                     variant="outline"
                     onClick={() => navigate("/")}
-                    className="h-10 rounded-xl px-4 border-slate-200 bg-white"
+                    className="h-10 rounded-xl px-4 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                     data-testid="button-profile-new-search"
                   >
                     New Search
@@ -3233,10 +3233,10 @@ export default function ProfilePage() {
         }
       `}</style>
       <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-slate-200/80 shadow-xl">
+        <DialogContent className="sm:max-w-md rounded-2xl border-slate-200/80 dark:border-slate-800/80 shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Report User</DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">
+            <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Report User</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
               This will publish a kind 1984 report event to Nostr relays. Choose a reason below.
             </DialogDescription>
           </DialogHeader>
@@ -3252,7 +3252,7 @@ export default function ProfilePage() {
                 className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
                   reportReason === opt.value
                     ? "border-indigo-300 bg-indigo-50/60 shadow-sm"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
                 }`}
                 data-testid={`report-option-${opt.value}`}
               >
@@ -3265,8 +3265,8 @@ export default function ProfilePage() {
                   className="mt-0.5 accent-brand-link"
                 />
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{opt.label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</p>
                 </div>
               </label>
             ))}
@@ -3275,7 +3275,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setReportDialogOpen(false)}
-              className="flex-1 sm:flex-none h-9 px-4 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex-1 sm:flex-none h-9 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
               data-testid="button-report-cancel"
             >
               Cancel
@@ -3317,7 +3317,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/developers")}
-            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
             data-testid="link-profile-developers"
           >
             Developers
@@ -3325,7 +3325,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/how-search-works")}
-            className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
             data-testid="link-profile-how-search-works"
           >
             How search works

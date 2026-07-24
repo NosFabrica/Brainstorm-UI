@@ -114,7 +114,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       title: "What does this mean?",
       content: (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Selecting Brainstorm as your Service Provider signs a nostr note (kind 10040)
             that tells compatible clients where to find the scores we publish on your behalf.
           </p>
@@ -136,7 +136,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       icon: <HeartHandshake className="h-4 w-4" />,
       title: "Why this matters",
       content: (
-        <p className="text-sm text-slate-600 leading-relaxed">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
           Harness your extended and trusted nostr community to help you eliminate spam and find
           the content that best suits your interests and values. Take control over your time and
           attention. Steer clear of the information gatekeepers and the advertisers who only see
@@ -150,12 +150,12 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       title: "What happens next",
       content: (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             We will calculate trust scores for your entire nostr network, entirely from YOUR
             perspective, using standard nostr follows, mutes, and reports. This usually takes
             5–10 minutes.
           </p>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             We next publish those scores as nostr notes (called Trusted Assertions) which makes
             them available for use by clients and apps throughout the nostr network.
           </p>
@@ -177,7 +177,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 dark:from-slate-900/95 via-white/88 dark:via-slate-900/90 to-indigo-50/60 dark:to-slate-950/80 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
         data-testid="dialog-activate-brainstorm"
       >
         <div className="absolute inset-0 pointer-events-none">
@@ -193,19 +193,19 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
           <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
             <DialogHeader>
               <div className="flex items-start gap-3">
-                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0" data-testid="icon-activate-brainstorm">
+                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0" data-testid="icon-activate-brainstorm">
                   <BrainLogo size={18} className="sm:hidden" />
                   <BrainLogo size={22} className="hidden sm:block" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <DialogTitle
-                    className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
+                    className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight"
                     style={{ fontFamily: "var(--font-display)" }}
                     data-testid="text-activate-title"
                   >
                     Select Brainstorm as your Web of Trust Service Provider
                   </DialogTitle>
-                  <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed" data-testid="text-activate-subtitle">
+                  <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-activate-subtitle">
                     Broadcast your personalized trust scores across the nostr ecosystem.
                   </DialogDescription>
                 </div>
@@ -219,7 +219,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               return (
                 <div
                   key={section.key}
-                  className="rounded-xl border border-slate-200/70 bg-white/60 backdrop-blur-sm overflow-hidden transition-all duration-200 cursor-pointer hover:bg-slate-50/60"
+                  className="rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm overflow-hidden transition-all duration-200 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800"
                   onClick={() => toggleSection(section.key)}
                   role="button"
                   tabIndex={0}
@@ -233,9 +233,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-brand-link shrink-0">
                       {section.icon}
                     </div>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-800 flex-1">{section.title}</span>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 flex-1">{section.title}</span>
                     <ChevronDown
-                      className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                      className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                     />
                   </div>
                   {isExpanded && (
@@ -250,7 +250,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
 
           <div className="px-4 sm:px-6 pb-2">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supported by</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Supported by</span>
               <div className="flex items-center gap-2">
                 <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-brand-link text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
@@ -266,7 +266,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
           </div>
 
           <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-2 shrink-0">
-            <div className="border-t border-slate-200/60 pt-3 sm:pt-4">
+            <div className="border-t border-slate-200/60 dark:border-slate-800 pt-3 sm:pt-4">
               {activateState === "success" ? (
                 <div
                   className="flex items-center justify-center gap-2 sm:gap-3 h-11 sm:h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700"
@@ -326,7 +326,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     ) : (
                       <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
                         <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
-                        <p className="text-[11px] leading-relaxed text-slate-500">
+                        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
                           If you have an active Web of Trust service provider, proceeding will override existing trusted assertion calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
                         </p>
                       </div>

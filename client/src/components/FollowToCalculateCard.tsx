@@ -126,14 +126,14 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   };
 
   return (
-    <div className={`rounded-2xl border border-indigo-200/70 bg-white/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
+    <div className={`rounded-2xl border border-indigo-200/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
       <div className="flex items-center gap-2 mb-1">
         <Users className="h-4 w-4 text-brand-link" />
-        <h3 className="text-sm font-bold text-slate-900">Follow a few accounts to begin</h3>
+        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Follow a few accounts to begin</h3>
       </div>
-      <p className="text-xs text-slate-500 mb-3">Your Web of Trust is built from who you follow. Pick at least one so we can calculate your scores.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your Web of Trust is built from who you follow. Pick at least one so we can calculate your scores.</p>
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
         {visiblePeople.map((p) => (
           <PersonRow key={p.pubkey} person={p} selected={selected.has(p.pubkey)} onToggle={() => toggle(p.pubkey)} />
         ))}
@@ -146,18 +146,18 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
 
       {/* Search */}
       <div className="relative mt-3">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or nip-05…"
-          className="w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 h-10 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400"
+          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-9 h-10 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-400"
           data-testid="follow-card-search"
         />
-        {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />}
+        {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />}
       </div>
       {results.length > 0 && (
-        <div className="mt-1 divide-y divide-slate-100">
+        <div className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60">
           {results.map((r) => (
             <PersonRow
               key={r.pubkey}
@@ -170,8 +170,8 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       )}
 
       {/* Selected tray + commit */}
-      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-        <p className="text-[10px] font-bold tracking-[0.12em] text-slate-400 uppercase mb-2">Following {count}</p>
+      <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+        <p className="text-[10px] font-bold tracking-[0.12em] text-slate-400 dark:text-slate-500 uppercase mb-2">Following {count}</p>
         {count > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {selectedPeople.slice(0, 8).map((p) => {
@@ -181,17 +181,17 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
                   key={p.pubkey}
                   type="button"
                   onClick={() => toggle(p.pubkey)}
-                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 hover:bg-slate-200 pl-1 pr-2 py-0.5 text-xs font-medium text-slate-700 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 pl-1 pr-2 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   <Avatar className="h-4 w-4 rounded-full">
                     {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
-                  {name} <X className="h-3 w-3 text-slate-400" />
+                  {name} <X className="h-3 w-3 text-slate-400 dark:text-slate-500" />
                 </button>
               );
             })}
-            {selectedPeople.length > 8 && <span className="text-xs text-slate-400 self-center">+{selectedPeople.length - 8}</span>}
+            {selectedPeople.length > 8 && <span className="text-xs text-slate-400 dark:text-slate-500 self-center">+{selectedPeople.length - 8}</span>}
           </div>
         )}
         <button

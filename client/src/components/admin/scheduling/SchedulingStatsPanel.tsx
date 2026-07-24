@@ -34,18 +34,18 @@ function MetricCard({
   subtitle?: string;
 }) {
   return (
-    <div className="rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 flex flex-col">
+    <div className="rounded-xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 flex flex-col">
       <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-accent/10 to-brand-deep/10 border border-brand-accent/15 flex items-center justify-center mb-2">
         <Icon className="h-4 w-4 text-brand-deep" />
       </div>
       <p
-        className="text-xl font-bold tracking-tight text-slate-900 tabular-nums"
+        className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums"
         style={{ fontFamily: "var(--font-display)" }}
       >
         {value}
       </p>
-      <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{label}</p>
-      {subtitle && <p className="text-[9px] text-slate-400 mt-0.5">{subtitle}</p>}
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{label}</p>
+      {subtitle && <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{subtitle}</p>}
     </div>
   );
 }
@@ -69,16 +69,16 @@ function StatBar({
       : "bg-gradient-to-r from-brand-accent to-brand-deep";
   return (
     <div className="flex items-center gap-3">
-      <span className="w-44 shrink-0 truncate text-xs text-slate-600" title={label}>
+      <span className="w-44 shrink-0 truncate text-xs text-slate-600 dark:text-slate-300" title={label}>
         {label}
       </span>
-      <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+      <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
         <div
           className={`h-full rounded-full ${fill} transition-all duration-500`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="w-16 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700">
+      <span className="w-16 shrink-0 text-right text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200">
         {valueLabel}
       </span>
     </div>
@@ -114,7 +114,7 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
   }
   if (isLoading || !data) {
     return (
-      <p className="text-sm text-slate-500" role="status">
+      <p className="text-sm text-slate-500 dark:text-slate-400" role="status">
         Loading scheduler stats…
       </p>
     );
@@ -165,11 +165,11 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
-          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Queue depths by lane
           </h4>
           {lanes.length === 0 ? (
-            <p className="text-xs text-slate-400">No lanes reported.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">No lanes reported.</p>
           ) : (
             <div className="space-y-2">
               {lanes.map(([key, depth]) => (
@@ -188,17 +188,17 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
               All lanes clear — nothing waiting in the queue.
             </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
             Interactive lanes are internal and not editable policies.
           </p>
         </div>
 
         <div>
-          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Per-tier slip
           </h4>
           {slip.length === 0 ? (
-            <p className="text-xs text-slate-400">No slip reported.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">No slip reported.</p>
           ) : (
             <div className="space-y-2">
               {slip.map(([key, seconds]) => (
@@ -217,7 +217,7 @@ export function SchedulingStatsPanel({ active }: { active: boolean }) {
               All tiers are on time.
             </p>
           )}
-          <p className="mt-2 text-[11px] text-slate-400">
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
             How far past its interval each tier is running behind.
           </p>
         </div>

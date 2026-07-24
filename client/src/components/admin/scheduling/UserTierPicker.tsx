@@ -72,7 +72,7 @@ export function UserTierPicker({
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
-      {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+      {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />}
     </span>
   );
 }

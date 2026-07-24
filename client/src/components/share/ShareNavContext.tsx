@@ -97,7 +97,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
       {children}
       <Dialog open={!!intent} onOpenChange={(o) => !o && setIntent(null)}>
         <DialogContent
-          className="sm:max-w-[400px] rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 p-0 overflow-hidden [&>button]:text-slate-400 [&>button]:hover:text-slate-700 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 [&>button]:rounded-md [&>button]:p-1"
+          className="sm:max-w-[400px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 p-0 overflow-hidden [&>button]:text-slate-400 dark:[&>button]:text-slate-500 [&>button]:hover:text-slate-700 dark:[&>button]:hover:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 dark:[&>button]:hover:bg-slate-800 [&>button]:rounded-md [&>button]:p-1"
           data-testid="modal-share-nav-confirm"
         >
           <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
@@ -112,13 +112,13 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                   {isProfile ? <UserRound className="h-5 w-5" /> : <Search className="h-5 w-5" />}
                 </div>
               )}
-              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                 {isProfile ? "View this profile on Brainstorm?" : "Explore on Brainstorm?"}
               </DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+              <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                 {isProfile
-                  ? <>You'll see <span className="font-semibold text-slate-700">{intent?.label}</span>'s full profile and connections.</>
-                  : <>Search the Brainstorm network for people related to <span className="font-semibold text-slate-700">{intent?.label}</span>.</>}
+                  ? <>You'll see <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>'s full profile and connections.</>
+                  : <>Search the Brainstorm network for people related to <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>.</>}
               </DialogDescription>
             </DialogHeader>
             {isProfile && (scoreQuery.isLoading || tier) && (
@@ -137,11 +137,11 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                     </span>
                     <div className="min-w-0">
                       <div className="text-sm font-bold leading-tight" style={{ color: tier.color }}>{tier.name}</div>
-                      <div className="text-[11px] text-slate-500">{povCaption}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{povCaption}</div>
                     </div>
                   </div>
                 ) : (
-                  <div className="h-[3.25rem] rounded-xl bg-slate-100 animate-pulse" />
+                  <div className="h-[3.25rem] rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
                 )}
               </div>
             )}
@@ -158,7 +158,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={() => setIntent(null)}
-              className="h-11 px-5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm font-semibold transition-colors"
+              className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-semibold transition-colors"
               data-testid="button-share-nav-cancel"
             >
               Cancel

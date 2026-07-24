@@ -23,7 +23,7 @@ export function PublicPageHeader({
   maxWidthClass?: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/70 backdrop-blur-sm">
+    <header className="sticky top-0 z-20 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm">
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
         <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="public-brand">
           <BrainLogo size={26} className="text-indigo-500" />
@@ -36,7 +36,7 @@ export function PublicPageHeader({
           <Link
             href="/"
             aria-label="Search"
-            className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-brand-deep sm:hidden"
+            className="rounded-full p-2 text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep sm:hidden"
             data-testid="public-search-mobile"
           >
             <Search className="h-5 w-5" />

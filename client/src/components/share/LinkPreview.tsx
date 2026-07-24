@@ -47,7 +47,7 @@ export function LinkChip({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 transition-colors"
+      className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       data-testid="link-chip"
     >
       <Favicon host={u?.hostname || ""} className="h-3.5 w-3.5 rounded-sm shrink-0 object-contain" />
@@ -90,7 +90,7 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 block rounded-xl border border-slate-200 overflow-hidden no-underline hover:border-slate-300 transition-colors"
+        className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         data-testid="link-card-github"
       >
         <img
@@ -98,9 +98,9 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
           alt=""
           loading="lazy"
           onError={() => setImgFailed(true)}
-          className="w-full aspect-[1200/600] object-cover bg-slate-100"
+          className="w-full aspect-[1200/600] object-cover bg-slate-100 dark:bg-slate-800"
         />
-        <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-500">
+        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <Github className="h-3.5 w-3.5" /> {host}
         </div>
       </a>
@@ -111,13 +111,13 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 bg-white no-underline overflow-hidden hover:border-slate-300 hover:shadow-sm transition-all"
+      className="mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card-github"
     >
-      <img src={`https://github.com/${owner}.png?size=120`} alt="" loading="lazy" className="h-16 w-16 shrink-0 object-cover bg-slate-100" />
+      <img src={`https://github.com/${owner}.png?size=120`} alt="" loading="lazy" className="h-16 w-16 shrink-0 object-cover bg-slate-100 dark:bg-slate-800" />
       <div className="min-w-0 flex-1 py-2 pr-3 flex flex-col justify-center">
-        <span className="text-sm font-bold text-slate-900 truncate">{owner}/{repo}</span>
-        <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-500"><Github className="h-3.5 w-3.5" /> GitHub</span>
+        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{owner}/{repo}</span>
+        <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400"><Github className="h-3.5 w-3.5" /> GitHub</span>
       </div>
     </a>
   );
@@ -137,7 +137,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 block rounded-xl border border-slate-200 overflow-hidden no-underline hover:border-slate-300 transition-colors"
+        className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         data-testid="link-card-youtube"
       >
         <div className="relative aspect-video bg-slate-900">

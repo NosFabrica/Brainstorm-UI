@@ -147,13 +147,13 @@ export function LegalDocLayout({
             className={`group flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left transition-all duration-200 ${
               isActive
                 ? "bg-brand-accent/12 text-brand-deep"
-                : "text-slate-500 hover:bg-white/70 hover:text-slate-800"
+                : "text-slate-500 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-900/70 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
             data-testid={`toc-link-${docKind}-${section.id}`}
           >
             <span
               className={`mt-0.5 shrink-0 font-mono text-[10px] font-bold tabular-nums transition-colors ${
-                isActive ? "text-brand-accent" : "text-slate-400 group-hover:text-brand-accent"
+                isActive ? "text-brand-accent" : "text-slate-400 dark:text-slate-500 group-hover:text-brand-accent"
               }`}
             >
               {num ? num.replace(".", "") : "•"}
@@ -173,7 +173,7 @@ export function LegalDocLayout({
         {/* Header */}
         <header className="mb-8 animate-fade-up" data-testid={`header-${docKind}`}>
           <div
-            className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border border-brand-accent/12 bg-white/70 px-2.5 py-0.5 shadow-sm backdrop-blur-sm"
+            className="mb-3 inline-flex w-fit items-center gap-1.5 rounded-full border border-brand-accent/12 bg-white/70 dark:bg-slate-900/70 px-2.5 py-0.5 shadow-sm backdrop-blur-sm"
             data-testid={`badge-${docKind}`}
           >
             <div className="h-1 w-1 rounded-full bg-brand-accent shadow-[0_0_4px_rgb(var(--brand-accent))]" />
@@ -182,7 +182,7 @@ export function LegalDocLayout({
             </p>
           </div>
           <h1
-            className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl"
+            className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
             data-testid={`text-${docKind}-title`}
           >
@@ -191,7 +191,7 @@ export function LegalDocLayout({
             </span>
           </h1>
           <div
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white/60 px-2.5 py-1 text-xs font-medium text-slate-500 backdrop-blur-sm"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 backdrop-blur-sm"
             data-testid={`text-${docKind}-revised`}
           >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -203,10 +203,10 @@ export function LegalDocLayout({
           {/* Desktop TOC */}
           <aside className="hidden lg:block">
             <div className="sticky top-24">
-              <div className="rounded-2xl border border-brand-accent/15 bg-white/70 p-3 shadow-[0_0_15px_rgb(var(--brand-accent)/0.06)] backdrop-blur-xl">
+              <div className="rounded-2xl border border-brand-accent/15 bg-white/70 dark:bg-slate-900/70 p-3 shadow-[0_0_15px_rgb(var(--brand-accent)/0.06)] backdrop-blur-xl">
                 <div className="mb-2 flex items-center gap-2 px-2 pt-1">
                   <List className="h-3.5 w-3.5 text-brand-accent" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     On this page
                   </p>
                 </div>
@@ -224,15 +224,15 @@ export function LegalDocLayout({
                 onClick={() => setMobileTocOpen((v) => !v)}
                 aria-expanded={mobileTocOpen}
                 aria-controls={`toc-panel-${docKind}`}
-                className="flex w-full items-center justify-between rounded-xl border border-brand-accent/15 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl"
+                className="flex w-full items-center justify-between rounded-xl border border-brand-accent/15 bg-white/70 dark:bg-slate-900/70 px-4 py-3 shadow-sm backdrop-blur-xl"
                 data-testid={`button-toc-toggle-${docKind}`}
               >
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   <List className="h-4 w-4 text-brand-accent" />
                   Jump to a section
                 </span>
                 <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform duration-300 ${
+                  className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform duration-300 ${
                     mobileTocOpen ? "rotate-180" : ""
                   }`}
                 />
@@ -248,7 +248,7 @@ export function LegalDocLayout({
                   >
                     <div
                       id={`toc-panel-${docKind}`}
-                      className="mt-2 rounded-xl border border-brand-accent/15 bg-white/80 p-2 shadow-sm backdrop-blur-xl"
+                      className="mt-2 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 p-2 shadow-sm backdrop-blur-xl"
                     >
                       {tocList}
                     </div>
@@ -258,7 +258,7 @@ export function LegalDocLayout({
             </div>
 
             {/* Document panel */}
-            <div className="relative overflow-hidden rounded-2xl border border-brand-accent/20 bg-gradient-to-br from-white/95 via-white/85 to-indigo-50/40 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-2xl border border-brand-accent/20 bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/85 dark:via-slate-900/85 to-indigo-50/40 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] backdrop-blur-xl">
               <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
 
               <div className="px-5 py-7 sm:px-9 sm:py-10">
@@ -267,7 +267,7 @@ export function LegalDocLayout({
                   {preamble.map((text, i) => (
                     <p
                       key={i}
-                      className="text-[15px] font-medium leading-relaxed text-slate-700 sm:text-base"
+                      className="text-[15px] font-medium leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base"
                     >
                       {renderText(text)}
                     </p>
@@ -286,11 +286,11 @@ export function LegalDocLayout({
                         data-testid={`section-${docKind}-${section.id}`}
                       >
                         {idx > 0 && (
-                          <div className="mb-9 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+                          <div className="mb-9 h-px w-full bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
                         )}
                         <div className="group flex items-start justify-between gap-3">
                           <h2
-                            className="text-lg font-bold leading-snug tracking-tight text-slate-900 sm:text-xl"
+                            className="text-lg font-bold leading-snug tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl"
                             style={{ fontFamily: "var(--font-display)" }}
                           >
                             {num ? (
@@ -304,7 +304,7 @@ export function LegalDocLayout({
                           </h2>
                           <button
                             onClick={() => goToSection(section.id)}
-                            className="mt-1 shrink-0 rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-brand-accent/10 hover:text-brand-accent focus:opacity-100 group-hover:opacity-100"
+                            className="mt-1 shrink-0 rounded-md p-1 text-slate-300 dark:text-slate-600 opacity-0 transition-all hover:bg-brand-accent/10 hover:text-brand-accent focus:opacity-100 group-hover:opacity-100"
                             aria-label={`Link to section ${section.title}`}
                             data-testid={`anchor-${docKind}-${section.id}`}
                           >
@@ -316,11 +316,11 @@ export function LegalDocLayout({
                             {section.blocks.map((block, i) => (
                               <li
                                 key={i}
-                                className="pl-1.5 text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                className="pl-1.5 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base"
                               >
                                 {block.type === "address" ? (
                                   <address
-                                    className="not-italic block rounded-lg border border-slate-200/70 bg-white/60 px-4 py-3"
+                                    className="not-italic block rounded-lg border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 px-4 py-3"
                                     data-testid="text-contact-address"
                                   >
                                     {block.lines.map((line, j) => (
@@ -342,7 +342,7 @@ export function LegalDocLayout({
                                 return (
                                   <address
                                     key={i}
-                                    className="not-italic rounded-lg border border-slate-200/70 bg-white/60 px-4 py-3 text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                    className="not-italic rounded-lg border border-slate-200/70 dark:border-slate-800/70 bg-white/60 dark:bg-slate-900/60 px-4 py-3 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base"
                                     data-testid="text-contact-address"
                                   >
                                     {block.lines.map((line, j) => (
@@ -356,7 +356,7 @@ export function LegalDocLayout({
                               return (
                                 <p
                                   key={i}
-                                  className="text-[15px] leading-relaxed text-slate-700 sm:text-base"
+                                  className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base"
                                 >
                                   {renderText(block.text)}
                                 </p>
@@ -375,34 +375,34 @@ export function LegalDocLayout({
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
                 onClick={() => navigate(otherDocPath)}
-                className="group flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition-all hover:border-brand-accent/30 hover:shadow-md"
+                className="group flex items-center gap-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition-all hover:border-brand-accent/30 hover:shadow-md"
                 data-testid={`link-related-${docKind === "privacy" ? "terms" : "privacy"}`}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/12 bg-white shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/12 bg-white dark:bg-slate-900 shadow-sm">
                   <OtherDocIcon className="h-4 w-4 text-brand-deep" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Read next
                   </p>
-                  <p className="text-sm font-semibold text-slate-700 group-hover:text-brand-deep">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 group-hover:text-brand-deep">
                     {otherDocLabel}
                   </p>
                 </div>
               </button>
               <button
                 onClick={() => navigate("/faq")}
-                className="group flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/70 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition-all hover:border-brand-accent/30 hover:shadow-md"
+                className="group flex items-center gap-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition-all hover:border-brand-accent/30 hover:shadow-md"
                 data-testid={`link-related-faq-${docKind}`}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/12 bg-white shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-accent/12 bg-white dark:bg-slate-900 shadow-sm">
                   <HelpCircle className="h-4 w-4 text-brand-deep" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     Questions?
                   </p>
-                  <p className="text-sm font-semibold text-slate-700 group-hover:text-brand-deep">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 group-hover:text-brand-deep">
                     Visit the FAQ
                   </p>
                 </div>

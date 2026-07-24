@@ -129,7 +129,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F8FAFC] text-slate-900 font-sans lg:overflow-hidden" data-testid="page-login">
+    <div className="flex min-h-screen w-full bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans lg:overflow-hidden" data-testid="page-login">
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-indigo-900 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
@@ -198,12 +198,12 @@ export default function LoginPage() {
               <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h2
-              className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.1] mb-3"
+              className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1] mb-3"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Sign in to your <span className="text-brand-deep">Brainstorm</span> account
             </h2>
-            <p className="text-base text-slate-500 leading-relaxed">
+            <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
               Pick up where you left off and keep building your web of trust.
             </p>
           </div>
@@ -254,31 +254,31 @@ export default function LoginPage() {
           </div>
 
           <div className="my-8 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
               New to Brainstorm?
             </span>
-            <div className="h-px flex-1 bg-slate-200" />
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
           </div>
 
           <div className="flex flex-col items-center gap-3">
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.99]"
+              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all active:scale-[0.99]"
               data-testid="link-create-identity"
             >
               Create your account
               <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Free, takes a minute — no email required
             </p>
           </div>
 
-          <div className="mt-8 p-5 rounded-2xl bg-slate-50 border border-slate-100 text-sm text-slate-600 text-center leading-relaxed">
+          <div className="mt-8 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 text-sm text-slate-600 dark:text-slate-300 text-center leading-relaxed">
             <p className="mb-2" data-testid="text-anon-note">
-              <span className="font-semibold text-slate-800">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
+              <span className="font-semibold text-slate-800 dark:text-slate-200">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
             </p>
             <button
               type="button"
@@ -295,18 +295,18 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-slate-500">
+        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-slate-500 dark:text-slate-400">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 hover:text-slate-800 transition-colors px-2 py-1 rounded-md hover:bg-slate-100"
+            className="inline-flex items-center gap-1.5 hover:text-slate-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
             data-testid="button-login-language"
           >
             English (United States) <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <div className="flex items-center gap-6">
-            <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-800 transition-colors" data-testid="link-login-help">Help</button>
-            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-800 transition-colors" data-testid="link-login-privacy">Privacy</button>
-            <button type="button" onClick={() => navigate("/terms")} className="hover:text-slate-800 transition-colors" data-testid="link-login-terms">Terms</button>
+            <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-help">Help</button>
+            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-privacy">Privacy</button>
+            <button type="button" onClick={() => navigate("/terms")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-terms">Terms</button>
           </div>
         </div>
       </main>

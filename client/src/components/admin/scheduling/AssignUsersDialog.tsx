@@ -250,7 +250,7 @@ export function AssignUsersDialog({
         </DialogHeader>
 
         {/* Mode toggle */}
-        <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+        <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => {
@@ -260,8 +260,8 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "brainstorm"
-                ? "bg-white text-brand-deep shadow-sm border border-slate-200"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-brainstorm"
           >
@@ -276,8 +276,8 @@ export function AssignUsersDialog({
             }}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               mode === "nostr"
-                ? "bg-white text-brand-deep shadow-sm border border-slate-200"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             }`}
             data-testid="assign-mode-nostr"
           >
@@ -288,7 +288,7 @@ export function AssignUsersDialog({
         {/* Search */}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={query}
@@ -301,7 +301,7 @@ export function AssignUsersDialog({
                   ? "Search Nostr by name…"
                   : "Search Brainstorm users by name or npub…"
               }
-              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               data-testid="assign-search-input"
             />
           </div>
@@ -341,7 +341,7 @@ export function AssignUsersDialog({
                     inTray ? (
                       <Check className="h-4 w-4 text-emerald-600" />
                     ) : (
-                      <Plus className="h-4 w-4 text-slate-400" />
+                      <Plus className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     )
                   }
                 />
@@ -351,14 +351,14 @@ export function AssignUsersDialog({
         )}
 
         {/* Paste a list */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50/60">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60">
           <button
             type="button"
             onClick={() => setPasteOpen((v) => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
             data-testid="assign-paste-toggle"
           >
-            <ClipboardList className="h-3.5 w-3.5 text-slate-400" />
+            <ClipboardList className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             Paste a list of pubkeys
           </button>
           {pasteOpen && (
@@ -371,10 +371,10 @@ export function AssignUsersDialog({
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 placeholder="hex or npub, one per line"
-                className="h-20 w-full rounded-lg border border-slate-200 bg-white p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+                className="h-20 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 tabular-nums">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                   {parsedPaste.valid.length} valid
                   {parsedPaste.invalidCount > 0 &&
                     ` · ${parsedPaste.invalidCount} invalid`}
@@ -395,11 +395,11 @@ export function AssignUsersDialog({
 
         {/* Staging tray */}
         <div>
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Selected · {tray.length}
           </p>
           {tray.length === 0 ? (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
               Nothing selected yet — search or paste to build your list.
             </p>
           ) : (
@@ -421,7 +421,7 @@ export function AssignUsersDialog({
                         type="button"
                         aria-label="Remove from selection"
                         onClick={() => removeFromTray(pk)}
-                        className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>

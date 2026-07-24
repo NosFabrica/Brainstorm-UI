@@ -70,10 +70,10 @@ function NavButton({
       className={
         "w-full justify-start gap-3 text-[15px] rounded-2xl transition-colors no-default-hover-elevate no-default-active-elevate " +
         (disabled
-          ? "font-medium text-slate-400 opacity-50 cursor-not-allowed border border-transparent"
+          ? "font-medium text-slate-400 dark:text-slate-500 opacity-50 cursor-not-allowed border border-transparent"
           : active
             ? "font-semibold text-brand-link bg-indigo-50 border border-indigo-100"
-            : "font-medium text-slate-700 hover:text-brand-link hover:bg-slate-50 border border-transparent")
+            : "font-medium text-slate-700 dark:text-slate-200 hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-900 border border-transparent")
       }
       onClick={() => {
         if (!disabled) {
@@ -88,7 +88,7 @@ function NavButton({
       <Icon
         className={
           "h-5 w-5 " +
-          (disabled ? "text-slate-300" : active ? "text-brand-primary" : "text-slate-400")
+          (disabled ? "text-slate-300 dark:text-slate-600" : active ? "text-brand-primary" : "text-slate-400 dark:text-slate-500")
         }
       />
       {item.special ? (
@@ -138,7 +138,7 @@ export function MobileMenu({
       />
       <div
         className={
-          "fixed left-0 top-0 bottom-0 z-50 flex w-[86%] max-w-xs flex-col overflow-hidden border-r border-slate-200 bg-white shadow-2xl shadow-slate-900/10 [transition:transform_300ms_cubic-bezier(0.4,0,0.2,1)] [will-change:transform] lg:hidden " +
+          "fixed left-0 top-0 bottom-0 z-50 flex w-[86%] max-w-xs flex-col overflow-hidden border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-900/10 [transition:transform_300ms_cubic-bezier(0.4,0,0.2,1)] [will-change:transform] lg:hidden " +
           (open ? "translate-x-0" : "-translate-x-full")
         }
         aria-hidden={!open}
@@ -157,15 +157,15 @@ export function MobileMenu({
         />
 
         <div
-          className="relative flex items-center justify-between border-b border-slate-200/70 px-4 pb-4"
+          className="relative flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800/70 px-4 pb-4"
           style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))" }}
         >
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-indigo-50">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-indigo-50">
               <BrainLogo size={22} className="text-indigo-500" />
             </div>
             <div className="leading-tight">
-              <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.22em] text-slate-400" data-testid="text-mobile-menu-kicker">Menu</p>
+              <p className="text-[10px] font-mono font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-testid="text-mobile-menu-kicker">Menu</p>
               <h2 className="font-brand text-lg font-bold tracking-tight text-indigo-500" data-testid="text-mobile-menu-title">Brainstorm</h2>
             </div>
           </div>
@@ -173,7 +173,7 @@ export function MobileMenu({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:bg-slate-100 hover:text-slate-700"
+            className="text-slate-400 dark:text-slate-500 no-default-hover-elevate no-default-active-elevate hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
             data-testid="button-close-mobile-menu"
           >
             <X className="h-5 w-5" />
@@ -184,7 +184,7 @@ export function MobileMenu({
           {!user && (
             <>
               <div className="space-y-1.5">
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400" data-testid="text-mobile-menu-section-nav-public">Navigation</p>
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-testid="text-mobile-menu-section-nav-public">Navigation</p>
                 <NavButton
                   item={{ path: "/", label: "Search", icon: Search }}
                   active={currentPath === "/"}
@@ -193,14 +193,14 @@ export function MobileMenu({
                 />
               </div>
 
-              <div className="my-3 mx-3 border-t border-slate-200/70" />
+              <div className="my-3 mx-3 border-t border-slate-200/70 dark:border-slate-800/70" />
             </>
           )}
 
           {user && (
             <>
               <div className="space-y-1.5">
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400" data-testid="text-mobile-menu-section-nav">Navigation</p>
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-testid="text-mobile-menu-section-nav">Navigation</p>
                 {primaryNav.map((item) => (
                   <NavButton
                     key={item.path}
@@ -212,12 +212,12 @@ export function MobileMenu({
                 ))}
               </div>
 
-              <div className="my-3 mx-3 border-t border-slate-200/70" />
+              <div className="my-3 mx-3 border-t border-slate-200/70 dark:border-slate-800/70" />
             </>
           )}
 
           <div className="space-y-1.5">
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400" data-testid="text-mobile-menu-section-help">Help & Info</p>
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-testid="text-mobile-menu-section-help">Help & Info</p>
             {helpNav.map((item) => (
               <NavButton
                 key={item.path}
@@ -231,10 +231,10 @@ export function MobileMenu({
 
           {user && (
             <>
-              <div className="my-3 mx-3 border-t border-slate-200/70" />
+              <div className="my-3 mx-3 border-t border-slate-200/70 dark:border-slate-800/70" />
 
               <div className="space-y-1.5 mt-auto">
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400" data-testid="text-mobile-menu-section-account">Account</p>
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500" data-testid="text-mobile-menu-section-account">Account</p>
                 <NavButton
                   item={{ path: `/p/${user.npub}`, label: "View profile", icon: UserCircle }}
                   active={false}
@@ -262,11 +262,11 @@ export function MobileMenu({
 
         {user && (
           <div
-            className="relative border-t border-slate-200 bg-slate-50/70 px-4 pt-4"
+            className="relative border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 px-4 pt-4"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
             <div className="flex items-center gap-3 mb-4" data-testid="row-mobile-menu-user">
-              <Avatar className="h-10 w-10 rounded-2xl border border-slate-200 bg-white" data-testid="img-mobile-menu-avatar">
+              <Avatar className="h-10 w-10 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" data-testid="img-mobile-menu-avatar">
                 {user.picture ? (
                   <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
                 ) : null}
@@ -275,17 +275,17 @@ export function MobileMenu({
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate" data-testid="text-mobile-menu-user-label">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid="text-mobile-menu-user-label">
                   {user.displayName || "Anonymous"}
                 </p>
-                <p className="text-xs text-slate-400 font-mono truncate" data-testid="text-mobile-menu-user-npub">
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate" data-testid="text-mobile-menu-user-npub">
                   {truncatedNpub}
                 </p>
               </div>
             </div>
             <Button
               variant="outline"
-              className="w-full justify-center gap-2 rounded-2xl border-red-200 bg-white text-red-600 no-default-hover-elevate no-default-active-elevate hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+              className="w-full justify-center gap-2 rounded-2xl border-red-200 bg-white dark:bg-slate-900 text-red-600 no-default-hover-elevate no-default-active-elevate hover:border-red-300 hover:bg-red-50 hover:text-red-700"
               onClick={() => {
                 onClose();
                 onLogout();
@@ -300,10 +300,10 @@ export function MobileMenu({
 
         {!user && (
           <div
-            className="relative border-t border-slate-200 bg-slate-50/70 px-4 pt-4"
+            className="relative border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 px-4 pt-4"
             style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
           >
-            <p className="text-xs text-slate-500 mb-3 leading-relaxed" data-testid="text-mobile-menu-signin-hint">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed" data-testid="text-mobile-menu-signin-hint">
               Sign in with your Nostr extension to unlock your personalized Web of Trust and account tools.
             </p>
             <SignInButton

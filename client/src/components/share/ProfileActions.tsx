@@ -85,7 +85,7 @@ export function ProfileActions({
         disabled={busy === "follow"}
         className={
           following
-            ? "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg border border-slate-200 bg-white text-sm md:text-[13px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            ? "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm md:text-[13px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
             : "flex flex-1 md:flex-none items-center justify-center gap-1.5 h-9 md:h-8 px-4 md:px-3.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm md:text-[13px] font-semibold shadow-sm disabled:opacity-50 transition-colors"
         }
         data-testid="share-follow"
@@ -104,7 +104,7 @@ export function ProfileActions({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            className="inline-flex h-9 w-9 md:h-8 md:w-8 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
             aria-label="More actions"
             data-testid="share-actions-menu"
           >
@@ -138,7 +138,7 @@ export function ProfileActions({
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem asChild className="gap-2 text-slate-500">
+          <DropdownMenuItem asChild className="gap-2 text-slate-500 dark:text-slate-400">
             <Link href={`/profile/${npub}`} data-testid="share-advanced-view">
               <ExternalLink className="h-4 w-4" /> Advanced view
             </Link>

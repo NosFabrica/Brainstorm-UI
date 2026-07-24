@@ -118,7 +118,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 onClick={openMobileMenu}
                 className={
                   isLight
-                    ? "text-slate-500 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5"
+                    ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 dark:hover:bg-white/10"
                     : "text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10"
                 }
                 data-testid="button-open-mobile-menu"
@@ -130,7 +130,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
             {isLight ? (
               <button
                 type="button"
-                className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+                className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
                 onClick={() => navigate("/about")}
                 data-testid="link-about"
               >
@@ -165,13 +165,13 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                 <div
                   className={
                     "group flex items-center gap-3 cursor-pointer transition-all p-1 rounded-full " +
-                    (isLight ? "hover:bg-slate-900/5" : "hover:bg-white/5")
+                    (isLight ? "hover:bg-slate-900/5 dark:hover:bg-white/5" : "hover:bg-white/5")
                   }
                   data-testid="button-user-menu"
                 >
                   <div className="relative shrink-0">
                     <div className="rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
-                      <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC]" : "bg-slate-950")}>
+                      <div className={"rounded-full p-[1.5px] " + (isLight ? "bg-[#F8FAFC] dark:bg-slate-950" : "bg-slate-950")}>
                         <Avatar className="h-9 w-9 shadow-sm" data-testid="img-user-avatar">
                           {user.picture ? (
                             <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
@@ -187,7 +187,7 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                     <span
                       className={
                         "text-sm font-bold leading-none mb-0.5 " +
-                        (isLight ? "text-slate-900" : "text-white")
+                        (isLight ? "text-slate-900 dark:text-slate-100" : "text-white")
                       }
                       data-testid="text-user-name"
                     >
@@ -205,14 +205,14 @@ export function AppHeader({ user, onLogout, calcDone = false, active, variant = 
                   </div>
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20" data-testid="menu-user">
+              <DropdownMenuContent align="end" className="w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-indigo-500/20" data-testid="menu-user">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none text-slate-900" data-testid="text-menu-name">
+                    <p className="text-sm font-medium leading-none text-slate-900 dark:text-slate-100" data-testid="text-menu-name">
                       {user.displayName || "Anonymous"}
                     </p>
                     <button
-                      className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors"
+                      className="flex items-center gap-1 text-xs leading-none text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
                       onClick={async () => {
                         await copyToClipboard(user.npub);
                         toast({ title: "Copied!", description: "npub copied to clipboard" });

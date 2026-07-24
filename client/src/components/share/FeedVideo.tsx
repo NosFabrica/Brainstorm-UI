@@ -56,7 +56,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
     v.play().catch(() => {});
   };
 
-  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 bg-black ${className ?? ""}`;
+  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${className ?? ""}`;
 
   // Reduced-motion: no autoplay — a clean click-to-play poster.
   if (reduce && !started) {

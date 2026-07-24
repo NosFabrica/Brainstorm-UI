@@ -71,7 +71,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {isLive && (
           <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
@@ -81,12 +81,12 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         {starts > 0 && <span>{isLive ? "Started" : isUpcoming ? "Starts" : "Was"} {relativeEventTime(starts).toLowerCase()}</span>}
       </div>
 
-      <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="live-hero-title">
+      <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="live-hero-title">
         {title}
       </h1>
 
       {summary && summary !== title && (
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600">{summary}</p>
+        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">{summary}</p>
       )}
 
       {watchUrl && canEmbed && (

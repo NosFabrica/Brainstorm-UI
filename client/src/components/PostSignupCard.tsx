@@ -145,7 +145,7 @@ export function PostSignupCard() {
   };
 
   const tileBase =
-    "group relative w-full text-left rounded-2xl bg-white/80 border border-slate-200 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+    "group relative w-full text-left rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
   const tileClickable = tileBase + " hover:border-brand-accent/50 hover:shadow-md active:scale-[0.995]";
 
   // Returning user (own key) whose profile + backup are already theirs and just
@@ -161,7 +161,7 @@ export function PostSignupCard() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Dismiss"
             data-testid="button-returning-nudge-dismiss"
           >
@@ -170,10 +170,10 @@ export function PostSignupCard() {
           <div className="flex items-center gap-2.5 mb-2">
             <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">Web of Trust</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
             Switch on your trust scores
           </h3>
-          <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
+          <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
             Follow a few accounts and Brainstorm scores everyone through your own Web of Trust.
           </p>
           <button
@@ -187,7 +187,7 @@ export function PostSignupCard() {
                 <Users className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-[15px] font-bold text-slate-900">Follow a few accounts</div>
+                <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Follow a few accounts</div>
                 <div className="text-[13px] font-semibold text-brand-link inline-flex items-center gap-1">
                   Turn on your trust scores
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -203,7 +203,7 @@ export function PostSignupCard() {
   return (
     <>
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
         data-testid="card-post-signup"
       >
         {/* Faded person photo + white wash so dark text stays readable */}
@@ -221,7 +221,7 @@ export function PostSignupCard() {
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Dismiss"
             data-testid="button-post-signup-dismiss"
           >
@@ -234,20 +234,20 @@ export function PostSignupCard() {
             </span>
             <div className="h-px w-10 bg-[#4338ca]/40" />
             <span
-              className="text-[11px] font-semibold text-slate-600 tabular-nums"
+              className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 tabular-nums"
               data-testid="text-post-signup-progress"
             >
               {doneCount} of 3 done
             </span>
           </div>
           <h3
-            className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight"
+            className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Welcome to <span className="text-brand-deep">Brainstorm</span>
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
-          <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
+          <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
             Follow a few accounts to switch on your trust scores — then back up your account and add a
             photo so people recognize you.
           </p>
@@ -260,7 +260,7 @@ export function PostSignupCard() {
                   <Check className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-[15px] font-semibold text-slate-900">Network started</div>
+                  <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Network started</div>
                   <div className="text-[13px] text-emerald-700">Your trust scores are calculating</div>
                 </div>
               </div>
@@ -277,7 +277,7 @@ export function PostSignupCard() {
                   <Users className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[15px] font-bold text-slate-900">Build your network</div>
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Build your network</div>
                   <div className="text-[13px] font-semibold text-brand-link inline-flex items-center gap-1">
                     Follow accounts to turn on trust scores
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -296,7 +296,7 @@ export function PostSignupCard() {
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-[15px] font-semibold text-slate-900">Profile photo added</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Profile photo added</div>
                     <div className="text-[13px] text-emerald-700">People can recognize you</div>
                   </div>
                 </div>
@@ -313,7 +313,7 @@ export function PostSignupCard() {
                     <ProfileIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-900">Complete your profile</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Complete your profile</div>
                     <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
                       Add a photo &amp; bio
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -331,7 +331,7 @@ export function PostSignupCard() {
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-[15px] font-semibold text-slate-900">Backed up</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Backed up</div>
                     <div className="text-[13px] text-emerald-700">Backup file downloaded</div>
                   </div>
                 </div>
@@ -342,9 +342,9 @@ export function PostSignupCard() {
                   <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
-                  <span className="text-[15px] font-semibold text-slate-900">Back up your account</span>
+                  <span className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</span>
                 </div>
-                <p className="text-[12px] text-slate-500 mb-2">
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-2">
                   Choose a password to encrypt your backup file — keep it safe, no one can reset it.
                 </p>
                 <input
@@ -353,7 +353,7 @@ export function PostSignupCard() {
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="Password — at least 8 characters"
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-password"
                 />
                 <input
@@ -362,7 +362,7 @@ export function PostSignupCard() {
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Confirm password"
                   autoComplete="new-password"
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                  className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-confirm"
                 />
                 {mismatch && (
@@ -380,7 +380,7 @@ export function PostSignupCard() {
                 <button
                   type="button"
                   onClick={handleDownloadRaw}
-                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   data-testid="button-download-raw-key"
                 >
                   Or download your key without a password
@@ -398,7 +398,7 @@ export function PostSignupCard() {
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-900">Back up your account</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</div>
                     <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
                       Save a backup file
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />

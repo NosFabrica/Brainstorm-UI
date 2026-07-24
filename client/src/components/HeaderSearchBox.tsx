@@ -112,7 +112,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
     <div ref={containerRef} className={`relative ${className}`} data-testid="header-search">
       <form onSubmit={submit} role="search">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
@@ -123,7 +123,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
             placeholder="Search Brainstorm"
             aria-label="Search Brainstorm"
             autoComplete="off"
-            className="w-full rounded-full border border-slate-200 bg-white/80 py-2 pl-9 pr-9 text-sm text-slate-900 transition placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+            className="w-full rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-9 text-sm text-slate-900 dark:text-slate-100 transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
             data-testid="header-search-input"
           />
           {q && (
@@ -131,7 +131,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
               type="button"
               onClick={() => { setQ(""); schedule(""); setOpen(false); inputRef.current?.focus(); }}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
               data-testid="header-search-clear"
             >
               <X className="h-4 w-4" />
@@ -140,11 +140,11 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
         </div>
       </form>
       {open && (topic.isTopic || loading || suggestions.length > 0) && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
           ) : loading && suggestions.length === 0 ? (
-            <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400">
+            <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
           ) : (
@@ -156,16 +156,16 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => goProfile(r)}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50" : "hover:bg-slate-50"}`}
+                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 data-testid={`header-search-opt-${i}`}
               >
-                <Avatar className="h-8 w-8 shrink-0 border border-slate-200">
+                <Avatar className="h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800">
                   {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
                   <AvatarFallback className="bg-indigo-50 text-[11px] font-bold text-brand-primary">{initialsFor(nameOf(r))}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">{nameOf(r)}</p>
-                  {r.nip05 && <p className="truncate text-xs text-slate-500">{r.nip05}</p>}
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
+                  {r.nip05 && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{r.nip05}</p>}
                 </div>
                 {r.wotRank != null && (
                   <span

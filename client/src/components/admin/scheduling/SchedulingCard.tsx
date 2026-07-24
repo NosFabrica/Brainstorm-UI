@@ -174,10 +174,10 @@ function PolicyUsersInline({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Assigned users
           </p>
-          <span className="text-[11px] text-slate-500 tabular-nums">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
             {total}
             {truncated ? "+" : ""} total
           </span>
@@ -195,18 +195,18 @@ function PolicyUsersInline({
       {showToolbar && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, npub, or hex…"
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
               data-testid={`search-users-${policy.id}`}
             />
           </div>
           <Select value={sort} onValueChange={(v) => setSort(v as MemberSort)}>
-            <SelectTrigger className="w-full sm:w-44 h-8 text-xs rounded-xl border-slate-200">
+            <SelectTrigger className="w-full sm:w-44 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -222,7 +222,7 @@ function PolicyUsersInline({
             className={`h-8 px-3 rounded-xl text-xs font-semibold border transition-colors whitespace-nowrap ${
               neverOnly
                 ? "bg-brand-deep text-white border-brand-deep"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
             }`}
           >
             Never published
@@ -231,7 +231,7 @@ function PolicyUsersInline({
       )}
 
       {showToolbar && (
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
+        <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
           <span className="tabular-nums">{filteredLabel}</span>
           {enriching && (
             <span className="flex items-center gap-1">
@@ -244,15 +244,15 @@ function PolicyUsersInline({
       {isError ? (
         <p className="text-xs text-red-500">Failed to load users.</p>
       ) : isLoading ? (
-        <p className="text-xs text-slate-500 flex items-center gap-1.5" role="status">
+        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5" role="status">
           <Loader2 className="h-3 w-3 animate-spin" /> Loading users…
         </p>
       ) : total === 0 ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-400 dark:text-slate-500">
           No users assigned yet. Use “Add users” to put people on this tier.
         </p>
       ) : filtered.length === 0 ? (
-        <p className="text-xs text-slate-400">No users match your search.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">No users match your search.</p>
       ) : (
         <div className="space-y-1">
           {pageItems.map((m) => {
@@ -270,7 +270,7 @@ function PolicyUsersInline({
                 subtitle={
                   <span title="Next run is estimated from the tier interval; the scheduler may adjust it based on queue and priority.">
                     {lastLabel}
-                    <span className="text-slate-300"> · </span>
+                    <span className="text-slate-300 dark:text-slate-600"> · </span>
                     Next ~ {nextLabel}
                   </span>
                 }
@@ -295,7 +295,7 @@ function PolicyUsersInline({
                           : `Move to the default “${defaultName}” tier`
                       }
                       onClick={() => setConfirmRemove(m)}
-                      className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 disabled:cursor-not-allowed transition-colors"
+                      className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400 dark:disabled:hover:text-slate-500 disabled:cursor-not-allowed transition-colors"
                     >
                       {removingPk === m.pubkey ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -312,12 +312,12 @@ function PolicyUsersInline({
       )}
 
       {pages > 1 && (
-        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
+        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
           <button
             type="button"
             disabled={clampedPage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
             <ChevronLeft className="h-3 w-3" /> Prev
           </button>
@@ -328,7 +328,7 @@ function PolicyUsersInline({
             type="button"
             disabled={clampedPage >= pages}
             onClick={() => setPage((p) => p + 1)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
             Next <ChevronRight className="h-3 w-3" />
           </button>
@@ -462,7 +462,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           {policies.length > 0
             ? `${policies.length} tier${policies.length === 1 ? "" : "s"} · expand a row to manage its users`
             : "Define tiers for automatic GrapeRank recalculation"}
@@ -480,23 +480,23 @@ export function SchedulingCard({ active }: { active: boolean }) {
 
       {isError ? (
         <div className="text-center py-10">
-          <p className="text-sm text-slate-500">Failed to load scheduling policies.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Failed to load scheduling policies.</p>
           <button
             type="button"
             onClick={() => refetch()}
-            className="mt-2 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            className="mt-2 inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
             Retry
           </button>
         </div>
       ) : isLoading ? (
-        <p className="text-sm text-slate-500 flex items-center gap-1.5 py-6" role="status">
+        <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 py-6" role="status">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading scheduling policies…
         </p>
       ) : policies.length === 0 ? (
         <div className="text-center py-10">
-          <p className="text-sm font-semibold text-slate-400">No scheduling policies.</p>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No scheduling policies.</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
             Create a tier to control how often GrapeRank recalculates.
           </p>
         </div>
@@ -504,27 +504,27 @@ export function SchedulingCard({ active }: { active: boolean }) {
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[760px]" data-testid="table-scheduling-policies">
             <thead>
-              <tr className="border-b border-slate-200/60">
+              <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
                 <th className="px-2 py-2 w-8" />
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Policy
                 </th>
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Priority
                 </th>
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Interval
                 </th>
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Manual quota
                 </th>
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Users
                 </th>
-                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Enabled
                 </th>
-                <th className="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="px-2 py-2 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Actions
                 </th>
               </tr>
@@ -536,7 +536,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                 return (
                   <Fragment key={p.id}>
                     <tr
-                      className="border-b border-slate-100 hover:bg-indigo-50/40 transition-colors"
+                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 transition-colors"
                       data-testid={`row-policy-${p.id}`}
                     >
                       <td className="px-2 py-2.5">
@@ -545,7 +545,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                           aria-label={isExpanded ? "Collapse row" : "Expand row"}
                           aria-expanded={isExpanded}
                           onClick={() => toggleExpand(p.id)}
-                          className="p-1 rounded-md text-slate-400 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
+                          className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
                         >
                           <ChevronDown
                             className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -554,7 +554,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                       </td>
                       <td className="px-2 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-semibold text-slate-800">
+                          <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">
                             {p.name}
                           </span>
                           {p.is_default && (
@@ -564,17 +564,17 @@ export function SchedulingCard({ active }: { active: boolean }) {
                           )}
                         </div>
                       </td>
-                      <td className="px-2 py-2.5 text-[13px] tabular-nums text-slate-700">
+                      <td className="px-2 py-2.5 text-[13px] tabular-nums text-slate-700 dark:text-slate-200">
                         {p.priority}
                       </td>
                       <td
-                        className="px-2 py-2.5 text-[13px] text-slate-700"
+                        className="px-2 py-2.5 text-[13px] text-slate-700 dark:text-slate-200"
                         title={`${p.schedule_interval_seconds}s`}
                       >
                         {formatDuration(p.schedule_interval_seconds)}
                       </td>
                       <td
-                        className="px-2 py-2.5 text-[13px] text-slate-700 whitespace-nowrap"
+                        className="px-2 py-2.5 text-[13px] text-slate-700 dark:text-slate-200 whitespace-nowrap"
                         title={`${p.manual_quota_window_seconds}s window`}
                       >
                         {p.manual_quota_limit} / {formatDuration(p.manual_quota_window_seconds)}
@@ -596,7 +596,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             aria-label={`Toggle ${p.name}`}
                             className="data-[state=checked]:!bg-brand-deep"
                           />
-                          <span className="text-[11px] font-medium text-slate-500 w-14">
+                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-14">
                             {on ? "Enabled" : "Disabled"}
                           </span>
                         </div>
@@ -608,7 +608,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             aria-label="Edit"
                             title="Edit policy"
                             onClick={() => setDialog({ mode: "edit", initial: p })}
-                            className="p-1.5 rounded-md text-slate-500 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
+                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-brand-deep hover:bg-brand-accent/10 transition-colors"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -625,7 +625,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                               setDeleteError(null);
                               setConfirmDelete(p);
                             }}
-                            className="p-1.5 rounded-md text-slate-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400 disabled:cursor-not-allowed transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -634,7 +634,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                     </tr>
                     {isExpanded && (
                       <tr data-testid={`row-policy-users-${p.id}`}>
-                        <td colSpan={8} className="px-4 py-4 bg-slate-50/60 border-b border-slate-100">
+                        <td colSpan={8} className="px-4 py-4 bg-slate-50/60 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800/60">
                           <PolicyUsersInline policy={p} policies={policies} />
                         </td>
                       </tr>

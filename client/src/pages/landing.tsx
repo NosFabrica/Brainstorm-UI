@@ -585,7 +585,7 @@ export default function Landing() {
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <GlossBackground />
 
       {user ? (
@@ -595,7 +595,7 @@ export default function Landing() {
           <button
             type="button"
             onClick={() => setLocation("/about")}
-            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
             data-testid="link-home-about"
           >
             About
@@ -623,7 +623,7 @@ export default function Landing() {
                 Brainstorm
               </h1>
             </div>
-            <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
+            <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base" data-testid="text-home-subtitle">
               Search across millions of profiles
             </p>
           </div>
@@ -631,8 +631,8 @@ export default function Landing() {
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               <div className="absolute -inset-1 bg-gradient-to-r from-brand-accent/0 via-brand-accent/15 to-brand-accent/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
-                <Search className="h-5 w-5 text-slate-400 shrink-0" />
+              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+                <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
@@ -670,7 +670,7 @@ export default function Landing() {
                   }}
                   placeholder=""
                   aria-label="Search profiles"
-                  className="w-full bg-transparent text-slate-900 text-base outline-none py-1.5 min-w-0"
+                  className="w-full bg-transparent text-slate-900 dark:text-slate-100 text-base outline-none py-1.5 min-w-0"
                   autoFocus={!hasSearched}
                   role="combobox"
                   aria-expanded={showSuggestions}
@@ -685,7 +685,7 @@ export default function Landing() {
                     className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden"
                   >
                     <span
-                      className={`truncate text-slate-400 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
+                      className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
                       {prefersReducedMotion ? PLACEHOLDER_EXAMPLES[0] : PLACEHOLDER_EXAMPLES[phIndex]}
@@ -698,7 +698,7 @@ export default function Landing() {
                     type="button"
                     onClick={clearSearch}
                     aria-label="Clear search"
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
                     data-testid="button-home-clear"
                   >
                     <X className="h-4 w-4" />
@@ -726,7 +726,7 @@ export default function Landing() {
               <div
                 id="home-search-suggestions"
                 role="listbox"
-                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-suggestions"
               >
@@ -738,7 +738,7 @@ export default function Landing() {
                     testId="home-topic"
                   />
                 ) : isSuggesting && suggestions.length === 0 ? (
-                  <div className="px-4 py-3 flex items-center gap-2 text-slate-400 text-xs" data-testid="home-suggestions-loading">
+                  <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
                 ) : (
@@ -753,20 +753,20 @@ export default function Landing() {
                           type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => goToProfile(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className="h-8 w-8 border border-slate-200/80 shrink-0">
+                          <Avatar className="h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-slate-900 truncate" data-testid={`home-suggestion-name-${i}`}>
+                            <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
                               {getDisplayLabel(s)}
                             </p>
                             {handle && (
@@ -788,7 +788,7 @@ export default function Landing() {
                     </div>
                     <button
                       type="button"
-                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
+                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-indigo-600" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600"}`}
                       onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
                       onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); handleSearch(query); }}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
@@ -807,9 +807,9 @@ export default function Landing() {
           </div>
 
           {!user ? (
-            <p className="text-xs text-slate-500 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
               <span data-testid="text-home-pov-label">Not Personalized</span>
-              <span className="text-slate-300">·</span>
+              <span className="text-slate-300 dark:text-slate-600">·</span>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
@@ -820,7 +820,7 @@ export default function Landing() {
               </button>
             </p>
           ) : (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500" data-testid="text-home-hint">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500 dark:text-slate-400" data-testid="text-home-hint">
               <div
                 role="group"
                 aria-label="Trust perspective"
@@ -837,12 +837,12 @@ export default function Landing() {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "border-slate-300 bg-slate-100 font-semibold text-slate-800 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 hover:text-slate-600")
+                      ? "border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-200 shadow-sm"
+                      : "border-transparent font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  <Globe className={"h-3 w-3 " + (effectivePov === "nosfabrica" ? "text-slate-500" : "text-slate-300")} />
+                  <Globe className={"h-3 w-3 " + (effectivePov === "nosfabrica" ? "text-slate-500 dark:text-slate-400" : "text-slate-300 dark:text-slate-600")} />
                   Brainstorm
                 </button>
                 <button
@@ -863,12 +863,12 @@ export default function Landing() {
                     "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
                     (effectivePov === "mywot"
                       ? "border-indigo-300 bg-indigo-50 font-semibold text-indigo-700 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 hover:text-slate-600") +
+                      : "border-transparent font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  <UserRound className={"h-3 w-3 " + (effectivePov === "mywot" ? "text-indigo-500" : "text-slate-300")} />
+                  <UserRound className={"h-3 w-3 " + (effectivePov === "mywot" ? "text-indigo-500" : "text-slate-300 dark:text-slate-600")} />
                   {user.displayName || "My results"}
                 </button>
               </div>
@@ -882,7 +882,7 @@ export default function Landing() {
                   Calculate yours <ArrowRight className="h-3 w-3" />
                 </button>
               )}
-              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
@@ -909,11 +909,11 @@ export default function Landing() {
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 border border-slate-100 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 shrink-0" />
+                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
                   <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 sm:h-3.5 bg-slate-200 rounded-full w-28 sm:w-36" />
-                    <div className="h-2.5 bg-slate-100 rounded-full w-full max-w-md" />
+                    <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
+                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
                   </div>
                 </div>
               ))}
@@ -924,7 +924,7 @@ export default function Landing() {
         {!isSearching && hasSearched && results.length > 0 && (
           <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-[10px] sm:text-[11px] text-slate-400" data-testid="text-search-stats">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
                 About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
             </div>
@@ -935,7 +935,7 @@ export default function Landing() {
                 return (
                   <button
                     key={result.pubkey}
-                    className="w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
+                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
                     onMouseEnter={() => handlePrefetchEnter(result)}
                     onMouseLeave={() => handlePrefetchLeave(result)}
                     onFocus={() => handlePrefetchEnter(result)}
@@ -944,7 +944,7 @@ export default function Landing() {
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80 dark:border-slate-800/80">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                         <AvatarFallback className="overflow-hidden">
                           <DefaultAvatarImg />
@@ -952,7 +952,7 @@ export default function Landing() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
                         </div>
@@ -983,7 +983,7 @@ export default function Landing() {
                           </p>
                         )}
                         {result.about && (
-                          <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
+                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
                             {truncateAbout(result.about)}
                           </p>
                         )}
@@ -995,26 +995,26 @@ export default function Landing() {
                             </span>
                           )}
                           {result.wotFollowers != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                               <Users className="h-2.5 w-2.5" />
                               {formatFollowers(result.wotFollowers)}
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
                             {result.npub.slice(0, 12)}...
                             <span
                               role="button"
                               tabIndex={0}
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer"
                               data-testid={`button-copy-npub-${idx}`}
                               onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
                             >
-                              <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
+                              <Copy className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
                             </span>
                           </span>
                         </div>
                       </div>
-                      <span className="text-[11px] text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
+                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
                         View →
                       </span>
                     </div>
@@ -1027,10 +1027,10 @@ export default function Landing() {
 
         {showNoResults && (
           <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12 text-center" data-testid="container-no-results">
-            <div className="p-6 sm:p-8 rounded-xl sm:rounded-2xl bg-white/60 border border-slate-100">
-              <Radar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-sm font-semibold text-slate-700 mb-1">No profiles found</h3>
-              <p className="text-xs text-slate-500">Try a different name or paste an npub directly.</p>
+            <div className="p-6 sm:p-8 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+              <Radar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">No profiles found</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Try a different name or paste an npub directly.</p>
             </div>
           </div>
         )}
@@ -1040,7 +1040,7 @@ export default function Landing() {
         <button
           type="button"
           onClick={() => setLocation("/developers")}
-          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+          className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
           data-testid="link-home-developers"
         >
           Developers
@@ -1048,7 +1048,7 @@ export default function Landing() {
         <button
           type="button"
           onClick={() => setLocation("/how-search-works")}
-          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+          className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
           data-testid="link-home-how-search-works"
         >
           How search works

@@ -161,10 +161,10 @@ export default function HopsPathPage() {
   const backLink = `/p/${rawId}`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-xl flex items-center gap-3 px-4 sm:px-6 h-14">
-          <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors" data-testid="hops-back">
+          <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="hops-back">
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <div className="ml-auto flex items-center gap-2">
@@ -180,22 +180,22 @@ export default function HopsPathPage() {
           <div className="h-px w-10 bg-brand-accent/40" />
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
           Your connection to <span className="text-brand-deep">{subjectName}</span>
         </h1>
 
         {pathQuery.isPending ? (
-          <div className="mt-8 flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Finding your connection…</div>
+          <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Finding your connection…</div>
         ) : !d || !d.reachable || d.hops === 0 ? (
-          <p className="mt-4 text-slate-600" data-testid="hops-unreachable">
+          <p className="mt-4 text-slate-600 dark:text-slate-300" data-testid="hops-unreachable">
             {d && d.hops === 0
               ? "That's you."
               : `Not connected — ${subjectName} can't be reached through the people you follow.`}
           </p>
         ) : (
           <>
-            <p className="mt-3 text-[15px] text-slate-600 leading-relaxed">
-              <span className="font-semibold text-slate-900">{ordinal(d.hops)} degree</span> —{" "}
+            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
+              <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
               {d.hops === 1 ? (
                 <>you follow {subjectName} directly.</>
               ) : (
@@ -204,7 +204,7 @@ export default function HopsPathPage() {
               {d.pathCount === 1 ? (
                 <>This is the only connection this direct:</>
               ) : (
-                <>There are <span className="font-semibold text-slate-900">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> connections this direct — here's one:</>
+                <>There are <span className="font-semibold text-slate-900 dark:text-slate-100">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> connections this direct — here's one:</>
               )}
             </p>
 
@@ -213,7 +213,7 @@ export default function HopsPathPage() {
             {/* The route — one connected timeline. A rail threads through the avatars
                 so it reads as a single path (you → them), not a stack of cards. Uniform
                 across mobile / desktop / PWA — no breakpoint reflow. */}
-            <ol className="mt-5 rounded-2xl border border-slate-100 bg-white p-3 sm:p-4 shadow-sm" data-testid="hops-path">
+            <ol className="mt-5 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm" data-testid="hops-path">
               {d.path.map((pk, i) => {
                 const p = profs?.get(pk);
                 const npub = npubFromPubkey(pk);
@@ -242,12 +242,12 @@ export default function HopsPathPage() {
                         the row height, connecting down to the next avatar. */}
                     <div className="flex flex-col items-center shrink-0">
                       <Link href={`/p/${npub}`} className="group">
-                        <Avatar className="h-10 w-10 ring-1 ring-slate-200">
+                        <Avatar className="h-10 w-10 ring-1 ring-slate-200 dark:ring-slate-800">
                           {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
                           <AvatarFallback className="bg-transparent p-0"><DefaultAvatarImg flagged={isEntryBad} /></AvatarFallback>
                         </Avatar>
                       </Link>
-                      {!isSubject && <div className="mt-1.5 w-px flex-1 bg-slate-200" aria-hidden />}
+                      {!isSubject && <div className="mt-1.5 w-px flex-1 bg-slate-200 dark:bg-slate-700" aria-hidden />}
                     </div>
 
                     {/* Content, tinted for weak-link / flagged; pb creates the rail gap. */}
@@ -256,7 +256,7 @@ export default function HopsPathPage() {
                         <div className="flex items-start justify-between gap-2">
                           <Link href={`/p/${npub}`} className="group min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-sm font-semibold text-slate-800 truncate group-hover:text-brand-deep transition-colors">{name}</span>
+                              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-deep transition-colors">{name}</span>
                               {isWeakLink && (
                                 <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a flagged account into your network">
                                   Weak link
@@ -268,7 +268,7 @@ export default function HopsPathPage() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">{roleLabel}</div>
+                            <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{roleLabel}</div>
                           </Link>
                           {!isMe && tier && (
                             <button
@@ -282,7 +282,7 @@ export default function HopsPathPage() {
                                 <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
                                 {Math.round((score as number) * 100)}%
                               </div>
-                              <div className="text-[10px] text-slate-400 leading-tight">{tier.name}</div>
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">{tier.name}</div>
                               {(() => {
                                 // Subtle hint when the OTHER view disagrees (after
                                 // rounding): its number + which way it moves.
@@ -295,7 +295,7 @@ export default function HopsPathPage() {
                                 const mine = scorePov === "global";
                                 return (
                                   <div
-                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-indigo-500" : "text-slate-400"}`}
+                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}
                                     data-testid={`hops-score-delta-${i}`}
                                   >
                                     <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />
@@ -329,32 +329,32 @@ export default function HopsPathPage() {
                 type="button"
                 onClick={() => setNonce((n) => n + 1)}
                 disabled={d.pathCount <= 1 || pathQuery.isFetching}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 h-10 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 h-10 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 data-testid="hops-shuffle"
               >
                 {pathQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shuffle className="h-4 w-4" />}
                 Show another path
               </button>
-              {d.pathCount <= 1 && <span className="text-xs text-slate-400">This is the only shortest path.</span>}
+              {d.pathCount <= 1 && <span className="text-xs text-slate-400 dark:text-slate-500">This is the only shortest path.</span>}
             </div>
           </>
         )}
 
         {/* What the metric means + the practical use. */}
-        <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-4 sm:p-5 text-sm text-slate-600 leading-relaxed">
-          <div className="flex items-center gap-2 font-semibold text-slate-800">
+        <div className="mt-8 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900 p-4 sm:p-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+          <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
             <ShieldAlert className="h-4 w-4 text-brand-accent" /> What "degree" means
           </div>
           <p className="mt-1.5">
             Your degree shows how closely you're connected to someone.{" "}
-            <span className="font-medium text-slate-700">1st degree</span> means you follow them directly.{" "}
-            <span className="font-medium text-slate-700">2nd degree</span> means someone you follow, follows them — and so on.
+            <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means you follow them directly.{" "}
+            <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone you follow, follows them — and so on.
             Being connected, even a few steps out, means they're part of your trusted network.
           </p>
           <p className="mt-2">
             It's also a safety tool. Scam accounts usually get into your network because{" "}
-            <span className="font-medium text-slate-700">one person you trust followed them</span> — often by mistake. That
-            person is the <span className="font-medium text-slate-700">weak link</span>. Report the scam account itself and it —
+            <span className="font-medium text-slate-700 dark:text-slate-200">one person you trust followed them</span> — often by mistake. That
+            person is the <span className="font-medium text-slate-700 dark:text-slate-200">weak link</span>. Report the scam account itself and it —
             plus everything hiding behind it — drops out of your network.
           </p>
         </div>
@@ -441,7 +441,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
 
   if (following) {
     return (
-      <span className="shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-500" data-testid="hops-following">
+      <span className="shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400" data-testid="hops-following">
         <Check className="h-3 w-3 text-emerald-500" /> Following
       </span>
     );
@@ -451,7 +451,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
       type="button"
       onClick={follow}
       disabled={busy}
-      className="shrink-0 inline-flex items-center gap-1 rounded-md border border-brand-accent/40 bg-white px-2 py-1 text-[11px] font-semibold text-brand-deep hover:bg-brand-accent/[0.06] disabled:opacity-50 transition-colors"
+      className="shrink-0 inline-flex items-center gap-1 rounded-md border border-brand-accent/40 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold text-brand-deep hover:bg-brand-accent/[0.06] disabled:opacity-50 transition-colors"
       data-testid="hops-follow"
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />} Follow
@@ -506,12 +506,12 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
             type="button"
             onClick={(e) => { stop(e); void submit(r); }}
             disabled={busy}
-            className="rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+            className="rounded-md border border-amber-300 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 hover:bg-amber-50 disabled:opacity-50"
           >
             {r}
           </button>
         ))}
-        <button type="button" onClick={(e) => { stop(e); setOpen(false); }} className="px-1 text-[11px] text-slate-400 hover:text-slate-600" aria-label="Cancel">✕</button>
+        <button type="button" onClick={(e) => { stop(e); setOpen(false); }} className="px-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" aria-label="Cancel">✕</button>
       </div>
     );
   }
@@ -523,7 +523,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
       className={`shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
         emphasize
           ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-          : "border-slate-200 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-700"
+          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-700"
       }`}
       data-testid="hops-report"
     >

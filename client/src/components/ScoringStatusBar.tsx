@@ -200,19 +200,19 @@ export function ScoringStatusBar() {
         )
       ) : phase === "standdown" ? (
         <div
-          className="pointer-events-auto mx-auto flex items-center gap-2.5 rounded-2xl bg-white border border-slate-200 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-2"
+          className="pointer-events-auto mx-auto flex items-center gap-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-2"
           data-testid="scoring-status-standdown"
         >
-          <span className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-            <Clock className="h-4 w-4 text-slate-500" />
+          <span className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </span>
-          <span className="text-[13px] text-slate-600 leading-snug max-w-[15rem]">
+          <span className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug max-w-[15rem]">
             We'll keep building your Web of Trust in the background — check your dashboard later.
           </span>
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold px-3 py-1.5 transition-colors"
             data-testid="scoring-status-standdown-dashboard"
           >
             Dashboard
@@ -221,7 +221,7 @@ export function ScoringStatusBar() {
             type="button"
             onClick={() => setStandDownDismissed(true)}
             aria-label="Dismiss"
-            className="shrink-0 rounded-full p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="shrink-0 rounded-full p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             data-testid="scoring-status-standdown-dismiss"
           >
             <X className="h-4 w-4" />
@@ -229,13 +229,13 @@ export function ScoringStatusBar() {
         </div>
       ) : (
         <div
-          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full bg-white border border-emerald-200 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-1.5"
+          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-emerald-200 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-1.5"
           data-testid="scoring-status-ready"
         >
           <span className="h-6 w-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
           </span>
-          <span className="text-sm font-semibold text-slate-900">Your Web of Trust is ready</span>
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your Web of Trust is ready</span>
           <button
             type="button"
             onClick={() => { dismissReady(); navigate("/dashboard"); }}
@@ -248,7 +248,7 @@ export function ScoringStatusBar() {
             type="button"
             onClick={dismissReady}
             aria-label="Dismiss"
-            className="shrink-0 rounded-full p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="shrink-0 rounded-full p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             data-testid="scoring-status-dismiss"
           >
             <X className="h-4 w-4" />

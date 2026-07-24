@@ -57,7 +57,7 @@ function Segmented<T extends string>({ value, options, onChange, testId }: {
   value: T; options: { key: T; label: string }[]; onChange: (v: T) => void; testId?: string;
 }) {
   return (
-    <div className="inline-flex rounded-full bg-slate-100 p-0.5" data-testid={testId}>
+    <div className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5" data-testid={testId}>
       {options.map((o) => (
         <button
           key={o.key}
@@ -65,7 +65,7 @@ function Segmented<T extends string>({ value, options, onChange, testId }: {
           onClick={() => onChange(o.key)}
           aria-pressed={value === o.key}
           className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-            value === o.key ? "bg-white text-brand-link shadow-sm" : "text-slate-500 hover:text-slate-700"
+            value === o.key ? "bg-white dark:bg-slate-900 text-brand-link shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           }`}
           data-testid={`${testId}-${o.key}`}
         >
@@ -151,14 +151,14 @@ export default function HashtagPage() {
 
   return (
     <ShareNavProvider>
-      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
         <PublicPageHeader
           maxWidthClass="max-w-2xl"
           actions={
             <button
               type="button"
               onClick={onShare}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900"
               data-testid="hashtag-share"
             >
               {copied ? <><Check className="h-4 w-4 text-emerald-600" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
@@ -182,7 +182,7 @@ export default function HashtagPage() {
                   key={t}
                   type="button"
                   onClick={() => navigate(`/t/${encodeURIComponent(t)}`)}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                  className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
                   data-testid={`hashtag-related-${t}`}
                 >
                   #{t}
@@ -192,13 +192,13 @@ export default function HashtagPage() {
           )}
 
           {/* Controls: sort + strictness + count */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4" data-testid="hashtag-controls">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4" data-testid="hashtag-controls">
             <div className="flex flex-wrap items-center gap-2">
               <Segmented value={sort} options={SORTS} onChange={setSort} testId="hashtag-sort" />
               <Segmented value={preset} options={PRESETS} onChange={setPreset} testId="hashtag-strictness" />
             </div>
             {!loading && (
-              <p className="text-xs text-slate-400" data-testid="hashtag-count">
+              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="hashtag-count">
                 {events.length} trusted post{events.length !== 1 ? "s" : ""} · {voiceCount} voice{voiceCount !== 1 ? "s" : ""}
               </p>
             )}
@@ -207,24 +207,24 @@ export default function HashtagPage() {
           <div className="mt-6 space-y-4">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="hashtag-skeleton">
+                <div key={i} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm" data-testid="hashtag-skeleton">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-slate-100 animate-pulse" />
-                    <div className="h-3 w-32 rounded bg-slate-100 animate-pulse" />
+                    <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-3 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
                   </div>
-                  <div className="mt-3 h-3 w-full rounded bg-slate-100 animate-pulse" />
-                  <div className="mt-2 h-3 w-3/4 rounded bg-slate-100 animate-pulse" />
+                  <div className="mt-3 h-3 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="mt-2 h-3 w-3/4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
                 </div>
               ))
             ) : events.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm" data-testid="hashtag-empty">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-12 text-center shadow-sm" data-testid="hashtag-empty">
                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-accent/10 border border-brand-accent/20 text-brand-deep">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {candidateCount > 0 && preset !== "relax" ? `Nothing at this strictness for #${tag}` : `No trusted content for #${tag} yet`}
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                   {candidateCount > 0 && preset !== "relax"
                     ? "Try loosening the trust filter to Relax to see more."
                     : "We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut."}
@@ -240,7 +240,7 @@ export default function HashtagPage() {
                 ev.kind === 30023 ? (
                   <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                 ) : (
-                  <div key={ev.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div key={ev.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                     <ShareNoteCard event={ev as MinimalEvent} profiles={profiles} eventsById={EMPTY} href={eventPath(ev)} showAuthor authorScore={scores.get(ev.pubkey)} />
                   </div>
                 ),
@@ -250,8 +250,8 @@ export default function HashtagPage() {
 
           {/* Cross-client: no universal hashtag deep-link, so link the clients that have one. */}
           {!loading && events.length > 0 && (
-            <div className="mt-10 border-t border-slate-200 pt-6" data-testid="hashtag-openin">
-              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-slate-400">Explore #{tag} elsewhere</p>
+            <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-6" data-testid="hashtag-openin">
+              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Explore #{tag} elsewhere</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {clientLinks.map((c) => (
                   <a
@@ -259,10 +259,10 @@ export default function HashtagPage() {
                     href={c.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-accent/50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-brand-accent/50"
                     data-testid={`hashtag-client-${c.name}`}
                   >
-                    {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                    {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   </a>
                 ))}
               </div>

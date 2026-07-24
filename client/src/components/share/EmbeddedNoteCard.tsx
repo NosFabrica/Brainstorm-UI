@@ -55,24 +55,24 @@ export function EmbeddedNoteCard({
 
   return (
     <div
-      className={`mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 ${href ? "cursor-pointer hover:border-slate-300" : ""}`}
+      className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 p-3 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-note"
       onClick={onClick}
     >
       <div className="flex items-center gap-2 mb-1.5">
         <a href={npub ? `/p/${npub}` : undefined} className="flex items-center gap-2 min-w-0 hover:opacity-80">
-          <Avatar className="h-6 w-6 rounded-full bg-white border border-slate-200">
+          <Avatar className="h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
-          <span className="text-sm font-semibold text-slate-900 truncate">{name}</span>
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{name}</span>
           {author?.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
         </a>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {typeof trustScore01 === "number" && Number.isFinite(trustScore01) && (
             <VerificationCoin score01={trustScore01} pov="global" size={22} />
           )}
-          <span className="text-xs text-slate-400">{ago(event.created_at)}</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
       </div>
       <div className="line-clamp-5 text-[14px]">

@@ -50,8 +50,8 @@ export function BackupReminder() {
         <ShieldCheck className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-900">Back up your account</p>
-        <p className="text-[13px] text-slate-600 leading-snug">It's the only way to recover it if you lose this browser — there's no reset.</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Back up your account</p>
+        <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug">It's the only way to recover it if you lose this browser — there's no reset.</p>
       </div>
       <button
         type="button"
@@ -65,7 +65,7 @@ export function BackupReminder() {
         type="button"
         onClick={snooze}
         aria-label="Remind me later"
-        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-brand-accent/10 transition-colors"
+        className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-brand-accent/10 transition-colors"
         data-testid="backup-reminder-dismiss"
       >
         <X className="h-4 w-4" />

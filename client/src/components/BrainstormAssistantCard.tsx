@@ -249,7 +249,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   return (
     <div
       className={
-        "rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 transition-all duration-500 relative " +
+        "rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 transition-all duration-500 relative " +
         (showCelebration ? "ring-2 ring-amber-300/60 shadow-[0_0_30px_rgba(252,211,77,0.4)]" : "")
       }
       data-testid={`card-brainstorm-assistant-${variant}`}
@@ -310,8 +310,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </div>
           {isActive && (
             <div className="flex items-center gap-1.5 mb-1" data-testid={`status-assistant-${variant}`}>
-              <span className={"h-1.5 w-1.5 rounded-full " + (isFresh ? "bg-emerald-500 animate-pulse" : "bg-slate-300")} />
-              <span className={"text-[10px] font-bold uppercase tracking-widest " + (isFresh ? "text-emerald-700" : "text-slate-500")}>
+              <span className={"h-1.5 w-1.5 rounded-full " + (isFresh ? "bg-emerald-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600")} />
+              <span className={"text-[10px] font-bold uppercase tracking-widest " + (isFresh ? "text-emerald-700" : "text-slate-500 dark:text-slate-400")}>
                 {isFresh ? "Live" : "Active"}
               </span>
             </div>
@@ -325,18 +325,18 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </div>
         )}
         <div className="flex items-center gap-2 mb-1">
-          <h3 className={(variant === "settings" ? "text-xl sm:text-2xl md:text-3xl" : isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
+          <h3 className={(variant === "settings" ? "text-xl sm:text-2xl md:text-3xl" : isHighlighted ? "text-lg sm:text-xl" : "text-base sm:text-lg") + " font-bold text-slate-900 dark:text-slate-100 tracking-tight"} style={{ fontFamily: "var(--font-display)" }} data-testid={`text-assistant-title-${variant}`}>
             Your Brainstorm Assistant
           </h3>
           <Popover open={showInfo} onOpenChange={setShowInfo}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
+                className="relative inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-3 sm:-m-2 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                 aria-label="What is the Brainstorm Assistant?"
                 data-testid={`button-assistant-info-${variant}`}
               >
-                <span className="h-5 w-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center" aria-hidden="true">
+                <span className="h-5 w-5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center" aria-hidden="true">
                   <Info className="h-3 w-3" />
                 </span>
               </button>
@@ -358,7 +358,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             </PopoverContent>
           </Popover>
         </div>
-        <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
+        <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 dark:text-slate-400 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
           {isActive ? "Your sidekick is publishing your trust scores." : "Give your trust scores a voice — one click."}
         </p>
 
@@ -367,7 +367,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             <div className={variant === "settings" ? "lg:grid lg:grid-cols-[1.4fr_1fr] lg:gap-5 space-y-3 lg:space-y-0" : "space-y-3"}>
             {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
               <div
-                className="relative rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white to-indigo-50/40 px-4 py-3.5 overflow-hidden"
+                className="relative rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white dark:from-slate-900 to-indigo-50/40 px-4 py-3.5 overflow-hidden"
                 data-testid={`profile-assistant-${variant}`}
               >
                 <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-brand-accent to-brand-deep" />
@@ -375,14 +375,14 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h4
-                        className="text-sm sm:text-[15px] font-bold text-slate-900 tracking-tight leading-tight truncate"
+                        className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight truncate"
                         title={profile?.display_name || profile?.name}
                         data-testid={`text-assistant-display-name-${variant}`}
                       >
                         {profile?.display_name || profile?.name}
                       </h4>
                       {profile?.nip05 && (
-                        <p className="text-[11px] text-slate-500 truncate mt-0.5" data-testid={`text-assistant-nip05-${variant}`}>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5" data-testid={`text-assistant-nip05-${variant}`}>
                           {profile.nip05}
                         </p>
                       )}
@@ -396,7 +396,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   {profile?.about && (
                     <div className="relative pl-4" data-testid={`text-assistant-about-${variant}`}>
                       <Quote className="absolute -left-0.5 top-0 h-3 w-3 text-brand-accent/50" aria-hidden="true" />
-                      <p className="text-[12px] leading-relaxed text-slate-600 italic">
+                      <p className="text-[12px] leading-relaxed text-slate-600 dark:text-slate-300 italic">
                         {profile.about}
                       </p>
                     </div>
@@ -423,13 +423,13 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200/80 bg-white/70 backdrop-blur-sm px-3 py-2.5 space-y-2" data-testid={`details-assistant-${variant}`}>
+            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm px-3 py-2.5 space-y-2" data-testid={`details-assistant-${variant}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assistant npub</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Assistant npub</span>
                 <button
                   type="button"
                   onClick={handleCopyNpub}
-                  className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-700 hover:text-brand-deep transition-colors group/copy py-2 -my-2 rounded focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-700 dark:text-slate-200 hover:text-brand-deep transition-colors group/copy py-2 -my-2 rounded focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                   data-testid={`button-copy-assistant-npub-${variant}`}
                   aria-label={`Copy assistant npub ${published?.npub || ""}`}
                   title={published?.npub}
@@ -440,14 +440,14 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               </div>
               {published?.publishedAt && (
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Published</span>
-                  <span className="text-[11px] text-slate-600" data-testid={`text-assistant-published-${variant}`}>{formatRelative(published.publishedAt)}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Published</span>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300" data-testid={`text-assistant-published-${variant}`}>{formatRelative(published.publishedAt)}</span>
                 </div>
               )}
               {lastCalcTs && (
                 <div className="flex items-center justify-between gap-2" data-testid={`row-assistant-last-calc-${variant}`}>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last attestation run</span>
-                  <span className="text-[11px] text-slate-600">{formatRelative(lastCalcTs)}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Last attestation run</span>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">{formatRelative(lastCalcTs)}</span>
                 </div>
               )}
             </div>
@@ -475,7 +475,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 type="button"
                 onClick={handlePublish}
                 disabled={isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px]"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none min-h-[44px]"
                 data-testid={`button-assistant-republish-${variant}`}
               >
                 {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -486,7 +486,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   href={njumpUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-brand-deep transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
                   data-testid={`link-assistant-view-event-${variant}`}
                   title="Open the published event on njump"
                 >
@@ -498,7 +498,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <button
                   type="button"
                   onClick={handleCustomize}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/30 bg-white text-brand-deep text-xs font-semibold transition-colors hover:bg-brand-accent/5 min-h-[44px]"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/30 bg-white dark:bg-slate-900 text-brand-deep text-xs font-semibold transition-colors hover:bg-brand-accent/5 min-h-[44px]"
                   data-testid={`button-assistant-customize-${variant}`}
                 >
                   <Wand2 className="h-3.5 w-3.5" />
@@ -509,7 +509,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   <UITooltip>
                     <TooltipTrigger asChild>
                       <span
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/20 bg-white text-brand-deep/60 text-xs font-semibold opacity-70 cursor-not-allowed min-h-[44px]"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-brand-accent/20 bg-white dark:bg-slate-900 text-brand-deep/60 text-xs font-semibold opacity-70 cursor-not-allowed min-h-[44px]"
                         aria-disabled="true"
                         tabIndex={0}
                         data-testid={`button-assistant-customize-${variant}`}
@@ -528,8 +528,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-[11px] text-slate-500 leading-relaxed" data-testid={`text-assistant-safety-${variant}`}>
-              This <span className="font-semibold text-slate-700">does not</span> affect your main Nostr identity — Brainstorm publishes from a dedicated assistant key.
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed" data-testid={`text-assistant-safety-${variant}`}>
+              This <span className="font-semibold text-slate-700 dark:text-slate-200">does not</span> affect your main Nostr identity — Brainstorm publishes from a dedicated assistant key.
             </p>
 
             {error && (

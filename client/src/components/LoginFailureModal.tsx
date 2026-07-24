@@ -138,7 +138,7 @@ export function LoginFailureModal({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[440px] max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 overflow-hidden p-0 [&>button]:text-slate-400 [&>button]:hover:text-slate-700 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
+        className="sm:max-w-[440px] max-h-[90vh] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 overflow-hidden p-0 [&>button]:text-slate-400 dark:[&>button]:text-slate-500 [&>button]:hover:text-slate-700 dark:[&>button]:hover:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 dark:[&>button]:hover:bg-slate-800 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
         data-testid="dialog-login-failure"
       >
         <div className="flex flex-col max-h-[90vh]">
@@ -146,7 +146,7 @@ export function LoginFailureModal({
             <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
               <DialogHeader>
                 <DialogTitle
-                  className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
+                  className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-login-failure-title"
                 >
@@ -155,7 +155,7 @@ export function LoginFailureModal({
                     : "Sign-in couldn't complete"}
                 </DialogTitle>
                 <DialogDescription
-                  className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed"
+                  className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed"
                   data-testid="text-login-failure-subtitle"
                 >
                   {showSecretKeyForm
@@ -196,7 +196,7 @@ export function LoginFailureModal({
                     <button
                       type="button"
                       onClick={onRetryExtension}
-                      className="w-full h-10 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
                       data-testid="button-retry-extension"
                     >
                       Try again
@@ -217,10 +217,10 @@ export function LoginFailureModal({
                     <button
                       type="button"
                       onClick={openSecretKeyForm}
-                      className="w-full h-10 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-slate-100 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
                       data-testid="button-show-nsec-form"
                     >
-                      <KeyRound className="h-4 w-4 text-slate-500" />
+                      <KeyRound className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                       Use your key instead
                     </button>
                   </>
@@ -229,7 +229,7 @@ export function LoginFailureModal({
                 {isNoExtension && (
                   <TooltipProvider delayDuration={150}>
                     <p
-                      className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-slate-500 pt-1.5"
+                      className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400 pt-1.5"
                       data-testid="text-no-extension-hint"
                     >
                       <span>Need a sign-in extension?</span>
@@ -251,14 +251,14 @@ export function LoginFailureModal({
                             <TooltipContent
                               side="top"
                               align="center"
-                              className="max-w-[260px] bg-white border border-slate-200 text-slate-700 text-xs leading-relaxed shadow-lg"
+                              className="max-w-[260px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs leading-relaxed shadow-lg"
                               data-testid={`tooltip-install-${ext.name.toLowerCase()}`}
                             >
                               {ext.description}
                             </TooltipContent>
                           </Tooltip>
                           {i === 0 && (
-                            <span className="text-slate-400">&nbsp;or</span>
+                            <span className="text-slate-400 dark:text-slate-500">&nbsp;or</span>
                           )}
                         </span>
                       ))}
@@ -288,7 +288,7 @@ export function LoginFailureModal({
                 />
                 <div className="px-5 sm:px-6 pt-1 pb-3 space-y-3">
                   <div
-                    className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-600"
+                    className="flex items-start gap-2 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300"
                     data-testid="warning-nsec-security"
                   >
                     <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-500" />
@@ -298,7 +298,7 @@ export function LoginFailureModal({
                   </div>
 
                   <div className="relative">
-                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                     <input
                       ref={keyInputRef}
                       type={showSecretKey ? "text" : "password"}
@@ -318,13 +318,13 @@ export function LoginFailureModal({
                       spellCheck={false}
                       disabled={submitting}
                       autoFocus
-                      className="w-full h-11 pl-9 pr-10 rounded-xl bg-white border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono text-slate-900 placeholder:text-slate-400 placeholder:font-sans transition-all disabled:opacity-60"
+                      className="w-full h-11 pl-9 pr-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-sans transition-all disabled:opacity-60"
                       data-testid="input-nsec"
                     />
                     <button
                       type="button"
                       onClick={() => setShowSecretKey((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       data-testid="button-toggle-nsec-visibility"
                       aria-label={showSecretKey ? "Hide key" : "Show key"}
                     >
@@ -337,14 +337,14 @@ export function LoginFailureModal({
                   </div>
 
                   {isEncryptedKey && (
-                    <p className="text-xs text-slate-500" data-testid="text-backup-detected">
+                    <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-backup-detected">
                       Looks like a backup file — enter its password below.
                     </p>
                   )}
 
                   {isEncryptedKey && (
                     <div className="relative" data-testid="row-backup-password">
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                       <input
                         type="password"
                         name="backup-password"
@@ -356,7 +356,7 @@ export function LoginFailureModal({
                         placeholder="Backup password"
                         autoComplete="off"
                         disabled={submitting}
-                        className="w-full h-11 pl-9 pr-3 rounded-xl bg-white border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm text-slate-900 placeholder:text-slate-400 transition-all disabled:opacity-60"
+                        className="w-full h-11 pl-9 pr-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all disabled:opacity-60"
                         data-testid="input-backup-password"
                       />
                     </div>
@@ -385,17 +385,17 @@ export function LoginFailureModal({
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
                       disabled={submitting}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-indigo-600 cursor-pointer disabled:opacity-60"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-slate-700 accent-indigo-600 cursor-pointer disabled:opacity-60"
                       data-testid="checkbox-remember-me"
                     />
-                    <span className="text-xs text-slate-600 leading-relaxed">
-                      <span className="font-semibold text-slate-700">Remember me on this device</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">Remember me on this device</span>
                       <br />
                       Stay signed in on this browser. Your key is stored only here — never sent to us.
                     </span>
                   </label>
                   <p
-                    className="text-[11px] text-slate-400 leading-relaxed text-center px-1"
+                    className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed text-center px-1"
                     data-testid="text-nsec-session-note"
                   >
                     {rememberMe
@@ -429,7 +429,7 @@ export function LoginFailureModal({
                       setSecretKeyError("");
                     }}
                     disabled={submitting}
-                    className="w-full h-9 rounded-xl text-slate-500 hover:text-indigo-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                    className="w-full h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 text-xs font-semibold transition-colors disabled:opacity-50"
                     data-testid="button-back-to-options"
                   >
                     Back to sign-in options

@@ -10,7 +10,7 @@ export function GlossBackground() {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-gloss">
       {/* Pure white base */}
-      <div className="absolute inset-0 bg-white" />
+      <div className="absolute inset-0 bg-white dark:bg-slate-900" />
 
       {/* Soft aurora mesh — cool, pale, upper-weighted, asymmetric. */}
       <div className="absolute -top-[16%] left-[2%] h-[52%] w-[52%] rounded-full bg-brand-accent/16 blur-[130px]" />

@@ -108,7 +108,7 @@ Nostr client so my users see personalized trust.
 Explain each step, note anything I need to configure, and keep it simple.`;
 
 const inputCls =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
+  "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
@@ -411,7 +411,7 @@ export default function SettingsPage() {
   // PROFILE TAB
   // ─────────────────────────────────────────────────────────────────────────
   const profileCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-profile">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="card-settings-profile">
       <ProfileEditForm
         onSaved={() => toast({ title: "Profile saved", description: "Your profile has been published.", duration: 3000 })}
       />
@@ -419,22 +419,22 @@ export default function SettingsPage() {
   );
 
   const accountCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-account">      <div className="border-b border-slate-200 px-5 py-4">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="card-settings-account">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-account-title">Account</h2>
-            <p className="text-xs text-slate-500" data-testid="text-account-subtitle">Your identity and backup</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-account-title">Account</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-account-subtitle">Your identity and backup</p>
           </div>
         </div>
       </div>
       <div className="p-5 space-y-4">
         {hasStoredSecretKey() && (!backedUp || !user?.picture) && (
           <div className="flex items-start rounded-xl bg-brand-accent/8 border border-brand-accent/20 px-3.5 py-3" data-testid="hint-finish-setup">
-            <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-semibold text-slate-900">Finish setting up.</span>{" "}
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <span className="font-semibold text-slate-900 dark:text-slate-100">Finish setting up.</span>{" "}
               {!backedUp && !user?.picture
                 ? "Back up your account and add a profile photo below."
                 : !backedUp
@@ -445,11 +445,11 @@ export default function SettingsPage() {
         )}
         <div className="flex items-center justify-between gap-3" data-testid="row-account-npub">
           <div className="min-w-0">
-            <p className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+            <p className="flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">
               Your public ID
               <InfoHint label="About your public ID">Your public address on the network (your "npub") — safe to share with anyone.</InfoHint>
             </p>
-            <p className="text-xs font-mono text-slate-600 truncate">{user.npub}</p>
+            <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate">{user.npub}</p>
           </div>
           <button
             type="button"
@@ -457,7 +457,7 @@ export default function SettingsPage() {
               await copyToClipboard(user.npub);
               toast({ title: "Copied!", description: "npub copied to clipboard" });
             }}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
             data-testid="button-account-copy-npub"
           >
             <Copy className="h-3.5 w-3.5" /> Copy
@@ -465,21 +465,21 @@ export default function SettingsPage() {
         </div>
 
         {hasStoredSecretKey() && (
-          <div id="account-backup-section" className="pt-4 border-t border-slate-100 scroll-mt-20" data-testid="row-account-backup">
+          <div id="account-backup-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/60 scroll-mt-20" data-testid="row-account-backup">
             {backedUp ? (
               <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
                 <div className="h-9 w-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
                   <Check className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Backed up</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Backed up</div>
                   <div className="text-xs text-emerald-700">Encrypted backup file downloaded</div>
                 </div>
               </div>
             ) : backupMode ? (
               <div>
-                <label htmlFor="account-backup-pass" className="block text-sm font-medium text-slate-700 mb-1.5">Back up your account</label>
-                <p className="text-xs text-slate-500 mb-2">Choose a password to encrypt your backup file. This file is how you sign in on another device or get back in if you clear your browser — keep it safe, no one can reset this password.</p>
+                <label htmlFor="account-backup-pass" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Back up your account</label>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Choose a password to encrypt your backup file. This file is how you sign in on another device or get back in if you clear your browser — keep it safe, no one can reset this password.</p>
                 <input
                   id="account-backup-pass"
                   type="password"
@@ -516,7 +516,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => { setBackupMode(false); setBackupPass(""); setBackupConfirm(""); }}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     Cancel
                   </button>
@@ -526,37 +526,37 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setBackupMode(true)}
-                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-white p-3 hover:border-brand-accent/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${highlightBackup ? "border-brand-accent/70 animate-attention-ring" : "border-slate-200"}`}
+                className={`w-full text-left flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-3 hover:border-brand-accent/50 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${highlightBackup ? "border-brand-accent/70 animate-attention-ring" : "border-slate-200 dark:border-slate-800"}`}
                 data-testid="button-account-backup"
               >
                 <div className="h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                   <ShieldCheck className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900">Back up your account</div>
-                  <div className="text-xs text-slate-500">Download an encrypted backup file</div>
+                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Back up your account</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">Download an encrypted backup file</div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 ml-auto shrink-0" />
+                <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-600 ml-auto shrink-0" />
               </button>
             )}
           </div>
         )}
 
         {hasStoredSecretKey() && (
-          <div className="pt-4 border-t border-slate-100" data-testid="row-account-secret">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60" data-testid="row-account-secret">
             {showSecret ? (
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Your recovery key</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Your recovery key</p>
                 <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 mb-2">
                   <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                   <span className="text-xs font-medium">Anyone with this key has full control of your account. Never share it or paste it into a site you don't trust.</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 min-w-0 truncate text-xs font-mono text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2" data-testid="text-account-nsec">{secretNsec}</code>
+                  <code className="flex-1 min-w-0 truncate text-xs font-mono text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2" data-testid="text-account-nsec">{secretNsec}</code>
                   <button
                     type="button"
                     onClick={async () => { await copyToClipboard(secretNsec); toast({ title: "Copied!", description: "Secret key copied to clipboard" }); }}
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
                     data-testid="button-account-copy-nsec"
                   >
                     <Copy className="h-3.5 w-3.5" /> Copy
@@ -564,7 +564,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => { setShowSecret(false); setSecretNsec(""); }}
-                    className="shrink-0 inline-flex items-center px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-600 transition-colors"
+                    className="shrink-0 inline-flex items-center px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors"
                     data-testid="button-account-hide-nsec"
                   >
                     Hide
@@ -576,7 +576,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleRevealSecret}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-brand-deep transition-colors"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep transition-colors"
                   data-testid="button-account-reveal-secret"
                 >
                   <Key className="h-4 w-4" /> Show recovery key
@@ -587,11 +587,11 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="pt-4 border-t border-slate-100">
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
           <button
             type="button"
             onClick={() => navigate(`/p/${user.npub}`)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold transition-colors"
             data-testid="button-account-view-profile"
           >
             <User className="h-4 w-4" /> View profile
@@ -606,14 +606,14 @@ export default function SettingsPage() {
   // TRUST TAB
   // ─────────────────────────────────────────────────────────────────────────
   const serviceProviderCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-service-provider">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-service-provider">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <BrainLogo size={18} className="text-brand-deep" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-sp-title">Service Provider</h2>
-            <p className="text-xs text-slate-500" data-testid="text-sp-subtitle">NIP-85 Web of Trust declaration</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-sp-title">Service Provider</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-sp-subtitle">NIP-85 Web of Trust declaration</p>
           </div>
         </div>
       </div>
@@ -622,18 +622,18 @@ export default function SettingsPage() {
         {selfLoading ? (
           <div className="space-y-3 animate-pulse">
             <div className="flex items-center justify-between">
-              <div className="h-3 w-16 bg-slate-200 rounded" />
-              <div className="h-6 w-20 bg-slate-200 rounded-full" />
+              <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full" />
             </div>
             <div className="space-y-2">
-              <div className="h-3 w-full bg-slate-100 rounded" />
-              <div className="h-3 w-3/4 bg-slate-100 rounded" />
+              <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded" />
+              <div className="h-3 w-3/4 bg-slate-100 dark:bg-slate-800 rounded" />
             </div>
           </div>
         ) : nip85Activated ? (
           <div className="flex-1 flex flex-col gap-4">
             <div className="flex items-center justify-between" data-testid="row-sp-status">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200" data-testid="badge-sp-active">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Active</span>
@@ -642,28 +642,28 @@ export default function SettingsPage() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between" data-testid="row-sp-provider">
-                <span className="text-xs text-slate-500">Provider</span>
-                <span className="text-xs font-semibold text-slate-900">Brainstorm</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Provider</span>
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">Brainstorm</span>
               </div>
               <div className="flex items-center justify-between" data-testid="row-sp-event">
-                <span className="text-xs text-slate-500">Event kind</span>
-                <span className="text-xs font-mono text-slate-600">10040</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Event kind</span>
+                <span className="text-xs font-mono text-slate-600 dark:text-slate-300">10040</span>
               </div>
               {lastCalculated && (
                 <div className="flex items-center justify-between" data-testid="row-sp-since">
-                  <span className="text-xs text-slate-500">Active since</span>
-                  <span className="text-xs text-slate-600">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Active since</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">
                     {new Date(lastCalculated).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between" data-testid="row-sp-supported">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Supported by</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Supported by</span>
                   <div className="relative group/info">
                     <button
                       type="button"
-                      className="h-4 w-4 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
+                      className="h-4 w-4 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                       onClick={(e) => e.currentTarget.focus()}
                       aria-label="What are Supported Clients?"
                       data-testid="button-supported-by-info"
@@ -677,7 +677,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-brand-deep hover:text-brand-accent transition-colors">Amethyst</a>
-                  <span className="text-[10px] text-slate-500">&middot;</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">&middot;</span>
                   <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
                 </div>
               </div>
@@ -695,7 +695,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="pt-3 mt-auto border-t border-slate-100 flex flex-wrap items-center gap-2">
+            <div className="pt-3 mt-auto border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center gap-2">
               <AlertDialog open={nip85ConfirmOpen} onOpenChange={setNip85ConfirmOpen}>
                 <button
                   type="button"
@@ -717,7 +717,7 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
                   data-testid="dialog-confirm-nip85-update"
                 >
                   <div className="absolute inset-0 pointer-events-none">
@@ -731,10 +731,10 @@ export default function SettingsPage() {
                           <BrainLogo size={18} className="text-brand-deep" />
                         </div>
                         <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
+                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
                             Update NIP-85 Event?
                           </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-nip85-desc">
+                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-nip85-desc">
                             This will re-sign and republish your Brainstorm service provider event to Nostr relays. This is useful if your previous event wasn't picked up by all relays, or if you want to refresh your service provider status.
                           </AlertDialogDescription>
                         </div>
@@ -762,7 +762,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => setDeactivateConfirmOpen(true)}
                   disabled={deactivateState === "signing" || deactivateState === "publishing" || deactivateState === "success"}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-white hover:bg-red-50 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-white dark:bg-slate-900 hover:bg-red-50 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
                   data-testid="button-sp-deactivate"
                 >
                   {deactivateState === "signing" || deactivateState === "publishing" ? (
@@ -778,7 +778,7 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-red-200/40 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(239,68,68,0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-red-200/40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgba(239,68,68,0.10)] p-0 overflow-hidden"
                   data-testid="dialog-confirm-nip85-deactivate"
                 >
                   <div className="absolute inset-0 pointer-events-none">
@@ -792,10 +792,10 @@ export default function SettingsPage() {
                           <X className="h-4 w-4 text-red-500" />
                         </div>
                         <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-deactivate-title">
+                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-deactivate-title">
                             Deactivate Service Provider?
                           </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-deactivate-desc">
+                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-deactivate-desc">
                             This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
                           </AlertDialogDescription>
                         </div>
@@ -828,14 +828,14 @@ export default function SettingsPage() {
         ) : (
           <div className="flex-1 flex flex-col gap-4">
             <div className="flex items-center justify-between" data-testid="row-sp-status-inactive">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200" data-testid="badge-sp-inactive">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800" data-testid="badge-sp-inactive">
                 <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Not active</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Not active</span>
               </div>
             </div>
 
-            <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-sp-inactive-desc">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-sp-inactive-desc">
               No WoT service provider has been selected. Activate Brainstorm as your provider to publish trust scores across the Nostr ecosystem.
             </p>
 
@@ -846,7 +846,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="mt-auto pt-3 border-t border-slate-100">
+            <div className="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800/60">
               <button
                 type="button"
                 onClick={() => navigate("/dashboard")}
@@ -865,9 +865,9 @@ export default function SettingsPage() {
   );
 
   const trustCalcCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-graperank">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative h-full flex flex-col" data-testid="card-settings-graperank">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-brand-deep">
               <path d="M14.4209 5.63965H21.7009" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path opacity="0.4" d="M2.2998 5.64062H9.5798" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -879,8 +879,8 @@ export default function SettingsPage() {
             </svg>
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-gr-title">Trust Calculation</h2>
-            <p className="text-xs text-slate-500" data-testid="text-gr-subtitle">GrapeRank network analysis</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-gr-title">Trust Calculation</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-gr-subtitle">GrapeRank network analysis</p>
           </div>
         </div>
       </div>
@@ -889,21 +889,21 @@ export default function SettingsPage() {
         {grapeRankLoading ? (
           <div className="space-y-3 animate-pulse">
             <div className="flex items-center justify-between">
-              <div className="h-3 w-16 bg-slate-200 rounded" />
-              <div className="h-6 w-24 bg-slate-200 rounded-full" />
+              <div className="h-3 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+              <div className="h-6 w-24 bg-slate-200 dark:bg-slate-700 rounded-full" />
             </div>
             <div className="space-y-2">
-              <div className="h-3 w-full bg-slate-100 rounded" />
-              <div className="h-3 w-2/3 bg-slate-100 rounded" />
+              <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded" />
+              <div className="h-3 w-2/3 bg-slate-100 dark:bg-slate-800 rounded" />
             </div>
-            <div className="pt-3 border-t border-slate-100">
-              <div className="h-8 w-40 bg-slate-200 rounded-xl" />
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60">
+              <div className="h-8 w-40 bg-slate-200 dark:bg-slate-700 rounded-xl" />
             </div>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between" data-testid="row-gr-status">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</span>
               {grapeRankStatus === "success" ? (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200" data-testid="badge-gr-success">
                   <Check className="h-3 w-3 text-emerald-600" />
@@ -915,9 +915,9 @@ export default function SettingsPage() {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">{grapeRankStatus}</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200" data-testid="badge-gr-none">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800" data-testid="badge-gr-none">
                   <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">No data</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">No data</span>
                 </div>
               )}
             </div>
@@ -925,9 +925,9 @@ export default function SettingsPage() {
             <div className="space-y-3">
               {lastCalculated && (
                 <div className="flex items-center justify-between gap-2 flex-wrap" data-testid="row-gr-last-calculated">
-                  <span className="text-xs text-slate-500">Last calculated</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Last calculated</span>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <span className="text-xs text-slate-600">
+                    <span className="text-xs text-slate-600 dark:text-slate-300">
                       {new Date(typeof lastCalculated === "string" && !lastCalculated.endsWith("Z") ? lastCalculated + "Z" : lastCalculated).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                     </span>
                     <PresetBadge
@@ -940,15 +940,15 @@ export default function SettingsPage() {
               )}
               {lastTriggered && (
                 <div className="flex items-center justify-between" data-testid="row-gr-last-triggered">
-                  <span className="text-xs text-slate-500">Last triggered</span>
-                  <span className="text-xs text-slate-600">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Last triggered</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">
                     {new Date(typeof lastTriggered === "string" && !lastTriggered.endsWith("Z") ? lastTriggered + "Z" : lastTriggered).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between" data-testid="row-gr-algorithm">
-                <span className="text-xs text-slate-500">Algorithm</span>
-                <span className="text-xs font-mono text-slate-600">{grapeRankData?.data?.algorithm || "graperank"}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Algorithm</span>
+                <span className="text-xs font-mono text-slate-600 dark:text-slate-300">{grapeRankData?.data?.algorithm || "graperank"}</span>
               </div>
             </div>
 
@@ -982,7 +982,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="pt-3 mt-auto border-t border-slate-100">
+            <div className="pt-3 mt-auto border-t border-slate-100 dark:border-slate-800/60">
               <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
                 <button
                   type="button"
@@ -1010,7 +1010,7 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
                   data-testid="dialog-confirm-recalculate-settings"
                 >
                   <div className="absolute inset-0 pointer-events-none">
@@ -1024,10 +1024,10 @@ export default function SettingsPage() {
                           <BrainLogo size={18} className="text-brand-deep" />
                         </div>
                         <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-settings-title">
+                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-settings-title">
                             Recalculate GrapeRank?
                           </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-settings-desc">
+                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-recalculate-settings-desc">
                             This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
                           </AlertDialogDescription>
                         </div>
@@ -1057,23 +1057,23 @@ export default function SettingsPage() {
   );
 
   const presetsCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-presets">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="card-settings-presets">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-deep">
               <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
               <circle cx="12" cy="12" r="3" />
             </svg>
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-presets-title">Trust Perspective</h2>
-            <p className="text-xs text-slate-500" data-testid="text-presets-subtitle">Tune how Brainstorm weights trust signals</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-presets-title">Trust Perspective</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-presets-subtitle">Tune how Brainstorm weights trust signals</p>
           </div>
         </div>
       </div>
 
       <div className="p-5 space-y-4">
-        <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-presets-desc">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-presets-desc">
           Adjust how strict the verified threshold is across Brainstorm. This controls which accounts appear as "verified" on Dashboard, Network, and Profile pages.
         </p>
 
@@ -1082,7 +1082,7 @@ export default function SettingsPage() {
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 animate-pulse h-[64px]"
+                className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2.5 animate-pulse h-[64px]"
               />
             ))}
           </div>
@@ -1104,18 +1104,18 @@ export default function SettingsPage() {
                     "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 " +
                     (isActive
                       ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
-                      : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100")
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
                   }
                   data-testid={`chip-preset-${preset.key}`}
                 >
                   <span className={
                     "text-xs font-bold block " +
-                    (isActive ? "text-brand-deep" : "text-slate-500")
+                    (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")
                   }>
                     {preset.label}
                     {isPendingThis && <Loader2 className="inline ml-1 h-3 w-3 animate-spin" />}
                   </span>
-                  <span className="text-[10px] text-slate-500 block mt-0.5">{preset.desc}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">{preset.desc}</span>
                 </button>
               );
             })}
@@ -1127,19 +1127,19 @@ export default function SettingsPage() {
   );
 
   const personalizationCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="card-settings-personalization">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="card-settings-personalization">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <IdCard className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-personalization-title">Personalization</h2>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-personalization-title">Personalization</h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-bold uppercase tracking-widest text-emerald-700" data-testid="badge-personalization-preview">
                 <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
               </span>
             </div>
-            <p className="text-xs text-slate-500" data-testid="text-personalization-subtitle">Highlight what you share and what you do</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">Highlight what you share and what you do</p>
           </div>
         </div>
         {user?.npub && (
@@ -1155,7 +1155,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="p-5">
-        <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-personalization-desc">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-personalization-desc">
           Choose exactly what appears on your public profile — which sections show, the order they're in, who's featured, and the roles you play. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client.
         </p>
       </div>
@@ -1168,19 +1168,19 @@ export default function SettingsPage() {
         type="button"
         onClick={() => setAdvancedOpen((v) => !v)}
         aria-expanded={advancedOpen}
-        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
         data-testid="button-advanced-toggle"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <SettingsIcon className="h-4 w-4 text-brand-deep" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-advanced-title">Advanced</h2>
-            <p className="text-xs text-slate-500" data-testid="text-advanced-subtitle">Service provider &amp; trust recalculation — most people never need these.</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-advanced-title">Advanced</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-advanced-subtitle">Service provider &amp; trust recalculation — most people never need these.</p>
           </div>
         </div>
-        <ChevronDown className={`h-5 w-5 text-slate-500 transition-transform shrink-0 ${advancedOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-5 w-5 text-slate-500 dark:text-slate-400 transition-transform shrink-0 ${advancedOpen ? "rotate-180" : ""}`} />
       </button>
       {advancedOpen && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="grid-advanced">
@@ -1195,15 +1195,15 @@ export default function SettingsPage() {
   // ABOUT TAB
   // ─────────────────────────────────────────────────────────────────────────
   const agentSetupCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-agent-setup">      <button
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="section-agent-setup">      <button
         type="button"
         onClick={() => setAgentSetupOpen((v) => !v)}
         aria-expanded={agentSetupOpen}
-        className={`w-full text-left bg-slate-50 px-5 py-4 transition-colors hover:bg-slate-100 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${agentSetupOpen ? "border-b border-slate-200" : ""}`}
+        className={`w-full text-left bg-slate-50 dark:bg-slate-900 px-5 py-4 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${agentSetupOpen ? "border-b border-slate-200 dark:border-slate-800" : ""}`}
         data-testid="button-agent-setup-toggle"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-brand-deep" aria-hidden="true">
               <path d="M13.16 12.88V17.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M10.3 17.42L8.09 12.88L5.88 17.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1214,21 +1214,21 @@ export default function SettingsPage() {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agent-setup-title">Set up with your AI agent</h2>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agent-setup-title">Set up with your AI agent</h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-[9px] font-bold uppercase tracking-widest text-brand-deep" data-testid="badge-agent-preview">
                 <span className="h-1 w-1 rounded-full bg-brand-accent" /> Preview · coming soon
               </span>
             </div>
-            <p className="text-xs text-slate-500" data-testid="text-agent-setup-subtitle">Let an AI agent run Brainstorm for you — or wire it into your own client</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-agent-setup-subtitle">Let an AI agent run Brainstorm for you — or wire it into your own client</p>
           </div>
         </div>
-        <ChevronDown className={`h-5 w-5 text-slate-500 transition-transform shrink-0 ${agentSetupOpen ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-5 w-5 text-slate-500 dark:text-slate-400 transition-transform shrink-0 ${agentSetupOpen ? "rotate-180" : ""}`} />
       </button>
 
       {agentSetupOpen && (
       <div className="p-5 space-y-4">
         {/* Path toggle */}
-        <div className="inline-flex rounded-full p-1 bg-white/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm" data-testid="agent-path-toggle">
+        <div className="inline-flex rounded-full p-1 bg-white/70 dark:bg-slate-900/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm" data-testid="agent-path-toggle">
           {([
             { key: "selfhost" as const, label: "Self-host" },
             { key: "integrate" as const, label: "Integrate into your client" },
@@ -1241,7 +1241,7 @@ export default function SettingsPage() {
                 onClick={() => setAgentPath(opt.key)}
                 aria-current={active ? "true" : undefined}
                 className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
-                  active ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30" : "text-slate-500 hover:text-brand-deep"
+                  active ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30" : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                 }`}
                 data-testid={`agent-path-${opt.key}`}
               >
@@ -1251,7 +1251,7 @@ export default function SettingsPage() {
           })}
         </div>
 
-        <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-agent-setup-desc">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-agent-setup-desc">
           {agentPath === "selfhost"
             ? "Brainstorm is open-source. Instead of following technical steps yourself, hand them to your AI agent — copy the prompt below, or point your agent at our guide."
             : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-trust scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
@@ -1259,7 +1259,7 @@ export default function SettingsPage() {
 
         {/* The prompt to paste into the agent */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Copy this prompt into your agent</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Copy this prompt into your agent</p>
           <CodeBlock
             code={agentPath === "selfhost" ? AGENT_SELFHOST_PROMPT : AGENT_INTEGRATE_PROMPT}
             testId={`agent-prompt-${agentPath}`}
@@ -1267,10 +1267,10 @@ export default function SettingsPage() {
         </div>
 
         {/* Point the agent at the guide */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-brand-accent/15 bg-white/70 px-3.5 py-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-brand-accent/15 bg-white/70 dark:bg-slate-900/70 px-3.5 py-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Or point your agent here</p>
-            <p className="text-xs font-mono text-slate-600 truncate">{`${typeof window !== "undefined" ? window.location.origin : ""}/developers`}</p>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Or point your agent here</p>
+            <p className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate">{`${typeof window !== "undefined" ? window.location.origin : ""}/developers`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -1280,7 +1280,7 @@ export default function SettingsPage() {
                 copyToClipboard(url);
                 toast({ title: "Copied!", description: "Guide link copied to clipboard" });
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
               data-testid="button-agent-copy-guide"
             >
               <Copy className="h-3.5 w-3.5" /> Copy link
@@ -1296,7 +1296,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <p className="text-xs text-slate-500" data-testid="text-agent-footer">
+        <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-agent-footer">
           Works with Claude, ChatGPT, or any capable agent. Want early access or to help shape this?{" "}
           <a
             href={`mailto:support@nosfabrica.com?subject=${agentPath === "integrate" ? "NIP-85%20Client%20Integration" : "Brainstorm%20Agent%20Setup"}`}
@@ -1313,31 +1313,31 @@ export default function SettingsPage() {
   );
 
   const contactCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-contact-support">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="section-contact-support">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center">
             <Mail className="h-4 w-4 text-brand-deep" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-contact-support-title">Contact & Support</h2>
-            <p className="text-xs text-slate-500" data-testid="text-contact-support-subtitle">Developer outreach and general inquiries</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-contact-support-title">Contact & Support</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-contact-support-subtitle">Developer outreach and general inquiries</p>
           </div>
         </div>
       </div>
 
       <div className="p-5">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-list-your-client">
+          <div className="rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-list-your-client">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                 <Code2 className="h-4 w-4 text-brand-deep" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-client-title">List Your Client</h3>
-                <p className="text-xs text-slate-500" data-testid="text-list-client-subtitle">Get featured on Brainstorm</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-list-client-title">List Your Client</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-list-client-subtitle">Get featured on Brainstorm</p>
               </div>
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-list-client-description">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-testid="text-list-client-description">
               Built a Nostr client that supports NIP-85? Get your app featured on our Supported Clients showcase — free promotion to our growing user base.
             </p>
             <a
@@ -1348,20 +1348,20 @@ export default function SettingsPage() {
               <Mail className="h-4 w-4" />
               support@nosfabrica.com
             </a>
-            <p className="text-xs text-slate-500 mt-2" data-testid="text-list-client-helper">Include your client name, platform, and a brief description</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2" data-testid="text-list-client-helper">Include your client name, platform, and a brief description</p>
           </div>
 
-          <div className="rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-get-in-touch">
+          <div className="rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm p-5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300" data-testid="card-get-in-touch">
             <div className="flex items-center gap-3 mb-3">
-              <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                 <Mail className="h-4 w-4 text-brand-deep" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-get-in-touch-title">Get in Touch</h3>
-                <p className="text-xs text-slate-500" data-testid="text-get-in-touch-subtitle">Questions, feedback, or support</p>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-get-in-touch-title">Get in Touch</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-get-in-touch-subtitle">Questions, feedback, or support</p>
               </div>
             </div>
-            <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-get-in-touch-description">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-testid="text-get-in-touch-description">
               Have questions, feedback, or need help with Brainstorm? We'd love to hear from you.
             </p>
             <a
@@ -1379,20 +1379,20 @@ export default function SettingsPage() {
   );
 
   const aboutCard = (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden relative" data-testid="section-about">      <div className="border-b border-slate-200 px-5 py-4 transition-colors duration-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative" data-testid="section-about">      <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-4 transition-colors duration-500">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 shadow-sm ring-1 ring-slate-100 shrink-0 bg-slate-900">
+          <div className="h-9 w-9 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0 bg-slate-900">
             <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">NosFabrica</h2>
-            <p className="text-xs text-slate-500" data-testid="text-about-subtitle">Weaving the fabric of Nostr</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-about-title">NosFabrica</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-about-subtitle">Weaving the fabric of Nostr</p>
           </div>
         </div>
       </div>
 
       <div className="p-5">
-        <p className="text-sm text-slate-600 leading-relaxed mb-4" data-testid="text-about-description">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-testid="text-about-description">
           NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable trust scores.
         </p>
 
@@ -1401,66 +1401,66 @@ export default function SettingsPage() {
             href="https://github.com/NosFabrica"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-github"
           >
             <div className="h-9 w-9 rounded-xl bg-slate-900 flex items-center justify-center shrink-0 group-hover/link:bg-slate-800 transition-colors">
               <SiGithub className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-bold text-slate-900 block" data-testid="text-github-label">GitHub</span>
-              <span className="text-[11px] text-slate-500">Open-source projects</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block" data-testid="text-github-label">GitHub</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">Open-source projects</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
 
           <a
             href="https://njump.me/npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-nostr"
           >
             <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0">
               <img src={nostrLogo} alt="Nostr" className="h-full w-full object-cover" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-bold text-slate-900 block" data-testid="text-nostr-label">Nostr</span>
-              <span className="text-[11px] text-slate-500">Follow on Nostr</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block" data-testid="text-nostr-label">Nostr</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">Follow on Nostr</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
 
           <a
             href="https://nosfabrica.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
+            className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-website"
           >
             <div className="h-9 w-9 rounded-xl overflow-hidden shrink-0 bg-slate-900 group-hover/link:bg-slate-800 transition-colors">
               <img src={nosFabricaLogo} alt="NosFabrica" className="h-full w-full object-cover" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className="text-sm font-bold text-slate-900 block" data-testid="text-website-label">Website</span>
-              <span className="text-[11px] text-slate-500">nosfabrica.com</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block" data-testid="text-website-label">Website</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">nosfabrica.com</span>
             </div>
-            <ExternalLink className="h-3.5 w-3.5 text-slate-300 group-hover/link:text-brand-accent transition-colors shrink-0" />
+            <ExternalLink className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover/link:text-brand-accent transition-colors shrink-0" />
           </a>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-[11px] text-slate-500" data-testid="text-about-copyright">
-            <span className="font-semibold text-slate-500">Brainstorm</span> by NosFabrica — open-source under AGPL-3.0 license
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400" data-testid="text-about-copyright">
+            <span className="font-semibold text-slate-500 dark:text-slate-400">Brainstorm</span> by NosFabrica — open-source under AGPL-3.0 license
           </p>
-          <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100" data-testid="text-about-version">v1.0</span>
+          <span className="text-[10px] font-mono text-slate-300 dark:text-slate-600 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-100 dark:border-slate-800/60" data-testid="text-about-version">v1.0</span>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-settings">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-settings">
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="settings" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
@@ -1474,7 +1474,7 @@ export default function SettingsPage() {
 
           {/* Tab navigation — segmented pill, matching the FAQ page */}
           <div className="max-w-full overflow-x-auto scrollbar-hide" data-testid="settings-tab-bar">
-            <div className="inline-flex rounded-full p-1 bg-white/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm">
+            <div className="inline-flex rounded-full p-1 bg-white/70 dark:bg-slate-900/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm">
               {TABS.map((tab) => {
                 const active = activeTab === tab.key;
                 return (
@@ -1485,7 +1485,7 @@ export default function SettingsPage() {
                     className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
                       active
                         ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
-                        : "text-slate-500 hover:text-brand-deep"
+                        : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                     }`}
                     data-testid={`tab-${tab.key}`}
                   >

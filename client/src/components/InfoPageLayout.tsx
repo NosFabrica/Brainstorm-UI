@@ -37,7 +37,7 @@ export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid={testId}
     >
       <PageBackground />

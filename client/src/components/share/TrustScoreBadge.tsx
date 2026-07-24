@@ -54,7 +54,7 @@ export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span
-            className="font-bold text-slate-900 leading-none tabular-nums"
+            className="font-bold text-slate-900 dark:text-slate-100 leading-none tabular-nums"
             style={{ fontFamily: "var(--font-display)", fontSize: Math.round(size * 0.34) }}
           >
             {hasScore ? pct : "—"}

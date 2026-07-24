@@ -156,10 +156,10 @@ const exampleQueries = ["Authors", "Journalists", "Podcasts"];
 const ringChip = [
   "bg-brand-accent/15 border-brand-accent/30",
   "bg-brand-accent/10 border-brand-accent/20",
-  "bg-slate-100 border-slate-200",
-  "bg-slate-50 border-slate-200",
+  "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-800",
+  "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800",
 ];
-const ringIcon = ["text-brand-deep", "text-[#4b49a0]", "text-slate-500", "text-slate-400"];
+const ringIcon = ["text-brand-deep", "text-[#4b49a0]", "text-slate-500 dark:text-slate-400", "text-slate-400 dark:text-slate-500"];
 const ringFade = [1, 0.94, 0.88, 0.82];
 
 /**
@@ -238,14 +238,14 @@ export default function WhatIsWotPage() {
               <div className="h-px w-8 bg-brand-accent/40" />
             </div>
             <h1
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05]"
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.05]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-wot-title"
             >
               Search that knows <span className="text-brand-deep">who to trust</span>.
             </h1>
             <p
-              className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto"
+              className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"
               data-testid="text-wot-subtitle"
             >
               When you search, Brainstorm quietly looks at what the people you trust (and the people they
@@ -260,14 +260,14 @@ export default function WhatIsWotPage() {
               className="mt-8 max-w-xl mx-auto"
             >
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500 pointer-events-none" />
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search for real people and trusted voices"
                   aria-label="Search Brainstorm"
-                  className="w-full rounded-full border border-slate-200 bg-white py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 placeholder:text-slate-400 shadow-[0_10px_34px_-12px_rgb(var(--brand-deep)/0.25)] focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition"
+                  className="w-full rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-4 pl-12 pr-14 sm:pr-[7.5rem] text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[0_10px_34px_-12px_rgb(var(--brand-deep)/0.25)] focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition"
                   data-testid="input-wot-search"
                 />
                 <button
@@ -284,13 +284,13 @@ export default function WhatIsWotPage() {
 
             {/* Example queries — one click runs the real search */}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-[13px] text-slate-400">Try:</span>
+              <span className="text-[13px] text-slate-400 dark:text-slate-500">Try:</span>
               {exampleQueries.map((q) => (
                 <button
                   key={q}
                   type="button"
                   onClick={() => runSearch(q)}
-                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[13px] text-slate-600 hover:border-brand-accent/40 hover:text-indigo-600 transition-colors"
+                  className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-1.5 text-[13px] text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-indigo-600 transition-colors"
                   data-testid={`chip-${q.toLowerCase()}`}
                 >
                   {q}
@@ -310,7 +310,7 @@ export default function WhatIsWotPage() {
 
           {/* Wide cinematic photo band */}
           <div
-            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.30)] aspect-[3/2] sm:aspect-[2/1] bg-slate-900"
+            className="relative rounded-3xl overflow-hidden ring-1 ring-slate-200 dark:ring-slate-800 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.30)] aspect-[3/2] sm:aspect-[2/1] bg-slate-900"
             data-testid="wot-hero-media"
           >
             <motion.img
@@ -341,14 +341,14 @@ export default function WhatIsWotPage() {
             data-testid="section-wot-simple"
           >
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="h-9 w-9 rounded-xl bg-white border border-brand-accent/25 flex items-center justify-center shrink-0">
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/25 flex items-center justify-center shrink-0">
                 <TrustedTipIcon className="h-[18px] w-[18px] text-brand-deep" />
               </div>
               <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                 Think of it like this
               </span>
             </div>
-            <p className="text-lg text-slate-700 leading-relaxed max-w-3xl">
+            <p className="text-lg text-slate-700 dark:text-slate-200 leading-relaxed max-w-3xl">
               Think about the last time a friend told you "you have to try this." That one tip probably
               beat a hundred ads and a pile of anonymous reviews. Brainstorm works the same way. It pays
               attention to the people you already trust, so the real stuff rises and the noise fades out.
@@ -359,14 +359,14 @@ export default function WhatIsWotPage() {
           <section data-testid="section-wot-distance">
             <div className="flex items-center gap-2.5 mb-2.5">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Trust fades with distance
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <p className="text-[15px] text-slate-500 leading-relaxed max-w-2xl mb-7">
+            <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-7">
               Just like real life. You trust your friends more than strangers, and their
               recommendations more than a stranger's. The further someone is from your circle, the
               less they count, until they earn it.
@@ -377,7 +377,7 @@ export default function WhatIsWotPage() {
                 return (
                   <div
                     key={i}
-                    className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 sm:p-6 flex flex-col"
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5 sm:p-6 flex flex-col"
                     style={{ opacity: ringFade[i] }}
                     data-testid={`card-ring-${i}`}
                   >
@@ -385,19 +385,19 @@ export default function WhatIsWotPage() {
                       <div className={"h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 " + ringChip[i]}>
                         <Icon className={"h-5 w-5 " + ringIcon[i]} />
                       </div>
-                      <span className="text-sm font-bold text-slate-300 tabular-nums" style={{ fontFamily: "var(--font-display)" }}>
+                      <span className="text-sm font-bold text-slate-300 dark:text-slate-600 tabular-nums" style={{ fontFamily: "var(--font-display)" }}>
                         {String(i + 1).padStart(2, "0")}
                       </span>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 tracking-tight">{ring.label}</h3>
-                    <p className="mt-1.5 text-[14px] text-slate-600 leading-relaxed flex-1">{ring.detail}</p>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">{ring.label}</h3>
+                    <p className="mt-1.5 text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed flex-1">{ring.detail}</p>
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] font-mono font-semibold tracking-[0.15em] text-brand-accent uppercase">
                           {ring.levelLabel}
                         </span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                         <div className={`h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep ${ringWidth[ring.level]}`} />
                       </div>
                     </div>
@@ -411,17 +411,17 @@ export default function WhatIsWotPage() {
           <section data-testid="section-wot-signals">
             <div className="flex items-center gap-2.5 mb-2.5">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Actions speak louder than claims
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <p className="text-[15px] text-slate-500 leading-relaxed max-w-2xl mb-7">
+            <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mb-7">
               Brainstorm picks up two kinds of trust signal from your community: what people{" "}
-              <span className="font-semibold text-slate-700">do</span>, and what they{" "}
-              <span className="font-semibold text-slate-700">say</span>. Together they tell a fuller story
+              <span className="font-semibold text-slate-700 dark:text-slate-200">do</span>, and what they{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-200">say</span>. Together they tell a fuller story
               than either one alone.
             </p>
             <div className="grid sm:grid-cols-2 gap-4">
@@ -430,7 +430,7 @@ export default function WhatIsWotPage() {
                 return (
                   <div
                     key={i}
-                    className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-7"
+                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
                     data-testid={`card-signal-${i}`}
                   >
                     <div className="flex items-center gap-3 mb-4">
@@ -441,16 +441,16 @@ export default function WhatIsWotPage() {
                         {col.kicker}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-3">{col.title}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-3">{col.title}</h3>
                     <ul className="space-y-2 mb-4">
                       {col.examples.map((ex, j) => (
-                        <li key={j} className="flex items-start gap-2.5 text-[15px] text-slate-600 leading-snug">
+                        <li key={j} className="flex items-start gap-2.5 text-[15px] text-slate-600 dark:text-slate-300 leading-snug">
                           <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-brand-accent shrink-0" />
                           {ex}
                         </li>
                       ))}
                     </ul>
-                    <p className="text-[14px] text-slate-500 leading-relaxed border-t border-slate-100 pt-4">
+                    <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-4">
                       {col.insight}
                     </p>
                   </div>
@@ -488,12 +488,12 @@ export default function WhatIsWotPage() {
           <section data-testid="section-wot-usecases">
             <div className="flex items-center gap-2.5 mb-7">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Where it shines
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {useCases.map((uc, i) => {
@@ -501,30 +501,30 @@ export default function WhatIsWotPage() {
                 return (
                   <div
                     key={i}
-                    className="rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6"
+                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6"
                     data-testid={`card-usecase-${i}`}
                   >
                     <div className="h-11 w-11 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
                       <Icon className="h-5 w-5 text-brand-deep" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">{uc.title}</h3>
-                    <p className="text-[15px] text-slate-600 leading-relaxed">{uc.body}</p>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{uc.title}</h3>
+                    <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{uc.body}</p>
                   </div>
                 );
               })}
             </div>
 
             {/* Facts strip */}
-            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 bg-slate-200">
+            <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-200 dark:bg-slate-800">
               {facts.map((f, i) => (
-                <div key={i} className="bg-white p-5 sm:p-6" data-testid={`fact-${i}`}>
+                <div key={i} className="bg-white dark:bg-slate-900 p-5 sm:p-6" data-testid={`fact-${i}`}>
                   <div
                     className="text-xl sm:text-2xl font-bold text-brand-deep tracking-tight"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {f.value}
                   </div>
-                  <div className="mt-1 text-[13px] text-slate-500 leading-snug">{f.label}</div>
+                  <div className="mt-1 text-[13px] text-slate-500 dark:text-slate-400 leading-snug">{f.label}</div>
                 </div>
               ))}
             </div>
@@ -534,26 +534,26 @@ export default function WhatIsWotPage() {
           <section data-testid="section-wot-faq">
             <div className="flex items-center gap-2.5 mb-5">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Common questions
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm px-5 sm:px-7">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm px-5 sm:px-7">
               <Accordion type="single" collapsible className="w-full">
                 {faqs.map((faq, i) => (
                   <AccordionItem
                     key={i}
                     value={`faq-${i}`}
-                    className="border-slate-100 last:border-0"
+                    className="border-slate-100 dark:border-slate-800/60 last:border-0"
                     data-testid={`faq-${i}`}
                   >
-                    <AccordionTrigger className="text-left text-[15px] sm:text-base font-semibold text-slate-900 hover:no-underline hover:text-brand-deep">
+                    <AccordionTrigger className="text-left text-[15px] sm:text-base font-semibold text-slate-900 dark:text-slate-100 hover:no-underline hover:text-brand-deep">
                       {faq.q}
                     </AccordionTrigger>
-                    <AccordionContent className="text-[15px] text-slate-600 leading-relaxed">
+                    <AccordionContent className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
                       {faq.a}
                     </AccordionContent>
                   </AccordionItem>

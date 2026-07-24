@@ -247,13 +247,13 @@ export default function EventPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
         maxWidthClass="max-w-2xl"
         actions={
           <>
             {authorNpub && (
-              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-brand-deep">
+              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep">
                 View profile <ArrowRight className="h-4 w-4" />
               </Link>
             )}
@@ -272,18 +272,18 @@ export default function EventPage() {
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
         {!ptr ? (
           <div className="text-center py-20">
-            <MessageSquare className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">That note link isn't valid.</p>
+            <MessageSquare className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">That note link isn't valid.</p>
             <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
           </div>
         ) : eventQuery.isLoading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400">
+          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : !note ? (
           <div className="text-center py-20">
-            <MessageSquare className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">We couldn't find this note on the relays.</p>
+            <MessageSquare className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn't find this note on the relays.</p>
             {openInApp && (
               <a href={openInApp} className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white">
                 <Smartphone className="h-4 w-4" /> Try opening in an app
@@ -296,12 +296,12 @@ export default function EventPage() {
             {showSetupNudge && (
               <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2.5" data-testid="event-setup-nudge">
                 <div className="min-w-0 flex-1 text-[13px] leading-snug">
-                  <span className="font-semibold text-slate-900">You're in.</span>{" "}
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">You're in.</span>{" "}
                   <Link href="/settings?tab=profile&focus=backup" className="font-semibold text-brand-link hover:underline">Save a backup</Link>
-                  <span className="text-slate-600"> so you never lose this account · </span>
+                  <span className="text-slate-600 dark:text-slate-300"> so you never lose this account · </span>
                   <Link href="/" className="font-semibold text-brand-link hover:underline">Explore Brainstorm →</Link>
                 </div>
-                <button type="button" onClick={() => setSetupDismissed(true)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 hover:text-slate-700 hover:bg-amber-100 transition-colors" data-testid="event-setup-dismiss">
+                <button type="button" onClick={() => setSetupDismissed(true)} aria-label="Dismiss" className="shrink-0 rounded-lg p-1 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-amber-100 transition-colors" data-testid="event-setup-dismiss">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -309,16 +309,16 @@ export default function EventPage() {
             {/* Author header */}
             <div className="flex items-center gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
-                <Avatar className="h-11 w-11 rounded-full bg-white border border-slate-200">
+                <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                   {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-900 truncate">{authorName}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
-                  <span className="text-xs text-slate-400">{ago(note.created_at)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>
               </Link>
               {typeof score01 === "number" && Number.isFinite(score01) && (
@@ -327,7 +327,7 @@ export default function EventPage() {
             </div>
 
             {/* The event — notes via the rich card; media kinds render their media. */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm" data-testid="event-note">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm" data-testid="event-note">
               {note.kind === 30311 ? (
                 <LiveHero event={note} />
               ) : note.kind === 31337 ? (
@@ -340,7 +340,7 @@ export default function EventPage() {
                 <div data-testid="event-media">
                   {mediaUrls.map((u, i) =>
                     VID_RE.test(u) ? (
-                      <video key={i} src={u} controls preload="metadata" className="mb-2 w-full rounded-xl border border-slate-200 max-h-[36rem]" />
+                      <video key={i} src={u} controls preload="metadata" className="mb-2 w-full rounded-xl border border-slate-200 dark:border-slate-800 max-h-[36rem]" />
                     ) : (
                       <img
                         key={i}
@@ -348,7 +348,7 @@ export default function EventPage() {
                         alt=""
                         loading="lazy"
                         onClick={() => openLightbox(galleryImages, Math.max(0, galleryImages.indexOf(u)))}
-                        className="mb-2 w-full rounded-xl border border-slate-200 object-contain max-h-[36rem] cursor-zoom-in"
+                        className="mb-2 w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain max-h-[36rem] cursor-zoom-in"
                       />
                     ),
                   )}
@@ -371,9 +371,9 @@ export default function EventPage() {
                 when the thread's own signup gate is already showing (no duplicate). */}
             {!threadGated && (
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="event-funnel">
-              <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
-              <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
-                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
+              <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own Web of Trust.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
@@ -382,9 +382,9 @@ export default function EventPage() {
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
               </Link>
-              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
+              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>}
               {!loggedIn && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-brand-link hover:underline" data-testid="event-funnel-signin">Sign in →</Link>
                 </p>
               )}
@@ -397,7 +397,7 @@ export default function EventPage() {
             )}
 
             <div className="mt-8 text-center">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
                 Shared via <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
               </p>
             </div>

@@ -60,7 +60,7 @@ export default function PersonalizationPage() {
               {/* Copy */}
               <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-brand-accent/25 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/25 flex items-center justify-center shrink-0">
                     <Eye className="h-[18px] w-[18px] text-brand-deep" />
                   </div>
                   <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
@@ -68,18 +68,18 @@ export default function PersonalizationPage() {
                   </span>
                 </div>
                 <div className="space-y-4">
-                  <p className="text-lg text-slate-700 leading-relaxed">
+                  <p className="text-lg text-slate-700 dark:text-slate-200 leading-relaxed">
                     Every profile's verification score starts at{" "}
-                    <span className="font-semibold text-slate-900">0</span> — "unverified" — with one exception:
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">0</span> — "unverified" — with one exception:
                     the reference profile (the point of view), whose score is fixed at{" "}
-                    <span className="font-semibold text-slate-900">100</span>.
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">100</span>.
                   </p>
-                  <p className="text-[15px] text-slate-600 leading-relaxed">
+                  <p className="text-[15px] text-slate-600 dark:text-slate-300 dark:text-slate-600 leading-relaxed">
                     Think of it this way: you are, by default, 100 percent certain that you are not an
                     impersonator or some other bad actor. Everyone else on the network is presumed "unverified" until
                     your trusted community says otherwise.
                   </p>
-                  <p className="text-[15px] text-slate-500 leading-relaxed">
+                  <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     Which trusted community? That's the choice you get to make.
                   </p>
                 </div>
@@ -91,16 +91,16 @@ export default function PersonalizationPage() {
           <section data-testid="card-two-povs">
             <div className="flex items-center gap-2.5 mb-7">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Two points of view
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div
-                className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-7"
+                className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
                 data-testid="card-house-pov"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -111,15 +111,15 @@ export default function PersonalizationPage() {
                     Default
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">House Point of View</h3>
-                <p className="text-[15px] text-slate-600 leading-relaxed">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">House Point of View</h3>
+                <p className="text-[15px] text-slate-600 dark:text-slate-300 dark:text-slate-600 leading-relaxed">
                   Uses trust scores selected by the operator of this instance — the "house." Available to
                   everyone, with no account and no sign-in required.
                 </p>
               </div>
 
               <div
-                className="rounded-2xl border border-emerald-200 bg-white shadow-sm p-6 sm:p-7"
+                className="rounded-2xl border border-emerald-200 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
                 data-testid="card-my-pov"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -130,8 +130,8 @@ export default function PersonalizationPage() {
                     Personalized
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">My Point of View</h3>
-                <p className="text-[15px] text-slate-600 leading-relaxed">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">My Point of View</h3>
+                <p className="text-[15px] text-slate-600 dark:text-slate-300 dark:text-slate-600 leading-relaxed">
                   Your personalized perspective. Uses trust scores derived from your extended community,
                   calculated and made available to platforms like{" "}
                   <a
@@ -166,24 +166,24 @@ export default function PersonalizationPage() {
           <section data-testid="card-getting-personalized">
             <div className="flex items-center gap-2.5 mb-7">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Getting personalized
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
               {steps.map((step, i) => {
                 const Icon = step.icon;
                 return (
                   <div
                     key={i}
-                    className="flex items-center gap-3.5 sm:gap-4 px-4 py-3.5 sm:px-5 sm:py-4 hover:bg-slate-50/60 transition-colors"
+                    className="flex items-center gap-3.5 sm:gap-4 px-4 py-3.5 sm:px-5 sm:py-4 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                     data-testid={`step-personalize-${i}`}
                   >
                     <span
-                      className="text-sm font-bold text-slate-300 tabular-nums leading-none w-5 shrink-0"
+                      className="text-sm font-bold text-slate-300 dark:text-slate-600 tabular-nums leading-none w-5 shrink-0"
                       style={{ fontFamily: "var(--font-display)" }}
                     >
                       {String(i + 1).padStart(2, "0")}
@@ -191,7 +191,7 @@ export default function PersonalizationPage() {
                     <div className="h-9 w-9 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
                       <Icon className="h-[18px] w-[18px] text-brand-deep" />
                     </div>
-                    <p className="min-w-0 text-[14px] sm:text-[15px] text-slate-700 leading-snug">{step.text}</p>
+                    <p className="min-w-0 text-[14px] sm:text-[15px] text-slate-700 dark:text-slate-200 leading-snug">{step.text}</p>
                   </div>
                 );
               })}
@@ -215,17 +215,17 @@ export default function PersonalizationPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
               <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                 Keep reading
               </p>
-              <p className="text-base font-semibold text-slate-900">
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Curious how the underlying mechanics work?
               </p>
-              <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">See How Search Works</p>
             </div>
             <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>

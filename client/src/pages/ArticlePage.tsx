@@ -108,7 +108,7 @@ export default function ArticlePage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
         actions={authorNpub ? (
@@ -121,18 +121,18 @@ export default function ArticlePage() {
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
         {!ptr ? (
           <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">That article link isn’t valid.</p>
+            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">That article link isn’t valid.</p>
             <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
           </div>
         ) : articleQuery.isLoading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400">
+          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : !ev ? (
           <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">We couldn’t find this article on the relays.</p>
+            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
             <button
               type="button"
               onClick={() => openArticleInApp(naddr)}
@@ -144,26 +144,26 @@ export default function ArticlePage() {
         ) : (
           <article>
             {image && (
-              <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200" />
+              <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
             )}
-            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
-            {summary && <p className="mt-2 text-lg text-slate-500 leading-snug">{summary}</p>}
+            {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
 
             {/* Author + trust + date */}
-            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 pb-5">
+            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
-                <Avatar className="h-10 w-10 rounded-full bg-white border border-slate-200">
+                <Avatar className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                   {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-900 truncate">{authorName}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
-                  <span className="text-xs text-slate-400">{publishedAgo(ev)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
               {typeof score01 === "number" && Number.isFinite(score01) && (
@@ -189,9 +189,9 @@ export default function ArticlePage() {
             {/* WoT signup funnel — hidden when the thread's own signup gate is showing. */}
             {!threadGated && (
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="article-funnel">
-              <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
-              <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
-                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
+              <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own Web of Trust.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
@@ -200,9 +200,9 @@ export default function ArticlePage() {
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
               </Link>
-              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
+              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>}
               {!loggedIn && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-brand-link hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
                 </p>
               )}
@@ -215,7 +215,7 @@ export default function ArticlePage() {
         )}
 
         <div className="mt-10 text-center">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             Read on <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
           </p>
         </div>

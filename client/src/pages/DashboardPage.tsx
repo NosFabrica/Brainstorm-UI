@@ -824,7 +824,7 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
@@ -842,20 +842,20 @@ export default function DashboardPage() {
 
               {nip85Activated && publishDone ? (
               <div
-                className="rounded-2xl bg-white border border-slate-200 shadow-sm relative self-start md:self-end w-full max-w-sm overflow-hidden"
+                className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
               >
                 <button
                   type="button"
                   onClick={() => setWotExpanded((v) => !v)}
                   aria-expanded={wotExpanded}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 transition-colors"
+                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/60 transition-colors"
                   data-testid="button-wot-expand"
                 >
                   <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
                     <BrainLogo size={14} className="text-brand-deep" />
                   </div>
-                  <span className="text-[13px] font-semibold text-slate-900 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -864,17 +864,17 @@ export default function DashboardPage() {
                     <span className="text-[10px] font-semibold text-emerald-700">Active</span>
                   </span>
                   <span className="flex-1" />
-                  <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
                 </button>
                 {wotExpanded && (
-                <div className="px-3.5 pb-3.5 border-t border-slate-100">
+                <div className="px-3.5 pb-3.5 border-t border-slate-100 dark:border-slate-800/60">
 
-                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400 dark:text-slate-500">
                     {history?.last_time_calculated_graperank && (
                       <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
                     )}
                     <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
-                      <Info className="h-3 w-3 text-slate-300" />
+                      <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
                     </span>
                     {grapeRank?.graperank_preset_used && (
                       <span className="inline-flex items-center gap-1">
@@ -904,10 +904,10 @@ export default function DashboardPage() {
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold text-slate-900 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
+                            <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
                               Publish your assistant
                             </p>
-                            <p className="text-[10px] text-slate-500 leading-tight truncate">
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate">
                               Speak your trust scores to compatible apps
                             </p>
                           </div>
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                               setAssistantDismissedStorage(true);
                               setAssistantDismissed(true);
                             }}
-                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0"
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0"
                             aria-label="Dismiss publish assistant prompt"
                             data-testid="button-assistant-inline-dismiss"
                           >
@@ -944,13 +944,13 @@ export default function DashboardPage() {
                     )}
                   </AnimatePresence>
 
-                  <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60">
                         <div className="flex items-center gap-1.5 mb-2.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Readable in compatible apps</span>
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Readable in compatible apps</span>
                           <div className="relative group/info">
                             <button
                               type="button"
-                              className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
+                              className="h-3.5 w-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                               onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Compatible Clients?"
                               data-testid="button-compatible-clients-info"
@@ -963,13 +963,13 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
+                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
                           </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
+                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
+                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-orange-700 transition-colors">Nostria</span>
                           </a>
                         </div>
                         <button
@@ -990,18 +990,18 @@ export default function DashboardPage() {
               </div>
               ) : (
               <div
-                className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
+                className="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
                 data-testid="card-overall-trust-score"
               >
                 <div className="flex flex-col leading-tight min-w-0">
-                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
+                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Trust signals</span>
                   {triggerGrapeRankMutation.isPending ? (
                     <span className="text-xs text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
                   ) : grapeRankScore ? (
-                    <span className="text-xs text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
                   ) : publishDone ? (
@@ -1028,17 +1028,17 @@ export default function DashboardPage() {
                       Calculating…
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium" data-testid="text-overall-trust-score-sub">
                       Awaiting calculation
                     </span>
                   )}
                   {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                    <span className="text-xs text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
+                    <span className="text-xs text-slate-400 dark:text-slate-500 mt-0.5" data-testid="text-trust-signals-updated">
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
                   )}
                 </div>
-                <div className="w-px h-6 bg-slate-200 shrink-0" />
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
                 <button
                   onClick={() => setRecalcConfirmOpen(true)}
                   disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
                 <div className="absolute inset-0 pointer-events-none">
@@ -1078,10 +1078,10 @@ export default function DashboardPage() {
                         <BrainLogo size={18} className="text-indigo-800" />
                       </div>
                       <div className="min-w-0">
-                        <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                        <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
                           Recalculate GrapeRank?
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
+                        <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
                           This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
                         </AlertDialogDescription>
                       </div>
@@ -1111,7 +1111,7 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-red-200/60 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-red-200/60 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
                   data-testid="graperank-failed"
                 >
                   <div className="h-8 w-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
@@ -1139,13 +1139,13 @@ export default function DashboardPage() {
                 transition={{ duration: 0.4 }}
                 className="mb-6"
               >
-                <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
+                <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
                   <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
-                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
-                    <span className="font-semibold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                    <span className="hidden sm:inline text-slate-500">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug truncate">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
+                    <span className="hidden sm:inline text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
                   </p>
                   <button
                     type="button"
@@ -1159,7 +1159,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={markInviteCardSeen}
-                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     aria-label="Dismiss"
                     data-testid="button-invite-grow-dismiss"
                   >
@@ -1572,20 +1572,20 @@ export default function DashboardPage() {
               className="mb-6"
             >
               <Card
-                className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
+                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative"
                 data-testid="card-nip85-cta"
               >
 
                 <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0">
+                  <div className="h-12 w-12 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0">
                     <BrainLogo size={24} />
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
                       Select Brainstorm as your Web of Trust Service Provider
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
                       Sign a nostr note that tells compatible clients where to find your personalized trust scores.
                     </p>
                   </div>
@@ -1609,7 +1609,7 @@ export default function DashboardPage() {
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);
                       }}
-                      className="text-xs text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
+                      className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors whitespace-nowrap"
                       data-testid="button-nip85-dismiss"
                     >
                       Maybe later
@@ -1635,7 +1635,7 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
-                className={`bg-white border-slate-200 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
+                className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
                 title={!isCalculationComplete ? "Available after calculation completes" : undefined}
                 data-testid="card-social-graph"
               >
@@ -1643,17 +1643,17 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
+                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
                       <Users className="h-3.5 w-3.5" />
                     </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Social Graph
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1664,12 +1664,12 @@ export default function DashboardPage() {
                         <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
                           <Award className="h-3 w-3" />
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Followers</span>
                       </div>
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
+                      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-followers-count">
                         {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
                       {isCalculationComplete && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
                           <span>Explore</span>
@@ -1679,7 +1679,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1690,12 +1690,12 @@ export default function DashboardPage() {
                         <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
                           <UserPlus className="h-3 w-3" />
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Following</span>
                       </div>
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
+                      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-following-count">
                         {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {isCalculationComplete && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
                           <span>Explore</span>
@@ -1706,12 +1706,12 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="mt-auto flex items-center justify-between pt-2">
-                    <div className="inline-flex items-center gap-2 text-xs font-mono text-slate-500">
+                    <div className="inline-flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       Live
                     </div>
                     <span
-                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 ${isCalculationComplete ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors" : ""}`}
+                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 ${isCalculationComplete ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
                       onClick={() => isCalculationComplete && navigate("/network")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1727,7 +1727,7 @@ export default function DashboardPage() {
 
             <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
               <DialogContent
-                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 dark:from-slate-900/92 dark:via-slate-900/88 dark:to-indigo-950/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
                 data-testid="dialog-network-alerts-preview"
               >
                 <div className="absolute inset-0 pointer-events-none">
@@ -1749,14 +1749,14 @@ export default function DashboardPage() {
                     <DialogHeader>
                       <div className="flex items-start justify-between gap-4 pr-10">
                         <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-white/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep" data-testid="icon-network-alerts-dialog">
+                          <div className="h-10 w-10 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep" data-testid="icon-network-alerts-dialog">
                             <ShieldAlert className="h-5 w-5" />
                           </div>
                           <div className="min-w-0">
-                            <DialogTitle className="text-xl font-bold text-slate-900 leading-none tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
+                            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
                               Network Alerts
                             </DialogTitle>
-                            <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
+                            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
                               This feature is coming soon. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
                             </DialogDescription>
                           </div>
@@ -1766,20 +1766,20 @@ export default function DashboardPage() {
 
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 opacity-30 pointer-events-none select-none" data-testid="grid-network-alerts-dialog-signals">
                       {[{ label: "Spoof detection", desc: "Look-alikes & impostors" }, { label: "Spam pressure", desc: "Mass-follow patterns" }, { label: "Trust drops", desc: "Fast score collapse" }].map((s, idx) => (
-                        <div key={s.label} className="rounded-2xl border border-white/70 bg-white/60 backdrop-blur-md px-3 py-2.5 shadow-sm" data-testid={`card-network-alerts-dialog-signal-${idx}`}>
-                          <div className="text-xs font-bold text-slate-900" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
-                          <div className="text-xs text-slate-600 mt-1" data-testid={`text-network-alerts-dialog-signal-desc-${idx}`}>{s.desc}</div>
+                        <div key={s.label} className="rounded-2xl border border-white/70 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md px-3 py-2.5 shadow-sm" data-testid={`card-network-alerts-dialog-signal-${idx}`}>
+                          <div className="text-xs font-bold text-slate-900 dark:text-slate-100" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
+                          <div className="text-xs text-slate-600 dark:text-slate-300 mt-1" data-testid={`text-network-alerts-dialog-signal-desc-${idx}`}>{s.desc}</div>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   <div className="px-6 pb-6 relative">
-                    <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden opacity-30 pointer-events-none select-none blur-[2px]">
-                      <div className="px-4 py-3 border-b border-slate-200/60 bg-gradient-to-r from-white/75 to-indigo-50/45">
+                    <div className="rounded-3xl border border-slate-200/70 dark:border-slate-800/70 bg-white/65 dark:bg-slate-900/65 backdrop-blur-md shadow-sm overflow-hidden opacity-30 pointer-events-none select-none blur-[2px]">
+                      <div className="px-4 py-3 border-b border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-white/75 to-indigo-50/45 dark:from-slate-900/75 dark:to-indigo-950/45">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
-                          <div className="text-xs font-mono text-slate-500" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-slate-100" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
+                          <div className="text-xs font-mono text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
                         </div>
                       </div>
 
@@ -1791,8 +1791,8 @@ export default function DashboardPage() {
                                 <ShieldAlert className="h-4 w-4 text-red-500" />
                               </div>
                               <div className="min-w-0">
-                                <div className="text-sm font-bold text-slate-900">Reported By</div>
-                                <div className="text-xs text-slate-500">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
+                                <div className="text-sm font-bold text-slate-900 dark:text-slate-100">Reported By</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
                               </div>
                             </div>
                             <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
@@ -1805,8 +1805,8 @@ export default function DashboardPage() {
                                 <VolumeX className="h-4 w-4 text-amber-500" />
                               </div>
                               <div className="min-w-0">
-                                <div className="text-sm font-bold text-slate-900">Muted By</div>
-                                <div className="text-xs text-slate-500">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
+                                <div className="text-sm font-bold text-slate-900 dark:text-slate-100">Muted By</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
                               </div>
                             </div>
                             <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
@@ -1816,16 +1816,16 @@ export default function DashboardPage() {
                           <div className="text-center py-6" data-testid="row-dialog-no-signals">
                             {(overviewQuery.isLoading || statsQuery.isLoading) ? (
                               <>
-                                <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-2 animate-pulse" />
-                                <p className="text-sm font-bold text-slate-500">Loading signals...</p>
+                                <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center mx-auto mb-2 animate-pulse" />
+                                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">Loading signals...</p>
                               </>
                             ) : (
                               <>
                                 <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-2">
                                   <Check className="h-5 w-5 text-emerald-500" />
                                 </div>
-                                <p className="text-sm font-bold text-slate-900">All clear</p>
-                                <p className="text-xs text-slate-500 mt-0.5">No reports or mutes detected in your network.</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">All clear</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">No reports or mutes detected in your network.</p>
                               </>
                             )}
                           </div>
@@ -1839,7 +1839,7 @@ export default function DashboardPage() {
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <Card
-                className="bg-white border-slate-200 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
+                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
                 onClick={() => {
                   setRiskDialogOpen(true);
                   if (riskTeaserTimerRef.current) { window.clearTimeout(riskTeaserTimerRef.current); riskTeaserTimerRef.current = null; }
@@ -1871,7 +1871,7 @@ export default function DashboardPage() {
                   style={{ pointerEvents: "auto" }}
                 >
                   <div className="absolute -inset-16 bg-[conic-gradient(from_210deg_at_50%_50%,rgb(var(--brand-accent)/0.0),rgb(var(--brand-accent)/0.10),rgb(var(--brand-deep)/0.10),rgb(var(--brand-accent)/0.0))] blur-2xl opacity-70" />
-                  <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px]" />
+                  <div className="absolute inset-0 bg-white/55 dark:bg-slate-900/55 backdrop-blur-[1px]" />
                   <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.02)_45%,rgba(15,23,42,0.00)_60%)]" />
                 </div>
 
@@ -1881,21 +1881,21 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col h-full gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
+                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
                       <ShieldAlert className="h-3.5 w-3.5" />
                     </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Network Alerts
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-500 leading-tight">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
                     {(overviewQuery.isLoading || statsQuery.isLoading) ? (
-                      <span className="text-slate-400">Loading signals...</span>
+                      <span className="text-slate-400 dark:text-slate-500">Loading signals...</span>
                     ) : (reportedByCount + mutedByCount) > 0 ? (
-                      <><strong className="text-slate-900">{reportedByCount + mutedByCount} signals</strong> from your network.</>
+                      <><strong className="text-slate-900 dark:text-slate-100">{reportedByCount + mutedByCount} signals</strong> from your network.</>
                     ) : (
-                      <span className="text-slate-400">No risk signals detected.</span>
+                      <span className="text-slate-400 dark:text-slate-500">No risk signals detected.</span>
                     )}
                   </p>
 
@@ -1907,7 +1907,7 @@ export default function DashboardPage() {
                             <ShieldAlert className="h-2.5 w-2.5 text-red-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
-                            <p className="text-xs font-bold text-slate-800 leading-none">Reported By</p>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">Reported By</p>
                             <p className="text-xs text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
@@ -1920,7 +1920,7 @@ export default function DashboardPage() {
                             <VolumeX className="h-2.5 w-2.5 text-amber-500" />
                           </div>
                           <div className="min-w-0 flex flex-col">
-                            <p className="text-xs font-bold text-slate-800 leading-none">Muted By</p>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-none">Muted By</p>
                             <p className="text-xs text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
                           </div>
                         </div>
@@ -1932,18 +1932,18 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
+                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
                     {isErrorState ? (
                       <>
-                        <Network className="w-5 h-5 text-slate-300 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
+                        <Network className="w-5 h-5 text-slate-300 dark:text-slate-600 mb-2" />
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Calculate scores to unlock</span>
                       </>
                     ) : (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-400 dark:text-slate-500 mb-2" />
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Scores calculating...</span>
                       </>
                     )}
                   </div>
@@ -1953,10 +1953,10 @@ export default function DashboardPage() {
                 <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
                         <Network className="h-3.5 w-3.5" />
                       </div>
-                      <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                         Extended Reach
                       </span>
                     </div>
@@ -1964,13 +1964,13 @@ export default function DashboardPage() {
                       <TooltipTrigger>
                         <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 transition-colors" />
                       </TooltipTrigger>
-                      <TooltipContent className="bg-white/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 shadow-xl p-3">
+                      <TooltipContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 dark:text-slate-200 shadow-xl p-3">
                         <div className="space-y-1 max-w-xs">
                           <p className="font-bold text-xs text-brand-deep">About Extended Reach</p>
                           <p className="text-xs leading-relaxed">
                             This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
                           </p>
-                          <p className="text-xs leading-relaxed border-t border-slate-100 pt-1 mt-1">
+                          <p className="text-xs leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-1 mt-1">
                             <span className="font-semibold text-indigo-600">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
                           </p>
                         </div>
@@ -1979,14 +1979,14 @@ export default function DashboardPage() {
                   </div>
 
                   <div>
-                    <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
+                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
                       {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
                     </div>
-                    <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
 
-                  <div className="mt-auto space-y-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                    <div className="flex justify-between text-xs font-medium text-slate-600">
+                  <div className="mt-auto space-y-2 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60">
+                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
                       <span>Reach Depth</span>
                       <span className="text-indigo-600 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
                     </div>
@@ -2006,7 +2006,7 @@ export default function DashboardPage() {
                       className={isCalculationComplete ? "cursor-pointer py-1" : "cursor-not-allowed py-1 opacity-50"}
                       disabled={!isCalculationComplete}
                     />
-                    <div className="flex justify-between text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                    <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">
                       <span>Direct</span>
                       <span>Global</span>
                     </div>
@@ -2019,20 +2019,20 @@ export default function DashboardPage() {
           {!hasNoFollowing && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
+              <Card className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
                 {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
+                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
                     {isErrorState ? (
                       <>
-                        <Users className="w-6 h-6 text-slate-300 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
-                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                        <Users className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-2" />
+                        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Calculate scores to unlock</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Network health data will appear once scores are ready</span>
                       </>
                     ) : (
                       <>
-                        <Loader2 className="w-6 h-6 animate-spin text-slate-400 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
-                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
+                        <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500 mb-2" />
+                        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Scores calculating...</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Network health data will appear once scores are ready</span>
                       </>
                     )}
                   </div>
@@ -2040,17 +2040,17 @@ export default function DashboardPage() {
                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                 <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
-                <CardHeader className="bg-slate-50 border-b border-slate-200 py-3 px-5">
+                <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-3 px-5">
                   <div className="flex flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-brand-deep ring-1 ring-slate-100">
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
                         <Users className="h-3.5 w-3.5" />
                       </div>
-                      <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
-                        <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "var(--font-display)" }}>
+                      <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm relative">
+                        <CardTitle className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight relative z-10" style={{ fontFamily: "var(--font-display)" }}>
                           Network Health
                         </CardTitle>
-                        <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
+                        <CardDescription className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
                           {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
                         </CardDescription>
                       </div>
@@ -2103,13 +2103,13 @@ export default function DashboardPage() {
                       <div className="col-span-1 sm:col-span-2 mb-1">
                         <div className="flex items-center justify-between gap-2">
                           <div>
-                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
-                            <p className="text-xs text-slate-500">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
                           </div>
                           {isHop1 && (
-                            <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
+                            <div className="flex items-center rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 shrink-0" data-testid="toggle-health-view">
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
+                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
                             </div>
                           )}
                         </div>
@@ -2120,19 +2120,19 @@ export default function DashboardPage() {
                         const canClick = isCalculationComplete && calcDone && !!tier;
                         const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
                         return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1 gap-2">
                               <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 min-w-0">
-                                <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
+                                <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">{dist.name}</p>
+                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
-                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
+                              <span className="text-xs font-mono text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
                                 {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: isCalculationComplete ? `${(dist.value / totalActive) * 100}%` : "0%" }}
@@ -2551,25 +2551,25 @@ export default function DashboardPage() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full"
+              className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 max-w-sm w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <Keyboard className="h-5 w-5 text-indigo-600" />
                 Keyboard Shortcuts
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Export data</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">E</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Export data</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">E</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Go home</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">H</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Go home</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">H</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Toggle shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">?</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Toggle shortcuts</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">?</kbd>
                 </div>
               </div>
               <Button

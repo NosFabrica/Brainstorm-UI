@@ -49,7 +49,7 @@ export function UserResultRow({
       className={`flex items-center gap-2.5 p-2 rounded-lg border transition-all ${
         active
           ? "border-brand-accent/40 bg-indigo-50/40"
-          : "border-slate-200 bg-white/80"
+          : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80"
       } ${clickable ? "cursor-pointer hover:border-brand-accent/30 hover:bg-indigo-50/10" : ""}`}
       onClick={onClick}
       role={clickable ? "button" : undefined}
@@ -70,7 +70,7 @@ export function UserResultRow({
         <img
           src={picture}
           alt=""
-          className="h-8 w-8 rounded-full object-cover shrink-0 border border-slate-200"
+          className="h-8 w-8 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-800"
           onError={() => setImgOk(false)}
         />
       ) : (
@@ -79,17 +79,17 @@ export function UserResultRow({
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-slate-800 truncate">
+        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
           {name || "Unknown"}
         </p>
         <p
-          className="text-[10px] text-slate-400 font-mono truncate"
+          className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate"
           title={resolvedNpub}
         >
           {shortNpub(resolvedNpub)}
         </p>
         {subtitle && (
-          <p className="text-[10px] text-slate-400 truncate">{subtitle}</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{subtitle}</p>
         )}
       </div>
       {trailing && <div className="shrink-0 flex items-center gap-1">{trailing}</div>}

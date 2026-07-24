@@ -34,11 +34,11 @@ export function PageHeader({
         </span>
         <div className="h-px w-12 bg-brand-accent/40" />
       </div>
-      <h1 className={`font-brand ${titleSize} font-bold text-slate-900 tracking-tight leading-[1.1]`}>
+      <h1 className={`font-brand ${titleSize} font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1]`}>
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">
+        <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
           {subtitle}
         </p>
       )}

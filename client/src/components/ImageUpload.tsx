@@ -297,8 +297,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
           <Loader2 className="h-4 w-4 text-brand-accent animate-spin" />
         ) : (
           <>
-            <ImageIcon className="h-4 w-4 text-slate-500" />
-            <span className="text-[9px] text-slate-500 text-center leading-tight">
+            <ImageIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 text-center leading-tight">
               {isSquare ? "Upload" : "Upload banner"}
             </span>
           </>

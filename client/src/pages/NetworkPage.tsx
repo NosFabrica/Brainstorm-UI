@@ -1178,7 +1178,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
       data-testid="page-network"
     >
       <GlossBackground />
@@ -1206,24 +1206,24 @@ export default function NetworkPage() {
           </div>
 
           <Card
-            className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
+            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative"
             data-testid="card-network-filters"
           >
-            <CardHeader className="relative bg-slate-50 border-b border-slate-200 py-4 px-5">
+            <CardHeader className="relative bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-4 px-5">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100 shrink-0">
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm text-indigo-800 ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
                     <Filter className="h-4 w-4" />
                   </div>
-                  <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm min-w-0">
+                  <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm min-w-0">
                     <CardTitle
-                      className="text-sm font-bold text-slate-800 tracking-tight"
+                      className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight"
                       style={{ fontFamily: "var(--font-display)" }}
                     >
                       Network Filters
                     </CardTitle>
-                    <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                    <CardDescription className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">
                       Social Graph
                     </CardDescription>
                   </div>
@@ -1244,7 +1244,7 @@ export default function NetworkPage() {
                       data-testid="switch-verified-only"
                     />
                     <span
-                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}
+                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400 dark:text-slate-500"}`}
                     >
                       Verified
                     </span>
@@ -1286,17 +1286,17 @@ export default function NetworkPage() {
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"}`}
+                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
                     >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div
-                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600"}`}
+                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600 dark:text-slate-300"}`}
                       >
                         Verified
                       </div>
-                      <div className="text-[10px] text-slate-400 leading-tight">
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
                         Show only WoT-verified accounts
                       </div>
                     </div>
@@ -1314,7 +1314,7 @@ export default function NetworkPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
+            <CardContent className="p-3 sm:p-5 bg-white/60 dark:bg-slate-900/60 space-y-2 sm:space-y-3">
               {/* Mobile dropdowns — hidden on sm+ */}
               <div className="sm:hidden flex gap-2">
                 <div className="flex-1 min-w-0">
@@ -1328,7 +1328,7 @@ export default function NetworkPage() {
                       setActiveGroup(e.target.value as GroupKey);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
                     data-testid="select-group-filter-mobile"
                   >
                     {(
@@ -1363,7 +1363,7 @@ export default function NetworkPage() {
                       setTrustFilter(e.target.value as TrustTier);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
@@ -1385,7 +1385,7 @@ export default function NetworkPage() {
                   className="hidden sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2"
                   data-testid="row-group-filters-graph"
                 >
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60">
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60 dark:border-slate-800">
                     Graph
                   </span>
                   {(
@@ -1419,7 +1419,7 @@ export default function NetworkPage() {
                             className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
                                 ? "bg-indigo-800 text-white border border-indigo-800"
-                                : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
+                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                             data-testid={`button-filter-${group.key}`}
                           >
@@ -1440,11 +1440,11 @@ export default function NetworkPage() {
                         </TooltipTrigger>
                         <TooltipContent
                           side="bottom"
-                          className={`bg-white backdrop-blur-xl border border-slate-300 text-slate-700 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
+                          className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
                         >
                           <p className="text-xs font-medium">{group.tooltip}</p>
                           {showVerified && totalCount !== count && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {count} verified of {totalCount} total
                             </p>
                           )}
@@ -1455,13 +1455,13 @@ export default function NetworkPage() {
                 </div>
               </div>
 
-              <div className="hidden sm:block border-t border-slate-200/60 my-0.5" />
+              <div className="hidden sm:block border-t border-slate-200/60 dark:border-slate-800 my-0.5" />
 
               <div
                 className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2"
                 data-testid="row-trust-filters"
               >
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60 dark:border-slate-800">
                   Trust
                 </span>
                 {(
@@ -1541,8 +1541,8 @@ export default function NetworkPage() {
                                 ? "bg-red-600 text-white border border-red-600"
                                 : "bg-indigo-800 text-white border border-indigo-800"
                               : tier.key === "flagged"
-                                ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
-                                : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
+                                ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
+                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                           data-testid={`button-trust-filter-${tier.key}`}
                         >
@@ -1600,7 +1600,7 @@ export default function NetworkPage() {
                       </TooltipTrigger>
                       <TooltipContent
                         side="bottom"
-                        className={`bg-white backdrop-blur-xl border border-slate-300 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 shadow-lg px-2.5 py-1.5`}
+                        className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5`}
                       >
                         <p className="text-xs font-medium">{tier.tooltip}</p>
                       </TooltipContent>
@@ -1616,7 +1616,7 @@ export default function NetworkPage() {
                     {searchLoading ? (
                       <Loader2 className="absolute left-3 h-4 w-4 text-indigo-500 z-10 animate-spin" />
                     ) : (
-                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
+                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 dark:text-slate-500 z-10" />
                     )}
                     <Input
                       placeholder={
@@ -1624,7 +1624,7 @@ export default function NetworkPage() {
                           ? "Loading your network…"
                           : "Search by name or npub..."
                       }
-                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
+                      className={`relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => {
                         setSearchFilter(e.target.value);
@@ -1641,7 +1641,7 @@ export default function NetworkPage() {
                           setSearchFilter("");
                           setCurrentPage(1);
                         }}
-                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         aria-label="Clear search"
                         data-testid="button-clear-network-search"
                       >
@@ -1664,7 +1664,7 @@ export default function NetworkPage() {
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
                     onClick={() => {
                       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
                       setCurrentPage(1);
@@ -1675,12 +1675,12 @@ export default function NetworkPage() {
                     <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
                   </button>
                   <div
-                    className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0"
+                    className="flex items-center bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 rounded-lg p-0.5 shrink-0"
                     data-testid="row-view-toggle"
                   >
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("grid")}
                       data-testid="button-view-grid"
                     >
@@ -1688,7 +1688,7 @@ export default function NetworkPage() {
                     </button>
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("list")}
                       data-testid="button-view-list"
                     >
@@ -1709,34 +1709,34 @@ export default function NetworkPage() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 animate-pulse"
+                  className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800 rounded-xl p-4 animate-pulse"
                   data-testid={`skeleton-card-${i}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-slate-200" />
+                    <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 bg-slate-200 rounded w-24" />
-                      <div className="h-2 bg-slate-100 rounded w-32" />
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24" />
+                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-32" />
                     </div>
                   </div>
                   <div className="mt-3 flex gap-1">
-                    <div className="h-4 bg-slate-100 rounded w-14" />
-                    <div className="h-4 bg-slate-100 rounded w-16" />
+                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-14" />
+                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-16" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visiblePubkeys.length === 0 ? (
             <Card
-              className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden"
+              className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl rounded-xl overflow-hidden"
               data-testid="card-network-empty"
             >
               <div className="p-8 flex flex-col items-center text-center">
-                <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-indigo-800 flex items-center justify-center mb-4">
+                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 flex items-center justify-center mb-4">
                   <Users className="h-6 w-6" />
                 </div>
                 <h3
-                  className="text-lg font-bold text-slate-900 tracking-tight"
+                  className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-network-empty-title"
                 >
@@ -1745,7 +1745,7 @@ export default function NetworkPage() {
                     : "No contacts yet"}
                 </h3>
                 <p
-                  className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md"
+                  className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md"
                   data-testid="text-network-empty-body"
                 >
                   {searchFilter || trustFilter !== "all"
@@ -1811,7 +1811,7 @@ export default function NetworkPage() {
                       className="flex items-center justify-between gap-4 pt-4"
                       data-testid="row-pagination"
                     >
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
                         {visiblePubkeyPage.startIdx + 1}&ndash;
                         {visiblePubkeyPage.nextItemStart} of{" "}
                         {visiblePubkeyPage.totalItems}
@@ -1833,7 +1833,7 @@ export default function NetworkPage() {
                             Previous
                           </Button>
                           <span
-                            className="text-xs font-medium text-slate-600 tabular-nums px-2"
+                            className="text-xs font-medium text-slate-600 dark:text-slate-300 tabular-nums px-2"
                             data-testid="text-page-indicator"
                           >
                             {visiblePubkeyPage.safePage} /{" "}

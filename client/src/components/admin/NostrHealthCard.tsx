@@ -107,7 +107,7 @@ function StatusIcon({ status, className = "h-3.5 w-3.5" }: { status: CheckStatus
   if (status === "ok") return <CheckCircle2 className={`${className} text-emerald-500`} />;
   if (status === "warn") return <AlertTriangle className={`${className} text-amber-500`} />;
   if (status === "error") return <XCircle className={`${className} text-red-500`} />;
-  return <Info className={`${className} text-slate-400`} />;
+  return <Info className={`${className} text-slate-400 dark:text-slate-500`} />;
 }
 
 function StatusPill({ tone, label, testId }: { tone: CheckStatus; label: string; testId: string }) {
@@ -115,7 +115,7 @@ function StatusPill({ tone, label, testId }: { tone: CheckStatus; label: string;
     ok: "bg-emerald-50 text-emerald-700 border-emerald-200",
     warn: "bg-amber-50 text-amber-700 border-amber-200",
     error: "bg-red-50 text-red-700 border-red-200",
-    neutral: "bg-slate-100 text-slate-600 border-slate-200",
+    neutral: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800",
   };
   return (
     <span
@@ -134,7 +134,7 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
   return (
     <button
       type="button"
-      className="p-0.5 rounded hover:bg-slate-100 transition-colors shrink-0"
+      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
       onClick={(e) => {
         e.stopPropagation();
         copyToClipboard(text);
@@ -143,7 +143,7 @@ function MiniCopy({ text, testId }: { text: string; testId: string }) {
       data-testid={testId}
       aria-label="Copy to clipboard"
     >
-      <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600" />
+      <Copy className="h-3 w-3 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
     </button>
   );
 }
@@ -163,13 +163,13 @@ function CheckRow({
 }) {
   return (
     <div
-      className="flex items-start gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors"
+      className="flex items-start gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
       data-testid={testId}
     >
       <StatusIcon status={status} className="h-3.5 w-3.5 mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium text-slate-700 leading-tight">{label}</p>
-        {detail && <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{detail}</p>}
+        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 leading-tight">{label}</p>
+        {detail && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{detail}</p>}
         {children}
       </div>
     </div>
@@ -224,12 +224,12 @@ function RawJsonBlock({ value, testIdPrefix }: { value: unknown; testIdPrefix: s
   }, [value]);
   if (!json) return null;
   return (
-    <div className="mt-2 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-100/70 border-b border-slate-200">
+    <div className="mt-2 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900">
+      <div className="flex items-center justify-between px-2 py-1.5 bg-slate-100/70 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+          className="flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
           data-testid={`button-toggle-${testIdPrefix}`}
         >
           {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -239,7 +239,7 @@ function RawJsonBlock({ value, testIdPrefix }: { value: unknown; testIdPrefix: s
       </div>
       {open && (
         <pre
-          className="p-2 text-[10px] font-mono text-slate-700 overflow-x-auto max-h-60 leading-relaxed"
+          className="p-2 text-[10px] font-mono text-slate-700 dark:text-slate-200 overflow-x-auto max-h-60 leading-relaxed"
           data-testid={`text-${testIdPrefix}`}
         >
           {json}
@@ -323,7 +323,7 @@ function TagDetailCard({
     ok: "border-emerald-200 bg-emerald-50/40",
     warn: "border-amber-200 bg-amber-50/40",
     error: "border-red-200 bg-red-50/40",
-    neutral: "border-slate-200 bg-slate-50/60",
+    neutral: "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60",
   };
   return (
     <div
@@ -332,7 +332,7 @@ function TagDetailCard({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
             {slotLabel} #{detail.index + 1}
           </span>
           {isFullyActive ? (
@@ -361,7 +361,7 @@ function TagDetailCard({
             </span>
           ) : (
             <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[8px] font-bold uppercase tracking-wider"
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[8px] font-bold uppercase tracking-wider"
               data-testid={`${testIdPrefix}-duplicate`}
             >
               Duplicate
@@ -375,7 +375,7 @@ function TagDetailCard({
                 ? "text-emerald-600"
                 : pubkeyTone === "error"
                 ? "text-red-600"
-                : "text-slate-400"
+                : "text-slate-400 dark:text-slate-500"
             }`}
             data-testid={`${testIdPrefix}-pubkey-status`}
           >
@@ -399,11 +399,11 @@ function TagDetailCard({
       </div>
       <div className="grid grid-cols-1 gap-1">
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold w-12 shrink-0">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold w-12 shrink-0">
             Pubkey
           </span>
           <code
-            className="font-mono text-[9px] text-slate-700 truncate flex-1"
+            className="font-mono text-[9px] text-slate-700 dark:text-slate-200 truncate flex-1"
             data-testid={`${testIdPrefix}-pubkey-value`}
           >
             {detail.innerPubkey || "—"}
@@ -413,11 +413,11 @@ function TagDetailCard({
           )}
         </div>
         <div className="flex items-center gap-1 min-w-0">
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-bold w-12 shrink-0">
+          <span className="text-[8px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold w-12 shrink-0">
             Relay
           </span>
           <code
-            className="font-mono text-[9px] text-slate-700 truncate flex-1"
+            className="font-mono text-[9px] text-slate-700 dark:text-slate-200 truncate flex-1"
             data-testid={`${testIdPrefix}-relay-value`}
           >
             {detail.relayHint || "—"}
@@ -463,17 +463,17 @@ function AllTagsDisclosure({
         className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border transition-colors ${
           hasIssues
             ? "border-amber-200 bg-amber-50/50 hover:bg-amber-50"
-            : "border-slate-200 bg-slate-50/60 hover:bg-slate-100"
+            : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800"
         }`}
         data-testid={`${testIdPrefix}-toggle`}
       >
         <div className="flex items-center gap-1.5">
           {open ? (
-            <ChevronDown className="h-3 w-3 text-slate-500" />
+            <ChevronDown className="h-3 w-3 text-slate-500 dark:text-slate-400" />
           ) : (
-            <ChevronRight className="h-3 w-3 text-slate-500" />
+            <ChevronRight className="h-3 w-3 text-slate-500 dark:text-slate-400" />
           )}
-          <span className="text-[10px] font-semibold text-slate-700">
+          <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200">
             {safeTags.length} {slotLabel} tags published
           </span>
           {hasIssues && (
@@ -486,7 +486,7 @@ function AllTagsDisclosure({
             </span>
           )}
         </div>
-        <span className="text-[9px] text-slate-500">
+        <span className="text-[9px] text-slate-500 dark:text-slate-400">
           {open ? "Hide details" : "Show all"}
         </span>
       </button>
@@ -523,13 +523,13 @@ function PanelShell({
 }) {
   return (
     <div
-      className="p-3 rounded-xl bg-white border border-indigo-100 shadow-sm flex flex-col min-h-[180px]"
+      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 shadow-sm flex flex-col min-h-[180px]"
       data-testid={testId}
     >
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-1.5">
           {icon}
-          <p className="font-bold text-[11px] text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+          <p className="font-bold text-[11px] text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
             {title}
           </p>
         </div>
@@ -545,8 +545,8 @@ function SkeletonChecklist() {
     <div className="space-y-1.5" data-testid="status-nip85-loading">
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="flex items-center gap-2 px-2 py-1.5">
-          <div className="h-3.5 w-3.5 rounded-full bg-slate-100 animate-pulse" />
-          <div className="h-3 flex-1 bg-slate-100 rounded animate-pulse" />
+          <div className="h-3.5 w-3.5 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+          <div className="h-3 flex-1 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
         </div>
       ))}
     </div>
@@ -585,11 +585,11 @@ function Nip85Panel({
     >
       {!hasTaPubkey && (
         <div
-          className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 mb-2"
+          className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 mb-2"
           data-testid="status-nip85-no-ta"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 mt-0.5 shrink-0" />
-          <p className="text-[10px] text-slate-600 leading-tight">
+          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">
             TA pubkey not yet assigned for this user. Inner-pubkey checks are unavailable until the backend assigns one.
           </p>
         </div>
@@ -778,21 +778,21 @@ function AssignedAssistantSection({
 
   return (
     <div
-      className="mt-3 pt-3 border-t border-slate-200"
+      className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800"
       data-testid="section-assigned-assistant"
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <AssistantIcon className="h-4 w-4 text-emerald-500 shrink-0" />
           <p
-            className="font-bold text-[11px] text-slate-800"
+            className="font-bold text-[11px] text-slate-800 dark:text-slate-200"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Assigned Brainstorm Assistant
           </p>
           {selfAssigned && (
             <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-600 text-[9px] font-semibold"
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-semibold"
               data-testid="badge-assistant-self-assigned"
             >
               Self-assigned
@@ -801,7 +801,7 @@ function AssignedAssistantSection({
         </div>
         <div className="flex items-center gap-1 min-w-0">
           <code
-            className="font-mono text-[9px] text-slate-500 truncate"
+            className="font-mono text-[9px] text-slate-500 dark:text-slate-400 truncate"
             data-testid="text-assistant-pubkey"
           >
             {truncateMid(assistantPubkey)}
@@ -813,10 +813,10 @@ function AssignedAssistantSection({
       {query.isLoading ? (
         <div className="space-y-2" data-testid="status-assistant-kind0-loading">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+            <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
             <div className="flex-1 space-y-1.5">
-              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
-              <div className="h-2.5 w-24 bg-slate-100 rounded animate-pulse" />
+              <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
             </div>
           </div>
         </div>
@@ -832,11 +832,11 @@ function AssignedAssistantSection({
         </div>
       ) : !event || !profile ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
           data-testid="status-assistant-kind0-empty"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-          <p className="text-[10px] text-slate-600">
+          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <p className="text-[10px] text-slate-600 dark:text-slate-300">
             {event
               ? "Assistant kind 0 found but content could not be parsed."
               : "No kind 0 metadata found on relays for assigned assistant."}
@@ -845,22 +845,22 @@ function AssignedAssistantSection({
       ) : (
         <div className="space-y-2">
           <div className="flex items-start gap-2">
-            <Avatar className="h-10 w-10 border border-slate-200">
+            <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
               <AvatarImage src={profile.picture} alt={displayName} />
-              <AvatarFallback className="text-[10px] bg-slate-100 text-slate-500">
+              <AvatarFallback className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <p
-                className="text-[12px] font-semibold text-slate-800 truncate"
+                className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate"
                 data-testid="text-assistant-display-name"
               >
                 {displayName}
               </p>
               {profile.nip05 && (
                 <p
-                  className="text-[10px] text-slate-500 truncate"
+                  className="text-[10px] text-slate-500 dark:text-slate-400 truncate"
                   data-testid="text-assistant-nip05"
                 >
                   {profile.nip05}
@@ -874,7 +874,7 @@ function AssignedAssistantSection({
                     target="_blank"
                     rel="noreferrer"
                     className={`text-[10px] hover:underline truncate ${
-                      isAssistant ? "text-emerald-700" : "text-slate-600"
+                      isAssistant ? "text-emerald-700" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-assistant-website"
                   >
@@ -887,7 +887,7 @@ function AssignedAssistantSection({
 
           {profile.about && (
             <p
-              className="text-[10px] text-slate-600 leading-snug line-clamp-2"
+              className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2"
               data-testid="text-assistant-about"
             >
               {profile.about}
@@ -895,10 +895,10 @@ function AssignedAssistantSection({
           )}
 
           <div
-            className="flex items-center gap-1.5 text-[10px] text-slate-500"
+            className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400"
             data-testid="text-assistant-created-at"
           >
-            <Info className="h-3 w-3 text-slate-400" />
+            <Info className="h-3 w-3 text-slate-400 dark:text-slate-500" />
             <span>Published {formatTimestamp(event.created_at)}</span>
           </div>
 
@@ -948,14 +948,14 @@ function Kind0Panel({
       {query.isLoading ? (
         <div className="space-y-2" data-testid="status-kind0-loading">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-slate-100 animate-pulse" />
+            <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
             <div className="flex-1 space-y-1.5">
-              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
-              <div className="h-2.5 w-24 bg-slate-100 rounded animate-pulse" />
+              <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="h-2.5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
             </div>
           </div>
-          <div className="h-2.5 w-full bg-slate-100 rounded animate-pulse" />
-          <div className="h-2.5 w-3/4 bg-slate-100 rounded animate-pulse" />
+          <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-3/4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
         </div>
       ) : query.isError ? (
         <div
@@ -967,29 +967,29 @@ function Kind0Panel({
         </div>
       ) : !event || !profile ? (
         <div
-          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
+          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
           data-testid="status-kind0-empty"
         >
-          <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-          <p className="text-[10px] text-slate-600">
+          <Info className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+          <p className="text-[10px] text-slate-600 dark:text-slate-300">
             {event ? "Kind 0 event found but content could not be parsed." : "No kind 0 metadata found on relays."}
           </p>
         </div>
       ) : (
         <div className="space-y-2" data-testid="status-kind0-success">
           <div className="flex items-start gap-2">
-            <Avatar className="h-10 w-10 border border-slate-200">
+            <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
               <AvatarImage src={profile.picture} alt={displayName} />
-              <AvatarFallback className="text-[10px] bg-slate-100 text-slate-500">
+              <AvatarFallback className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-semibold text-slate-800 truncate" data-testid="text-kind0-display-name">
+              <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate" data-testid="text-kind0-display-name">
                 {displayName}
               </p>
               {profile.nip05 && (
-                <p className="text-[10px] text-slate-500 truncate" data-testid="text-kind0-nip05">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate" data-testid="text-kind0-nip05">
                   {profile.nip05}
                 </p>
               )}
@@ -1001,7 +1001,7 @@ function Kind0Panel({
                     target="_blank"
                     rel="noreferrer"
                     className={`text-[10px] hover:underline truncate ${
-                      isAssistant ? "text-emerald-700" : "text-slate-600"
+                      isAssistant ? "text-emerald-700" : "text-slate-600 dark:text-slate-300"
                     }`}
                     data-testid="link-kind0-website"
                   >
@@ -1013,16 +1013,16 @@ function Kind0Panel({
           </div>
 
           {profile.about && (
-            <p className="text-[10px] text-slate-600 leading-snug line-clamp-2" data-testid="text-kind0-about">
+            <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="text-kind0-about">
               {profile.about}
             </p>
           )}
 
           <div
-            className="flex items-center gap-1.5 text-[10px] text-slate-500"
+            className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400"
             data-testid="text-kind0-created-at"
           >
-            <Info className="h-3 w-3 text-slate-400" />
+            <Info className="h-3 w-3 text-slate-400 dark:text-slate-500" />
             <span>Published {formatTimestamp(event.created_at)}</span>
           </div>
 
@@ -1057,18 +1057,18 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
 
   return (
     <div
-      className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm"
+      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 shadow-sm"
       data-testid={`card-nostr-health-${pubkey.slice(0, 8)}`}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Loader2 className="h-4 w-4 text-brand-deep hidden" />
           <Radio className="h-4 w-4 text-brand-deep" />
-          <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+          <p className="font-bold text-xs text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
             Nostr Health
           </p>
         </div>
-        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
           Live from relays
         </span>
       </div>

@@ -146,8 +146,8 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
       {/* Suggested */}
       {curatedPeople.length > 0 && (
         <section>
-          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400">Suggested</h2>
-          <div className="mt-1 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Suggested</h2>
+          <div className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3">
             {visiblePeople.map((p) => (
               <PersonRow key={p.pubkey} person={p} selected={selected.has(p.pubkey)} onToggle={() => toggle(p.pubkey)} />
             ))}
@@ -167,24 +167,24 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
 
       {/* Find people */}
       <section className="mt-6">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400">Find people you know</h2>
-        <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 h-11 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20">
-          <SearchIcon className="h-4 w-4 text-slate-400 shrink-0" />
+        <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Find people you know</h2>
+        <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 h-11 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20">
+          <SearchIcon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name or nip-05…"
-            className="flex-1 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 outline-none"
+            className="flex-1 bg-transparent text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none"
             data-testid="welcome-search-input"
           />
           {searching ? (
-            <Loader2 className="h-4 w-4 animate-spin text-slate-400 shrink-0" />
+            <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500 shrink-0" />
           ) : query ? (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear search"
-              className="shrink-0 rounded-full p-0.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="shrink-0 rounded-full p-0.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               data-testid="welcome-search-clear"
             >
               <X className="h-4 w-4" />
@@ -193,7 +193,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
         </div>
 
         {results.length > 0 && (
-          <div className="mt-2 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3 shadow-sm" data-testid="welcome-search-results">
+          <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 shadow-sm" data-testid="welcome-search-results">
             {results.map((r) => (
               <PersonRow
                 key={r.pubkey}
@@ -205,16 +205,16 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
           </div>
         )}
         {searched && !searching && query.trim().length >= 2 && results.length === 0 && (
-          <p className="mt-2 text-sm text-slate-400">No matches — try a different name.</p>
+          <p className="mt-2 text-sm text-slate-400 dark:text-slate-500">No matches — try a different name.</p>
         )}
       </section>
 
       {/* Sticky footer: your selected set (basket) + the CTA. */}
       <div className="mt-8 sticky bottom-4">
-        <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg p-3">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg p-3">
           {selectedPeople.length > 0 && (
             <div className="mb-2.5" data-testid="welcome-selected">
-              <p className="px-1 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <p className="px-1 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 Following {selectedPeople.length}
               </p>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -226,15 +226,15 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
                       type="button"
                       onClick={() => toggle(p.pubkey)}
                       aria-label={`Remove ${name}`}
-                      className="group inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 pl-1 pr-2 py-0.5 text-xs hover:border-rose-300 transition-colors"
+                      className="group inline-flex items-center gap-1.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 pl-1 pr-2 py-0.5 text-xs hover:border-rose-300 transition-colors"
                       data-testid={`welcome-chip-${p.pubkey.slice(0, 8)}`}
                     >
-                      <Avatar className="h-5 w-5 rounded-full bg-white border border-slate-200">
+                      <Avatar className="h-5 w-5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         {p.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
                         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-slate-700 truncate max-w-[90px]">{name}</span>
-                      <X className="h-3 w-3 text-slate-400 group-hover:text-rose-500" />
+                      <span className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[90px]">{name}</span>
+                      <X className="h-3 w-3 text-slate-400 dark:text-slate-500 group-hover:text-rose-500" />
                     </button>
                   );
                 })}
@@ -251,7 +251,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {continueLabel} {count > 0 ? `(${count})` : ""} <ArrowRight className="h-4 w-4" />
           </button>
-          {count === 0 && <p className="mt-2 text-center text-xs text-slate-400">Select at least one account to continue.</p>}
+          {count === 0 && <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">Select at least one account to continue.</p>}
         </div>
       </div>
     </div>

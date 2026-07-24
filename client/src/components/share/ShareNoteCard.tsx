@@ -56,7 +56,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className="h-4 w-4 rounded-full bg-white border border-slate-200">
+      <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
@@ -120,15 +120,15 @@ export function ShareNoteCard({
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1.5">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
           <Repeat2 className="h-3.5 w-3.5 text-emerald-600" /> Reposted
         </p>
         {inner ? (
           <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
         ) : (
-          <p className="text-sm text-slate-400">Reposted a note</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
         )}
-        <p className="mt-1.5 text-xs text-slate-400">{ago(event.created_at)}</p>
+        <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>
       </div>
     );
   }
@@ -170,26 +170,26 @@ export function ShareNoteCard({
                 onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
                 className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
               >
-                <Avatar className="h-9 w-9 shrink-0 border border-slate-200" style={ringStyle}>
+                <Avatar className="h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800" style={ringStyle}>
                   {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900 group-hover/author:underline" data-testid="note-author-name">{authorName}</p>
-                  {authorHandle && <p className="truncate text-xs text-slate-500">{authorHandle}</p>}
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover/author:underline" data-testid="note-author-name">{authorName}</p>
+                  {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                 </div>
               </div>
             </HoverCardTrigger>
             {authorTier && typeof authorScore === "number" && (
-              <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" data-testid="note-author-trust">
+              <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10 shrink-0" style={ringStyle}>
                     {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">{authorName}</p>
-                    {authorHandle && <p className="truncate text-xs text-slate-500">{authorHandle}</p>}
+                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{authorName}</p>
+                    {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                   </div>
                 </div>
                 <div
@@ -204,34 +204,34 @@ export function ShareNoteCard({
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
-                    <p className="text-[11px] text-slate-500">Verification Score</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Verification Score</p>
                   </div>
                 </div>
-                <p className="mt-2.5 text-[11px] leading-snug text-slate-400">Ranked into this topic by trusted accounts — not follower counts.</p>
+                <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
               </HoverCardContent>
             )}
           </HoverCard>
           {typeof authorScore === "number" && (
             <VerificationCoin score01={authorScore} pov="global" size={24} className="ml-auto" />
           )}
-          <span className="shrink-0 text-xs text-slate-400">{ago(event.created_at)}</span>
+          <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
       )}
       {a.isReply && replyTargets.length > 0 && (
-        <p className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-xs text-slate-500 mb-1.5" data-testid="note-reply-context">
-          <MessageSquare className="h-3.5 w-3.5 text-slate-400" />
+        <p className="flex items-center flex-wrap gap-x-1.5 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-1.5" data-testid="note-reply-context">
+          <MessageSquare className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <span>Replying to</span>
           {replyTargets.slice(0, 3).map((pk) => (
             <ReplyTarget key={pk} pubkey={pk} profiles={profiles} />
           ))}
-          {replyTargets.length > 3 && <span className="text-slate-400">+{replyTargets.length - 3}</span>}
+          {replyTargets.length > 3 && <span className="text-slate-400 dark:text-slate-500">+{replyTargets.length - 3}</span>}
         </p>
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
         <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
         {collapsed && (
-          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent" />
         )}
       </div>
       {isLong && !forceExpanded && (
@@ -253,7 +253,7 @@ export function ShareNoteCard({
         <EmbeddedArticleCard key={ae.id} event={ae} author={profiles.get(ae.pubkey)} />
       ))}
 
-      {!showAuthor && <p className="mt-1.5 text-xs text-slate-400">{ago(event.created_at)}</p>}
+      {!showAuthor && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>}
     </div>
   );
 }

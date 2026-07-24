@@ -110,20 +110,20 @@ export default function OnboardingWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
             <BrainLogo size={26} className="text-indigo-500" />
             <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
           </div>
-          <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-exit">
+          <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" data-testid="onboarding-exit">
             Skip setup
           </button>
         </div>
         <div className="mx-auto max-w-xl px-4 sm:px-6 pb-3 flex items-center gap-2" data-testid="onboarding-progress">
           {STEPS.map((s, i) => (
-            <div key={s.key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand-primary" : "bg-slate-200"}`} />
+            <div key={s.key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand-primary" : "bg-slate-200 dark:bg-slate-700"}`} />
           ))}
         </div>
       </header>
@@ -138,14 +138,14 @@ export default function OnboardingWizard() {
 
         {step === "profile" && (
           <div data-testid="onboarding-step-profile">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
               Add a photo <span className="text-brand-deep">so people recognize you</span>.
             </h1>
-            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+            <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               This is how you appear across Nostr. A photo and a short bio go a long way — or skip and add them later.
             </p>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
               <ImageUpload
                 aspect="banner"
                 value={banner}
@@ -166,7 +166,7 @@ export default function OnboardingWizard() {
                     value={picture}
                     onChange={setPicture}
                     onRemove={() => setPicture("")}
-                    containerClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white"
+                    containerClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900"
                     placeholder={
                       <div className="w-full h-full flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-3xl" style={{ fontFamily: "var(--font-display)" }}>
                         {initialsFor(name)}
@@ -174,7 +174,7 @@ export default function OnboardingWizard() {
                     }
                   />
                 </div>
-                <label htmlFor="ob-name" className="block text-sm font-medium text-slate-700 mb-1.5">Display name</label>
+                <label htmlFor="ob-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Display name</label>
                 <input
                   id="ob-name"
                   type="text"
@@ -182,10 +182,10 @@ export default function OnboardingWizard() {
                   onChange={(e) => setName(e.target.value)}
                   maxLength={50}
                   placeholder="Your name"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="onboarding-name"
                 />
-                <label htmlFor="ob-bio" className="block text-sm font-medium text-slate-700 mb-1.5 mt-4">Bio <span className="text-xs font-normal text-slate-400">Optional</span></label>
+                <label htmlFor="ob-bio" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5 mt-4">Bio <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span></label>
                 <textarea
                   id="ob-bio"
                   value={about}
@@ -193,14 +193,14 @@ export default function OnboardingWizard() {
                   maxLength={500}
                   rows={3}
                   placeholder="A short bio"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 resize-none"
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 resize-none"
                   data-testid="onboarding-bio"
                 />
               </div>
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" onClick={() => setStep("follow")} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-profile-skip">
+              <button type="button" onClick={() => setStep("follow")} className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" data-testid="onboarding-profile-skip">
                 Skip for now
               </button>
               <button
@@ -218,10 +218,10 @@ export default function OnboardingWizard() {
 
         {step === "follow" && (
           <div data-testid="onboarding-step-follow">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
               Follow a few accounts <span className="text-brand-deep">to begin</span>.
             </h1>
-            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+            <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               Your Web of Trust is built from who you follow. Pick at least one so Brainstorm can calculate your trust scores.
             </p>
             <div className="mt-6">
@@ -232,21 +232,21 @@ export default function OnboardingWizard() {
 
         {step === "backup" && (
           <div data-testid="onboarding-step-backup">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
               Back up your account.
             </h1>
-            <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+            <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               Your account lives in this browser. Save an encrypted backup file so you can sign back in anywhere — no one can reset it for you.
             </p>
 
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3">
               <input
                 type="password"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
                 placeholder="Password — at least 8 characters"
                 autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                 data-testid="onboarding-backup-password"
               />
               <input
@@ -255,7 +255,7 @@ export default function OnboardingWizard() {
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Confirm password"
                 autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                 data-testid="onboarding-backup-confirm"
               />
               {mismatch && <p className="text-xs font-medium text-red-600">Passwords don't match.</p>}
@@ -271,7 +271,7 @@ export default function OnboardingWizard() {
             </div>
 
             <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 hover:text-slate-600" data-testid="onboarding-backup-skip">
+              <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" data-testid="onboarding-backup-skip">
                 Skip for now
               </button>
               <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700"><Check className="h-3.5 w-3.5" /> Scores are calculating</span>

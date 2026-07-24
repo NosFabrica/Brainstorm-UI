@@ -96,7 +96,7 @@ export function NoteContent({
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   return (
-    <div className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
+    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
       {tokens.map((token, i) => {
         switch (token.type) {
           case "text":
@@ -126,7 +126,7 @@ export function NoteContent({
                 src={token.value}
                 alt=""
                 loading="lazy"
-                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 bg-slate-50 object-cover"
+                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
               />
             ) : (
               <img
@@ -136,7 +136,7 @@ export function NoteContent({
                 loading="lazy"
                 data-noopen
                 onClick={(e) => { e.stopPropagation(); openLightbox(imageUrls, Math.max(0, imageUrls.indexOf(token.value))); }}
-                className={`mt-2 rounded-xl border border-slate-200 bg-slate-50 object-contain w-full cursor-zoom-in ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
+                className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-contain w-full cursor-zoom-in ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
               />
             );
           case "video":

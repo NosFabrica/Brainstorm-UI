@@ -77,9 +77,9 @@ export function EmbeddedTrackCard({
   return (
     <div
       onClick={onRowClick}
-      className={`group flex items-center gap-3 rounded-xl border bg-white p-2.5 transition-colors ${
-        player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200"
-      } ${href ? "cursor-pointer hover:border-slate-300" : ""}`}
+      className={`group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
+        player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
+      } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
       data-testid="embedded-track"
     >
       {/* Cover = play / pause control */}
@@ -118,9 +118,9 @@ export function EmbeddedTrackCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {player.isActive && <Equalizer playing={player.isPlaying} />}
-          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900"}`}>{title}</p>
+          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
         </div>
-        {artist && <p className="truncate text-xs text-slate-500">{artist}</p>}
+        {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
 
         {player.isActive && (
           <div className="mt-2 flex items-center gap-2" data-noopen>
@@ -133,7 +133,7 @@ export function EmbeddedTrackCard({
                 const r = e.currentTarget.getBoundingClientRect();
                 seekTrack(id, (e.clientX - r.left) / r.width);
               }}
-              className="group/bar relative h-1.5 flex-1 cursor-pointer rounded-full bg-slate-200"
+              className="group/bar relative h-1.5 flex-1 cursor-pointer rounded-full bg-slate-200 dark:bg-slate-700"
             >
               <div className="absolute inset-y-0 left-0 rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
               <div
@@ -141,7 +141,7 @@ export function EmbeddedTrackCard({
                 style={{ left: `${pct}%` }}
               />
             </div>
-            <span className="shrink-0 text-[11px] font-medium tabular-nums text-slate-400">
+            <span className="shrink-0 text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
               {player.isError ? "Couldn't play" : `${formatTime(player.currentTime)} / ${formatTime(total)}`}
             </span>
           </div>
@@ -151,15 +151,15 @@ export function EmbeddedTrackCard({
       {/* Right rail: source tag, genre chip, total time (idle), zap. */}
       <div className="flex shrink-0 items-center gap-2">
         {sourceLabel && (
-          <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:inline">{sourceLabel}</span>
+          <span className="hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:inline">{sourceLabel}</span>
         )}
         {genre && (
-          <span className={`hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 transition-opacity sm:inline ${revealCls}`}>
+          <span className={`hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 transition-opacity sm:inline ${revealCls}`}>
             {genre}
           </span>
         )}
         {!player.isActive && total > 0 && (
-          <span className="text-[11px] font-medium tabular-nums text-slate-400">{formatTime(total)}</span>
+          <span className="text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">{formatTime(total)}</span>
         )}
         {onZap && (
           <button

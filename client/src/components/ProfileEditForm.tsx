@@ -19,9 +19,9 @@ type SaveState = "idle" | "saving" | "success" | "error";
 
 // Editable fields look like normal inputs; in view mode they read as flat values.
 const inputEditCls =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
+  "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 const inputViewCls =
-  "w-full rounded-xl border border-transparent bg-slate-50 px-3.5 py-2.5 text-[15px] text-slate-700 placeholder:text-slate-300 transition cursor-default focus:outline-none";
+  "w-full rounded-xl border border-transparent bg-slate-50 dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 transition cursor-default focus:outline-none";
 
 /**
  * Reusable editor for the user's own Nostr profile (kind 0). The single source of
@@ -229,7 +229,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             onChange={setPicture}
             onRemove={() => setPicture("")}
             readOnly={!editing}
-            containerClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white"
+            containerClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900"
             placeholder={
               <div
                 className="w-full h-full flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-3xl"
@@ -243,10 +243,10 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
 
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="min-w-0">
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-profile-title">
               Your profile
             </h2>
-            <p className="text-sm text-slate-500" data-testid="text-profile-subtitle">
+            <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="text-profile-subtitle">
               How you appear to people across the network
             </p>
           </div>
@@ -254,7 +254,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             <button
               type="button"
               onClick={enterEdit}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:border-brand-accent/50 hover:bg-slate-50 px-3.5 h-9 text-sm font-semibold text-slate-700 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/50 hover:bg-slate-50 dark:hover:bg-slate-800 px-3.5 h-9 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
               data-testid="button-edit-profile"
             >
               <Pencil className="h-3.5 w-3.5" /> Edit
@@ -264,10 +264,10 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="pe-name" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="pe-name" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
               Display name
               <span className="text-brand-link" aria-hidden="true">*</span>
-              <span className="text-xs font-normal text-slate-400">Required</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Required</span>
             </label>
             <input
               id="pe-name"
@@ -284,80 +284,80 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             />
             <div className="mt-1 flex items-center justify-between gap-2 min-h-[16px]">
               <span className="text-xs text-red-600 font-medium" data-testid="error-edit-name">{nameError}</span>
-              {editing && <span className={`text-xs tabular-nums ${name.length >= 45 ? "text-amber-600" : "text-slate-400"}`}>{name.length}/50</span>}
+              {editing && <span className={`text-xs tabular-nums ${name.length >= 45 ? "text-amber-600" : "text-slate-400 dark:text-slate-500"}`}>{name.length}/50</span>}
             </div>
           </div>
           <div>
-            <label htmlFor="pe-about" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="pe-about" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
               Bio
-              <span className="text-xs font-normal text-slate-400">Optional</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span>
             </label>
             <textarea id="pe-about" value={about} onChange={(e) => setAbout(e.target.value)} maxLength={500} disabled={busy} readOnly={!editing} rows={3} placeholder="A short bio" className={inputCls + " resize-none"} data-testid="input-edit-about" />
             {editing && (
               <div className="mt-1 flex justify-end">
-                <span className={`text-xs tabular-nums ${about.length >= 460 ? "text-amber-600" : "text-slate-400"}`}>{about.length}/500</span>
+                <span className={`text-xs tabular-nums ${about.length >= 460 ? "text-amber-600" : "text-slate-400 dark:text-slate-500"}`}>{about.length}/500</span>
               </div>
             )}
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="pe-nip05" className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1.5">
+              <label htmlFor="pe-nip05" className="flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
                 Verified address
                 <InfoHint label="About verified address">A username like you@domain that proves you own it. Optional.</InfoHint>
-                <span className="text-xs font-normal text-slate-400">Optional</span>
+                <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span>
               </label>
               <input id="pe-nip05" type="text" value={nip05} onChange={(e) => setNip05(e.target.value)} disabled={busy} readOnly={!editing} placeholder="you@example.com" className={inputCls} data-testid="input-edit-nip05" />
             </div>
             <div>
-              <label htmlFor="pe-lud16" className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1.5">
+              <label htmlFor="pe-lud16" className="flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
                 Lightning address
                 <InfoHint label="About Lightning address">Lets people send you tips — looks like you@wallet.com. Optional.</InfoHint>
-                <span className="text-xs font-normal text-slate-400">Optional</span>
+                <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span>
               </label>
               <input id="pe-lud16" type="text" value={lud16} onChange={(e) => setLud16(e.target.value)} disabled={busy} readOnly={!editing} placeholder="you@wallet.com" className={inputCls} data-testid="input-edit-lud16" />
             </div>
           </div>
           <div>
-            <label htmlFor="pe-website" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="pe-website" className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">
               Website
-              <span className="text-xs font-normal text-slate-400">Optional</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span>
             </label>
             <input id="pe-website" type="text" value={website} onChange={(e) => setWebsite(e.target.value)} disabled={busy} readOnly={!editing} placeholder="https://…" className={inputCls} data-testid="input-edit-website" />
-            {editing && <p className="mt-1 text-xs text-slate-400">Your site or social link.</p>}
+            {editing && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Your site or social link.</p>}
           </div>
 
           {/* Linked accounts (NIP-39) — optional, collapsed by default so it never
               overwhelms; power users link GitHub / X / Mastodon / Telegram. */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <button
               type="button"
               onClick={() => setShowLinked((v) => !v)}
-              className="flex w-full items-center gap-2 px-3.5 py-3 text-left transition-colors hover:bg-slate-50"
+              className="flex w-full items-center gap-2 px-3.5 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
               aria-expanded={showLinked}
               data-testid="button-linked-accounts-toggle"
             >
-              <Link2 className="h-4 w-4 shrink-0 text-slate-400" />
-              <span className="text-sm font-medium text-slate-700">Linked accounts</span>
+              <Link2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Linked accounts</span>
               {identities.length > 0 && (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-500">{identities.length}</span>
+                <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">{identities.length}</span>
               )}
-              <span className="ml-auto text-xs font-normal text-slate-400">Optional</span>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${showLinked ? "rotate-180" : ""}`} />
+              <span className="ml-auto text-xs font-normal text-slate-400 dark:text-slate-500">Optional</span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500 transition-transform ${showLinked ? "rotate-180" : ""}`} />
             </button>
             {showLinked && (
-              <div className="space-y-2.5 border-t border-slate-100 px-3.5 py-3">
-                <p className="text-xs leading-snug text-slate-400">Link your other profiles — shown as icons on your public profile. Proofs are optional.</p>
+              <div className="space-y-2.5 border-t border-slate-100 dark:border-slate-800/60 px-3.5 py-3">
+                <p className="text-xs leading-snug text-slate-400 dark:text-slate-500">Link your other profiles — shown as icons on your public profile. Proofs are optional.</p>
                 {identities.length === 0 && !editing && (
-                  <p className="text-xs text-slate-400">No linked accounts yet.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">No linked accounts yet.</p>
                 )}
                 {identities.map((row, i) => (
-                  <div key={i} className="space-y-2 rounded-lg border border-slate-200 p-2.5" data-testid={`row-linked-${i}`}>
+                  <div key={i} className="space-y-2 rounded-lg border border-slate-200 dark:border-slate-800 p-2.5" data-testid={`row-linked-${i}`}>
                     <div className="flex items-center gap-2">
                       <select
                         value={row.platform}
                         disabled={!editing || busy}
                         onChange={(e) => updateIdentity(i, "platform", e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
+                        className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm text-slate-700 dark:text-slate-200 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
                         data-testid={`select-linked-platform-${i}`}
                       >
                         {IDENTITY_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
@@ -368,7 +368,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                         disabled={!editing || busy}
                         onChange={(e) => updateIdentity(i, "identity", e.target.value)}
                         placeholder={IDENTITY_PLATFORMS.find((p) => p.value === row.platform)?.placeholder || "identity"}
-                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
+                        className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 disabled:opacity-60"
                         data-testid={`input-linked-identity-${i}`}
                       />
                       {editing && (
@@ -376,7 +376,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                           type="button"
                           onClick={() => removeIdentity(i)}
                           aria-label="Remove linked account"
-                          className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-600"
+                          className="shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600"
                           data-testid={`button-linked-remove-${i}`}
                         >
                           <X className="h-4 w-4" />
@@ -389,7 +389,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                         value={row.proof}
                         onChange={(e) => updateIdentity(i, "proof", e.target.value)}
                         placeholder="Proof link — optional"
-                        className="w-full rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 placeholder:text-slate-300 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
+                        className="w-full rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-500 dark:text-slate-400 placeholder:text-slate-300 dark:placeholder:text-slate-600 transition focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/20"
                         data-testid={`input-linked-proof-${i}`}
                       />
                     )}
@@ -431,7 +431,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
                     type="button"
                     onClick={cancelEdit}
                     disabled={busy}
-                    className="h-11 px-5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold text-sm transition-colors disabled:opacity-50"
+                    className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm transition-colors disabled:opacity-50"
                     data-testid="button-edit-cancel"
                   >
                     Cancel

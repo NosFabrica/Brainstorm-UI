@@ -34,13 +34,13 @@ export function Stat({
   if (effective == null) return null;
 
   const label = lens === "verified" ? verifiedLabel : allLabel;
-  const numClass = danger ? "text-red-600" : "text-slate-700";
+  const numClass = danger ? "text-red-600" : "text-slate-700 dark:text-slate-200";
   const labelClass = danger ? "text-red-500" : "";
 
   return (
     <Link
       href={href}
-      className={`group/stat inline-flex items-center gap-1 transition-colors ${danger ? "hover:text-red-700" : "hover:text-slate-700"}`}
+      className={`group/stat inline-flex items-center gap-1 transition-colors ${danger ? "hover:text-red-700" : "hover:text-slate-700 dark:hover:text-slate-200"}`}
       data-testid={testId}
     >
       <span className={`font-semibold tabular-nums ${numClass}`}>{effective.toLocaleString()}</span>
@@ -66,7 +66,7 @@ export function StatLensToggle({
     <button
       type="button"
       onClick={() => onChange(value === "verified" ? "all" : "verified")}
-      className="inline-flex items-center gap-1 text-[11px] text-slate-400 transition-colors hover:text-slate-600"
+      className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
       title={value === "verified" ? "Show all counts, including bots the web of trust filters out" : "Show only web-of-trust-verified counts"}
       data-testid="stat-lens-toggle"
       data-mode={value}

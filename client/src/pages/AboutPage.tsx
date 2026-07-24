@@ -141,7 +141,7 @@ export default function AboutPage() {
 
             <div className="min-h-[150px] sm:min-h-[190px] order-2" key={slide} aria-live="polite">
               <h1
-                className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
+                className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-slate-100 tracking-tight animate-fade-up"
                 data-testid="text-about-title"
               >
                 <span className="text-brand-deep block pb-1">
@@ -149,7 +149,7 @@ export default function AboutPage() {
                 </span>
               </h1>
               <p
-                className="mt-4 text-base sm:text-lg text-slate-600 font-medium max-w-xl leading-relaxed animate-fade-up"
+                className="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 font-medium max-w-xl leading-relaxed animate-fade-up"
                 data-testid="text-about-subtitle"
               >
                 {active.sub}
@@ -167,7 +167,7 @@ export default function AboutPage() {
               </button>
               <button
                 onClick={() => navigate("/how-search-works")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white/80 border border-slate-200 hover:border-brand-accent/40 hover:text-indigo-600 rounded-full transition-colors active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-accent/40 hover:text-indigo-600 rounded-full transition-colors active:scale-[0.98]"
                 data-testid="button-hero-learn"
               >
                 How it works
@@ -186,7 +186,7 @@ export default function AboutPage() {
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     i === slide
                       ? "w-7 bg-indigo-600"
-                      : "w-1.5 bg-slate-300 hover:bg-slate-400"
+                      : "w-1.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
                   }`}
                   data-testid={`hero-dot-${i}`}
                 />
@@ -237,7 +237,7 @@ export default function AboutPage() {
       {/* ============ MISSION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div
-          className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+          className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden"
           data-testid="card-about-mission"
         >
           <div className="p-6 sm:p-10 space-y-4">
@@ -246,17 +246,17 @@ export default function AboutPage() {
                 <BrainLogo size={20} className="text-brand-deep" />
               </div>
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Why Brainstorm
               </h2>
             </div>
-            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+            <p className="text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
               The web used to be people. Now it's people, bots, and AI all talking at once, and it's
               getting harder to tell who's who.
             </p>
-            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+            <p className="text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
               Brainstorm is search built for that world. Instead of guessing, it reads who real people
               actually trust. The accounts that matter rise, and the noise quietly fades.
             </p>
@@ -271,12 +271,12 @@ export default function AboutPage() {
       >
         <div className="max-w-2xl mb-8">
           <h2
-            className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+            className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
             The Brainstorm family
           </h2>
-          <p className="mt-3 text-base text-slate-600 leading-relaxed">
+          <p className="mt-3 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
             One simple idea powers it all: real human trust. We're starting with search, with more on
             the way.
           </p>
@@ -286,7 +286,7 @@ export default function AboutPage() {
           {/* Search — live */}
           <button
             onClick={() => navigate("/")}
-            className="group text-left rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
+            className="group text-left rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
             data-testid="card-family-search"
           >
             <div className="flex items-center justify-between">
@@ -297,10 +297,10 @@ export default function AboutPage() {
                 <span className="w-1 h-1 rounded-full bg-emerald-500" /> Live
               </span>
             </div>
-            <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               Brainstorm Search
             </h3>
-            <p className="text-sm text-slate-600 leading-relaxed flex-1">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed flex-1">
               Find real people across millions of profiles. Search by name, bio, or handle.
             </p>
             <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
@@ -379,16 +379,16 @@ export default function AboutPage() {
       {/* ============ PARENT ATTRIBUTION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div
-          className="rounded-2xl bg-white border border-slate-200 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
+          className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
           data-testid="about-parent-attribution"
         >
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Brainstorm is a{" "}
             <a
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 hover:text-indigo-600 hover:underline transition-colors"
+              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 hover:underline transition-colors"
               data-testid="link-about-nosfabrica"
             >
               NosFabrica
@@ -417,21 +417,21 @@ function ComingSoonCard({
 }) {
   return (
     <div
-      className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col gap-3"
+      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-6 flex flex-col gap-3"
       data-testid={testId}
     >
       <div className="flex items-center justify-between">
-        <div className={`h-11 w-11 rounded-xl ${tint} border border-slate-100 flex items-center justify-center`}>
+        <div className={`h-11 w-11 rounded-xl ${tint} border border-slate-100 dark:border-slate-800/60 flex items-center justify-center`}>
           {icon}
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] font-bold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
           Coming soon
         </span>
       </div>
-      <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
         {title}
       </h3>
-      <p className="text-sm text-slate-500 leading-relaxed flex-1">{desc}</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed flex-1">{desc}</p>
     </div>
   );
 }
@@ -495,12 +495,12 @@ function ThemeBand({
             <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">{kicker}</p>
           </div>
           <h3
-            className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"
+            className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
             {title}
           </h3>
-          <p className="mt-3 text-[15px] sm:text-base text-slate-600 leading-relaxed">{desc}</p>
+          <p className="mt-3 text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">{desc}</p>
           <button
             onClick={onClick}
             className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors self-start"

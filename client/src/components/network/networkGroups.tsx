@@ -41,7 +41,7 @@ export const getVerificationGuidance = (pct: number, name: string) => {
   if (pct >= 7)
     return {
       label: "Low confidence",
-      color: "text-slate-500",
+      color: "text-slate-500 dark:text-slate-400",
       message: `Only ${pct}% confidence that ${name} is a genuine participant. Your trusted community has weak or mixed signals.`,
     };
   return {
@@ -65,7 +65,7 @@ export const detailMetrics: {
     desc: "People following this account",
     iconBg: "bg-blue-50 border-blue-100",
     iconColor: "text-blue-500",
-    countColor: "text-slate-900",
+    countColor: "text-slate-900 dark:text-slate-100",
   },
   {
     key: "following",
@@ -73,7 +73,7 @@ export const detailMetrics: {
     desc: "Accounts this person follows",
     iconBg: "bg-blue-50 border-blue-100",
     iconColor: "text-blue-500",
-    countColor: "text-slate-900",
+    countColor: "text-slate-900 dark:text-slate-100",
   },
   {
     key: "muted_by",
@@ -97,15 +97,15 @@ export const detailMetrics: {
     desc: "Accounts this person mutes",
     iconBg: "bg-amber-50 border-amber-200",
     iconColor: "text-amber-500",
-    countColor: "text-slate-900",
+    countColor: "text-slate-900 dark:text-slate-100",
   },
   {
     key: "reporting",
     label: "Reporting",
     desc: "Accounts this person reports",
-    iconBg: "bg-slate-50 border-slate-200",
-    iconColor: "text-slate-500",
-    countColor: "text-slate-900",
+    iconBg: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800",
+    iconColor: "text-slate-500 dark:text-slate-400",
+    countColor: "text-slate-900 dark:text-slate-100",
   },
 ];
 

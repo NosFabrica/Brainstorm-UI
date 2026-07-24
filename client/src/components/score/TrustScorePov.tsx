@@ -39,14 +39,14 @@ export function useScorePov(): { pov: ScorePov; loggedIn: boolean; setPersonaliz
 export function povChrome(pov: ScorePov): string {
   return pov === "personalized"
     ? "border-indigo-200 bg-indigo-50/60"
-    : "border-slate-200 bg-white";
+    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900";
 }
 
 export function PovIcon({ pov, className = "h-3 w-3" }: { pov: ScorePov; className?: string }) {
   return pov === "personalized" ? (
     <UserRound className={`${className} text-indigo-500`} />
   ) : (
-    <Globe className={`${className} text-slate-400`} />
+    <Globe className={`${className} text-slate-400 dark:text-slate-500`} />
   );
 }
 
@@ -57,7 +57,7 @@ export function PovTag({ pov }: { pov: ScorePov }) {
       <UserRound className="h-2.5 w-2.5" /> Personalized
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500" data-testid="pov-tag">
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" data-testid="pov-tag">
       <Globe className="h-2.5 w-2.5" /> Global
     </span>
   );
@@ -96,8 +96,8 @@ export function TrustScoreModal({
     const cls = active
       ? target === "personalized"
         ? `${base} border-indigo-300 bg-indigo-50 ring-1 ring-indigo-200`
-        : `${base} border-slate-300 bg-slate-50 ring-1 ring-slate-200`
-      : `${base} border-slate-200 bg-white hover:bg-slate-50`;
+        : `${base} border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800`
+      : `${base} border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800`;
     return { cls, active, locked };
   };
   const p = option("personalized");
@@ -111,7 +111,7 @@ export function TrustScoreModal({
           <DialogDescription className="text-[13px] leading-relaxed">
             A Verification Score (0–100) measures how verified an account is, based on real
             people's follows, mutes and reports — not an algorithm. The same account can score
-            differently depending on <span className="font-semibold text-slate-700">whose network</span>{" "}
+            differently depending on <span className="font-semibold text-slate-700 dark:text-slate-200">whose network</span>{" "}
             you look through.
           </DialogDescription>
         </DialogHeader>
@@ -124,12 +124,12 @@ export function TrustScoreModal({
               className={`${p.cls} flex items-start gap-2.5 opacity-90`}
               data-testid="pov-option-personalized-locked"
             >
-              <Lock className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+              <Lock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
               <span className="min-w-0">
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
                   <UserRound className="h-3.5 w-3.5 text-indigo-500" /> Personalized — for you
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500 leading-relaxed">
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Scores through <span className="font-medium">your own</span> network. Sign in free to unlock it{" "}
                   <ArrowRight className="inline h-3 w-3" />
                 </span>
@@ -145,11 +145,11 @@ export function TrustScoreModal({
             >
               <UserRound className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Personalized — for you
                   {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Current view</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500 leading-relaxed">
+                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Seen through <span className="font-medium">your own</span> network — the people you trust, and who they trust.
                 </span>
               </span>
@@ -167,13 +167,13 @@ export function TrustScoreModal({
             className={`${g.cls} flex items-start gap-2.5 disabled:opacity-60`}
             data-testid="pov-option-global"
           >
-            <Globe className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+            <Globe className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Global — everyone
-                {g.active && <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Current view</span>}
+                {g.active && <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Current view</span>}
               </span>
-              <span className="mt-0.5 block text-xs text-slate-500 leading-relaxed">
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 Brainstorm's network-wide view — the same number every visitor sees.
               </span>
             </span>
@@ -189,7 +189,7 @@ export function TrustScoreModal({
           </p>
         )}
 
-        <p className="text-[11px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
           Switching applies everywhere in Brainstorm until you switch back.
         </p>
       </DialogContent>

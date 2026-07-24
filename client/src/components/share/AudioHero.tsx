@@ -35,7 +35,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
     <div data-testid="audio-hero">
       <div className="flex flex-col gap-4 sm:flex-row sm:gap-5">
         {/* Cover */}
-        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-brand-deep/10 sm:h-44 sm:w-44">
+        <div className="h-40 w-40 shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-brand-deep/10 sm:h-44 sm:w-44">
           <img
             src={cover || audioDefault}
             alt=""
@@ -50,15 +50,15 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-link">
             <MusicIcon className="h-3 w-3" /> Track
           </span>
-          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }}>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }}>
             {title}
           </h1>
-          {artist && <p className="mt-0.5 text-sm font-medium text-slate-500">{artist}</p>}
+          {artist && <p className="mt-0.5 text-sm font-medium text-slate-500 dark:text-slate-400">{artist}</p>}
 
           {genres.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {genres.map((g) => (
-                <span key={g} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{g}</span>
+                <span key={g} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{g}</span>
               ))}
             </div>
           )}
@@ -92,12 +92,12 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
                   const r = e.currentTarget.getBoundingClientRect();
                   seekTrack(id, (e.clientX - r.left) / r.width);
                 }}
-                className="group relative h-1.5 cursor-pointer rounded-full bg-slate-200"
+                className="group relative h-1.5 cursor-pointer rounded-full bg-slate-200 dark:bg-slate-700"
               >
                 <div className="absolute inset-y-0 left-0 rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
                 <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary opacity-0 shadow transition-opacity group-hover:opacity-100" style={{ left: `${pct}%` }} />
               </div>
-              <div className="mt-1.5 flex justify-between text-[11px] font-medium tabular-nums text-slate-400">
+              <div className="mt-1.5 flex justify-between text-[11px] font-medium tabular-nums text-slate-400 dark:text-slate-500">
                 <span>{player.isError ? "Couldn't play this track" : formatTime(player.currentTime)}</span>
                 <span>{formatTime(total)}</span>
               </div>
@@ -107,7 +107,7 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
       </div>
 
       {description && description !== title && (
-        <p className="mt-4 whitespace-pre-line break-words border-t border-slate-100 pt-4 text-sm leading-relaxed text-slate-600">{description}</p>
+        <p className="mt-4 whitespace-pre-line break-words border-t border-slate-100 dark:border-slate-800/60 pt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
       )}
     </div>
   );

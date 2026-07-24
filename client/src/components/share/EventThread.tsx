@@ -176,7 +176,7 @@ export function EventThread({
 
   if (repliesQuery.isLoading) {
     return (
-      <div className="mt-6 flex items-center gap-2 text-sm text-slate-400" data-testid="thread-loading">
+      <div className="mt-6 flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-loading">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
       </div>
     );
@@ -186,18 +186,18 @@ export function EventThread({
   return (
     <section className="mt-6" data-testid="event-thread">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="inline-flex items-center gap-2 text-sm font-bold text-slate-900">
-          <MessageSquare className="h-4 w-4 text-slate-400" /> Comments <span className="text-slate-400 font-semibold">({replies.length})</span>
+        <h2 className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-slate-100">
+          <MessageSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Comments <span className="text-slate-400 dark:text-slate-500 font-semibold">({replies.length})</span>
         </h2>
         {loggedIn && (
-          <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-0.5" data-testid="thread-trust-filter" title="Filter comments by trust in your current perspective">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 ml-1.5" />
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5" data-testid="thread-trust-filter" title="Filter comments by trust in your current perspective">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 ml-1.5" />
             {TRUST_FILTERS.map((f) => (
               <button
                 key={f.key}
                 type="button"
                 onClick={() => setMinTrust(f.min)}
-                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-brand-primary text-white" : "text-slate-500 hover:text-slate-800"}`}
+                className={`rounded-md px-2 py-1 text-xs font-semibold transition-colors ${minTrust === f.min ? "bg-brand-primary text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"}`}
                 data-testid={`thread-filter-${f.key}`}
               >
                 {f.label}
@@ -208,7 +208,7 @@ export function EventThread({
       </div>
 
       {loggedIn && !usePersonal && (
-        <p className="mb-2 text-xs text-slate-500" data-testid="thread-filter-unlock">
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-unlock">
           {calcTriggered ? (
             <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your Web of Trust — the filter switches to your perspective when it's ready.</span>
           ) : myFollows > 0 ? (
@@ -231,7 +231,7 @@ export function EventThread({
       )}
 
       {loggedIn && minTrust > 0 && (
-        <p className="mb-2 text-xs text-slate-500" data-testid="thread-filter-status">
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-status">
           {scoring ? (
             <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Scoring commenters in {usePersonal ? "your Web of Trust" : "the Brainstorm network"}…</span>
           ) : (
@@ -255,8 +255,8 @@ export function EventThread({
 
       {!loggedIn && gatedCount > 0 && (
         <div className="mt-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="thread-gate">
-          <p className="text-sm font-bold text-slate-900">See the whole conversation</p>
-          <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
+          <p className="text-sm font-bold text-slate-900 dark:text-slate-100">See the whole conversation</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
             Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-brand-deep">filter the thread through your own Web of Trust</span>.
           </p>
           <Link
@@ -266,8 +266,8 @@ export function EventThread({
           >
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
-          <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             Already part of the network? <Link href={loginHref} className="font-semibold text-brand-link hover:underline" data-testid="thread-gate-signin">Sign in →</Link>
           </p>
         </div>

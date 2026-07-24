@@ -18,7 +18,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
   };
 
   return (
-    <div className="rounded-xl overflow-hidden border border-slate-200 bg-black">
+    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
       <div className="relative aspect-video bg-black">
         <video
           ref={ref}
@@ -45,7 +45,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
           </button>
         )}
       </div>
-      {title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 truncate bg-white">{title}</p>}
+      {title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{title}</p>}
     </div>
   );
 }

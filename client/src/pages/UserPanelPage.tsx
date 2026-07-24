@@ -164,13 +164,13 @@ function getTier(influence: number): { name: string; color: string; badgeClass: 
   if (influence >= 0.5) return { name: "Trusted", color: "text-sky-600", badgeClass: "bg-sky-50 border-sky-200 text-sky-700" };
   if (influence >= 0.2) return { name: "Neutral", color: "text-indigo-600", badgeClass: "bg-indigo-50 border-indigo-200 text-indigo-700" };
   if (influence >= 0.05) return { name: "Low Trust", color: "text-amber-600", badgeClass: "bg-amber-50 border-amber-200 text-amber-700" };
-  return { name: "Unverified", color: "text-slate-500", badgeClass: "bg-slate-50 border-slate-200 text-slate-500" };
+  return { name: "Unverified", color: "text-slate-500", badgeClass: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" };
 }
 
 function TrendIndicator({ current, previous }: { current: number; previous: number | null }) {
-  if (previous === null) return <Minus className="h-3.5 w-3.5 text-slate-400" />;
+  if (previous === null) return <Minus className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />;
   const diff = current - previous;
-  if (Math.abs(diff) < 0.001) return <Minus className="h-3.5 w-3.5 text-slate-400" />;
+  if (Math.abs(diff) < 0.001) return <Minus className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />;
   if (diff > 0) return <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />;
   return <TrendingDown className="h-3.5 w-3.5 text-red-500" />;
 }
@@ -582,7 +582,7 @@ export default function UserPanelPage() {
   const truncatedNpub = user.npub.slice(0, 12) + "..." + user.npub.slice(-6);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-agentsuite">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-agentsuite">
       <PageBackground />
 
       <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50" data-testid="nav-agentsuite">
@@ -643,11 +643,11 @@ export default function UserPanelPage() {
                     </div>
                   </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72 bg-white/95 backdrop-blur-xl border-indigo-500/20">
+                <DropdownMenuContent align="end" className="w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-indigo-500/20">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-slate-900">{user.displayName || "Anon"}</p>
-                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 hover:text-indigo-600 transition-colors" onClick={() => { copyToClipboard(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
+                      <p className="text-sm font-medium leading-none text-slate-900 dark:text-slate-100">{user.displayName || "Anon"}</p>
+                      <button className="flex items-center gap-1 text-xs leading-none text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors" onClick={() => { copyToClipboard(user.npub); toast({ title: "Copied!", description: "npub copied to clipboard" }); }} data-testid="button-copy-npub">
                         <span>{user.npub.slice(0, 16)}...</span>
                         <Copy className="h-3 w-3" />
                       </button>
@@ -682,16 +682,16 @@ export default function UserPanelPage() {
 
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2" data-testid="section-agentsuite-header">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 dark:bg-slate-900/70 border border-cyan-500/20 shadow-sm backdrop-blur-sm w-fit">
                 <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_4px_#06b6d4]" />
                 <p className="text-[9px] font-bold tracking-[0.15em] text-cyan-800 uppercase">Your Assistant on Nostr</p>
               </div>
-              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agentsuite-title">
+              <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-agentsuite-title">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-indigo-500 to-purple-600 bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
                   Agent Suite
                 </span>
               </h1>
-              <p className="text-xs sm:text-base text-slate-600 font-medium" data-testid="text-agentsuite-subtitle">
+              <p className="text-xs sm:text-base text-slate-600 dark:text-slate-300 font-medium" data-testid="text-agentsuite-subtitle">
                 Build your trust assistant — it grows with your network and earns trust on your behalf.
               </p>
             </div>
@@ -976,16 +976,16 @@ export default function UserPanelPage() {
           </div>
 
           {agentIsLive && (
-            <div id="agent-edit-section" className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-cyan-50/40 backdrop-blur-xl border border-cyan-500/15 shadow-[0_0_15px_rgba(6,182,212,0.05)] overflow-hidden" data-testid="card-agent-edit">
+            <div id="agent-edit-section" className="rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900 via-white/80 dark:via-slate-900 to-cyan-50/40 backdrop-blur-xl border border-cyan-500/15 shadow-[0_0_15px_rgba(6,182,212,0.05)] overflow-hidden" data-testid="card-agent-edit">
               <div className="h-1 w-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-cyan-400" />
-              <div className="bg-gradient-to-b from-cyan-500/8 to-white/60 border-b border-cyan-500/10 px-5 py-4">
+              <div className="bg-gradient-to-b from-cyan-500/8 to-white/60 dark:to-slate-900/60 border-b border-cyan-500/10 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                     <AgentIcon className="h-4 w-4 text-cyan-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Assistant</h2>
-                    <p className="text-xs text-slate-500">Update your assistant's profile and connections</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-edit-title">Customize Assistant</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Update your assistant's profile and connections</p>
                   </div>
                 </div>
               </div>
@@ -994,18 +994,18 @@ export default function UserPanelPage() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600/60 mb-3">Identity</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Assistant Name</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Assistant Name</label>
                       <Input value={agentNameInput} onChange={e => setAgentNameInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-name" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Bio</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Bio</label>
                       <Input value={agentDescInput} onChange={e => setAgentDescInput(e.target.value)} className="text-sm" data-testid="input-edit-agent-desc" />
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-3 items-end">
                   <div className="shrink-0">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Avatar</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Avatar</label>
                     <ImageUpload
                       value={agentPictureInput}
                       onChange={setAgentPictureInput}
@@ -1014,7 +1014,7 @@ export default function UserPanelPage() {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Banner</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Banner</label>
                     <ImageUpload
                       value={agentBannerInput}
                       onChange={setAgentBannerInput}
@@ -1025,15 +1025,15 @@ export default function UserPanelPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Lightning</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Lightning</label>
                     <Input value={agentLud16Input} onChange={e => setAgentLud16Input(e.target.value)} placeholder="you@getalby.com" className="text-sm" data-testid="input-edit-agent-lud16" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">NIP-05</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">NIP-05</label>
                     <Input value={agentNip05Input} onChange={e => setAgentNip05Input(e.target.value)} placeholder="you@nostr.com" className="text-sm" data-testid="input-edit-agent-nip05" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Website</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1.5">Website</label>
                     <Input value={agentWebsiteInput} onChange={e => setAgentWebsiteInput(e.target.value)} placeholder="https://yoursite.com" className="text-sm" data-testid="input-edit-agent-website" />
                   </div>
                 </div>
@@ -1138,31 +1138,31 @@ export default function UserPanelPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-emerald-500/15 shadow-[0_0_15px_rgba(52,211,153,0.05)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(52,211,153,0.15)] hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-invite-users">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900 via-white/80 dark:via-slate-900 to-indigo-50/40 backdrop-blur-xl border border-emerald-500/15 shadow-[0_0_15px_rgba(52,211,153,0.05)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(52,211,153,0.15)] hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-invite-users">
               <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-              <div className="bg-gradient-to-b from-emerald-500/10 to-white/60 border-b border-emerald-500/10 px-5 py-4">
+              <div className="bg-gradient-to-b from-emerald-500/10 to-white/60 dark:to-slate-900/60 border-b border-emerald-500/10 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                     <UserPlus className="h-4 w-4 text-emerald-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-title">Invite & Add Users</h2>
-                    <p className="text-xs text-slate-500">Grow your Web of Trust network</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-title">Invite & Add Users</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Grow your Web of Trust network</p>
                   </div>
                 </div>
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Invite Link</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Invite Link</label>
                   <div className="flex gap-2">
-                    <div className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono text-slate-600 truncate" data-testid="text-invite-link">{window.location.origin}</div>
+                    <div className="flex-1 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-600 dark:text-slate-300 truncate" data-testid="text-invite-link">{window.location.origin}</div>
                     <Button size="sm" variant="outline" onClick={handleCopyInviteLink} className="gap-1.5 shrink-0" data-testid="button-copy-invite-link">
                       <Copy className="h-3.5 w-3.5" /> Copy
                     </Button>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Add by npub</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2">Add by npub</label>
                   <div className="flex gap-2">
                     <Input placeholder="npub1... or hex pubkey" value={npubInput} onChange={e => setNpubInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLookupNpub()} className="text-sm" data-testid="input-add-npub" />
                     <Button size="sm" onClick={handleLookupNpub} disabled={lookupLoading} className="bg-brand-deep hover:bg-[#292873] text-white gap-1.5 shrink-0" data-testid="button-add-npub">
@@ -1170,15 +1170,15 @@ export default function UserPanelPage() {
                     </Button>
                   </div>
                   {lookedUpUser && (
-                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200" data-testid="card-looked-up-user">
+                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800" data-testid="card-looked-up-user">
                       <div className="flex items-center gap-3 min-w-0">
-                        <Avatar className="h-9 w-9 border border-slate-100 shrink-0">
+                        <Avatar className="h-9 w-9 border border-slate-100 dark:border-slate-800/60 shrink-0">
                           {lookedUpUser.picture ? <AvatarImage src={lookedUpUser.picture} alt={lookedUpUser.displayName || "User"} className="object-cover" /> : null}
                           <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">{(lookedUpUser.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate" data-testid="text-looked-up-name">{lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}</p>
-                          <p className="text-[10px] text-slate-400 font-mono truncate">{lookedUpUser.npub.slice(0, 20)}...</p>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid="text-looked-up-name">{lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">{lookedUpUser.npub.slice(0, 20)}...</p>
                         </div>
                       </div>
                       <div className="flex gap-1.5 shrink-0 sm:ml-auto">
@@ -1200,44 +1200,44 @@ export default function UserPanelPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-purple-500/15 shadow-[0_0_15px_rgba(168,85,247,0.05)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(168,85,247,0.15)] hover:border-purple-500/30 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-ta-history">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900 via-white/80 dark:via-slate-900 to-indigo-50/40 backdrop-blur-xl border border-purple-500/15 shadow-[0_0_15px_rgba(168,85,247,0.05)] overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(168,85,247,0.15)] hover:border-purple-500/30 hover:-translate-y-1 transition-all duration-500 relative" data-testid="card-ta-history">
               <div className="h-1 w-full bg-gradient-to-r from-purple-400 via-fuchsia-500 to-purple-400" />
-              <div className="bg-gradient-to-b from-purple-500/10 to-white/60 border-b border-purple-500/10 px-5 py-4">
+              <div className="bg-gradient-to-b from-purple-500/10 to-white/60 dark:to-slate-900/60 border-b border-purple-500/10 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                     <Clock className="h-4 w-4 text-purple-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-ta-title">Trust Attestation History</h2>
-                    <p className="text-xs text-slate-500">Your published Trust Attestations</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-ta-title">Trust Attestation History</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Your published Trust Attestations</p>
                   </div>
                 </div>
               </div>
               <div className="p-5">
                 {grapeRankLoading ? (
                   <div className="space-y-3 animate-pulse">
-                    {[1, 2].map(i => <div key={i} className="h-12 bg-slate-100 rounded-lg" />)}
+                    {[1, 2].map(i => <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-lg" />)}
                   </div>
                 ) : taHistory.length === 0 ? (
                   <div className="text-center py-8" data-testid="empty-ta-history">
-                    <Clock className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm font-semibold text-slate-500">No attestations yet</p>
-                    <p className="text-xs text-slate-400 mt-1">Your Trust Attestation history will appear here after your first calculation.</p>
+                    <Clock className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">No attestations yet</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Your Trust Attestation history will appear here after your first calculation.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {taHistory.map((entry, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-3 py-2.5 rounded-lg bg-slate-50/80 border border-slate-100" data-testid={`row-ta-${idx}`}>
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-3 py-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/60" data-testid={`row-ta-${idx}`}>
                         <div className="flex items-center gap-2 min-w-0 sm:w-48">
-                          <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span className="text-xs text-slate-600 font-medium">{formatTimestamp(entry.timestamp)}</span>
+                          <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                          <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">{formatTimestamp(entry.timestamp)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[10px] font-mono">kind {entry.eventKind}</Badge>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
                           {entry.relays.map((relay, ri) => (
-                            <span key={ri} className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[200px]">{relay}</span>
+                            <span key={ri} className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded truncate max-w-[200px]">{relay}</span>
                           ))}
                         </div>
                         <div className="shrink-0">
@@ -1263,17 +1263,17 @@ export default function UserPanelPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-sky-500/15 shadow-[0_0_15px_rgba(14,165,233,0.05)] overflow-hidden" data-testid="card-network-score-monitor">
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900 via-white/80 dark:via-slate-900 to-indigo-50/40 backdrop-blur-xl border border-sky-500/15 shadow-[0_0_15px_rgba(14,165,233,0.05)] overflow-hidden" data-testid="card-network-score-monitor">
             <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-sky-400" />
-            <div className="bg-gradient-to-b from-sky-500/10 to-white/60 border-b border-sky-500/10 px-5 py-4">
+            <div className="bg-gradient-to-b from-sky-500/10 to-white/60 dark:to-slate-900/60 border-b border-sky-500/10 px-5 py-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
                     <Eye className="h-4 w-4 text-sky-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nsm-title">Network Score Monitor</h2>
-                    <p className="text-xs text-slate-500">Trust scores for accounts you follow ({followingCount})</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nsm-title">Network Score Monitor</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Trust scores for accounts you follow ({followingCount})</p>
                   </div>
                 </div>
                 <Input placeholder="Search by name or npub..." value={scoreSearch} onChange={e => setScoreSearch(e.target.value)} className="text-xs h-8 w-full sm:w-56" data-testid="input-score-search" />
@@ -1283,86 +1283,86 @@ export default function UserPanelPage() {
               {selfLoading || grapeRankLoading ? (
                 <div className="space-y-3 animate-pulse">
                   {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                      <div className="h-8 w-8 rounded-full bg-slate-200" />
-                      <div className="flex-1 space-y-2"><div className="h-3 w-32 bg-slate-200 rounded" /><div className="h-2 w-20 bg-slate-100 rounded" /></div>
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="flex-1 space-y-2"><div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded" /><div className="h-2 w-20 bg-slate-100 dark:bg-slate-800 rounded" /></div>
                     </div>
                   ))}
                 </div>
               ) : followingCount === 0 ? (
                 <div className="text-center py-8" data-testid="empty-score-monitor">
-                  <Users className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-semibold text-slate-500">No followed accounts yet</p>
-                  <p className="text-xs text-slate-400 mt-1">Follow users to see their trust scores here.</p>
+                  <Users className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">No followed accounts yet</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Follow users to see their trust scores here.</p>
                 </div>
               ) : (
                 <>
-                  <div className="hidden sm:grid grid-cols-[auto_1fr_100px_100px_40px] gap-3 px-3 pb-2 border-b border-slate-100">
+                  <div className="hidden sm:grid grid-cols-[auto_1fr_100px_100px_40px] gap-3 px-3 pb-2 border-b border-slate-100 dark:border-slate-800/60">
                     <div className="w-8" />
-                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors" onClick={() => toggleSort("name")} data-testid="sort-name">
+                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" onClick={() => toggleSort("name")} data-testid="sort-name">
                       Name <ArrowUpDown className="h-3 w-3" />
                     </button>
-                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors" onClick={() => toggleSort("score")} data-testid="sort-score">
+                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" onClick={() => toggleSort("score")} data-testid="sort-score">
                       Score <ArrowUpDown className="h-3 w-3" />
                     </button>
-                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors" onClick={() => toggleSort("tier")} data-testid="sort-tier">
+                    <button className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" onClick={() => toggleSort("tier")} data-testid="sort-tier">
                       Tier <ArrowUpDown className="h-3 w-3" />
                     </button>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Trend</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-center">Trend</span>
                   </div>
-                  <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50">
+                  <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800">
                     {filteredAndSortedUsers.length === 0 ? (
                       <div className="text-center py-6" data-testid="empty-score-search">
-                        <p className="text-sm text-slate-400">No results match your search.</p>
+                        <p className="text-sm text-slate-400 dark:text-slate-500">No results match your search.</p>
                       </div>
                     ) : filteredAndSortedUsers.slice(0, 100).map(u => {
                       const tierInfo = getTier(u.influence);
                       return (
-                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg" onClick={() => navigate(`/profile/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
-                          <Avatar className="h-8 w-8 border border-slate-100">
+                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/profile/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
+                          <Avatar className="h-8 w-8 border border-slate-100 dark:border-slate-800/60">
                             {u.picture ? <AvatarImage src={u.picture} alt={u.displayName || "User"} className="object-cover" /> : null}
                             <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">{(u.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 truncate">{u.displayName || u.npub.slice(0, 12) + "..."}</p>
-                            <p className="text-[10px] text-slate-400 font-mono truncate sm:hidden">{u.npub.slice(0, 16)}...</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{u.displayName || u.npub.slice(0, 12) + "..."}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate sm:hidden">{u.npub.slice(0, 16)}...</p>
                           </div>
-                          <div className="flex items-center"><span className="text-sm font-bold text-slate-800 tabular-nums">{u.influence.toFixed(4)}</span></div>
+                          <div className="flex items-center"><span className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">{u.influence.toFixed(4)}</span></div>
                           <div className="flex items-center"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${tierInfo.badgeClass}`}>{tierInfo.name}</span></div>
                           <div className="flex items-center justify-center"><TrendIndicator current={u.influence} previous={previousScores.get(u.pubkey) ?? null} /></div>
                         </div>
                       );
                     })}
                   </div>
-                  {filteredAndSortedUsers.length > 100 && <p className="text-xs text-slate-400 text-center mt-3">Showing 100 of {filteredAndSortedUsers.length} results</p>}
+                  {filteredAndSortedUsers.length > 100 && <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-3">Showing 100 of {filteredAndSortedUsers.length} results</p>}
                 </>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-slate-200/60 shadow-[0_0_15px_rgba(0,0,0,0.03)] overflow-hidden" data-testid="card-lists-scaffold">
-            <div className="h-1 w-full bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300" />
-            <div className="bg-gradient-to-b from-slate-200/30 to-white/60 border-b border-slate-200/50 px-5 py-4">
+          <div className="rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900 via-white/80 dark:via-slate-900 to-indigo-50/40 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800 shadow-[0_0_15px_rgba(0,0,0,0.03)] overflow-hidden" data-testid="card-lists-scaffold">
+            <div className="h-1 w-full bg-gradient-to-r from-slate-300 dark:from-slate-700 via-slate-400 dark:via-slate-600 to-slate-300 dark:to-slate-700" />
+            <div className="bg-gradient-to-b from-slate-200/30 dark:from-slate-800/30 to-white/60 dark:to-slate-900/60 border-b border-slate-200/50 dark:border-slate-800 px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-white border border-slate-100 shadow-sm ring-1 ring-slate-100 flex items-center justify-center shrink-0">
-                  <List className="h-4 w-4 text-slate-500" />
+                <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
+                  <List className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-sm font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-lists-title">DCoSL Lists</h2>
-                  <p className="text-xs text-slate-500">Curated lists for decentralized content moderation</p>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-lists-title">DCoSL Lists</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Curated lists for decentralized content moderation</p>
                 </div>
               </div>
             </div>
             <div className="p-5">
               <div className="text-center py-8" data-testid="scaffold-lists-coming-soon">
-                <div className="h-14 w-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4">
-                  <List className="h-7 w-7 text-slate-400" />
+                <div className="h-14 w-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center mx-auto mb-4">
+                  <List className="h-7 w-7 text-slate-400 dark:text-slate-500" />
                 </div>
-                <p className="text-sm font-bold text-slate-700">DCoSL Lists — Coming Soon</p>
-                <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">DCoSL Lists — Coming Soon</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">
                   Curated lists will let you create and manage decentralized content moderation lists, enabling collaborative trust decisions across the Nostr network.
                 </p>
-                <Badge variant="outline" className="mt-4 text-slate-500 border-slate-300">Coming Soon</Badge>
+                <Badge variant="outline" className="mt-4 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700">Coming Soon</Badge>
               </div>
             </div>
           </div>
@@ -1372,7 +1372,7 @@ export default function UserPanelPage() {
       <Footer />
 
       <AlertDialog open={activateConfirmOpen} onOpenChange={setActivateConfirmOpen}>
-        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[460px] rounded-2xl border border-cyan-500/20 bg-white/95 backdrop-blur-xl shadow-[0_0_30px_rgba(6,182,212,0.1)] p-0 overflow-hidden" data-testid="dialog-activate-confirm">
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[460px] rounded-2xl border border-cyan-500/20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-[0_0_30px_rgba(6,182,212,0.1)] p-0 overflow-hidden" data-testid="dialog-activate-confirm">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-indigo-500 to-cyan-400" />
             <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-cyan-500/10 to-transparent" />
@@ -1384,35 +1384,35 @@ export default function UserPanelPage() {
                   <AgentIcon className="h-5 w-5 text-cyan-600" />
                 </div>
                 <div className="min-w-0">
-                  <AlertDialogTitle className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                  <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                     Deploy {agentNameInput.trim() || "Your Agent"}?
                   </AlertDialogTitle>
-                  <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed mt-1">
+                  <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-1">
                     This will publish a kind 0 profile event to 5 Nostr relays, making your Brainstorm agent discoverable across the network.
                   </AlertDialogDescription>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-2.5">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Agent Name</span>
-                  <span className="text-xs font-bold text-slate-900">{agentNameInput.trim()}</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Agent Name</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{agentNameInput.trim()}</span>
                 </div>
                 {agentDescInput.trim() && (
                   <div>
-                    <span className="text-xs font-semibold text-slate-500 block mb-0.5">Description</span>
-                    <span className="text-xs text-slate-700 leading-relaxed">{agentDescInput.trim()}</span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-0.5">Description</span>
+                    <span className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">{agentDescInput.trim()}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Event</span>
-                  <span className="text-xs font-mono text-slate-600">kind 0</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Event</span>
+                  <span className="text-xs font-mono text-slate-600 dark:text-slate-300">kind 0</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Relays</span>
-                  <span className="text-xs text-slate-600">5 relays</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Relays</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">5 relays</span>
                 </div>
-                <div className="pt-1.5 border-t border-slate-200/80">
+                <div className="pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-cyan-50 to-indigo-50 border border-cyan-200/60" data-testid="badge-certified-assistant">
                     <AgentIcon className="h-3 w-3 text-cyan-600" />
                     <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Certified Brainstorm Assistant</span>

@@ -21,12 +21,12 @@ export function EventRow({ event, href, past = false }: { event: EventRowItem; h
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 rounded-xl border bg-white p-2.5 transition-all ${past ? "border-slate-200 opacity-75 hover:opacity-100" : "border-slate-200 hover:border-slate-300"}`}
+      className={`flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-all ${past ? "border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100" : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"}`}
       data-testid="share-event-row"
     >
       <div
         className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border ${
-          past ? "border-slate-200 bg-slate-50 text-slate-400" : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep"
+          past ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500" : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep"
         }`}
         aria-hidden="true"
       >
@@ -38,11 +38,11 @@ export function EventRow({ event, href, past = false }: { event: EventRowItem; h
         alt=""
         loading="lazy"
         onError={(e) => { if (!e.currentTarget.src.includes("event-default")) e.currentTarget.src = eventDefault; }}
-        className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 object-cover"
+        className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover"
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-900">{event.title}</p>
-        <p className="truncate text-xs text-slate-500">
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
+        <p className="truncate text-xs text-slate-500 dark:text-slate-400">
           {relativeEventTime(event.start)}{event.location ? ` · ${event.location}` : ""}
         </p>
       </div>

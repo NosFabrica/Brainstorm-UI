@@ -22,24 +22,24 @@ export default function DeveloperTrustedAssertionsPage() {
               <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
-              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
+              className="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Portable scores, as <span className="text-brand-deep">signed nostr events</span>.
             </h1>
-            <p className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl">
+            <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
               Web-of-trust scores published as ordinary nostr events, so any client can fetch and verify them.
             </p>
           </header>
 
           <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="How it works" testId="card-ta-overview">
-            <p className="text-[15px] text-slate-600 leading-relaxed">
+            <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               Trusted Assertions are{" "}
               <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> nostr events carrying web-of-trust
               scores — rank, verified follower counts, and related metrics — published by a trust authority about
               other pubkeys.
             </p>
-            <p className="text-[15px] text-slate-600 leading-relaxed">
+            <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               Because they are ordinary signed nostr events, any client can fetch them, verify who signed them, and
               apply its own trust perspective without depending on this instance.
             </p>
@@ -53,18 +53,18 @@ export default function DeveloperTrustedAssertionsPage() {
               Read about Trusted Assertions in the NIP-85 specification
               <ExternalLink className="h-4 w-4" />
             </a>
-            <p className="pt-2 text-[13px] text-slate-400">Documentation coming soon.</p>
+            <p className="pt-2 text-[13px] text-slate-400 dark:text-slate-500">Documentation coming soon.</p>
           </SectionCard>
 
           <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="Where to find them" testId="card-ta-fetch">
-            <p className="text-[15px] text-slate-600 leading-relaxed">
+            <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               Query <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> events from this
               instance's NIP-85 relay, authored by its trust-authority pubkey. See the NIP-85 spec for the tag
               structure.
             </p>
             {NIP85_RELAY && (
               <>
-                <p className="text-[15px] text-slate-600 leading-relaxed">NIP-85 relay:</p>
+                <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">NIP-85 relay:</p>
                 <CodeBlock code={NIP85_RELAY} testId="ta-relay" />
               </>
             )}

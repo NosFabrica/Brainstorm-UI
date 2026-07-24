@@ -94,7 +94,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
           size="icon"
           className={
             (isLight
-              ? "text-slate-500 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 rounded-xl "
+              ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 dark:hover:bg-white/10 rounded-xl "
               : "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl ") +
             (className ?? "")
           }
@@ -108,11 +108,11 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-72 p-3 bg-white/95 backdrop-blur-xl border-indigo-500/20 shadow-xl"
+        className="w-72 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-indigo-500/20 shadow-xl"
         data-testid="panel-apps-launcher"
       >
         <p
-          className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400"
+          className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
           data-testid="text-apps-launcher-heading"
         >
           Brainstorm apps
@@ -154,7 +154,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                   className={
                     "h-10 w-10 rounded-xl flex items-center justify-center " +
                     (tile.comingSoon
-                      ? "bg-slate-400/[0.07] border border-slate-300/40 "
+                      ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
                       : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
                         (tile.tone === "special"
                           ? "border border-indigo-500/30 animate-pulse-glow"
@@ -165,7 +165,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                     className={
                       "h-5 w-5 " +
                       (tile.comingSoon
-                        ? "text-slate-400"
+                        ? "text-slate-400 dark:text-slate-500"
                         : tile.tone === "admin"
                           ? "text-amber-600"
                           : "text-indigo-600")
@@ -175,14 +175,14 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                 <span
                   className={
                     "text-[11px] font-medium leading-tight " +
-                    (tile.comingSoon ? "text-slate-400" : "text-slate-700")
+                    (tile.comingSoon ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300")
                   }
                 >
                   {tile.label}
                 </span>
                 {tile.comingSoon && (
                   <span
-                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 leading-none"
+                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 dark:text-slate-500/80 leading-none"
                     data-testid={`text-soon-${tile.key}`}
                   >
                     Soon

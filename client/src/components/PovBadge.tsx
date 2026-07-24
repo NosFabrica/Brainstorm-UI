@@ -39,7 +39,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
   return (
     <>
       <DropdownMenuLabel
-        className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1.5 pt-2"
+        className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold flex items-center gap-1.5 pt-2"
         data-testid="label-pov-section"
       >
         <Telescope className="h-3 w-3" /> Trust perspective
@@ -57,10 +57,10 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-slate-800">Brainstorm</span>
+            <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200">Brainstorm</span>
             {effective === "nosfabrica" && <Check className="h-3 w-3 text-indigo-500" />}
           </div>
-          <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
             The "house" view from Brainstorm's curated trust graph.
           </p>
         </div>
@@ -90,17 +90,17 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-slate-800 truncate">
+            <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200 truncate">
               {user?.displayName || "My WoT"}
             </span>
             {effective === "mywot" && <Check className="h-3 w-3 text-emerald-600" />}
             {!hasMywot && (
-              <span className="ml-auto text-[9px] uppercase tracking-wider text-slate-400 font-semibold">
+              <span className="ml-auto text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
                 Coming soon
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
             {hasMywot
               ? "Personalized scores using your own trust graph."
               : "Calculate your trust network in Settings to enable."}
