@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { ArrowRight, Shield, Users, Zap } from 'lucide-react';
-import { ComputingBackground } from '@/components/ComputingBackground';
 import { Footer } from '@/components/Footer';
 
 const steps = [
@@ -37,7 +36,13 @@ export default function OnboardingPage() {
         }
       `}</style>
 
-      <ComputingBackground variant="dark" />
+      {/* Human-Signals photography (people, nodes baked in) behind an Ink scrim —
+          people before technology, per the brand. */}
+      <div className="absolute inset-0 z-0" aria-hidden="true">
+        <img src="/brand/hero.jpg" alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover select-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/55" />
+        <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
+      </div>
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative">
         <div
@@ -49,12 +54,12 @@ export default function OnboardingPage() {
             style={{ animation: 'fadeInUp 0.5s ease-out 0.1s both' }}
           >
             <h1
-              className="font-brand text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white via-indigo-200 to-indigo-300 bg-clip-text text-transparent leading-tight"
+              className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white leading-tight"
               data-testid="text-onboarding-title"
             >
               Get Started with Brainstorm
             </h1>
-            <p className="text-slate-400 mt-3 text-base sm:text-lg max-w-lg mx-auto">
+            <p className="text-slate-300 mt-3 text-base sm:text-lg max-w-lg mx-auto">
               Three steps to your personalized Web of Trust
             </p>
           </div>
