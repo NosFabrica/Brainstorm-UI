@@ -85,7 +85,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-72 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-indigo-500/20 shadow-xl"
+        className="w-72 p-3 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
         data-testid="panel-apps-launcher"
       >
         <p

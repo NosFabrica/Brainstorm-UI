@@ -117,7 +117,7 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
         <PopoverContent
           align="end"
           sideOffset={10}
-          className="w-80 p-0 overflow-hidden rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white/98 dark:bg-slate-900/98 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.14)]"
+          className="w-80 p-0 overflow-hidden rounded-2xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
           data-testid="menu-user"
         >
           {/* Identity card */}
