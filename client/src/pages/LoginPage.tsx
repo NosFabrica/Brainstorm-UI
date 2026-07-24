@@ -12,11 +12,10 @@ import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { BrainLogo } from "@/components/BrainLogo";
-import heroImage1 from "@/assets/login-hero/hero-1.webp";
-import heroImage2 from "@/assets/login-hero/hero-2.webp";
-import heroImage3 from "@/assets/login-hero/hero-3.webp";
-
-const HERO_IMAGES: string[] = [heroImage1, heroImage2, heroImage3];
+import { Wordmark } from "@/components/Wordmark";
+// Human-Signals photography (Design System v1.0) — people, with the nodes
+// overlay baked in — for the login brand panel. Served from public/brand.
+const HERO_IMAGES: string[] = ["/brand/hero.jpg", "/brand/hero-2.jpg", "/brand/hero-3.jpg"];
 
 function getNextPath(): string {
   try {
@@ -131,7 +130,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans lg:overflow-hidden" data-testid="page-login">
       {/* Left column — editorial value panel */}
-      <div className="hidden lg:flex w-[45%] flex-col relative bg-indigo-900 text-white overflow-hidden p-12 justify-between">
+      <div className="hidden lg:flex w-[45%] flex-col relative bg-slate-950 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
           {HERO_IMAGES.map((src, i) => (
             <img
@@ -141,34 +140,30 @@ export default function LoginPage() {
               draggable={false}
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
-              className={`absolute inset-0 w-full h-full object-cover mix-blend-overlay select-none transition-opacity duration-1000 ease-in-out ${
-                i === heroIndex ? "opacity-40" : "opacity-0"
+              className={`absolute inset-0 w-full h-full object-cover select-none transition-opacity duration-1000 ease-in-out ${
+                i === heroIndex ? "opacity-100" : "opacity-0"
               }`}
             />
           ))}
-          <div className="absolute inset-0 bg-gradient-to-t from-indigo-950 via-indigo-900/60 to-transparent" />
+          {/* Ink scrim for legibility + a faint Aurora tint at the top. */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/25" />
+          <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
         </div>
 
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-12" data-testid="brand-login">
-            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/20">
-              <BrainLogo size={32} className="text-white" />
-            </div>
-            <span
-              className="text-2xl font-bold tracking-tight text-white"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Brainstorm
-            </span>
+          {/* Brand panel (marketing context) → the handwritten wordmark, white
+              variant for the dark photography. */}
+          <div className="flex items-center gap-2" data-testid="brand-login">
+            <Wordmark height={26} variant="white" />
           </div>
         </div>
 
         <div className="relative z-10 max-w-md">
-          <h1 className="font-brand text-4xl font-semibold mb-6 leading-tight text-white/90">
+          <h1 className="text-4xl font-semibold mb-6 leading-tight text-white/95">
             Trust is earned. <br />
             <span className="text-white">Now it's visible.</span>
           </h1>
-          <p className="text-lg text-indigo-200 leading-relaxed">
+          <p className="text-lg text-slate-300 leading-relaxed">
             Brainstorm maps the relationships that matter. See who your friends trust,
             build your reputation, and navigate your network with confidence.
           </p>
