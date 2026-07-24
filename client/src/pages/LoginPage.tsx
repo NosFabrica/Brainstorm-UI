@@ -16,6 +16,12 @@ import { Wordmark } from "@/components/Wordmark";
 // Human-Signals photography (Design System v1.0) — people, with the nodes
 // overlay baked in — for the login brand panel. Served from public/brand.
 const HERO_IMAGES: string[] = ["/brand/hero.jpg", "/brand/hero-2.jpg", "/brand/hero-3.jpg"];
+// A tiny (16px) inline thumbnail of the first hero, blurred + scaled up as a
+// "blur-up" placeholder. Inlined so it paints on first frame with no network
+// round-trip, filling the panel with the photo's own colors until the full
+// image decodes. The opaque hero images cover it once loaded.
+const HERO_BLUR =
+  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QB0RXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAABIAAAAAQAAAEgAAAABAAKgAgAEAAAAAQAAABCgAwAEAAAAAQAAAAkAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/iAmRJQ0NfUFJPRklMRQABAQAAAlRsY21zBDAAAG1udHJSR0IgWFlaIAfqAAcAFAAKAAAACGFjc3BBUFBMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD21gABAAAAANMtbGNtcwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC2Rlc2MAAAEIAAAAPmNwcnQAAAFIAAAATHd0cHQAAAGUAAAAFGNoYWQAAAGoAAAALHJYWVoAAAHUAAAAFGJYWVoAAAHoAAAAFGdYWVoAAAH8AAAAFHJUUkMAAAIQAAAAIGdUUkMAAAIQAAAAIGJUUkMAAAIQAAAAIGNocm0AAAIwAAAAJG1sdWMAAAAAAAAAAQAAAAxlblVTAAAAIgAAABwAcwBSAEcAQgAgAEkARQBDADYAMQA5ADYANgAtADIALgAxAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAADAAAAAcAE4AbwAgAGMAbwBwAHkAcgBpAGcAaAB0ACwAIAB1AHMAZQAgAGYAcgBlAGUAbAB5WFlaIAAAAAAAAPbWAAEAAAAA0y1zZjMyAAAAAAABDEIAAAXe///zJQAAB5MAAP2Q///7of///aIAAAPcAADAblhZWiAAAAAAAABvoAAAOPUAAAOQWFlaIAAAAAAAACSfAAAPhAAAtsNYWVogAAAAAAAAYpcAALeHAAAY2XBhcmEAAAAAAAMAAAACZmYAAPKnAAANWQAAE9AAAApbY2hybQAAAAAAAwAAAACj1wAAVHsAAEzNAACZmgAAJmYAAA9c/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAFhYWFhYWJhYWJjYmJiY2STY2NjZJXElJSUlJXG9cXFxcXFxvb29vb29vb4aGhoaGhpycnJycr6+vr6+vr6+vr//bAEMBGx0dLSktTCkpTLd8Zny3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t//dAAQAAf/aAAwDAQACEQMRAD8Ax3nklURnhUUAAnj/APXVd7iRXZW5/HNUh1oPWgD/2Q==";
 
 function getNextPath(): string {
   try {
@@ -132,11 +138,13 @@ export default function LoginPage() {
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
-          {/* Branded base: a soft Aurora glow over the violet→ink gradient so the
-              panel reads as an intentional brand surface before the hero photo
-              loads (or if it ever fails). The opaque photos cover it once in. */}
-          <div className="absolute -top-1/4 -left-1/4 h-2/3 w-2/3 rounded-full bg-brand-primary/25 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-1/2 w-1/2 rounded-full bg-brand-accent/10 blur-3xl" />
+          {/* Blur-up placeholder over the violet→ink gradient base: the panel
+              shows the hero's own colours instantly (no network round-trip),
+              then the full photo fades in on top and covers it. */}
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url("${HERO_BLUR}")`, filter: "blur(24px)", transform: "scale(1.1)" }}
+          />
           {HERO_IMAGES.map((src, i) => (
             <img
               key={src}
@@ -144,6 +152,7 @@ export default function LoginPage() {
               alt=""
               draggable={false}
               loading={i === 0 ? "eager" : "lazy"}
+              fetchPriority={i === 0 ? "high" : "low"}
               decoding="async"
               className={`absolute inset-0 w-full h-full object-cover select-none transition-opacity duration-1000 ease-in-out ${
                 i === heroIndex ? "opacity-100" : "opacity-0"
