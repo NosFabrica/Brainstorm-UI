@@ -628,7 +628,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           <Icon className="h-4 w-4 text-brand-deep" />
         </div>
         {scope && (
-          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"}`}>
+          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/25" : "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"}`}>
             {scope === "system" ? "System" : "Your graph"}
           </span>
         )}
