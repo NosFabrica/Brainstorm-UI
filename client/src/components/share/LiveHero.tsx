@@ -40,7 +40,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       {canEmbed ? (
         <LiveVideoPlayer src={streaming as string} poster={posterImage} onError={() => setFailed(true)} />
       ) : (
-        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900" data-testid="live-state">
+        <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800" data-testid="live-state">
           <img src={posterImage} alt="" onError={() => setImgBroken(true)} className="absolute inset-0 h-full w-full object-cover opacity-50" />
           <div className="absolute inset-0 bg-slate-900/40" />
           <div className="relative flex flex-col items-center gap-2 px-6 text-center text-white">
@@ -73,7 +73,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {isLive && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
+          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
           </span>
         )}

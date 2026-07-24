@@ -92,7 +92,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
               className="w-full flex items-center gap-2.5 rounded-xl border border-brand-accent/30 bg-brand-accent/[0.06] px-3.5 py-2.5 text-left hover:border-brand-accent/50 transition-colors"
               data-testid="share-add-photo-nudge"
             >
-              <span className="h-8 w-8 rounded-lg bg-white border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+              <span className="h-8 w-8 rounded-lg bg-white dark:bg-slate-900 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
                 <ImagePlus className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">

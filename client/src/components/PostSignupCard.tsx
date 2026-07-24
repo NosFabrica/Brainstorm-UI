@@ -154,7 +154,7 @@ export function PostSignupCard() {
   if (returningNeedsFollow) {
     return (
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
         data-testid="card-returning-follow-nudge"
       >
         <div className="relative p-5 sm:p-6">
@@ -203,7 +203,7 @@ export function PostSignupCard() {
   return (
     <>
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none"
         data-testid="card-post-signup"
       >
         {/* Faded person photo + white wash so dark text stays readable */}
@@ -214,8 +214,8 @@ export function PostSignupCard() {
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-white/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-white/60 dark:from-slate-900/95 dark:via-slate-900/85 dark:to-slate-900/60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-transparent dark:from-slate-900/70" />
 
         <div className="relative z-10 p-5 sm:p-6">
           <button
@@ -256,12 +256,12 @@ export function PostSignupCard() {
           {networkStarted ? (
             <div className={`${tileBase} mt-5`} data-testid="tile-network-done">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                   <Check className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Network started</div>
-                  <div className="text-[13px] text-emerald-700">Your trust scores are calculating</div>
+                  <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Your trust scores are calculating</div>
                 </div>
               </div>
             </div>
@@ -292,12 +292,12 @@ export function PostSignupCard() {
             {hasPhoto ? (
               <div className={tileBase} data-testid="tile-complete-profile-done">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Profile photo added</div>
-                    <div className="text-[13px] text-emerald-700">People can recognize you</div>
+                    <div className="text-[13px] text-emerald-700 dark:text-emerald-300">People can recognize you</div>
                   </div>
                 </div>
               </div>
@@ -314,7 +314,7 @@ export function PostSignupCard() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Complete your profile</div>
-                    <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    <div className="text-[13px] font-semibold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
                       Add a photo &amp; bio
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>
@@ -327,12 +327,12 @@ export function PostSignupCard() {
             {backedUp ? (
               <div className={tileBase} data-testid="tile-backup-done">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Backed up</div>
-                    <div className="text-[13px] text-emerald-700">Backup file downloaded</div>
+                    <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Backup file downloaded</div>
                   </div>
                 </div>
               </div>
@@ -366,7 +366,7 @@ export function PostSignupCard() {
                   data-testid="input-backup-confirm"
                 />
                 {mismatch && (
-                  <p className="mt-1.5 text-[12px] font-medium text-red-600" data-testid="text-backup-mismatch">Passwords don't match.</p>
+                  <p className="mt-1.5 text-[12px] font-medium text-red-600 dark:text-red-400" data-testid="text-backup-mismatch">Passwords don't match.</p>
                 )}
                 <button
                   type="button"
@@ -399,7 +399,7 @@ export function PostSignupCard() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</div>
-                    <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    <div className="text-[13px] font-semibold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
                       Save a backup file
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>

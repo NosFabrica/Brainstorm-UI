@@ -109,11 +109,11 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
 
         {state === "success" ? (
           <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-2" data-testid="status-create-success">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 mb-4">
               <div className="h-9 w-9 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
                 <Check className="h-5 w-5 text-white" />
               </div>
-              <p className="text-sm font-semibold text-emerald-800">
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                 Welcome to Brainstorm{trimmed ? `, ${trimmed}` : ""}.
               </p>
             </div>
@@ -150,7 +150,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
 
             {state === "error" && (
               <div
-                className="mt-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700"
+                className="mt-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
                 data-testid="status-create-error"
               >
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />

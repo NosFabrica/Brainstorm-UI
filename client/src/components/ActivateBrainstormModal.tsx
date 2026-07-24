@@ -230,7 +230,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-left"
                     data-testid={`button-toggle-${section.key}`}
                   >
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-brand-link shrink-0">
+                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-100 dark:border-indigo-500/25 flex items-center justify-center text-brand-link shrink-0">
                       {section.icon}
                     </div>
                     <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 flex-1">{section.title}</span>
@@ -252,11 +252,11 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Supported by</span>
               <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] border border-[#e0e7ff] text-brand-link text-xs font-semibold hover:bg-[#e0e7ff] transition-colors" data-testid="link-modal-amethyst">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#eef2ff] dark:bg-indigo-500/15 border border-[#e0e7ff] dark:border-indigo-500/25 text-brand-link text-xs font-semibold hover:bg-[#e0e7ff] dark:hover:bg-indigo-500/25 transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
-                <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-100 text-orange-700 text-xs font-semibold hover:bg-orange-100 transition-colors" data-testid="link-modal-nostria">
+                <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/25 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-colors" data-testid="link-modal-nostria">
                   Nostria
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
@@ -269,7 +269,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="border-t border-slate-200/60 dark:border-slate-800 pt-3 sm:pt-4">
               {activateState === "success" ? (
                 <div
-                  className="flex items-center justify-center gap-2 sm:gap-3 h-11 sm:h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700"
+                  className="flex items-center justify-center gap-2 sm:gap-3 h-11 sm:h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
                   data-testid="status-activate-success"
                 >
                   <div className="h-5 w-5 sm:h-6 sm:w-6 rounded-full bg-emerald-500 flex items-center justify-center">
@@ -280,7 +280,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               ) : activateState === "cancelled" ? (
                 <div className="space-y-3">
                   <div
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700"
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300"
                     data-testid="status-activate-cancelled"
                   >
                     <AlertCircle className="h-4 w-4 shrink-0" />
@@ -298,7 +298,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               ) : activateState === "error" ? (
                 <div className="space-y-3">
                   <div
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700"
+                    className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
                     data-testid="status-activate-error"
                   >
                     <AlertCircle className="h-4 w-4 shrink-0" />
@@ -317,9 +317,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                 <>
                   {activateState === "idle" && (
                     hasOtherProvider ? (
-                      <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200" data-testid="text-activate-replace-warning">
-                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-px" />
-                        <p className="text-[12px] leading-relaxed text-amber-800">
+                      <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25" data-testid="text-activate-replace-warning">
+                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-px" />
+                        <p className="text-[12px] leading-relaxed text-amber-800 dark:text-amber-200">
                           You already have a different Web of Trust provider selected. Continuing will <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going forward.
                         </p>
                       </div>

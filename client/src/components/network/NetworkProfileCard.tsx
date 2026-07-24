@@ -144,7 +144,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <TooltipTrigger asChild>
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200 cursor-help no-default-hover-elevate no-default-active-elevate"
+                className="text-[10px] px-1.5 py-0 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25 cursor-help no-default-hover-elevate no-default-active-elevate"
                 data-testid={`badge-verified-muted-${pkShort}`}
               >
                 Muted by {verifiedMuters} verified
@@ -168,7 +168,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <TooltipTrigger asChild>
               <Badge
                 variant="outline"
-                className="text-[10px] px-1.5 py-0 bg-red-50 text-red-700 border-red-200 cursor-help no-default-hover-elevate no-default-active-elevate"
+                className="text-[10px] px-1.5 py-0 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25 cursor-help no-default-hover-elevate no-default-active-elevate"
                 data-testid={`badge-verified-reported-${pkShort}`}
               >
                 Reported by {verifiedReporters} verified
@@ -199,7 +199,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           data-testid={`trust-loading-${pkShort}`}
         >
           <div
-            className={`rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}
+            className={`rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}
           >
             <Loader2
               className={`text-indigo-300 animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`}
@@ -245,7 +245,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="3"
-                  className="text-indigo-100"
+                  className="text-indigo-100 dark:text-indigo-500/20"
                 />
                 <circle
                   cx="22"
@@ -263,7 +263,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 />
               </svg>
               <span
-                className={`${textSize} font-bold font-mono tabular-nums text-indigo-700`}
+                className={`${textSize} font-bold font-mono tabular-nums text-indigo-700 dark:text-indigo-300`}
               >
                 {pct}
               </span>
@@ -336,13 +336,13 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     const isRefreshing = expandedLoading && !detail;
     return (
       <div
-        className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
+        className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden animate-fade-up relative ${viewMode === "grid" ? "col-span-full" : ""}`}
         data-testid={`detail-panel-${pkShort}`}
       >
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm">
+              <Avatar className="h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none">
                 {profile?.picture ? (
                   <AvatarImage
                     src={profile.picture}
@@ -417,14 +417,14 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
           {isFlagged && (
             <div
-              className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200"
+              className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
               data-testid={`detail-flagged-badge-${pkShort}`}
             >
-              <FlaggedIcon className="h-4 w-4 text-red-600" />
-              <span className="text-xs font-semibold text-red-700">
+              <FlaggedIcon className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <span className="text-xs font-semibold text-red-700 dark:text-red-300">
                 Flagged
               </span>
-              <span className="text-[10px] text-red-500">
+              <span className="text-[10px] text-red-500 dark:text-red-400">
                 Low trust & reported by 2+ trusted accounts
               </span>
             </div>
@@ -497,7 +497,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   return (
                     <div
                       key={m.key}
-                      className="flex items-center gap-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3 py-2.5"
+                      className="flex items-center gap-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 dark:border-indigo-500/20 shadow-sm dark:shadow-none px-3 py-2.5"
                       data-testid={`detail-metric-${m.key}-${pkShort}`}
                     >
                       <div
@@ -507,7 +507,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                       </div>
                       <div className="min-w-0">
                         {isPending ? (
-                          <p className="text-sm font-bold font-mono tabular-nums text-slate-300">
+                          <p className="text-sm font-bold font-mono tabular-nums text-slate-300 dark:text-slate-600">
                             —
                           </p>
                         ) : (
@@ -537,7 +537,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
               {effectiveDetail.influence !== undefined && (
                 <div
-                  className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 shadow-sm px-3.5 py-2.5 mb-4"
+                  className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 dark:border-indigo-500/20 shadow-sm dark:shadow-none px-3.5 py-2.5 mb-4"
                   data-testid={`detail-influence-${pkShort}`}
                 >
                   <div className="w-8 h-8 rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50 to-indigo-100/60 flex items-center justify-center shrink-0">
@@ -638,7 +638,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none ${
                             isFollowingUser
                               ? cardFollowHovered
-                                ? "bg-red-50 border border-red-200 text-red-600"
+                                ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-600 dark:text-red-400"
                                 : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300"
                               : "bg-brand-primary text-white hover:bg-brand-primary-hover"
                           }`}
@@ -680,7 +680,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                           }}
                           className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border disabled:opacity-50 disabled:pointer-events-none ${
                             isMutedUser
-                              ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                              ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/15"
                               : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                           data-testid={`button-mute-${pkShort}`}

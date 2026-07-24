@@ -229,11 +229,11 @@ export function ScoringStatusBar() {
         </div>
       ) : (
         <div
-          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-emerald-200 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-1.5"
+          className="pointer-events-auto mx-auto flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/25 shadow-lg shadow-slate-900/10 pl-3 pr-2 py-1.5"
           data-testid="scoring-status-ready"
         >
-          <span className="h-6 w-6 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <span className="h-6 w-6 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </span>
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your Web of Trust is ready</span>
           <button

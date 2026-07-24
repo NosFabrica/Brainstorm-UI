@@ -9,21 +9,21 @@ type PresetBadgeProps = {
 
 const STYLES: Record<TrustPreset, { bg: string; text: string; border: string; dot: string }> = {
   relax: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200",
+    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+    border: "border-emerald-200 dark:border-emerald-500/25",
     dot: "bg-emerald-500",
   },
   default: {
-    bg: "bg-indigo-50",
+    bg: "bg-indigo-50 dark:bg-indigo-500/15",
     text: "text-brand-deep",
     border: "border-brand-accent/30",
     dot: "bg-brand-accent",
   },
   strict: {
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    border: "border-amber-200",
+    bg: "bg-amber-50 dark:bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-500/25",
     dot: "bg-amber-500",
   },
 };

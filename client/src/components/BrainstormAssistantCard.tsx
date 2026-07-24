@@ -311,7 +311,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           {isActive && (
             <div className="flex items-center gap-1.5 mb-1" data-testid={`status-assistant-${variant}`}>
               <span className={"h-1.5 w-1.5 rounded-full " + (isFresh ? "bg-emerald-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600")} />
-              <span className={"text-[10px] font-bold uppercase tracking-widest " + (isFresh ? "text-emerald-700" : "text-slate-500 dark:text-slate-400")}>
+              <span className={"text-[10px] font-bold uppercase tracking-widest " + (isFresh ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400")}>
                 {isFresh ? "Live" : "Active"}
               </span>
             </div>
@@ -454,8 +454,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             </div>
 
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2" data-testid={`alert-assistant-error-${variant}`}>
-                <p className="text-xs text-red-700 font-medium">{error}</p>
+              <div className="rounded-xl border border-red-200 dark:border-red-500/25 bg-red-50 dark:bg-red-500/10 px-3 py-2" data-testid={`alert-assistant-error-${variant}`}>
+                <p className="text-xs text-red-700 dark:text-red-300 font-medium">{error}</p>
               </div>
             )}
 
@@ -533,8 +533,8 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             </p>
 
             {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2" data-testid={`alert-assistant-error-${variant}`}>
-                <p className="text-xs text-red-700 font-medium">{error}</p>
+              <div className="rounded-xl border border-red-200 dark:border-red-500/25 bg-red-50 dark:bg-red-500/10 px-3 py-2" data-testid={`alert-assistant-error-${variant}`}>
+                <p className="text-xs text-red-700 dark:text-red-300 font-medium">{error}</p>
               </div>
             )}
 

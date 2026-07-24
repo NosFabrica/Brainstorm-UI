@@ -169,7 +169,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
                 </div>
                 {r.wotRank != null && (
                   <span
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-indigo-100 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600"
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-indigo-100 dark:border-indigo-500/25 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400"
                     data-testid={`header-search-rank-${i}`}
                   >
                     <BrainLogo size={10} className="shrink-0" />

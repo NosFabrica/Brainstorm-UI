@@ -165,7 +165,7 @@ export function EmbeddedTrackCard({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onZap(); }}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-amber-500 transition-all hover:bg-amber-50 ${revealCls}`}
+            className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-amber-500 transition-all hover:bg-amber-50 dark:hover:bg-amber-500/10 ${revealCls}`}
             aria-label="Zap this track"
             title="Send a zap to support this track"
             data-testid="track-zap"

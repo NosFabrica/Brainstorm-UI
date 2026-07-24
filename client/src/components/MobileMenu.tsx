@@ -72,7 +72,7 @@ function NavButton({
         (disabled
           ? "font-medium text-slate-400 dark:text-slate-500 opacity-50 cursor-not-allowed border border-transparent"
           : active
-            ? "font-semibold text-brand-link bg-indigo-50 border border-indigo-100"
+            ? "font-semibold text-brand-link bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25"
             : "font-medium text-slate-700 dark:text-slate-200 hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-900 border border-transparent")
       }
       onClick={() => {
@@ -161,7 +161,7 @@ export function MobileMenu({
           style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))" }}
         >
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-indigo-50">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-indigo-50 dark:bg-indigo-500/10">
               <BrainLogo size={22} className="text-indigo-500" />
             </div>
             <div className="leading-tight">
@@ -285,7 +285,7 @@ export function MobileMenu({
             </div>
             <Button
               variant="outline"
-              className="w-full justify-center gap-2 rounded-2xl border-red-200 bg-white dark:bg-slate-900 text-red-600 no-default-hover-elevate no-default-active-elevate hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+              className="w-full justify-center gap-2 rounded-2xl border-red-200 dark:border-red-500/25 bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 no-default-hover-elevate no-default-active-elevate hover:border-red-300 dark:hover:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300"
               onClick={() => {
                 onClose();
                 onLogout();

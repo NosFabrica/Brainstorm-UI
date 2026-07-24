@@ -168,7 +168,7 @@ export function LoginFailureModal({
             {errorMessage && !showSecretKeyForm && !isNoExtension && (
               <div className="px-5 sm:px-6 pb-2">
                 <div
-                  className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700"
+                  className="flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300"
                   data-testid="status-login-failure-detail"
                 >
                   <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -364,7 +364,7 @@ export function LoginFailureModal({
 
                   {secretKeyError && (
                     <div
-                      className="flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700"
+                      className="flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
                       data-testid="text-nsec-error"
                     >
                       <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />

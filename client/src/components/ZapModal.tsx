@@ -260,7 +260,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-invoice">
               {paid ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="zap-paid">
-                  <div className="h-12 w-12 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                  <div className="h-12 w-12 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                     <Check className="h-6 w-6" />
                   </div>
                   <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{recipientSupportsZaps ? "Zap sent!" : "Payment sent!"}</p>
@@ -345,7 +345,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
 
           {step === "unverified" && (
             <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="zap-unverified">
-              <div className="h-11 w-11 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+              <div className="h-11 w-11 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-400">
                 <ShieldAlert className="h-5 w-5" />
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Couldn't verify this recipient</p>
@@ -364,7 +364,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
 
           {step === "error" && (
             <div className="flex flex-col items-center justify-center py-8 text-center" data-testid="zap-error">
-              <div className="h-10 w-10 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+              <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 flex items-center justify-center text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Couldn't create the payment</p>
