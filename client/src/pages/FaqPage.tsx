@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
+import { Card } from "@/components/ui/card";
 
 const userFaqs = [
   {
@@ -132,9 +133,7 @@ export default function FaqPage() {
               </button>
             </div>
 
-            <div
-              className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative group"
-            >
+            <Card className="overflow-hidden relative group">
               <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
@@ -241,7 +240,7 @@ export default function FaqPage() {
                   </motion.div>
                 </AnimatePresence>
               </div>
-            </div>
+            </Card>
 
             {/* Cross-link */}
             <button

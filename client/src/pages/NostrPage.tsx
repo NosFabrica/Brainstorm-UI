@@ -13,6 +13,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { Card } from "@/components/ui/card";
+import { tone as getTone } from "@/lib/tones";
 
 type Benefit = {
   icon: typeof Fingerprint;
@@ -81,6 +83,7 @@ const RESOURCES: { name: string; note: string; href: string }[] = [
 export default function NostrPage() {
   const [, navigate] = useLocation();
   const [showWeeds, setShowWeeds] = useState(false);
+  const accent = getTone("accent");
 
   return (
     <InfoPageLayout testId="page-nostr">
@@ -155,25 +158,25 @@ export default function NostrPage() {
               {BENEFITS.map((b) => {
                 const Icon = b.icon;
                 return (
-                  <div
+                  <Card
                     key={b.title}
-                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
+                    className="p-6 sm:p-7"
                     data-testid={`card-benefit-${b.title.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                   >
-                    <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
-                      <Icon className="h-5 w-5 text-brand-deep" />
+                    <div className={`h-10 w-10 rounded-xl ${accent.bg} border ${accent.border} flex items-center justify-center mb-4`}>
+                      <Icon className={`h-5 w-5 ${accent.icon}`} />
                     </div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{b.title}</h3>
                     <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">{b.body}</p>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           </section>
 
           {/* Get into the weeds — progressive depth */}
-          <section
-            className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-8"
+          <Card
+            className="p-6 sm:p-8"
             data-testid="section-nostr-weeds"
           >
             <div className="max-w-2xl">
@@ -216,8 +219,8 @@ export default function NostrPage() {
                       data-testid={`concept-${c.term.toLowerCase()}`}
                     >
                       <div className="flex items-center gap-3 sm:flex-col sm:items-start shrink-0 sm:w-28">
-                        <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
-                          <Icon className="h-5 w-5 text-brand-deep" />
+                        <div className={`h-10 w-10 rounded-xl ${accent.bg} border ${accent.border} flex items-center justify-center`}>
+                          <Icon className={`h-5 w-5 ${accent.icon}`} />
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight sm:mt-2">{c.term}</h3>
                       </div>
@@ -227,7 +230,7 @@ export default function NostrPage() {
                 })}
               </div>
             )}
-          </section>
+          </Card>
 
           {/* Learn more — outbound resources */}
           <section data-testid="section-nostr-resources">

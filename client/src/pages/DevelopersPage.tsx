@@ -2,6 +2,9 @@ import { Link } from "wouter";
 import { ArrowRight, BadgeCheck } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { ConnectionIcon, FavoriteChartIcon, OpenSourceSection } from "@/components/developers/DevShared";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { tone as getTone } from "@/lib/tones";
 
 // The developer landing/index: an editorial hero + one clickable card per way to
 // bring Brainstorm's web-of-trust scores into a nostr client. Each card links to
@@ -40,6 +43,7 @@ const METHODS: {
 ];
 
 export default function DevelopersPage() {
+  const accent = getTone("accent");
   return (
     <InfoPageLayout testId="page-developers">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
@@ -70,19 +74,21 @@ export default function DevelopersPage() {
               <Link
                 key={m.href}
                 href={m.href}
-                className="group flex items-center gap-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6"
+                className="group block"
                 data-testid={m.testId}
               >
-                <div className="h-12 w-12 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
-                  {m.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                    {m.title}
-                  </p>
-                  <p className="mt-1 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{m.description}</p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
+                <Card interactive className="flex items-center gap-5 p-6">
+                  <div className={cn("h-12 w-12 rounded-xl border flex items-center justify-center shrink-0", accent.bg, accent.border)}>
+                    {m.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                      {m.title}
+                    </p>
+                    <p className="mt-1 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{m.description}</p>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
+                </Card>
               </Link>
             ))}
           </div>

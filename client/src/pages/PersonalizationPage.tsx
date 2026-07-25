@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
+import { Card } from "@/components/ui/card";
+import { tone as getTone } from "@/lib/tones";
 import ownPerspectiveImg from "@assets/generated_images/about_yours_identity.webp";
 
 const steps = [
@@ -24,6 +26,7 @@ const steps = [
 
 export default function PersonalizationPage() {
   const [, navigate] = useLocation();
+  const emerald = getTone("emerald");
 
   return (
     <InfoPageLayout testId="page-personalization">
@@ -99,8 +102,8 @@ export default function PersonalizationPage() {
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div
-                className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
+              <Card
+                className="p-6 sm:p-7"
                 data-testid="card-house-pov"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -116,15 +119,15 @@ export default function PersonalizationPage() {
                   Uses trust scores selected by the operator of this instance — the "house." Available to
                   everyone, with no account and no sign-in required.
                 </p>
-              </div>
+              </Card>
 
-              <div
-                className="rounded-2xl border border-emerald-200 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
+              <Card
+                className="border-emerald-200 p-6 sm:p-7"
                 data-testid="card-my-pov"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
-                    <UserCircle className="h-5 w-5 text-emerald-700" />
+                  <div className={`h-10 w-10 rounded-xl ${emerald.bg} border ${emerald.border} flex items-center justify-center shrink-0`}>
+                    <UserCircle className={`h-5 w-5 ${emerald.icon}`} />
                   </div>
                   <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-emerald-600 uppercase">
                     Personalized
@@ -158,7 +161,7 @@ export default function PersonalizationPage() {
                   . Or, if you prefer, you can be your own trust-scores service provider by running the
                   open-source code.
                 </p>
-              </div>
+              </Card>
             </div>
           </section>
 
@@ -173,7 +176,7 @@ export default function PersonalizationPage() {
               </h2>
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+            <Card className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
               {steps.map((step, i) => {
                 const Icon = step.icon;
                 return (
@@ -195,7 +198,7 @@ export default function PersonalizationPage() {
                   </div>
                 );
               })}
-            </div>
+            </Card>
 
             {/* Optional note callout */}
             <div className="mt-6 rounded-2xl bg-brand-deep px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">

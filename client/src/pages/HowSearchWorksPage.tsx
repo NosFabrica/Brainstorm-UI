@@ -17,6 +17,9 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { tone as getTone, type NamedTone } from "@/lib/tones";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
 
 const BrainLogoIcon = ({ className }: { className?: string }) => <BrainLogo className={className} />;
@@ -127,10 +130,7 @@ const POWERED_BY: { name: string; note: string; href: string }[] = [
 
 function PipelineDiagram() {
   return (
-    <div
-      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5 sm:p-7"
-      data-testid="diagram-pipeline"
-    >
+    <Card className="p-5 sm:p-7" data-testid="diagram-pipeline">
       <div className="flex items-center gap-2 mb-5">
         <span className="text-[10px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
           The pipeline
@@ -172,7 +172,7 @@ function PipelineDiagram() {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -189,25 +189,23 @@ function TrustSignal({
   effect: string;
   fill: number;
 }) {
-  const toneStyles = {
-    up: { chip: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25", bar: "bg-emerald-500", icon: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25" },
-    down: { chip: "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/25", bar: "bg-rose-500", icon: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/25" },
-    off: { chip: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800", bar: "bg-slate-300 dark:bg-slate-700", icon: "text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800" },
-  }[tone];
+  const toneName: NamedTone = ({ up: "emerald", down: "rose", off: "slate" } as const)[tone];
+  const barCls = { up: "bg-emerald-500", down: "bg-rose-500", off: "bg-slate-300 dark:bg-slate-700" }[tone];
+  const t = getTone(toneName);
   return (
     <div className="flex items-center gap-3" data-testid={`signal-${tone}`}>
-      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${toneStyles.icon}`}>
+      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${t.bg} ${t.border} ${t.icon}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{title}</p>
-          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${toneStyles.chip}`}>
+          <Chip tone={toneName} size="md">
             {effect}
-          </span>
+          </Chip>
         </div>
         <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-          <div className={`h-full rounded-full ${toneStyles.bar}`} style={{ width: `${fill}%` }} />
+          <div className={`h-full rounded-full ${barCls}`} style={{ width: `${fill}%` }} />
         </div>
       </div>
     </div>
@@ -313,7 +311,7 @@ export default function HowSearchWorksPage() {
               </h2>
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+            <Card className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {STAGES.map((stage) => {
                 const Icon = stage.icon;
                 return (
@@ -343,14 +341,11 @@ export default function HowSearchWorksPage() {
                   </div>
                 );
               })}
-            </div>
+            </Card>
           </section>
 
           {/* Trust-score visual */}
-          <section
-            className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-8"
-            data-testid="section-hsw-trust"
-          >
+          <Card className="p-6 sm:p-8" data-testid="section-hsw-trust">
             <div className="flex items-center gap-3 mb-2">
               <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
                 <ShieldCheck className="h-5 w-5 text-brand-deep" />
@@ -430,7 +425,7 @@ export default function HowSearchWorksPage() {
                 </p>
               </div>
             )}
-          </section>
+          </Card>
 
           {/* Powered by */}
           <section data-testid="section-hsw-powered">

@@ -15,6 +15,8 @@ import {
   Store,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { Card } from "@/components/ui/card";
+import { tone as getTone } from "@/lib/tones";
 import {
   Accordion,
   AccordionContent,
@@ -217,6 +219,7 @@ export default function WhatIsWotPage() {
   const [, navigate] = useLocation();
   const prefersReduced = useReducedMotion();
   const [query, setQuery] = useState("");
+  const accentTile = getTone("accent");
 
   // Hand off to the real search on the home page (it reads ?q= from the URL).
   const runSearch = (q: string) => {
@@ -375,9 +378,9 @@ export default function WhatIsWotPage() {
               {trustRings.map((ring, i) => {
                 const Icon = ring.icon;
                 return (
-                  <div
+                  <Card
                     key={i}
-                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-5 sm:p-6 flex flex-col"
+                    className="p-5 sm:p-6 flex flex-col"
                     style={{ opacity: ringFade[i] }}
                     data-testid={`card-ring-${i}`}
                   >
@@ -401,7 +404,7 @@ export default function WhatIsWotPage() {
                         <div className={`h-full rounded-full bg-gradient-to-r from-brand-accent to-brand-deep ${ringWidth[ring.level]}`} />
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -428,14 +431,14 @@ export default function WhatIsWotPage() {
               {signalColumns.map((col, i) => {
                 const Icon = col.icon;
                 return (
-                  <div
+                  <Card
                     key={i}
-                    className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-6 sm:p-7"
+                    className="p-6 sm:p-7"
                     data-testid={`card-signal-${i}`}
                   >
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
-                        <Icon className="h-5 w-5 text-brand-deep" />
+                      <div className={`h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 ${accentTile.bg} ${accentTile.border}`}>
+                        <Icon className={`h-5 w-5 ${accentTile.icon}`} />
                       </div>
                       <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-brand-accent uppercase">
                         {col.kicker}
@@ -453,7 +456,7 @@ export default function WhatIsWotPage() {
                     <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-4">
                       {col.insight}
                     </p>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -499,17 +502,18 @@ export default function WhatIsWotPage() {
               {useCases.map((uc, i) => {
                 const Icon = uc.icon;
                 return (
-                  <div
+                  <Card
                     key={i}
-                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6"
+                    interactive
+                    className="p-5 sm:p-6"
                     data-testid={`card-usecase-${i}`}
                   >
-                    <div className="h-11 w-11 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center mb-4">
-                      <Icon className="h-5 w-5 text-brand-deep" />
+                    <div className={`h-11 w-11 rounded-xl border flex items-center justify-center mb-4 ${accentTile.bg} ${accentTile.border}`}>
+                      <Icon className={`h-5 w-5 ${accentTile.icon}`} />
                     </div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{uc.title}</h3>
                     <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{uc.body}</p>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -541,7 +545,7 @@ export default function WhatIsWotPage() {
               </h2>
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm px-5 sm:px-7">
+            <Card className="px-5 sm:px-7">
               <Accordion type="single" collapsible className="w-full">
                 {faqs.map((faq, i) => (
                   <AccordionItem
@@ -559,7 +563,7 @@ export default function WhatIsWotPage() {
                   </AccordionItem>
                 ))}
               </Accordion>
-            </div>
+            </Card>
           </section>
 
           {/* CTA + cross-link — photographic enterprise band */}
