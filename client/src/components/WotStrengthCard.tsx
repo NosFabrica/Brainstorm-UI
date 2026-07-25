@@ -109,7 +109,7 @@ export function WotStrengthCard({
       {footer && (
         /* Actions manage their own clicks — don't let them bubble into the
            card's "open explainer" handler. */
-        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-indigo-100" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-indigo-100 dark:border-indigo-500/20" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           {footer}
         </div>
       )}

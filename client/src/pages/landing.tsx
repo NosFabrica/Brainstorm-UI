@@ -887,7 +887,11 @@ export default function Landing() {
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  <UserRound className="h-3 w-3" /> My perspective
+                  <Avatar className="h-4 w-4 shrink-0">
+                    {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  </Avatar>{" "}
+                  My perspective
                 </button>
               </div>
               {!hasMywot && (

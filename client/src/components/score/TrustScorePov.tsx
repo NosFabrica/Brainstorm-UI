@@ -38,7 +38,7 @@ export function useScorePov(): { pov: ScorePov; loggedIn: boolean; setPersonaliz
 /** Container chrome for a score chip/card. Personalized = soft indigo fill; global = neutral outline. */
 export function povChrome(pov: ScorePov): string {
   return pov === "personalized"
-    ? "border-indigo-200 bg-indigo-50/60"
+    ? "border-indigo-200 dark:border-indigo-500/25 bg-indigo-50/60 dark:bg-indigo-500/10"
     : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900";
 }
 
@@ -53,7 +53,7 @@ export function PovIcon({ pov, className = "h-3 w-3" }: { pov: ScorePov; classNa
 /** Tiny inline tag naming the view — pairs the icon with a one-word label. */
 export function PovTag({ pov }: { pov: ScorePov }) {
   return pov === "personalized" ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100/80 border border-indigo-200 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600" data-testid="pov-tag">
+    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100/80 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300" data-testid="pov-tag">
       <UserRound className="h-2.5 w-2.5" /> Personalized
     </span>
   ) : (
