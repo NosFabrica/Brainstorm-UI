@@ -632,7 +632,7 @@ export default function Landing() {
               <Wordmark height={52} className="mx-auto dark:hidden" />
               <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
             </h1>
-            <p className="text-slate-800 dark:text-white text-base sm:text-lg font-semibold [text-shadow:0_1px_16px_rgb(255_255_255_/_0.95),0_1px_3px_rgb(255_255_255_/_0.9)] dark:[text-shadow:0_1px_16px_rgb(2_6_23_/_0.85),0_1px_3px_rgb(2_6_23_/_0.9)]" data-testid="text-home-subtitle">
+            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium drop-shadow-sm" data-testid="text-home-subtitle">
               Search through the people you trust.
             </p>
           </div>
