@@ -120,7 +120,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             <button
               type="button"
               onClick={() => createdUser && onCreated(createdUser)}
-              className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-primary/25 transition-all flex items-center justify-center gap-2"
               data-testid="button-create-get-started"
             >
               Get started <ArrowRight className="h-4 w-4" />
@@ -143,7 +143,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
               autoFocus
               disabled={busy}
               placeholder="e.g. Alex Mercer"
-              className="w-full h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all disabled:opacity-60"
+              className="w-full h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/25 outline-none transition-all disabled:opacity-60"
               data-testid="input-create-display-name"
             />
             <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">You can change this anytime.</p>
@@ -161,7 +161,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             <button
               type="submit"
               disabled={!canSubmit}
-              className="mt-5 w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="mt-5 w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-primary/25 transition-all flex items-center justify-center gap-2"
               data-testid="button-create-submit"
             >
               {busy ? (
