@@ -36,7 +36,7 @@ export function Footer() {
             <Wordmark height={22} variant="white" className="hidden shrink-0 dark:block" />
           </button>
 
-          {/* Partners — {/* SWAP POINT: replace Megistus emblem+label with the lockup */}
+          {/* Partners — both full lockups (black art; Megistus inverts to white in dark) */}
           <div className="flex items-center gap-5">
             <a
               href="https://nosfabrica.com/"
@@ -55,10 +55,9 @@ export function Footer() {
               rel="noopener noreferrer"
               data-testid="link-megistus"
               aria-label="Megistus"
-              className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-brand-link transition-colors"
+              className="opacity-90 hover:opacity-100 transition-opacity"
             >
-              <img src="/megistus-icon-white.png" alt="" aria-hidden="true" className="invert dark:invert-0 h-[20px] w-auto" />
-              Megistus
+              <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
             </a>
           </div>
         </div>
