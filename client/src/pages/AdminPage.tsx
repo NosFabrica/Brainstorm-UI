@@ -2743,7 +2743,7 @@ export default function AdminPage() {
                     onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); }}
                     className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                       active
-                        ? "bg-gradient-to-r from-brand-deep to-brand-accent text-white shadow-md"
+                        ? "bg-gradient-to-r from-brand-primary to-brand-deep text-white shadow-md"
                         : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-900/80"
                     }`}
                     data-testid={`tab-${tab.key}`}
@@ -2825,7 +2825,7 @@ export default function AdminPage() {
                       role="tab"
                       aria-selected={trendWindow === w}
                       onClick={() => setTrendWindow(w)}
-                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-brand-accent to-brand-deep text-white shadow-md ring-1 ring-brand-accent/40" : "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm"}`}
+                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-brand-primary to-brand-deep text-white shadow-md ring-1 ring-brand-primary/40" : "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
                       {w === "all" ? "All" : w}

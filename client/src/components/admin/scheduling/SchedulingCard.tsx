@@ -184,7 +184,7 @@ function PolicyUsersInline({
         </div>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
+          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
           onClick={() => setAssignOpen(true)}
           data-testid={`add-users-${policy.id}`}
         >
@@ -358,7 +358,7 @@ function PolicyUsersInline({
               Cancel
             </Button>
             <Button
-              className="bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
+              className="bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
               onClick={async () => {
                 const pk = confirmRemove?.pubkey;
                 setConfirmRemove(null);
@@ -469,7 +469,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
         </p>
         <Button
           size="sm"
-          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
+          className="h-8 text-xs gap-1.5 bg-brand-deep hover:bg-brand-primary text-white no-default-hover-elevate no-default-active-elevate"
           onClick={() => setDialog({ mode: "create" })}
           data-testid="button-new-policy"
         >
