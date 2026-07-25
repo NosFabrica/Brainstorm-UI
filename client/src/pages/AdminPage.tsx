@@ -17,6 +17,7 @@ import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
 import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -847,7 +848,7 @@ function FailureBreakdownCard({
               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
           </p>
         </div>
-        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25"}`}>{totalFailures}</span>
+        <Chip tone={totalFailures === 0 ? "emerald" : "red"} className="px-2 py-1 font-bold tabular-nums">{totalFailures}</Chip>
       </div>
       <div className="p-5">
         {isError ? (
@@ -976,12 +977,13 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                 <Clock className="h-4 w-4 text-brand-deep" />
                 <p className="font-bold text-xs text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
                 {schedulingName && (
-                  <span
-                    className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/25 px-1.5 py-0.5 rounded-full"
+                  <Chip
+                    tone="violet"
+                    size="sm"
                     title="This user's current scheduling tier — how often scheduled runs recalculate them"
                   >
                     {schedulingName} schedule
-                  </span>
+                  </Chip>
                 )}
               </div>
               {historyQuery.data && historyQuery.data.total > 0 && (
@@ -3132,9 +3134,9 @@ export default function AdminPage() {
                               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
                           </p>
                         </div>
-                        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25"}`} data-testid="badge-failure-count">
+                        <Chip tone={totalFailures === 0 ? "emerald" : "red"} className="px-2 py-1 font-bold tabular-nums" data-testid="badge-failure-count">
                           {totalFailures}
-                        </span>
+                        </Chip>
                       </div>
                     </div>
                     <div className="p-5">
@@ -3756,17 +3758,16 @@ export default function AdminPage() {
               {kpiFilter && (
                 <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-indigo-50/30 dark:bg-indigo-500/10 flex items-center gap-2" data-testid="kpi-filter-badge">
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Filtered:</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    kpiFilter === "scored" ? "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300" :
-                    kpiFilter === "sp_adopters" ? "bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 text-indigo-700 dark:text-indigo-300" :
-                    kpiFilter === "failed" ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300" :
-                    "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25 text-amber-700 dark:text-amber-300"
-                  }`}>
+                  <Chip
+                    size="sm"
+                    tone={kpiFilter === "scored" ? "emerald" : kpiFilter === "sp_adopters" ? "indigo" : kpiFilter === "failed" ? "red" : "amber"}
+                    className="gap-1.5 px-2.5 py-1 font-bold uppercase tracking-wider"
+                  >
                     {kpiFilter === "scored" && <><UserCheck className="h-3 w-3" /> Scored Users</>}
                     {kpiFilter === "sp_adopters" && <><Shield className="h-3 w-3" /> SP Adopters</>}
                     {kpiFilter === "queue" && <><Clock className="h-3 w-3" /> In Queue</>}
                     {kpiFilter === "failed" && <><AlertTriangle className="h-3 w-3" /> Failed</>}
-                  </span>
+                  </Chip>
                   <button
                     onClick={() => setKpiFilter(null)}
                     className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors"

@@ -58,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -2482,13 +2483,15 @@ export default function ProfilePage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                       {myReport && (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full border border-amber-200 dark:border-amber-500/25 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                        <Chip
+                          tone="amber"
+                          icon={Flag}
+                          className="text-[11px]"
                           title="Your report is published. Undo it from the ⋯ menu. Trust scores may take a little while to reflect changes."
                           data-testid="chip-you-reported"
                         >
-                          <Flag className="h-3 w-3" /> You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
-                        </span>
+                          You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
+                        </Chip>
                       )}
                     </>
                   ) : (

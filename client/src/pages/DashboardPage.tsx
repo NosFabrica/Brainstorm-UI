@@ -841,8 +841,8 @@ export default function DashboardPage() {
               />
 
               {nip85Activated && publishDone ? (
-              <div
-                className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm relative self-start md:self-end w-full max-w-sm overflow-hidden"
+              <Card
+                className="relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
               >
                 <button
@@ -987,10 +987,10 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 )}
-              </div>
+              </Card>
               ) : (
-              <div
-                className="flex items-center gap-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
+              <Card
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 self-start md:self-end transition-all duration-200"
                 data-testid="card-overall-trust-score"
               >
                 <div className="flex flex-col leading-tight min-w-0">
@@ -1057,7 +1057,7 @@ export default function DashboardPage() {
                     </>
                   )}
                 </button>
-              </div>
+              </Card>
               )}
 
             </div>
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
                 transition={{ duration: 0.4 }}
                 className="mb-6"
               >
-                <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
+                <Card className="relative flex items-center gap-3 rounded-xl pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
                   <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
                     <Users className="h-4 w-4" />
                   </div>
@@ -1165,7 +1165,7 @@ export default function DashboardPage() {
                   >
                     <X className="h-4 w-4" />
                   </button>
-                </div>
+                </Card>
               </motion.div>
             )}
             {/* Rendered outside the card gate so it stays mounted after the card
