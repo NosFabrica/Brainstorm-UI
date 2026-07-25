@@ -193,7 +193,7 @@
     @apply tracking-tight;
   }
 
-  /* Opt back into the Space Grotesk brand signature — hero page titles + logo wordmark. */
+  /* The brand display face (Figtree via --font-brand) — hero page titles. */
   .font-brand {
     font-family: var(--font-brand);
   }
