@@ -59,7 +59,8 @@ export function Footer() {
               aria-label="Nosfabrica"
               className="opacity-90 hover:opacity-100 transition-opacity"
             >
-              <img src="/nosfabrica-logo.png" alt="Nosfabrica" className="h-[18px] w-auto rounded-sm" />
+              <img src="/nosfabrica-logo-full.png" alt="Nosfabrica" className="h-5 w-auto dark:hidden" />
+              <img src="/nosfabrica-logo-full-white.png" alt="Nosfabrica" className="h-5 w-auto hidden dark:block" />
             </a>
 
             <a
