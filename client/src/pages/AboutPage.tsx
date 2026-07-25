@@ -12,6 +12,10 @@ import {
   Lock,
 } from "lucide-react";
 import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { tone as getTone, type NamedTone } from "@/lib/tones";
+import { cn } from "@/lib/utils";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
@@ -293,9 +297,7 @@ export default function AboutPage() {
               <div className="h-11 w-11 rounded-xl bg-indigo-600 shadow-[0_4px_14px_rgb(var(--brand-primary)/0.3)] flex items-center justify-center">
                 <Search className="h-5 w-5 text-white" />
               </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-wide text-emerald-700 uppercase">
-                <span className="w-1 h-1 rounded-full bg-emerald-500" /> Live
-              </span>
+              <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">Live</Chip>
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               Brainstorm Search
@@ -310,24 +312,24 @@ export default function AboutPage() {
 
           {/* Vendors */}
           <ComingSoonCard
-            icon={<Store className="h-5 w-5 text-sky-600 dark:text-sky-400" />}
-            tint="bg-sky-50 dark:bg-sky-500/10"
+            icon={Store}
+            tone="sky"
             title="Brainstorm Vendors"
             desc="Find sellers and services worth your money, vouched for by people you trust."
             testId="card-family-vendors"
           />
           {/* Communities */}
           <ComingSoonCard
-            icon={<CommunitiesIcon className="h-5 w-5 text-violet-600 dark:text-violet-400" />}
-            tint="bg-violet-50 dark:bg-violet-500/10"
+            icon={CommunitiesIcon}
+            tone="violet"
             title="Brainstorm Communities"
             desc="Hang out in spaces full of people actually worth your time."
             testId="card-family-communities"
           />
           {/* Music */}
           <ComingSoonCard
-            icon={<MusicLibraryIcon className="h-5 w-5 text-fuchsia-600 dark:text-fuchsia-400" />}
-            tint="bg-fuchsia-50 dark:bg-fuchsia-500/10"
+            icon={MusicLibraryIcon}
+            tone="fuchsia"
             title="Brainstorm Music"
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
@@ -403,36 +405,32 @@ export default function AboutPage() {
 }
 
 function ComingSoonCard({
-  icon,
-  tint,
+  icon: Icon,
+  tone,
   title,
   desc,
   testId,
 }: {
-  icon: React.ReactNode;
-  tint: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: NamedTone;
   title: string;
   desc: string;
   testId: string;
 }) {
+  const c = getTone(tone);
   return (
-    <div
-      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-6 flex flex-col gap-3"
-      data-testid={testId}
-    >
+    <Card className="p-5 sm:p-6 flex flex-col gap-3" data-testid={testId}>
       <div className="flex items-center justify-between">
-        <div className={`h-11 w-11 rounded-xl ${tint} border border-slate-100 dark:border-slate-800/60 flex items-center justify-center`}>
-          {icon}
+        <div className={cn("h-11 w-11 rounded-xl border flex items-center justify-center", c.bg, c.border)}>
+          <Icon className={cn("h-5 w-5", c.icon)} />
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] font-bold tracking-wide text-slate-500 dark:text-slate-400 uppercase">
-          Coming soon
-        </span>
+        <Chip tone="slate" size="sm" className="font-bold uppercase tracking-wide">Coming soon</Chip>
       </div>
       <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
         {title}
       </h3>
       <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed flex-1">{desc}</p>
-    </div>
+    </Card>
   );
 }
 
