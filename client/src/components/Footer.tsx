@@ -39,26 +39,6 @@ export function Footer() {
               <img src="/nostr-ostrich.gif" alt="" aria-hidden="true" className="h-[18px] w-auto" />
               Built on Nostr
             </button>
-
-            <a
-              href="https://nosfabrica.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="link-nosfabrica"
-              aria-label="Nosfabrica"
-            >
-              <img src="/nosfabrica-logo.png" alt="Nosfabrica" className="h-[18px] w-auto rounded-sm" />
-            </a>
-
-            <a
-              href="https://megistus.xyz/"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="link-megistus"
-              aria-label="Megistus"
-            >
-              <img src="/megistus-icon-white.png" alt="Megistus" className="invert dark:invert-0 h-[22px] w-auto" />
-            </a>
           </div>
 
           {/* Utility */}
