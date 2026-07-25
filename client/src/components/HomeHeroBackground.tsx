@@ -12,10 +12,13 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
         alt=""
         className="absolute inset-0 h-full w-full object-cover object-center"
       />
-      {/* Theme-adaptive scrim. */}
+      {/* Theme-adaptive scrim. Opacity values must come from Tailwind's default
+          scale (…60, 80, 90, 95…) — non-scale steps like /92 or /55 generate NO
+          rule (transparent), which would leave the photo fully vivid and wash
+          out the hero text during search. */}
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          dimmed ? "bg-white/92 dark:bg-slate-950/85" : "bg-white/80 dark:bg-slate-950/55"
+          dimmed ? "bg-white/95 dark:bg-slate-950/90" : "bg-white/80 dark:bg-slate-950/60"
         }`}
       />
       {/* Aurora glow behind the hero for brand cohesion + legibility. */}
