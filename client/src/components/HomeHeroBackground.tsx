@@ -20,7 +20,7 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
           or /55 generate NO rule (transparent). */}
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          dimmed ? "bg-white/80 dark:bg-slate-950/90" : "bg-white/65 dark:bg-slate-950/60"
+          dimmed ? "bg-white/50 dark:bg-slate-950/90" : "bg-white/40 dark:bg-slate-950/60"
         }`}
       />
       {/* Aurora glow behind the hero for brand cohesion + legibility. */}
