@@ -52,6 +52,17 @@ export function Footer() {
           {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}
           <div className="flex items-center gap-5">
             <a
+              href="https://megistus.xyz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="link-megistus"
+              aria-label="Megistus"
+              className="opacity-90 hover:opacity-100 transition-opacity"
+            >
+              <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
+            </a>
+
+            <a
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
@@ -61,17 +72,6 @@ export function Footer() {
             >
               <img src="/nosfabrica-logo-full.png" alt="Nosfabrica" className="h-5 w-auto dark:hidden" />
               <img src="/nosfabrica-logo-full-white.png" alt="Nosfabrica" className="h-5 w-auto hidden dark:block" />
-            </a>
-
-            <a
-              href="https://megistus.xyz/"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="link-megistus"
-              aria-label="Megistus"
-              className="opacity-90 hover:opacity-100 transition-opacity"
-            >
-              <img src="/megistus-logo.png" alt="Megistus" className="h-6 w-auto dark:invert" />
             </a>
           </div>
         </div>
