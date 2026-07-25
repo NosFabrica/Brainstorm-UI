@@ -819,7 +819,7 @@ export default function Landing() {
             <div className="mt-6 flex flex-col items-center gap-2.5" data-testid="text-home-hint">
               {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill (guidelines homepage). */}
               <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-deep px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
                   <img src="/brand/symbol-white.svg" alt="" aria-hidden="true" className="h-3 w-auto select-none" /> Brainstorm view
                 </span>
                 <button
@@ -852,7 +852,7 @@ export default function Landing() {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
+                      ? "bg-gradient-to-r from-brand-primary to-brand-deep font-semibold text-white shadow-sm"
                       : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
@@ -881,7 +881,7 @@ export default function Landing() {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "mywot"
-                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
+                      ? "bg-gradient-to-r from-brand-primary to-brand-deep font-semibold text-white shadow-sm"
                       : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
