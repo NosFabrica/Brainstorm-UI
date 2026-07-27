@@ -148,7 +148,7 @@ export default function AboutPage() {
                 className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-slate-100 tracking-tight animate-fade-up"
                 data-testid="text-about-title"
               >
-                <span className="text-brand-deep block pb-1">
+                <span className="text-brand-deep dark:text-slate-100 block pb-1">
                   {active.title}
                 </span>
               </h1>
