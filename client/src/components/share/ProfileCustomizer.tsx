@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
-import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X } from "lucide-react";
+import { useLocation } from "wouter";
+import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X, UserRound, ArrowRight } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -92,6 +93,7 @@ export function ProfileCustomizer({
   emptyKeys: Set<string>;
 }) {
   const isMobile = useIsMobile();
+  const [, navigate] = useLocation();
   const [followerQuery, setFollowerQuery] = useState("");
 
   const isHidden = (k: string) => draft.hidden.includes(k);
@@ -168,6 +170,26 @@ export function ProfileCustomizer({
         </SheetHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+          {/* Edit the actual profile content (name, photo, bio) — distinct from
+              the visibility toggles below. Users often open "Customize" looking
+              for this, so it's pinned at the top. Goes to the app's canonical
+              editor at /settings?tab=profile. */}
+          <button
+            type="button"
+            onClick={() => { onCancel(); navigate("/settings?tab=profile"); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/[0.04] px-3 py-2.5 text-left transition-colors hover:border-brand-accent/40 hover:bg-slate-50 dark:hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="customize-edit-profile"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary dark:text-brand-link">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Edit profile info</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Name, photo, bio &amp; banner</div>
+            </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+          </button>
+
           {/* Sections */}
           <section>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sections · drag or arrows to reorder</p>
