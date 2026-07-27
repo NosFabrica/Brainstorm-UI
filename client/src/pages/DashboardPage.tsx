@@ -1748,15 +1748,9 @@ export default function DashboardPage() {
 
             <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
               <DialogContent
-                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-brand-primary/10 dark:from-slate-900/92 dark:via-slate-900/88 dark:to-brand-primary/[0.6] backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+                className="sm:max-w-[620px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden p-0"
                 data-testid="dialog-network-alerts-preview"
               >
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-brand-accent/20 blur-[90px]" />
-                  <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-brand-deep/15 blur-[110px]" />
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgb(var(--brand-accent)/0.14)_0%,rgba(255,255,255,0.00)_40%,rgb(var(--brand-deep)/0.12)_100%)]" />
-                </div>
-
                 <div
                   className="absolute -right-14 top-[1.1rem] z-30 rotate-45 bg-brand-deep px-14 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
                   data-testid="ribbon-dialog-network-alerts-coming-soon"
@@ -1767,22 +1761,17 @@ export default function DashboardPage() {
 
                 <div className="relative">
                   <div className="px-6 pt-6 pb-5">
-                    <DialogHeader>
-                      <div className="flex items-start justify-between gap-4 pr-10">
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep" data-testid="icon-network-alerts-dialog">
-                            <ShieldAlert className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
-                              Network Alerts
-                            </DialogTitle>
-                            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
-                              This feature is coming soon. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
-                            </DialogDescription>
-                          </div>
-                        </div>
+                    <DialogHeader className="space-y-0 text-left">
+                      <div className="flex items-center gap-2.5 mb-3 pr-10">
+                        <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Network Safety</span>
+                        <div className="h-px w-10 bg-brand-link/30" />
                       </div>
+                      <DialogTitle className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
+                        Network Alerts
+                      </DialogTitle>
+                      <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
+                        This feature is coming soon. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
+                      </DialogDescription>
                     </DialogHeader>
 
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 opacity-30 pointer-events-none select-none" data-testid="grid-network-alerts-dialog-signals">
