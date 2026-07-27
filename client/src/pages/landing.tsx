@@ -638,7 +638,7 @@ export default function Landing() {
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               <div className="absolute -inset-1 bg-gradient-to-r from-brand-accent/0 via-brand-accent/15 to-brand-accent/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <div className="relative flex-1 min-w-0">
                 <input
@@ -765,7 +765,7 @@ export default function Landing() {
                           type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50 dark:bg-indigo-500/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => goToProfile(s)}
@@ -782,14 +782,14 @@ export default function Landing() {
                               {getDisplayLabel(s)}
                             </p>
                             {handle && (
-                              <p className="text-[11px] text-indigo-600 dark:text-indigo-400 truncate flex items-center gap-0.5">
-                                <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                              <p className="text-[11px] text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
+                                <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                                 {handle}
                               </p>
                             )}
                           </div>
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/25 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary dark:text-brand-link border border-brand-primary/15 dark:border-brand-primary/25 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
                               <BrainLogo size={10} className="shrink-0" />
                               {s.wotRank}
                             </span>
@@ -800,7 +800,7 @@ export default function Landing() {
                     </div>
                     <button
                       type="button"
-                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-indigo-600" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600"}`}
+                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-brand-primary" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-brand-primary"}`}
                       onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
                       onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); handleSearch(query); }}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
@@ -977,13 +977,13 @@ export default function Landing() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
                         </div>
                         {result.nip05 && (
-                          <p className="text-[10px] sm:text-[11px] text-indigo-600 dark:text-indigo-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
-                            <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                          <p className="text-[10px] sm:text-[11px] text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
+                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                             {result.nip05.replace(/^_@/, "")}
                           </p>
                         )}
@@ -1014,7 +1014,7 @@ export default function Landing() {
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                           {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/25" data-testid={`badge-rank-${idx}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary dark:text-brand-link border border-brand-primary/15 dark:border-brand-primary/25" data-testid={`badge-rank-${idx}`}>
                               <BrainLogo size={10} className="shrink-0" />
                               {result.wotRank}
                             </span>
@@ -1039,7 +1039,7 @@ export default function Landing() {
                           </span>
                         </div>
                       </div>
-                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
+                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-brand-primary transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
                         View →
                       </span>
                     </div>
