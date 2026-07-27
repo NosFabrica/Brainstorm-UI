@@ -17,6 +17,7 @@ import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
+import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 
@@ -142,6 +143,7 @@ export default function ArticlePage() {
             </button>
           </div>
         ) : (
+          <ShareNavProvider>
           <article>
             {image && (
               <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
@@ -212,6 +214,7 @@ export default function ArticlePage() {
             {/* Secondary escape hatch — open in a Nostr client to read/zap. */}
             <OpenInApp entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }} className="mt-6" />
           </article>
+          </ShareNavProvider>
         )}
 
         <div className="mt-10 text-center">
