@@ -34,7 +34,7 @@ function MetricCard({
   subtitle?: string;
 }) {
   return (
-    <div className="rounded-xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 flex flex-col">
+    <div className="rounded-xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-brand-primary/10 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 flex flex-col">
       <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-accent/10 to-brand-deep/10 border border-brand-accent/15 flex items-center justify-center mb-2">
         <Icon className="h-4 w-4 text-brand-deep" />
       </div>

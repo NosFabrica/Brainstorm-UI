@@ -168,8 +168,8 @@ export default function HopsPathPage() {
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <div className="ml-auto flex items-center gap-2">
-            <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-base font-bold text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={22} className="text-brand-primary" />
+            <span className="text-base font-bold text-brand-primary font-brand">Brainstorm</span>
           </div>
         </div>
       </header>
@@ -295,7 +295,7 @@ export default function HopsPathPage() {
                                 const mine = scorePov === "global";
                                 return (
                                   <div
-                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-indigo-500" : "text-slate-400 dark:text-slate-500"}`}
+                                    className={`mt-0.5 flex items-center justify-end gap-0.5 text-[9px] font-semibold tabular-nums leading-tight ${mine ? "text-brand-primary" : "text-slate-400 dark:text-slate-500"}`}
                                     data-testid={`hops-score-delta-${i}`}
                                   >
                                     <PovIcon pov={mine ? "personalized" : "global"} className="h-2 w-2" />

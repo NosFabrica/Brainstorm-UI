@@ -1261,7 +1261,7 @@ export default function SettingsPage() {
                 onClick={() => setAgentPath(opt.key)}
                 aria-current={active ? "true" : undefined}
                 className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
-                  active ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30" : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
+                  active ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]" : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                 }`}
                 data-testid={`agent-path-${opt.key}`}
               >
@@ -1480,7 +1480,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-settings">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-settings">
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="settings" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
@@ -1504,7 +1504,7 @@ export default function SettingsPage() {
                     aria-current={active ? "page" : undefined}
                     className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
                       active
-                        ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                        ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
                         : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                     }`}
                     data-testid={`tab-${tab.key}`}

@@ -897,7 +897,7 @@ export default function SharePage() {
               <button
                 type="button"
                 onClick={async () => { if (await copyToClipboard(npub)) { setNpubCopied(true); setTimeout(() => setNpubCopied(false), 1500); } }}
-                className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-indigo-500 transition-colors shrink-0"
+                className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
                 title="Copy npub"
                 data-testid="share-copy-npub"
               >
@@ -1051,7 +1051,7 @@ export default function SharePage() {
                     <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-indigo-300 uppercase">Join Brainstorm</div>
+                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>
                     <h3 className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Connect with {displayName}
                     </h3>

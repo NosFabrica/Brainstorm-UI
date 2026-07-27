@@ -250,7 +250,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={openNsec}
-              className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-colors"
+              className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 rounded-xl transition-colors"
               data-testid="link-use-nsec"
             >
               <KeyRound className="h-4 w-4" /> Use your key?
@@ -287,7 +287,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => navigate("/personalization")}
-              className="font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors inline-flex items-center gap-1"
+              className="font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors inline-flex items-center gap-1"
               data-testid="link-learn-anon"
             >
               Learn about anonymous browsing

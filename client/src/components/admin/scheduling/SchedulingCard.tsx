@@ -536,7 +536,7 @@ export function SchedulingCard({ active }: { active: boolean }) {
                 return (
                   <Fragment key={p.id}>
                     <tr
-                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-indigo-500/10 transition-colors"
+                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors"
                       data-testid={`row-policy-${p.id}`}
                     >
                       <td className="px-2 py-2.5">

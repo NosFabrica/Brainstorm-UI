@@ -1614,7 +1614,7 @@ export default function NetworkPage() {
                   <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-primary to-brand-primary rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                   <div className="relative flex items-center">
                     {searchLoading ? (
-                      <Loader2 className="absolute left-3 h-4 w-4 text-brand-link0 z-10 animate-spin" />
+                      <Loader2 className="absolute left-3 h-4 w-4 text-brand-primary z-10 animate-spin" />
                     ) : (
                       <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 dark:text-slate-500 z-10" />
                     )}
@@ -1651,7 +1651,7 @@ export default function NetworkPage() {
                   </div>
                   {searchFilter.trim().length >= 2 && searchLoading && (
                     <p
-                      className="mt-1 ml-1 text-[11px] text-brand-link0/80 flex items-center gap-1.5"
+                      className="mt-1 ml-1 text-[11px] text-brand-primary/80 flex items-center gap-1.5"
                       role="status"
                       aria-live="polite"
                       data-testid="text-network-search-loading"

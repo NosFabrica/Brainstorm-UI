@@ -23,7 +23,7 @@ export function PersonRow({
     <div className="flex items-center gap-3 py-2">
       <Avatar className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0">
         {person.picture ? <AvatarImage src={person.picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(name)}</AvatarFallback>
+        <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(name)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
@@ -39,7 +39,7 @@ export function PersonRow({
         className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3.5 h-9 text-sm font-semibold transition-colors ${
           selected
             ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-            : "border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400 hover:text-indigo-700"
+            : "border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand-primary hover:text-brand-primary"
         }`}
         data-testid={`person-toggle-${person.pubkey.slice(0, 8)}`}
       >

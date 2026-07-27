@@ -523,7 +523,7 @@ function PanelShell({
 }) {
   return (
     <div
-      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-500/20 shadow-sm dark:shadow-none flex flex-col min-h-[180px]"
+      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none flex flex-col min-h-[180px]"
       data-testid={testId}
     >
       <div className="flex items-center justify-between mb-2.5">
@@ -1057,7 +1057,7 @@ export function NostrHealthCard({ pubkey, taPubkey }: { pubkey: string; taPubkey
 
   return (
     <div
-      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-500/20 shadow-sm dark:shadow-none"
+      className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none"
       data-testid={`card-nostr-health-${pubkey.slice(0, 8)}`}
     >
       <div className="flex items-center justify-between mb-3">

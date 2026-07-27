@@ -78,21 +78,21 @@ export default function DeveloperOpenRankingPage() {
           {/* 1. Discover capabilities */}
           <SectionCard icon={<Compass className="h-5 w-5 text-brand-deep" />} title="1 · Discover capabilities" testId="card-ore-discover">
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-              Fetch the capability document (<code className="font-mono text-[13px] text-indigo-600">GET</code>) to see which
+              Fetch the capability document (<code className="font-mono text-[13px] text-brand-primary">GET</code>) to see which
               endpoints and algorithms this provider offers:
             </p>
             <CodeBlock code={`${ORE_BASE}/.well-known/open-ranking.json`} testId="ore-well-known" />
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               It returns a JSON object keyed by endpoint path; each value lists the available algorithms. The
               first algorithm in a list is that endpoint's default; an algorithm with{" "}
-              <code className="font-mono text-[13px] text-indigo-600">"pov": true</code> requires a point-of-view pubkey in the request.
+              <code className="font-mono text-[13px] text-brand-primary">"pov": true</code> requires a point-of-view pubkey in the request.
             </p>
           </SectionCard>
 
           {/* 2. Stats */}
           <SectionCard icon={<BarChart3 className="h-5 w-5 text-brand-deep" />} title="2 · Web-of-trust stats" testId="card-ore-stats">
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-              <code className="font-mono text-[13px] font-semibold text-indigo-600">POST /stats/pubkey</code> — returns this
+              <code className="font-mono text-[13px] font-semibold text-brand-primary">POST /stats/pubkey</code> — returns this
               instance's web-of-trust metrics for one pubkey. Algorithms:{" "}
               <code className="font-mono text-[13px] text-slate-700 dark:text-slate-200">graperank</code> (global, the default) and{" "}
               <code className="font-mono text-[13px] text-slate-700 dark:text-slate-200">graperank-personalized</code> (requires a provisioned
@@ -112,7 +112,7 @@ export default function DeveloperOpenRankingPage() {
                 <tbody>
                   {STATS_FIELDS.map((f) => (
                     <tr key={f.field} className="border-t border-slate-100 dark:border-slate-800/60 align-top">
-                      <td className="px-4 py-3"><code className="font-mono text-[13px] font-semibold text-indigo-600 whitespace-nowrap">{f.field}</code></td>
+                      <td className="px-4 py-3"><code className="font-mono text-[13px] font-semibold text-brand-primary whitespace-nowrap">{f.field}</code></td>
                       <td className="px-4 py-3 text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed min-w-[220px]">{f.meaning}</td>
                     </tr>
                   ))}
@@ -124,7 +124,7 @@ export default function DeveloperOpenRankingPage() {
           {/* 3. Search */}
           <SectionCard icon={<Search className="h-5 w-5 text-brand-deep" />} title="3 · Profile search" testId="card-ore-search">
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-              <code className="font-mono text-[13px] font-semibold text-indigo-600">POST /search/pubkeys</code> — free-text
+              <code className="font-mono text-[13px] font-semibold text-brand-primary">POST /search/pubkeys</code> — free-text
               profile search, returning pubkeys ranked by this instance's global GrapeRank, highest first.
             </p>
             <CodeBlock code={SEARCH_CURL} testId="ore-search-curl" />

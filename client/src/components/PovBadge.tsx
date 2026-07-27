@@ -47,7 +47,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
       <DropdownMenuItem
         className={
           "flex items-start gap-2 px-2.5 py-2 cursor-pointer " +
-          (effective === "nosfabrica" ? "bg-indigo-50/60 dark:bg-indigo-500/10" : "")
+          (effective === "nosfabrica" ? "bg-brand-primary/10 dark:bg-brand-primary/10" : "")
         }
         onClick={() => setPov("nosfabrica")}
         data-testid="menu-pov-option-nosfabrica"
@@ -58,7 +58,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200">Brainstorm</span>
-            {effective === "nosfabrica" && <Check className="h-3 w-3 text-indigo-500" />}
+            {effective === "nosfabrica" && <Check className="h-3 w-3 text-brand-primary" />}
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">
             The "house" view from Brainstorm's curated trust graph.
@@ -129,7 +129,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
           </span>
         </div>
       )}
-      <DropdownMenuSeparator className="bg-indigo-100 dark:bg-indigo-500/15" />
+      <DropdownMenuSeparator className="bg-brand-primary/15 dark:bg-brand-primary/15" />
     </>
   );
 }

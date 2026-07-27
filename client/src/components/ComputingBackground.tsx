@@ -188,7 +188,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
       <div
         key={`${prefix}-t-${ni}`}
         className={`absolute text-[10px] font-mono pointer-events-none select-none hidden md:block tracking-wide ${
-          isDark ? 'text-blue-300/60' : 'text-indigo-800/30'
+          isDark ? 'text-blue-300/60' : 'text-brand-primary'
         }`}
         style={{
           left: `${node.x}%`,
@@ -238,7 +238,7 @@ export function ComputingBackground({ variant = "dark" }: { variant?: "dark" | "
           <div className="absolute inset-0 bg-[#F8FAFC]" />
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#E2E8F0_1px,transparent_1px),linear-gradient(to_bottom,#E2E8F0_1px,transparent_1px)] bg-[size:40px_40px] opacity-[0.15]" />
           <div className="absolute -top-[20%] -left-[10%] w-[80%] h-[80%] rounded-full bg-slate-200/40 blur-[120px]" />
-          <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-indigo-100/30 blur-[140px]" />
+          <div className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full bg-brand-primary/15 blur-[140px]" />
         </>
       )}
 

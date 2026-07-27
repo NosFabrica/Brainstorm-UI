@@ -79,8 +79,8 @@ export default function ActivatePage() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={26} className="text-brand-primary" />
+            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
           </div>
           <button
             type="button"
@@ -111,7 +111,7 @@ export default function ActivatePage() {
         <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm" data-testid="activate-identity">
           <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 font-bold">{initialsFor(name)}</AvatarFallback>
+            <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary font-bold">{initialsFor(name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">

@@ -193,7 +193,7 @@ const INTEREST_CLUSTERS = [
 
 const NETWORK_METRICS = [
   { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-brand-link0", bgColor: "bg-brand-primary" },
+  { key: "following", label: "Following", icon: Users, color: "text-brand-primary", bgColor: "bg-brand-primary" },
   { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
   { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
   { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
@@ -1018,7 +1018,7 @@ export default function DashboardPage() {
                       Complete
                     </span>
                   ) : justFollowed ? (
-                    <span className="text-xs text-brand-link0 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>
@@ -1027,12 +1027,12 @@ export default function DashboardPage() {
                       {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
                     </span>
                   ) : isRecalculation ? (
-                    <span className="text-xs text-brand-link0 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       {calcDone ? "Publishing…" : "Calculating…"}
                     </span>
                   ) : triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-brand-link0 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>

@@ -48,7 +48,7 @@ export function WotStrengthCard({
     >
       <div className="flex items-center justify-between gap-1.5 mb-2">
         <span className="inline-flex items-center gap-1.5">
-          <BrainLogo size={15} className="text-indigo-500" />
+          <BrainLogo size={15} className="text-brand-primary" />
           <span className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Verification Score</span>
         </span>
         <PovTag pov={pov} />
@@ -109,7 +109,7 @@ export function WotStrengthCard({
       {footer && (
         /* Actions manage their own clicks — don't let them bubble into the
            card's "open explainer" handler. */
-        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-indigo-100 dark:border-indigo-500/20" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-brand-primary/15 dark:border-brand-primary/20" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           {footer}
         </div>
       )}

@@ -83,7 +83,7 @@ export default function DeveloperNip50Page() {
           {/* Relay URL */}
           <SectionCard icon={<ConnectionIcon className="h-5 w-5 text-brand-deep" />} title="Relay URL" testId="card-dev-relay">
             <div className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-3">
-              <code className="flex-1 font-mono text-[14px] text-indigo-700 break-all" data-testid="text-relay-url">
+              <code className="flex-1 font-mono text-[14px] text-brand-primary break-all" data-testid="text-relay-url">
                 {RELAY_URL}
               </code>
               <button
@@ -131,7 +131,7 @@ export default function DeveloperNip50Page() {
                 <tbody>
                   {EXTENSIONS.map((ext) => (
                     <tr key={ext.name} className="border-t border-slate-100 dark:border-slate-800/60 align-top" data-testid={`row-extension-${ext.name}`}>
-                      <td className="px-4 py-3"><code className="font-mono text-[13px] font-semibold text-indigo-600">{ext.name}</code></td>
+                      <td className="px-4 py-3"><code className="font-mono text-[13px] font-semibold text-brand-primary">{ext.name}</code></td>
                       <td className="px-4 py-3"><code className="font-mono text-[13px] text-slate-700 dark:text-slate-200 whitespace-nowrap">{ext.format}</code></td>
                       <td className="px-4 py-3 text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed min-w-[200px]">{ext.description}</td>
                     </tr>

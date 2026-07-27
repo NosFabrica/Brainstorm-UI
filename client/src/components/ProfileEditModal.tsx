@@ -22,7 +22,7 @@ export function ProfileEditModal({ open, onOpenChange, onSaved }: ProfileEditMod
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[520px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/95 dark:from-slate-900/95 via-white/92 dark:via-slate-900/92 to-indigo-50/50 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+        className="sm:max-w-[520px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/95 dark:from-slate-900/95 via-white/92 dark:via-slate-900/92 to-brand-primary/10 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
         data-testid="modal-edit-profile"
       >
         <div className="relative flex flex-col max-h-[90vh]">

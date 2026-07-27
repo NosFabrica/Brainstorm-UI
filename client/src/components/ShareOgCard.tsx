@@ -38,8 +38,8 @@ export function ShareOgCard({
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-[3.2cqw] font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={22} className="text-brand-primary" />
+            <span className="text-[3.2cqw] font-bold tracking-tight text-brand-primary font-brand">Brainstorm</span>
           </div>
           <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Web of Trust</span>
         </div>
@@ -48,7 +48,7 @@ export function ShareOgCard({
         <div className="flex items-center gap-[4%]">
           <Avatar className="h-[26cqw] w-[26cqw] rounded-2xl border-2 border-white shadow-lg bg-white">
             {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
+            <AvatarFallback className="rounded-2xl bg-brand-primary/15 text-brand-primary font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
               {initialsFor(displayName)}
             </AvatarFallback>
           </Avatar>

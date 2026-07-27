@@ -3911,7 +3911,7 @@ export default function AdminPage() {
                               <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-brand-link0/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-brand-primary/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
                                     <CopyButton text={npub} />
                                   </div>
                                   <div className="flex items-center gap-1">
@@ -4116,7 +4116,7 @@ export default function AdminPage() {
                               <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{prof?.name || npub.slice(0, 12) + "..."}</span>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] font-mono text-brand-link0/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
+                              <span className="text-[10px] font-mono text-brand-primary/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
                               <CopyButton text={npub} />
                             </div>
                           </div>

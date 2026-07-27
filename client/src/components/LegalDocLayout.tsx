@@ -67,7 +67,7 @@ export function LegalDocLayout({
           <a
             key={`email-${i}`}
             href={contactHref}
-            className="font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-2 break-words"
+            className="font-medium text-brand-primary hover:text-brand-primary underline underline-offset-2 break-words"
             data-testid={`link-contact-email-${i}`}
           >
             {contactEmail}
@@ -258,7 +258,7 @@ export function LegalDocLayout({
             </div>
 
             {/* Document panel */}
-            <div className="relative overflow-hidden rounded-2xl border border-brand-accent/20 bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/85 dark:via-slate-900/85 to-indigo-50/40 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] backdrop-blur-xl">
+            <div className="relative overflow-hidden rounded-2xl border border-brand-accent/20 bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/85 dark:via-slate-900/85 to-brand-primary/10 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] backdrop-blur-xl">
               <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
 
               <div className="px-5 py-7 sm:px-9 sm:py-10">
@@ -295,7 +295,7 @@ export function LegalDocLayout({
                           >
                             {num ? (
                               <>
-                                <span className="text-indigo-500">{num}</span>
+                                <span className="text-brand-primary">{num}</span>
                                 {rest}
                               </>
                             ) : (
@@ -312,7 +312,7 @@ export function LegalDocLayout({
                           </button>
                         </div>
                         {section.ordered ? (
-                          <ol className="mt-4 list-decimal list-outside space-y-4 pl-7 marker:font-semibold marker:text-indigo-500">
+                          <ol className="mt-4 list-decimal list-outside space-y-4 pl-7 marker:font-semibold marker:text-brand-primary">
                             {section.blocks.map((block, i) => (
                               <li
                                 key={i}
@@ -420,7 +420,7 @@ export function LegalDocLayout({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-brand-accent/30 bg-brand-primary text-white shadow-lg shadow-brand-primary/30 transition-colors hover:bg-brand-deep"
+            className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-brand-accent/30 bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3] transition-colors hover:bg-brand-deep"
             aria-label="Back to top"
             data-testid={`button-back-to-top-${docKind}`}
           >

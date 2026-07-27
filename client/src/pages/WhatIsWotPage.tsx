@@ -276,7 +276,7 @@ export default function WhatIsWotPage() {
                 <button
                   type="submit"
                   aria-label="Search"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3 sm:px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-primary active:scale-[0.98] transition-colors shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
                   data-testid="button-wot-search-submit"
                 >
                   <Search className="h-4 w-4" />
@@ -293,7 +293,7 @@ export default function WhatIsWotPage() {
                   key={q}
                   type="button"
                   onClick={() => runSearch(q)}
-                  className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-1.5 text-[13px] text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-indigo-600 transition-colors"
+                  className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-1.5 text-[13px] text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-primary transition-colors"
                   data-testid={`chip-${q.toLowerCase()}`}
                 >
                   {q}
@@ -303,7 +303,7 @@ export default function WhatIsWotPage() {
 
             <button
               onClick={() => navigate("/how-search-works")}
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary hover:text-brand-primary transition-colors"
               data-testid="button-wot-how"
             >
               See how search works

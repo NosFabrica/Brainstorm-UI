@@ -249,7 +249,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   return (
     <div
       className={
-        "rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-indigo-50/40 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 transition-all duration-500 relative " +
+        "rounded-2xl bg-gradient-to-br from-white/95 dark:from-slate-900/95 via-white/80 dark:via-slate-900/80 to-brand-primary/10 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 transition-all duration-500 relative " +
         (showCelebration ? "ring-2 ring-amber-300/60 shadow-[0_0_30px_rgba(252,211,77,0.4)]" : "")
       }
       data-testid={`card-brainstorm-assistant-${variant}`}
@@ -289,7 +289,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
 
       <div className={(variant === "settings" ? "px-5 sm:px-7 pb-6 sm:pb-7 -mt-12 sm:-mt-16 " : "px-5 pb-5 -mt-10 sm:-mt-12 ") + "relative"}>
         <div className="flex items-end justify-between gap-3 mb-3">
-          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-full bg-gradient-to-br from-white to-indigo-50 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
+          <div className={(variant === "settings" ? "h-20 w-20 sm:h-24 sm:w-24 " : "h-16 w-16 sm:h-20 sm:w-20 ") + "rounded-full bg-gradient-to-br from-white to-brand-primary/10 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0"} data-testid={`avatar-assistant-${variant}`}>
             {(() => {
               const pic = profile?.picture || getDefaultAssistantPictureUrl();
               if (pic) {
@@ -350,7 +350,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               data-testid={`tooltip-assistant-info-${variant}`}
             >
               <p className="font-bold text-white mb-1.5">What is this?</p>
-              <p className="mb-2">A small bot that publishes <span className="font-semibold text-indigo-200">your trust scores</span> to Nostr, so any compatible client can read them as you.</p>
+              <p className="mb-2">A small bot that publishes <span className="font-semibold text-brand-link">your trust scores</span> to Nostr, so any compatible client can read them as you.</p>
               <p className="font-bold text-white mb-1">It does NOT</p>
               <p className="mb-2">touch your main Nostr identity, sign on your behalf, or post anything else.</p>
               <p className="font-bold text-white mb-1">You stay in control</p>
@@ -367,7 +367,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
             <div className={variant === "settings" ? "lg:grid lg:grid-cols-[1.4fr_1fr] lg:gap-5 space-y-3 lg:space-y-0" : "space-y-3"}>
             {(profile?.display_name || profile?.name || profile?.about || profile?.website) && (
               <div
-                className="relative rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white dark:from-slate-900 to-indigo-50/40 px-4 py-3.5 overflow-hidden"
+                className="relative rounded-xl border border-brand-accent/20 bg-gradient-to-br from-white dark:from-slate-900 to-brand-primary/10 px-4 py-3.5 overflow-hidden"
                 data-testid={`profile-assistant-${variant}`}
               >
                 <span aria-hidden="true" className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-gradient-to-b from-brand-accent to-brand-deep" />

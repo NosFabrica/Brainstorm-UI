@@ -60,8 +60,8 @@ export default function WelcomePage() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={26} className="text-brand-primary" />
+            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
           </div>
           <button
             type="button"

@@ -168,7 +168,7 @@ export function FollowPicker({ onContinue, continueLabel, busy = false }: Follow
       {/* Find people */}
       <section className="mt-6">
         <h2 className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Find people you know</h2>
-        <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 h-11 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20">
+        <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 h-11 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20">
           <SearchIcon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
           <input
             value={query}

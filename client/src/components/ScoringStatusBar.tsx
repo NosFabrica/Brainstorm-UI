@@ -181,7 +181,7 @@ export function ScoringStatusBar() {
             className="pointer-events-auto mx-auto w-fit flex items-center gap-2.5 rounded-full bg-slate-900 text-white shadow-lg shadow-slate-900/20 pl-3.5 pr-2 py-2"
             data-testid="scoring-status-calculating"
           >
-            <Loader2 className="h-4 w-4 animate-spin text-indigo-300 shrink-0" />
+            <Loader2 className="h-4 w-4 animate-spin text-brand-link shrink-0" />
             <span className="text-sm font-medium">
               {phase === "soft"
                 ? "Still building your Web of Trust — new accounts can take a few minutes."

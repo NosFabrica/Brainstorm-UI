@@ -232,7 +232,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
             containerClassName="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900"
             placeholder={
               <div
-                className="w-full h-full flex items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-3xl"
+                className="w-full h-full flex items-center justify-center rounded-full bg-brand-primary/15 text-brand-primary font-bold text-3xl"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 {initialsFor(name)}

@@ -114,7 +114,7 @@ function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; o
       <span className={cn("block rounded-full p-[1.5px] transition-colors", active ? "bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep" : "bg-transparent")}>
         <Avatar className="h-[22px] w-[22px]">
           {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
-          <AvatarFallback className="bg-indigo-100 text-[10px] font-bold text-indigo-700">
+          <AvatarFallback className="bg-brand-primary/15 text-[10px] font-bold text-brand-primary">
             {user.displayName?.charAt(0)?.toUpperCase() || "U"}
           </AvatarFallback>
         </Avatar>

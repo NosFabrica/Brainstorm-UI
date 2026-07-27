@@ -68,7 +68,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
         />
 
         <div className="min-w-0 flex-1 p-3">
-          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-indigo-500">
+          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
             <FileText className="h-3 w-3" /> Article
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>

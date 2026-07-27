@@ -598,7 +598,7 @@ export default function UserPanelPage() {
               </button>
 
               <button type="button" className="hidden lg:flex items-center gap-2" onClick={() => navigate("/dashboard")} data-testid="button-desktop-brand">
-                <BrainLogo size={28} className="text-brand-link0" />
+                <BrainLogo size={28} className="text-brand-primary" />
                 <span className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">Brainstorm</span>
               </button>
 

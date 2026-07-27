@@ -174,8 +174,8 @@ export default function ConnectionListPage() {
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
           </Link>
           <Link href="/" className="ml-auto flex items-center gap-2" data-testid="conn-brand">
-            <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-base font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={22} className="text-brand-primary" />
+            <span className="text-base font-bold tracking-tight text-brand-primary font-brand">Brainstorm</span>
           </Link>
         </div>
       </header>
@@ -196,7 +196,7 @@ export default function ConnectionListPage() {
               type="button"
               onClick={() => setFiltersOpen((o) => !o)}
               aria-expanded={filtersOpen}
-              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
               title="Filter & sort"
               data-testid="conn-filter-toggle"
             >
@@ -216,7 +216,7 @@ export default function ConnectionListPage() {
                     key={value}
                     type="button"
                     onClick={() => setTierFilter(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                     data-testid={`conn-filter-${value}`}
                   >
                     {label}
@@ -230,7 +230,7 @@ export default function ConnectionListPage() {
                     key={value}
                     type="button"
                     onClick={() => setSortOrder(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                     data-testid={`conn-sort-${value}`}
                   >
                     {label}

@@ -35,7 +35,7 @@ export default function DeveloperTrustedAssertionsPage() {
           <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="How it works" testId="card-ta-overview">
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               Trusted Assertions are{" "}
-              <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> nostr events carrying web-of-trust
+              <code className="font-mono text-[13px] text-brand-primary">kind 30382</code> nostr events carrying web-of-trust
               scores — rank, verified follower counts, and related metrics — published by a trust authority about
               other pubkeys.
             </p>
@@ -58,7 +58,7 @@ export default function DeveloperTrustedAssertionsPage() {
 
           <SectionCard icon={<BadgeCheck className="h-5 w-5 text-brand-deep" />} title="Where to find them" testId="card-ta-fetch">
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-              Query <code className="font-mono text-[13px] text-indigo-600">kind 30382</code> events from this
+              Query <code className="font-mono text-[13px] text-brand-primary">kind 30382</code> events from this
               instance's NIP-85 relay, authored by its trust-authority pubkey. See the NIP-85 spec for the tag
               structure.
             </p>

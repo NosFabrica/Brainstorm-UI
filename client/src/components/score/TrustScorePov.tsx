@@ -38,13 +38,13 @@ export function useScorePov(): { pov: ScorePov; loggedIn: boolean; setPersonaliz
 /** Container chrome for a score chip/card. Personalized = soft indigo fill; global = neutral outline. */
 export function povChrome(pov: ScorePov): string {
   return pov === "personalized"
-    ? "border-indigo-200 dark:border-indigo-500/25 bg-indigo-50/60 dark:bg-indigo-500/10"
+    ? "border-brand-primary/20 dark:border-brand-primary/25 bg-brand-primary/10 dark:bg-brand-primary/10"
     : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900";
 }
 
 export function PovIcon({ pov, className = "h-3 w-3" }: { pov: ScorePov; className?: string }) {
   return pov === "personalized" ? (
-    <UserRound className={`${className} text-indigo-500`} />
+    <UserRound className={`${className} text-brand-primary`} />
   ) : (
     <Globe className={`${className} text-slate-400 dark:text-slate-500`} />
   );
@@ -53,7 +53,7 @@ export function PovIcon({ pov, className = "h-3 w-3" }: { pov: ScorePov; classNa
 /** Tiny inline tag naming the view — pairs the icon with a one-word label. */
 export function PovTag({ pov }: { pov: ScorePov }) {
   return pov === "personalized" ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100/80 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300" data-testid="pov-tag">
+    <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/15 dark:bg-brand-primary/15 border border-brand-primary/20 dark:border-brand-primary/[0.3] px-1.5 py-0.5 text-[10px] font-semibold text-brand-primary dark:text-brand-link" data-testid="pov-tag">
       <UserRound className="h-2.5 w-2.5" /> Personalized
     </span>
   ) : (
@@ -95,7 +95,7 @@ export function TrustScoreModal({
     const base = "w-full rounded-xl border p-3 text-left transition-colors";
     const cls = active
       ? target === "personalized"
-        ? `${base} border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 ring-1 ring-indigo-200 dark:ring-indigo-500/25`
+        ? `${base} border-brand-primary/25 dark:border-brand-primary/[0.4] bg-brand-primary/10 dark:bg-brand-primary/10 ring-1 ring-brand-primary/20 dark:ring-brand-primary/25`
         : `${base} border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-800`
       : `${base} border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800`;
     return { cls, active, locked };
@@ -127,7 +127,7 @@ export function TrustScoreModal({
               <Lock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  <UserRound className="h-3.5 w-3.5 text-indigo-500" /> Personalized — for you
+                  <UserRound className="h-3.5 w-3.5 text-brand-primary" /> Personalized — for you
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Scores through <span className="font-medium">your own</span> network. Sign in free to unlock it{" "}
@@ -143,11 +143,11 @@ export function TrustScoreModal({
               className={`${p.cls} flex items-start gap-2.5 disabled:opacity-60`}
               data-testid="pov-option-personalized"
             >
-              <UserRound className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" />
+              <UserRound className="h-4 w-4 text-brand-primary shrink-0 mt-0.5" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Personalized — for you
-                  {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Current view</span>}
+                  {p.active && <span className="text-[10px] font-bold uppercase tracking-wide text-brand-primary dark:text-brand-link">Current view</span>}
                 </span>
                 <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Seen through <span className="font-medium">your own</span> network — the people you trust, and who they trust.

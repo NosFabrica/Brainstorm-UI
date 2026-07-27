@@ -14,7 +14,7 @@ import { TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 const SHARE_TIERS = [
   { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
   { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
-  { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-indigo-600", ring: TRUST_TIER_COLORS.neutral },
+  { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-brand-primary", ring: TRUST_TIER_COLORS.neutral },
   { key: "low", name: "Low Trust", min: 0.02, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
   { key: "unverified", name: "Unverified", min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
 ];

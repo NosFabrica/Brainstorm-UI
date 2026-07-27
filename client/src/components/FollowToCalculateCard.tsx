@@ -126,7 +126,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   };
 
   return (
-    <div className={`rounded-2xl border border-indigo-200/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
+    <div className={`rounded-2xl border border-brand-primary/20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-4 sm:p-5 ${className}`} data-testid="dashboard-follow-card">
       <div className="flex items-center gap-2 mb-1">
         <Users className="h-4 w-4 text-brand-link" />
         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Follow a few accounts to begin</h3>
@@ -151,7 +151,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name or nip-05…"
-          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-9 h-10 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-400"
+          className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-9 h-10 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-brand-primary"
           data-testid="follow-card-search"
         />
         {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />}

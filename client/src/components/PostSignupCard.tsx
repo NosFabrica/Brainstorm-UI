@@ -170,7 +170,7 @@ export function PostSignupCard() {
             <X className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">Web of Trust</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Web of Trust</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
             Switch on your trust scores
@@ -190,7 +190,7 @@ export function PostSignupCard() {
               </div>
               <div className="min-w-0">
                 <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Follow a few accounts</div>
-                <div className="text-[13px] font-semibold text-brand-link dark:text-indigo-400 inline-flex items-center gap-1">
+                <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                   Turn on your trust scores
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
@@ -220,7 +220,7 @@ export function PostSignupCard() {
           </button>
 
           <div className="flex items-center gap-3 mb-3">
-            <span className="shrink-0 text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">
+            <span className="shrink-0 text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">
               Finish setting up
             </span>
             <div className="flex flex-1 items-center gap-1.5" aria-hidden="true">
@@ -278,7 +278,7 @@ export function PostSignupCard() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Build your network</div>
-                  <div className="text-[13px] font-semibold text-brand-link dark:text-indigo-400 inline-flex items-center gap-1">
+                  <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                     Follow accounts to turn on trust scores
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -314,7 +314,7 @@ export function PostSignupCard() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Complete your profile</div>
-                    <div className="text-[13px] font-semibold text-brand-link dark:text-indigo-400 inline-flex items-center gap-1">
+                    <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                       Add a photo &amp; bio
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>
@@ -399,7 +399,7 @@ export function PostSignupCard() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</div>
-                    <div className="text-[13px] font-semibold text-brand-link dark:text-indigo-400 inline-flex items-center gap-1">
+                    <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                       Save a backup file
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>

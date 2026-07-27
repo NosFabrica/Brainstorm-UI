@@ -113,7 +113,7 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("users")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "users"
-                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
                     : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                 }`}
                 data-testid="tab-users"
@@ -124,7 +124,7 @@ export default function FaqPage() {
                 onClick={() => handleTabChange("developers")}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   activeTab === "developers"
-                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/30"
+                    ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
                     : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
                 }`}
                 data-testid="tab-developers"
@@ -165,7 +165,7 @@ export default function FaqPage() {
                         key={`${activeTab}-${i}`}
                         className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
                           expandedFaq === i
-                            ? 'bg-gradient-to-br from-brand-accent/8 via-indigo-50/60 to-brand-accent/5 border border-brand-accent/30 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]'
+                            ? 'bg-gradient-to-br from-brand-accent/8 via-brand-primary/10 to-brand-accent/5 border border-brand-accent/30 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.1)]'
                             : 'bg-white/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/25 hover:bg-white/80 dark:hover:bg-slate-900/80 hover:shadow-sm'
                         }`}
                         initial={{ opacity: 0, y: 8 }}

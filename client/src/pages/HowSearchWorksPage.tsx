@@ -394,7 +394,7 @@ export default function HowSearchWorksPage() {
                     href="https://github.com/NosFabrica"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-graperank"
                   >
                     GrapeRank
@@ -414,7 +414,7 @@ export default function HowSearchWorksPage() {
                     href="https://vespa.ai/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-vespa"
                   >
                     Vespa

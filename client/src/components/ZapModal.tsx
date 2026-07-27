@@ -183,7 +183,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           <div className="flex items-center gap-2.5 mb-4">
             <Avatar className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
-              <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">{initialsFor(displayName)}</AvatarFallback>
+              <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-xs font-bold">{initialsFor(displayName)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
@@ -211,7 +211,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                   min={minSats}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 text-sm font-semibold text-slate-900 dark:text-slate-100 tabular-nums outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 text-sm font-semibold text-slate-900 dark:text-slate-100 tabular-nums outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                   data-testid="zap-amount"
                 />
                 {Number.isFinite(maxSats) && (minSats > 1 || maxSats < 1_000_000) && (
@@ -229,7 +229,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                     rows={2}
                     maxLength={recipientSupportsZaps ? 280 : params!.commentAllowed || 280}
                     placeholder="Say something nice…"
-                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none resize-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none resize-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
                     data-testid="zap-comment"
                   />
                 </div>
@@ -269,7 +269,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 <>
                   <div className="flex justify-center">
                     <div className="rounded-xl border border-slate-200 bg-white p-3" data-testid="zap-qr">
-                      <QRCodeSVG value={invoice} size={188} bgColor="#ffffff" fgColor="#1e1b4b" level="M" />
+                      <QRCodeSVG value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                     </div>
                   </div>
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">Scan with a Lightning wallet to pay.</p>
@@ -318,7 +318,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-fallback">
               <div className="flex justify-center">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <QRCodeSVG value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#1e1b4b" level="M" />
+                  <QRCodeSVG value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                 </div>
               </div>
               <p className="text-center text-xs text-slate-500 dark:text-slate-400 leading-relaxed">

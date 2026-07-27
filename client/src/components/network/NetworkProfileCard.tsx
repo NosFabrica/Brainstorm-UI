@@ -245,7 +245,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="3"
-                  className="text-brand-link dark:text-brand-link0/20"
+                  className="text-brand-link dark:text-brand-primary/20"
                 />
                 <circle
                   cx="22"
@@ -367,7 +367,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 </p>
                 {profile?.nip05 && (
                   <p
-                    className="text-xs text-brand-link0 truncate"
+                    className="text-xs text-brand-primary truncate"
                     data-testid={`detail-nip05-${pkShort}`}
                   >
                     {profile.nip05}
@@ -443,7 +443,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <div>
               {isRefreshing && (
                 <div
-                  className="flex items-center gap-1.5 mb-2 text-[10px] text-brand-link0/80"
+                  className="flex items-center gap-1.5 mb-2 text-[10px] text-brand-primary/80"
                   data-testid={`detail-refreshing-${pkShort}`}
                 >
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -541,7 +541,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   data-testid={`detail-influence-${pkShort}`}
                 >
                   <div className="w-8 h-8 rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-brand-primary/15 flex items-center justify-center shrink-0">
-                    <BrainLogo size={16} className="text-brand-link0" />
+                    <BrainLogo size={16} className="text-brand-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
@@ -720,7 +720,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </div>
           ) : isRefreshing ? (
             <div
-              className="flex items-center justify-center gap-2 py-4 text-xs text-brand-link0/80"
+              className="flex items-center justify-center gap-2 py-4 text-xs text-brand-primary/80"
               data-testid={`detail-loading-${pkShort}`}
             >
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -796,7 +796,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </p>
             {profile?.nip05 && (
               <span
-                className="text-xs text-brand-link0 truncate max-w-[140px] hidden sm:inline"
+                className="text-xs text-brand-primary truncate max-w-[140px] hidden sm:inline"
                 data-testid={`text-profile-nip05-${pkShort}`}
               >
                 {profile.nip05}
@@ -884,7 +884,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </p>
             {profile?.nip05 && (
               <p
-                className="text-xs text-brand-link0 truncate"
+                className="text-xs text-brand-primary truncate"
                 data-testid={`text-profile-nip05-${pkShort}`}
               >
                 {profile.nip05}
