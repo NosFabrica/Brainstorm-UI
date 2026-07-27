@@ -72,7 +72,7 @@ export function ThemeToggle({
           aria-checked={choice === value}
           onClick={() => setChoice(value)}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary",
+            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary",
             pad,
             choice === value
               ? "bg-card text-foreground shadow-sm"

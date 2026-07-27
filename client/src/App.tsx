@@ -45,6 +45,7 @@ import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileMenuHost } from "@/components/MobileMenuHost";
+import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
@@ -156,6 +157,7 @@ function App() {
         <Toaster />
         <PovAutoDefault />
         <MobileMenuHost />
+        <MobileTabBar />
         <CommandPalette />
         <ScoringStatusBar />
         <AutoScoreReturning />
