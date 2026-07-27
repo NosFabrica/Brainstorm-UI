@@ -135,14 +135,14 @@ const ONBOARDING_SLIDES = [
     subtitle: "More than just friends",
     content: "Your network isn't just who you follow. It's who they follow, and who they follow, ad infinitum.",
     detail: "We calculate trust across N hops. You'll be amazed at how vast your true network really is when you look beyond the surface.",
-    tone: "from-indigo-500/20 via-violet-500/10 to-transparent",
+    tone: "from-brand-primary/20 via-brand-primary/10 to-transparent",
   },
   {
     title: "Not A Popularity Contest",
     subtitle: "A different kind of score",
     content: "Finally, a metric that isn't about clout. A high score simply means your Grapevine verifies this person is real.",
     detail: 'Low score \u2260 uncool. It just means "we haven\'t had the pleasure of meeting yet." Trust is earned, not farmed.',
-    tone: "from-fuchsia-500/20 via-purple-500/10 to-transparent",
+    tone: "from-fuchsia-500/20 via-brand-primary/10 to-transparent",
   },
   {
     title: "Safety in Numbers",
@@ -177,7 +177,7 @@ const ONBOARDING_SLIDES = [
     subtitle: "Last slide \u2014 explore anytime",
     content: "There's no timer here. Click through at your own pace while your trust graph continues computing in the background.",
     detail: "When scores are ready, the dashboard will reflect them \u2014 until then, explore and learn how the system works.",
-    tone: "from-fuchsia-500/20 via-indigo-500/10 to-transparent",
+    tone: "from-fuchsia-500/20 via-brand-primary/10 to-transparent",
   },
 ];
 
@@ -193,7 +193,7 @@ const INTEREST_CLUSTERS = [
 
 const NETWORK_METRICS = [
   { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-indigo-500", bgColor: "bg-indigo-500" },
+  { key: "following", label: "Following", icon: Users, color: "text-brand-primary", bgColor: "bg-brand-primary" },
   { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
   { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
   { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
@@ -833,7 +833,7 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
@@ -904,7 +904,7 @@ export default function DashboardPage() {
                         className="overflow-hidden"
                         data-testid="container-assistant-inline-prompt"
                       >
-                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-indigo-50/40 dark:bg-none dark:bg-slate-800/50 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
+                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-brand-primary/[0.4] dark:bg-none dark:bg-slate-800/50 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
                           <img
                             src="/assistant-default.webp"
                             alt=""
@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col leading-tight min-w-0">
                   <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Trust signals</span>
                   {triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary dark:text-brand-link font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
@@ -1018,7 +1018,7 @@ export default function DashboardPage() {
                       Complete
                     </span>
                   ) : justFollowed ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>
@@ -1027,12 +1027,12 @@ export default function DashboardPage() {
                       {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
                     </span>
                   ) : isRecalculation ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       {calcDone ? "Publishing…" : "Calculating…"}
                     </span>
                   ) : triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>
@@ -1073,18 +1073,18 @@ export default function DashboardPage() {
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-primary/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
-                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary animate-gradient-x" />
+                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-primary/15 to-transparent" />
                 </div>
                 <div className="relative p-4 sm:p-5">
                   <AlertDialogHeader className="space-y-2">
                     <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-primary)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
-                        <BrainLogo size={18} className="text-indigo-800" />
+                      <div className="h-9 w-9 rounded-2xl bg-brand-primary/10 border border-brand-primary/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-primary)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
+                        <BrainLogo size={18} className="text-brand-primary" />
                       </div>
                       <div className="min-w-0">
                         <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
@@ -1099,7 +1099,7 @@ export default function DashboardPage() {
                   <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
                     <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      className="rounded-xl bg-indigo-800 hover:bg-indigo-900"
+                      className="rounded-xl bg-brand-primary hover:bg-brand-primary"
                       onClick={() => {
                         setRecalcConfirmOpen(false);
                         triggerGrapeRankMutation.mutate();
@@ -1217,7 +1217,7 @@ export default function DashboardPage() {
 
             {(showOnboarding || isRecalculating) && (
               <div
-                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 border border-white/10 shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:shadow-[0_28px_70px_-20px_rgb(var(--brand-accent)/0.35)] overflow-hidden relative transition-shadow"
+                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-brand-primary border border-white/10 shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:shadow-[0_28px_70px_-20px_rgb(var(--brand-accent)/0.35)] overflow-hidden relative transition-shadow"
                 onMouseMove={handleMouseMove}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "0");
@@ -1311,7 +1311,7 @@ export default function DashboardPage() {
                 <div className="relative p-5 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
+                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-brand-link/80" data-testid="text-onboarding-kicker">
                         {isRecalculation ? "Recalculating" : isErrorState ? "Action needed" : "Brainstorm onboarding"}
                       </p>
                       <h2
@@ -1337,7 +1337,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgb(var(--brand-primary)/0.06)]" : ""}`}
+                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-brand-primary/20 shadow-[0_0_0_4px_rgb(var(--brand-primary)/0.06)]" : ""}`}
                         data-testid="button-toggle-onboarding"
                         aria-expanded={!isOnboardingCollapsed}
                       >
@@ -1349,7 +1349,7 @@ export default function DashboardPage() {
                         data-testid="badge-queue-position"
                         aria-label={isErrorState ? "Idle" : calcDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing your scores"}
                       >
-                        <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : calcDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
+                        <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : calcDone ? "bg-brand-primary animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
                         <span className="font-semibold" data-testid="text-queue-label">
                           {isErrorState ? "Idle" : calcDone ? "Processing" : (queuePosition !== null && queuePosition > 0) ? "Queue" : "Processing"}
                         </span>
@@ -1421,13 +1421,13 @@ export default function DashboardPage() {
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-graph" />
                               ) : (
                                 <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-brand-primary shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
                                   data-testid="dot-onboarding-graph"
                                 />
                               )}
                               <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-emerald-300" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">{calcDone ? "Calculated" : "Calculating"}</span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-brand-link/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
                               {calcDone ? "Complete" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -1441,7 +1441,7 @@ export default function DashboardPage() {
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-scores" />
                               ) : (
                                 <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-indigo-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-brand-primary shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
                                   data-testid="dot-onboarding-scores"
                                 />
                               )}
@@ -1450,7 +1450,7 @@ export default function DashboardPage() {
                                 (Trusted Assertion)
                               </span>
                             </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
+                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-brand-link/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
                               {publishDone ? "Complete" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
                             </span>
                           </div>
@@ -1576,7 +1576,7 @@ export default function DashboardPage() {
                                 data-testid="badge-onboarding-step"
                                 aria-label={`Slide ${activeOnboardingIndex + 1} of ${ONBOARDING_SLIDES.length}`}
                               >
-                                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" data-testid="dot-onboarding-step" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" data-testid="dot-onboarding-step" />
                                 <span className="text-xs font-semibold tracking-[0.18em] uppercase" data-testid="text-onboarding-step">
                                   Slide {activeOnboardingIndex + 1} of {ONBOARDING_SLIDES.length}
                                 </span>
@@ -1681,7 +1681,7 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.4] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.4] p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1695,7 +1695,7 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Followers</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
+                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : verifiedFollowersCount}
                       </div>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
                       {isCalculationComplete && (
@@ -1707,7 +1707,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
+                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.4] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.4] p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
                       onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
                       role={isCalculationComplete ? "button" : undefined}
                       tabIndex={isCalculationComplete ? 0 : -1}
@@ -1721,7 +1721,7 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Following</span>
                       </div>
                       <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
+                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : verifiedFollowingCount}
                       </div>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
                       {isCalculationComplete && (
@@ -1755,7 +1755,7 @@ export default function DashboardPage() {
 
             <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
               <DialogContent
-                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 dark:from-slate-900/92 dark:via-slate-900/88 dark:to-indigo-950/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+                className="sm:max-w-[620px] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 via-white/88 to-brand-primary/60 dark:from-slate-900/92 dark:via-slate-900/88 dark:to-brand-primary/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
                 data-testid="dialog-network-alerts-preview"
               >
                 <div className="absolute inset-0 pointer-events-none">
@@ -1804,7 +1804,7 @@ export default function DashboardPage() {
 
                   <div className="px-6 pb-6 relative">
                     <div className="rounded-3xl border border-slate-200/70 dark:border-slate-800/70 bg-white/65 dark:bg-slate-900/65 backdrop-blur-md shadow-sm overflow-hidden opacity-30 pointer-events-none select-none blur-[2px]">
-                      <div className="px-4 py-3 border-b border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-white/75 to-indigo-50/45 dark:from-slate-900/75 dark:to-indigo-950/45">
+                      <div className="px-4 py-3 border-b border-slate-200/60 dark:border-slate-800/60 bg-gradient-to-r from-white/75 to-brand-primary/[0.45] dark:from-slate-900/75 dark:to-brand-primary/[0.45]">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs font-bold text-slate-900 dark:text-slate-100" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
                           <div className="text-xs font-mono text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
@@ -1990,7 +1990,7 @@ export default function DashboardPage() {
                     </div>
                     <UITooltip>
                       <TooltipTrigger>
-                        <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors" />
+                        <Info className="h-3 w-3 text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 dark:text-slate-200 shadow-xl p-3">
                         <div className="space-y-1 max-w-xs">
@@ -1999,7 +1999,7 @@ export default function DashboardPage() {
                             This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
                           </p>
                           <p className="text-xs leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-1 mt-1">
-                            <span className="font-semibold text-indigo-600 dark:text-indigo-400">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
+                            <span className="font-semibold text-brand-primary dark:text-brand-link">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
                           </p>
                         </div>
                       </TooltipContent>
@@ -2008,7 +2008,7 @@ export default function DashboardPage() {
 
                   <div>
                     <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
+                      {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : extendedNetworkCount.toLocaleString()}
                     </div>
                     <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-extended-network-label">Unique profiles in range</p>
                   </div>
@@ -2016,7 +2016,7 @@ export default function DashboardPage() {
                   <div className="mt-auto space-y-2 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60">
                     <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
                       <span>Reach Depth</span>
-                      <span className="text-indigo-600 dark:text-indigo-400 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
+                      <span className="text-brand-primary dark:text-brand-link font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
                     </div>
                     <Slider
                       value={hopRange}
@@ -2148,7 +2148,7 @@ export default function DashboardPage() {
                         const canClick = isCalculationComplete && calcDone && !!tier;
                         const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
                         return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
+                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-brand-primary/60 dark:hover:bg-brand-primary/10" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
                           <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-1 gap-2">
@@ -2156,8 +2156,8 @@ export default function DashboardPage() {
                                 <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">{dist.name}</p>
                                 {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
                               </div>
-                              <span className="text-xs font-mono text-slate-400 dark:text-slate-500 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
-                                {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
+                              <span className="text-xs font-mono text-slate-400 dark:text-slate-500 group-hover:text-brand-primary transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
+                                {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-brand-link inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
                               </span>
                             </div>
                             <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
@@ -2190,7 +2190,7 @@ export default function DashboardPage() {
                   <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                     Discover Your Tribe
                   </h2>
-                  <p className="text-indigo-200/70 mt-2 max-w-xl text-sm sm:text-base font-light">
+                  <p className="text-brand-link/70 mt-2 max-w-xl text-sm sm:text-base font-light">
                     Identify and connect with high-signal clusters in the global trust graph matching your interests.
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
@@ -2221,17 +2221,17 @@ export default function DashboardPage() {
           )}
 
           <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
-            <div className="absolute inset-0 bg-[#020617] border-y border-indigo-500/20">
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#818cf810_1px,transparent_1px),linear-gradient(to_bottom,#818cf810_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
-              <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-indigo-600/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
+            <div className="absolute inset-0 bg-[#020617] border-y border-brand-primary/20">
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#7237ff10_1px,transparent_1px),linear-gradient(to_bottom,#7237ff10_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+              <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-brand-primary/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
               <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-brand-accent/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
               <div className="flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12">
                 <div className="flex-shrink-0 relative group-hover:scale-110 transition-transform duration-700 ease-out">
-                  <div className="absolute -inset-8 bg-indigo-500/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
-                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgb(var(--brand-primary)/0.5)] text-indigo-400" />
+                  <div className="absolute -inset-8 bg-brand-primary/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
+                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgb(var(--brand-primary)/0.5)] text-brand-link" />
                 </div>
 
                 <div className="flex-1 text-center md:text-left">
@@ -2239,24 +2239,24 @@ export default function DashboardPage() {
                     <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">
                       The Power of Transitive Trust
                     </h3>
-                    <Badge variant="secondary" className="hidden sm:flex bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 backdrop-blur-md shadow-sm">
+                    <Badge variant="secondary" className="hidden sm:flex bg-brand-primary/10 text-brand-link border border-brand-primary/20 backdrop-blur-md shadow-sm">
                       Graph Theory
                     </Badge>
                   </div>
-                  <p className="text-base sm:text-lg text-indigo-200/80 leading-relaxed max-w-2xl font-light">
-                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-indigo-400/30 pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-indigo-300 italic">Trust flows through your connections.</span>
+                  <p className="text-base sm:text-lg text-brand-link/80 leading-relaxed max-w-2xl font-light">
+                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-brand-primary/[0.3] pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-brand-link italic">Trust flows through your connections.</span>
                   </p>
                 </div>
 
                 <div className="flex-shrink-0">
                   <Button
                     variant="ghost"
-                    className="!bg-white !text-indigo-950 border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
+                    className="!bg-white !text-brand-primary border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
                     onClick={() => navigate("/what-is-wot")}
                     data-testid="button-learn-wot"
                   >
                     Learn about WOT?
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover/btn:translate-x-1 transition-transform text-indigo-600" />
+                    <ArrowRight className="ml-2 h-4 w-4 group-hover/btn:translate-x-1 transition-transform text-brand-primary" />
                   </Button>
                 </div>
               </div>
@@ -2499,7 +2499,7 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-link text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
                           <Terminal className="h-3 w-3" aria-hidden="true" />
                           <span>For Developers</span>
                         </div>
@@ -2514,7 +2514,7 @@ export default function DashboardPage() {
                               <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-developer-title">
                                 Get Your Client Featured
                               </h2>
-                              <p className="text-xs sm:text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
+                              <p className="text-xs sm:text-sm font-medium text-brand-link/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
                             </div>
                           </div>
                           <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
@@ -2528,7 +2528,7 @@ export default function DashboardPage() {
                             </Button>
                           </div>
                           <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
+                            <Button variant="ghost" className="w-full sm:w-auto !bg-brand-primary !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-brand-primary/[0.3] transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
                               View NIP-85 Spec
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
@@ -2583,7 +2583,7 @@ export default function DashboardPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
-                <Keyboard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                <Keyboard className="h-5 w-5 text-brand-primary dark:text-brand-link" />
                 Keyboard Shortcuts
               </h3>
               <div className="space-y-3">
