@@ -224,7 +224,7 @@ export default function HowSearchWorksPage() {
           <PageHeader
             size="hero"
             kicker="Under the hood"
-            title={<>How Brainstorm finds the <span className="text-brand-deep">real people</span>.</>}
+            title={<>How Brainstorm finds the <span className="text-brand-link">real people</span>.</>}
             subtitle="Search is only half the job. The harder part is telling legitimate accounts apart from the spam, bots, and impersonators. Here's the pipeline that does both — from query to verified results."
             testId="section-hsw-header"
           />
@@ -364,8 +364,8 @@ export default function HowSearchWorksPage() {
               <TrustSignal icon={Minus} tone="down" title="A verified account mutes or reports them" effect="Score falls" fill={28} />
               <TrustSignal icon={Ban} tone="off" title="An unverified account (score 0) acts" effect="Ignored" fill={4} />
             </div>
-            <div className="mt-7 rounded-xl bg-brand-deep px-5 py-4" data-testid="callout-spambots">
-              <p className="text-[15px] text-white/95 leading-relaxed font-medium">
+            <div className="mt-7 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-5 py-4" data-testid="callout-spambots">
+              <p className="text-[15px] font-medium leading-relaxed text-[#0A0E18] dark:text-slate-100">
                 So it doesn't matter how many spambots are spun up — a thousand, a million. Without social proof
                 from verified accounts, every one of them carries zero weight.
               </p>

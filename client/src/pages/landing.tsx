@@ -623,9 +623,11 @@ export default function Landing() {
           <div className="flex flex-col items-center mb-8">
             <h1 className="mb-2.5" data-testid="text-home-title">
               <span className="sr-only">Brainstorm</span>
-              {/* Website hero → wordmark. Gradient on the light hero, white on the
-                  dark hero (best contrast on the photograph). */}
-              <Wordmark height={52} className="mx-auto dark:hidden" />
+              {/* Website hero → wordmark. Light hero: the Aurora gradient at rest,
+                  switching to Ink (#0A0E18) once the user starts typing — it reads
+                  cleanly as the photo reveals behind the search. Dark hero: always
+                  the white mark (best contrast on the photograph). */}
+              <Wordmark height={52} variant={query.length > 0 ? "black" : "gradient"} className="mx-auto dark:hidden" />
               <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
             </h1>
             <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium drop-shadow-sm" data-testid="text-home-subtitle">
