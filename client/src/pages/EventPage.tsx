@@ -315,12 +315,12 @@ export default function EventPage() {
             <div className="flex items-center gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
-                  <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                     {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={20} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                    <VerificationCoin score01={score01} pov="global" size={22} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
                   )}
                 </span>
                 <div className="min-w-0">
