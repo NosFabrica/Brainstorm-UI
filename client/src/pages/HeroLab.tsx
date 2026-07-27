@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/Wordmark";
-import { NodesOverlay } from "@/components/brand/NodesOverlay";
 
 /**
  * DEV-ONLY hero background lab (route: /hero-lab, unlisted). Click through the
@@ -69,6 +68,37 @@ const DEFAULT_LAYOUT: Layout = {
   dots: [[120, 880, P], [360, 760, V], [520, 900, C], [760, 820, P], [1000, 830, C], [1240, 860, P], [1600, 300, C], [1660, 760, P]],
 };
 
+/** Procedural Nodes overlay — purple/cyan points + connecting lines with a soft
+ *  glow, Lighten-blended so only the light overlay shows over the photo. */
+function NodesOverlay({ file }: { file: string }) {
+  const layout = NODE_LAYOUTS[file] ?? DEFAULT_LAYOUT;
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full mix-blend-lighten"
+      viewBox="0 0 1920 1080"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      <defs>
+        <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <linearGradient id="nodeLine" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#7237ff" />
+          <stop offset="1" stopColor="#13d2e5" />
+        </linearGradient>
+      </defs>
+      <g fill="none" stroke="url(#nodeLine)" strokeWidth="1.5" opacity="0.85">
+        {layout.lines.map((d, k) => <path key={k} d={d} />)}
+      </g>
+      {layout.dots.map(([x, y, c], i) => (
+        <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 7 : 4.5} fill={c} filter="url(#nodeGlow)" />
+      ))}
+    </svg>
+  );
+}
+
 
 export default function HeroLab() {
   const [i, setI] = useState(0);
@@ -123,7 +153,7 @@ export default function HeroLab() {
         {/* Hero background — mirrors HomeHeroBackground */}
         <div className="absolute inset-0">
           <img key={cand.file} src={`/brand/hero-lab/${cand.file}`} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
-          {nodes && <NodesOverlay layout={NODE_LAYOUTS[cand.file] ?? DEFAULT_LAYOUT} idSuffix="lab" />}
+          {nodes && <NodesOverlay file={cand.file} />}
           <div className={`absolute inset-0 transition-colors duration-500 ${scrim}`} />
           <div className="absolute left-1/2 top-[6%] h-[42%] w-[66%] -translate-x-1/2 rounded-full bg-brand-accent/10 blur-[130px] dark:bg-brand-primary/[0.16]" />
           <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white to-transparent dark:from-slate-950" />
