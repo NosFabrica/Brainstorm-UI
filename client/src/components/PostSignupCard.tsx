@@ -143,9 +143,12 @@ export function PostSignupCard() {
     }
   };
 
+  // Apple-style "material" tiles: soft translucent panel + hairline border +
+  // subtle frost + whisper of shadow, so they read as refined inset surfaces
+  // rather than stark white/dark blocks on the glass card.
   const tileBase =
-    "group relative w-full text-left rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
-  const tileClickable = tileBase + " hover:border-brand-accent/50 hover:shadow-md active:scale-[0.995]";
+    "group relative w-full text-left rounded-2xl bg-white/70 dark:bg-white/[0.07] backdrop-blur-sm border border-white/60 dark:border-white/[0.10] shadow-sm dark:shadow-none p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const tileClickable = tileBase + " hover:bg-white/85 dark:hover:bg-white/[0.11] hover:border-brand-accent/40 hover:shadow-md active:scale-[0.995]";
 
   // Returning user (own key) whose profile + backup are already theirs and just
   // hasn't built a Web of Trust yet → one focused nudge, no "Welcome / new
