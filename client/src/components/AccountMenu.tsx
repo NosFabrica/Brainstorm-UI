@@ -201,16 +201,17 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
               })}
 
               {/* Apps — teased (product apps aren't live yet). Non-interactive; a
-                  "Soon" pill sets expectations without a dead-end click. */}
+                  "Soon" chip under the label sets expectations without a
+                  dead-end click and without clipping the tile edge. */}
               <div
-                className="relative flex cursor-default flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/60 dark:border-white/10 px-2 py-3 text-center"
+                className="flex cursor-default flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/60 dark:border-white/10 px-2 py-3 text-center"
                 title="Brainstorm apps — coming soon"
                 aria-disabled="true"
                 data-testid="account-nav-apps"
               >
                 <LayoutGrid className="h-5 w-5 text-slate-400 dark:text-slate-500" />
                 <span className="text-[11px] font-medium leading-none text-slate-400 dark:text-slate-500">Apps</span>
-                <span className="absolute right-1 top-1 rounded-full border border-brand-accent/30 bg-brand-accent/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-wide text-brand-deep dark:text-brand-link">
+                <span className="rounded-full bg-brand-accent/15 px-1.5 py-0.5 text-[8px] font-bold uppercase leading-none tracking-wide text-brand-deep dark:text-brand-link">
                   Soon
                 </span>
               </div>
