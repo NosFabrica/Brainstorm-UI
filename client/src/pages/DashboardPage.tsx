@@ -846,7 +846,7 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <PageHeader
                 kicker="Brainstorm Dashboard"
-                title={<>Welcome back, <span className="text-brand-deep">{user.displayName || "Traveler"}</span></>}
+                title={<>Welcome back, <span className="text-brand-link">{user.displayName || "Traveler"}</span></>}
                 subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
                 testId="section-dashboard-header-copy"
               />
@@ -2086,7 +2086,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="px-2 py-0.5 rounded-full bg-brand-accent/10 text-xs font-bold text-brand-deep border border-brand-accent/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                      <span className="text-brand-deep">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
+                      <span className="text-brand-link">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
                     </div>
                   </div>
                 </CardHeader>

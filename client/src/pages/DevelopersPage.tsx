@@ -61,7 +61,7 @@ export default function DevelopersPage() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-dev-title"
             >
-              Integrate the web of trust into <span className="text-brand-deep">your nostr client</span>.
+              Integrate the web of trust into <span className="text-brand-link">your nostr client</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl" data-testid="text-dev-subtitle">
               Three ways to bring this instance's Brainstorm scores into your app. Pick a method.

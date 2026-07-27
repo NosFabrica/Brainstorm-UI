@@ -35,7 +35,7 @@ export function ProfileEditModal({ open, onOpenChange, onSaved }: ProfileEditMod
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-edit-profile-title"
               >
-                Edit your <span className="text-brand-deep">profile</span>
+                Edit your <span className="text-brand-link">profile</span>
               </DialogTitle>
               <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                 Add a photo, bio, and details. Everything's optional.

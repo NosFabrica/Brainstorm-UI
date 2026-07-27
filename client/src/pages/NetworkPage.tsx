@@ -1199,7 +1199,7 @@ export default function NetworkPage() {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
-              title={<>Your <span className="text-brand-deep">Network</span></>}
+              title={<>Your <span className="text-brand-link">Network</span></>}
               subtitle="Browse and manage your social graph connections."
               testId="section-network-header"
             />

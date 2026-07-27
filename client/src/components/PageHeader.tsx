@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 /**
  * The canonical page header used across the app — a mono kicker with a short
  * accent line, a Space Grotesk (brand) title in slate-900 (highlight a word with
- * `<span className="text-brand-deep">…</span>`), and an optional subtitle. This is
+ * `<span className="text-brand-link">…</span>`), and an optional subtitle. This is
  * the single source of truth so every page's masthead reads on the same sheet of
  * music as the About / How-Search / Personalization pages.
  *

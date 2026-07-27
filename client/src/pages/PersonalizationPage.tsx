@@ -36,7 +36,7 @@ export default function PersonalizationPage() {
           <PageHeader
             size="hero"
             kicker="Your perspective"
-            title={<>Every search has a <span className="text-brand-deep">point of view</span>.</>}
+            title={<>Every search has a <span className="text-brand-link">point of view</span>.</>}
             subtitle="By default, you see the network through a trusted community curated by the house. Sign in, and you can see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you see."
             testId="section-personalization-header"
           />

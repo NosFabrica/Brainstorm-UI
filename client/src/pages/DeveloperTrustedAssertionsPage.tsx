@@ -25,7 +25,7 @@ export default function DeveloperTrustedAssertionsPage() {
               className="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Portable scores, as <span className="text-brand-deep">signed nostr events</span>.
+              Portable scores, as <span className="text-brand-link">signed nostr events</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
               Web-of-trust scores published as ordinary nostr events, so any client can fetch and verify them.

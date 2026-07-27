@@ -101,7 +101,7 @@ export default function FaqPage() {
           <div className="space-y-6 animate-fade-up">
             <PageHeader
               kicker="Brainstorm FAQ"
-              title={<>Frequently Asked <span className="text-brand-deep">Questions</span></>}
+              title={<>Frequently Asked <span className="text-brand-link">Questions</span></>}
               subtitle={activeTab === "users"
                 ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
                 : "Technical details for client developers implementing NIP-85 Trust Attestations."}

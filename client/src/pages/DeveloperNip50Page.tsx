@@ -72,7 +72,7 @@ export default function DeveloperNip50Page() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-dev-title"
             >
-              Add Brainstorm Search to <span className="text-brand-deep">your nostr client</span>.
+              Add Brainstorm Search to <span className="text-brand-link">your nostr client</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl" data-testid="text-dev-subtitle">
               This relay supports NIP-50 full-text profile search. Any nostr client can query it over a

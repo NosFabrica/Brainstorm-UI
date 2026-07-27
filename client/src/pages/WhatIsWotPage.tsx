@@ -245,7 +245,7 @@ export default function WhatIsWotPage() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-wot-title"
             >
-              Search that knows <span className="text-brand-deep">who to trust</span>.
+              Search that knows <span className="text-brand-link">who to trust</span>.
             </h1>
             <p
               className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl mx-auto"

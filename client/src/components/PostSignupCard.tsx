@@ -244,7 +244,7 @@ export function PostSignupCard() {
             className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Welcome to <span className="text-brand-deep">Brainstorm</span>
+            Welcome to <span className="text-brand-link">Brainstorm</span>
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">

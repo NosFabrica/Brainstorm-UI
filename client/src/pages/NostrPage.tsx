@@ -102,7 +102,7 @@ export default function NostrPage() {
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-nostr-title"
             >
-              Brainstorm runs on <span className="text-brand-deep">Nostr</span>.
+              Brainstorm runs on <span className="text-brand-link">Nostr</span>.
             </h1>
             <p
               className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl"

@@ -181,7 +181,7 @@ export default function HopsPathPage() {
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
-          Your connection to <span className="text-brand-deep">{subjectName}</span>
+          Your connection to <span className="text-brand-link">{subjectName}</span>
         </h1>
 
         {pathQuery.isPending ? (

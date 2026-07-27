@@ -210,7 +210,7 @@ export default function LoginPage() {
               className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1] mb-3"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Sign in to your <span className="text-brand-deep">Brainstorm</span> account
+              Sign in to your <span className="text-brand-link">Brainstorm</span> account
             </h2>
             <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
               Pick up where you left off and keep building your web of trust.

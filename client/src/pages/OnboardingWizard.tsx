@@ -144,7 +144,7 @@ export default function OnboardingWizard() {
         {step === "profile" && (
           <div data-testid="onboarding-step-profile">
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-              Add a photo <span className="text-brand-deep">so people recognize you</span>.
+              Add a photo <span className="text-brand-link">so people recognize you</span>.
             </h1>
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               This is how you appear across Nostr. A photo and a short bio go a long way — or skip and add them later.
@@ -224,7 +224,7 @@ export default function OnboardingWizard() {
         {step === "follow" && (
           <div data-testid="onboarding-step-follow">
             <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-              Follow a few accounts <span className="text-brand-deep">to begin</span>.
+              Follow a few accounts <span className="text-brand-link">to begin</span>.
             </h1>
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               Your Web of Trust is built from who you follow. Pick at least one so Brainstorm can calculate your trust scores.

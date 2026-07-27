@@ -65,7 +65,7 @@ export default function DeveloperOpenRankingPage() {
               className="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              The web of trust over <span className="text-brand-deep">plain HTTP</span>.
+              The web of trust over <span className="text-brand-link">plain HTTP</span>.
             </h1>
             <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
               This instance is an Open Ranking provider — a plain HTTP/JSON interface to its web of trust. Any

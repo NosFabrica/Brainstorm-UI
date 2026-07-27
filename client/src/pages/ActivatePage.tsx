@@ -100,7 +100,7 @@ export default function ActivatePage() {
           <div className="h-px w-12 bg-brand-accent/40" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-          Your network's already here. <span className="text-brand-deep">Let's score it.</span>
+          Your network's already here. <span className="text-brand-link">Let's score it.</span>
         </h1>
         <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
           Brainstorm reads the people you already follow and scores how trusted they are — so you can
