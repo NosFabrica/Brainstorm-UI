@@ -4,10 +4,10 @@ import { floatingNodes, connectionPairs, calculations } from './data';
 export function WotBackground() {
   return (
     <>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-primary/20 via-slate-950 to-slate-950" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px]" />
       <motion.div
-        className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-indigo-600/5 blur-3xl"
+        className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-brand-primary/5 blur-3xl"
         animate={{
           opacity: [0.3, 0.6, 0.3],
           scale: [1, 1.2, 1],
@@ -16,7 +16,7 @@ export function WotBackground() {
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-violet-600/5 blur-3xl"
+        className="absolute bottom-[20%] right-[10%] w-48 h-48 rounded-full bg-brand-accent/5 blur-3xl"
         animate={{
           opacity: [0.2, 0.5, 0.2],
           scale: [1, 1.3, 1],
@@ -25,7 +25,7 @@ export function WotBackground() {
         transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3 }}
       />
       <motion.div
-        className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full bg-blue-500/5 blur-2xl"
+        className="absolute top-[50%] right-[25%] w-32 h-32 rounded-full bg-brand-accent/[0.05] blur-2xl"
         animate={{
           opacity: [0.1, 0.4, 0.1],
           scale: [1, 1.4, 1],
@@ -55,14 +55,14 @@ export function WotBackground() {
         <defs>
           <linearGradient id="wotLineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#7237ff" />
-            <stop offset="100%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#13d2e5" />
           </linearGradient>
         </defs>
       </svg>
       {floatingNodes.map((node) => (
         <motion.div
           key={node.id}
-          className="absolute rounded-full bg-indigo-400"
+          className="absolute rounded-full bg-brand-primary"
           style={{
             left: `${node.x}%`,
             top: `${node.y}%`,
@@ -85,7 +85,7 @@ export function WotBackground() {
       {calculations.map((calc, i) => (
         <motion.div
           key={i}
-          className="absolute text-xs font-mono text-indigo-400/60 pointer-events-none select-none hidden md:block"
+          className="absolute text-xs font-mono text-brand-primary/60 pointer-events-none select-none hidden md:block"
           style={{
             left: `${5 + (i % 4) * 25}%`,
             top: `${15 + Math.floor(i / 4) * 70}%`,

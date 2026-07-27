@@ -103,7 +103,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   Show <span className="text-slate-500 font-normal mx-1 md:mx-2">vs</span> Tell
                 </h2>
                 <motion.div 
-                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-500/15 border border-violet-500/30 overflow-hidden"
+                  className="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-accent/15 border border-brand-accent/[0.3] overflow-hidden"
                   animate={{ scale: [1, 1.05, 1] }}
                   transition={{ duration: 2, repeat: Infinity, repeatDelay: 1, delay: 0.5 }}
                 >
@@ -129,7 +129,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         }, 400);
                       }, 600);
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500/20 via-indigo-500/20 to-violet-500/20 border border-indigo-500/30 rounded-full hover:border-indigo-400/50 transition-all"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500/20 via-brand-primary/20 to-brand-accent/20 border border-brand-primary/[0.3] rounded-full hover:border-brand-primary/[0.5] transition-all"
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
                     animate={{ 
@@ -137,7 +137,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                     }}
                     transition={{ duration: 2, repeat: Infinity }}
                   >
-                    <CompareIcon className="w-4 h-4 text-indigo-400" />
+                    <CompareIcon className="w-4 h-4 text-brand-primary" />
                     <span className="text-[11px] font-medium text-white">Reveal Both</span>
                   </motion.button>
                 )}
@@ -166,7 +166,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
             </div>
 
             <motion.div 
-              className="relative bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-indigo-500/30 rounded-3xl p-8 backdrop-blur-xl max-w-3xl mx-auto overflow-hidden"
+              className="relative bg-gradient-to-br from-slate-900 via-slate-950 to-brand-primary border border-brand-primary/[0.3] rounded-3xl p-8 backdrop-blur-xl max-w-3xl mx-auto overflow-hidden"
               initial={{ 
                 boxShadow: '0 8px 40px rgb(var(--brand-primary)/0.2), 0 0 80px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255,255,255,0.05)'
               }}
@@ -176,7 +176,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
               transition={{ duration: 0.4 }}
             >
               {/* Deep space gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-violet-900/10 to-purple-900/20 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/20 via-brand-accent/10 to-brand-primary/20 pointer-events-none" />
               
               {/* Star field particles */}
               {[...Array(30)].map((_, i) => (
@@ -204,7 +204,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
               {['∫', 'Σ', 'α', 'π', '∞', 'Δ', 'λ', '∂'].map((sym, i) => (
                 <motion.span
                   key={i}
-                  className="absolute text-indigo-400/20 font-mono pointer-events-none select-none"
+                  className="absolute text-brand-primary/20 font-mono pointer-events-none select-none"
                   style={{
                     left: `${10 + (i * 12)}%`,
                     top: `${15 + (i * 10) % 70}%`,
@@ -228,17 +228,17 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
               
               {/* Nebula glow orbs */}
               <motion.div 
-                className="absolute -top-32 -right-32 w-72 h-72 bg-gradient-to-br from-violet-500/25 to-purple-600/20 rounded-full blur-3xl pointer-events-none"
+                className="absolute -top-32 -right-32 w-72 h-72 bg-gradient-to-br from-brand-accent/25 to-brand-primary/20 rounded-full blur-3xl pointer-events-none"
                 animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.2, 1], x: [0, 15, 0], y: [0, -15, 0] }}
                 transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
               />
               <motion.div 
-                className="absolute -bottom-32 -left-32 w-72 h-72 bg-gradient-to-br from-indigo-500/20 to-blue-600/25 rounded-full blur-3xl pointer-events-none"
+                className="absolute -bottom-32 -left-32 w-72 h-72 bg-gradient-to-br from-brand-primary/20 to-brand-accent/25 rounded-full blur-3xl pointer-events-none"
                 animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.2, 1], x: [0, -15, 0], y: [0, 15, 0] }}
                 transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 4 }}
               />
               <motion.div 
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-radial from-indigo-500/15 via-violet-500/10 to-transparent rounded-full blur-2xl pointer-events-none"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-radial from-brand-primary/15 via-brand-accent/10 to-transparent rounded-full blur-2xl pointer-events-none"
                 animate={{ opacity: [0.2, 0.4, 0.2], scale: [0.9, 1.15, 0.9] }}
                 transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }}
               />
@@ -253,17 +253,17 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
               />
               
               {/* Glowing edge lines */}
-              <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-violet-400/50 to-transparent" />
-              <div className="absolute bottom-0 left-1/3 right-1/3 h-px bg-gradient-to-r from-transparent via-indigo-400/40 to-transparent" />
+              <div className="absolute top-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-brand-accent/[0.5] to-transparent" />
+              <div className="absolute bottom-0 left-1/3 right-1/3 h-px bg-gradient-to-r from-transparent via-brand-primary/[0.4] to-transparent" />
               
               {/* Animated corner brackets */}
               <motion.div 
-                className="absolute top-4 right-4 w-16 h-16 border-t-2 border-r-2 border-violet-400/40 rounded-tr-2xl pointer-events-none"
+                className="absolute top-4 right-4 w-16 h-16 border-t-2 border-r-2 border-brand-accent/[0.4] rounded-tr-2xl pointer-events-none"
                 animate={{ opacity: [0.3, 0.7, 0.3] }}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               />
               <motion.div 
-                className="absolute bottom-4 left-4 w-16 h-16 border-b-2 border-l-2 border-indigo-400/40 rounded-bl-2xl pointer-events-none"
+                className="absolute bottom-4 left-4 w-16 h-16 border-b-2 border-l-2 border-brand-primary/[0.4] rounded-bl-2xl pointer-events-none"
                 animate={{ opacity: [0.3, 0.7, 0.3] }}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 2 }}
               />
@@ -280,8 +280,8 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         onClick={() => handleScenarioChange(i)}
                         className={`relative flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[10px] font-semibold transition-all ${
                           isActive 
-                            ? 'bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/50 text-white shadow-lg shadow-violet-500/30' 
-                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-violet-400/50 hover:bg-slate-700/60'
+                            ? 'bg-gradient-to-r from-brand-accent to-brand-primary border border-brand-accent/[0.5] text-white shadow-lg shadow-brand-accent/[0.3]' 
+                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-brand-accent/[0.5] hover:bg-slate-700/60'
                         }`}
                         whileHover={{ scale: 1.05, y: -2 }}
                         whileTap={{ scale: 0.97 }}
@@ -289,12 +289,12 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                       >
                         {isActive && (
                           <motion.div 
-                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-500/20 to-indigo-500/20"
+                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-accent/20 to-brand-primary/20"
                             layoutId="activeScenario"
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
                         )}
-                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-blue-100' : ''}`} />
+                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-white' : ''}`} />
                         <span className="relative z-10">{s.label}</span>
                       </motion.button>
                     );
@@ -311,8 +311,8 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         onClick={() => handleScenarioChange(i)}
                         className={`relative flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-semibold transition-all ${
                           isActive 
-                            ? 'bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/50 text-white shadow-lg shadow-violet-500/30' 
-                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-violet-400/50 hover:bg-slate-700/60'
+                            ? 'bg-gradient-to-r from-brand-accent to-brand-primary border border-brand-accent/[0.5] text-white shadow-lg shadow-brand-accent/[0.3]' 
+                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-brand-accent/[0.5] hover:bg-slate-700/60'
                         }`}
                         whileHover={{ scale: 1.05, y: -2 }}
                         whileTap={{ scale: 0.97 }}
@@ -320,12 +320,12 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                       >
                         {isActive && (
                           <motion.div 
-                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-500/20 to-indigo-500/20"
+                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-accent/20 to-brand-primary/20"
                             layoutId="activeScenario"
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
                         )}
-                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-blue-100' : ''}`} />
+                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-white' : ''}`} />
                         <span className="relative z-10">{s.label}</span>
                       </motion.button>
                     );
@@ -342,8 +342,8 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         onClick={() => handleScenarioChange(i)}
                         className={`relative flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                           isActive 
-                            ? 'bg-gradient-to-r from-violet-600 to-indigo-600 border border-violet-400/50 text-white shadow-lg shadow-violet-500/30' 
-                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-violet-400/50 hover:bg-slate-700/60'
+                            ? 'bg-gradient-to-r from-brand-accent to-brand-primary border border-brand-accent/[0.5] text-white shadow-lg shadow-brand-accent/[0.3]' 
+                            : 'bg-slate-800/60 border border-slate-600/50 text-slate-300 hover:text-white hover:border-brand-accent/[0.5] hover:bg-slate-700/60'
                         }`}
                         whileHover={{ scale: 1.05, y: -2 }}
                         whileTap={{ scale: 0.97 }}
@@ -351,12 +351,12 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                       >
                         {isActive && (
                           <motion.div 
-                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-violet-500/20 to-indigo-500/20"
+                            className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-accent/20 to-brand-primary/20"
                             layoutId="activeScenario"
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
                         )}
-                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-blue-100' : ''}`} />
+                        <IconComponent className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-white' : ''}`} />
                         <span className="relative z-10">{s.label}</span>
                         {isActive && (
                           <motion.div 
@@ -423,15 +423,15 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         transition={{ duration: 2, repeat: Infinity }}
                       />
                       <motion.div 
-                        className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/30 to-indigo-500/30 border border-violet-400/50 flex items-center justify-center"
+                        className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-accent/[0.3] to-brand-primary/[0.3] border border-brand-accent/[0.5] flex items-center justify-center"
                         animate={{ rotate: [0, 360] }}
                         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
                         style={{ boxShadow: '0 0 20px rgba(139, 92, 246, 0.35)' }}
                       >
-                        <NetworkWebIcon className="w-4 h-4 text-violet-400" />
+                        <NetworkWebIcon className="w-4 h-4 text-brand-accent" />
                       </motion.div>
                       <motion.div 
-                        className="w-8 h-0.5 bg-gradient-to-r from-indigo-400/70 to-violet-400/70 rounded-full"
+                        className="w-8 h-0.5 bg-gradient-to-r from-brand-primary/70 to-brand-accent/70 rounded-full"
                         animate={{ opacity: [0.5, 1, 0.5] }}
                         transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
                       />
@@ -449,21 +449,21 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   >
                     <div className="text-right">
                       <p className="text-xs sm:text-sm font-semibold text-white">{scenario.personB.name}</p>
-                      <p className="text-[9px] sm:text-[10px] text-violet-400 font-medium">{scenario.personB.role}</p>
+                      <p className="text-[9px] sm:text-[10px] text-brand-accent font-medium">{scenario.personB.role}</p>
                     </div>
                     <div className="relative flex-shrink-0">
                       <motion.div 
-                        className="absolute inset-0 rounded-full bg-gradient-to-br from-violet-400/50 to-purple-400/40 blur-md"
+                        className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-accent/[0.5] to-brand-primary/[0.4] blur-md"
                         animate={{ opacity: [0.5, 0.9, 0.5] }}
                         transition={{ duration: 3, repeat: Infinity, delay: 1.5 }}
                       />
                       <img 
                         src={scenario.personB.avatar} 
                         alt={scenario.personB.name} 
-                        className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-violet-400/80 object-cover shadow-lg shadow-violet-500/30"
+                        className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-brand-accent/80 object-cover shadow-lg shadow-brand-accent/[0.3]"
                       />
                       <motion.div 
-                        className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-gradient-to-br from-violet-400 to-violet-500 rounded-full border-2 border-slate-900"
+                        className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-gradient-to-br from-brand-accent to-brand-accent rounded-full border-2 border-slate-900"
                         animate={{ scale: [1, 1.2, 1] }}
                         transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
                       />
@@ -488,7 +488,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                             <motion.span
                               key={i}
                               className="text-lg font-mono"
-                              style={{ color: i % 2 === 0 ? '#a78bfa' : '#818cf8' }}
+                              style={{ color: i % 2 === 0 ? '#13d2e5' : '#7237ff' }}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: [0, 1, 1, 0], y: [10, 0, 0, -10] }}
                               transition={{ 
@@ -508,7 +508,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                           transition={{ delay: 0.3 }}
                         >
                           <motion.div
-                            className="w-1.5 h-1.5 bg-violet-400 rounded-full"
+                            className="w-1.5 h-1.5 bg-brand-accent rounded-full"
                             animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
                             transition={{ duration: 0.4, repeat: 2 }}
                           />
@@ -615,7 +615,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                       >
                         {scenario.showActions.map((action, idx) => {
                           const IconComponent = action.icon === 'heart' ? FollowHeartIcon : action.icon === 'zap' ? ZapBoltIcon : RepostIcon;
-                          const colorClass = action.color === 'emerald' ? 'text-emerald-400' : action.color === 'amber' ? 'text-amber-400' : 'text-sky-400';
+                          const colorClass = action.color === 'emerald' ? 'text-emerald-400' : action.color === 'amber' ? 'text-amber-400' : 'text-brand-accent';
                           return (
                             <div key={idx} className="flex items-center gap-2.5 text-xs text-slate-300">
                               <IconComponent className={`w-4 h-4 ${colorClass} flex-shrink-0`} />
@@ -642,8 +642,8 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                           <div className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
                             <ZapBoltIcon className="w-2.5 h-2.5 text-amber-400" />
                           </div>
-                          <div className="w-5 h-5 rounded-full bg-sky-500/20 border border-sky-400/40 flex items-center justify-center">
-                            <RepostIcon className="w-2.5 h-2.5 text-sky-400" />
+                          <div className="w-5 h-5 rounded-full bg-brand-accent/20 border border-brand-accent/[0.4] flex items-center justify-center">
+                            <RepostIcon className="w-2.5 h-2.5 text-brand-accent" />
                           </div>
                         </div>
                         <span className="text-[11px] text-slate-400">{scenario.showActions.length} action types</span>
@@ -661,8 +661,8 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   transition={{ duration: 0.2 }}
                   className={`relative p-5 rounded-xl text-left transition-all overflow-hidden group ${
                     activeShowTell === 'tell' || activeShowTell === 'both'
-                      ? 'bg-violet-900/30 border-2 border-violet-400/50'
-                      : 'bg-slate-800/50 border border-slate-600/50 hover:border-violet-400/40 hover:bg-slate-800/70'
+                      ? 'bg-brand-accent/[0.3] border-2 border-brand-accent/[0.5]'
+                      : 'bg-slate-800/50 border border-slate-600/50 hover:border-brand-accent/[0.4] hover:bg-slate-800/70'
                   }`}
                   whileHover={{ scale: 1.02, y: -3 }}
                   whileTap={{ scale: 0.98 }}
@@ -684,7 +684,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                           {['α', '×', 'A(t)'].map((sym, i) => (
                             <motion.span
                               key={i}
-                              className="text-base font-mono text-violet-400"
+                              className="text-base font-mono text-brand-accent"
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: [0, 1, 1, 0], y: [8, 0, 0, -8] }}
                               transition={{ duration: 0.5, delay: i * 0.12, times: [0, 0.2, 0.7, 1] }}
@@ -707,7 +707,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   )}
                   {(activeShowTell === 'tell' || activeShowTell === 'both') && (
                     <motion.div 
-                      className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500 to-transparent"
+                      className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-accent to-transparent"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     />
@@ -715,7 +715,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <motion.div 
-                        className="w-9 h-9 rounded-lg bg-violet-500/20 border border-violet-400/40 flex items-center justify-center overflow-hidden"
+                        className="w-9 h-9 rounded-lg bg-brand-accent/20 border border-brand-accent/[0.4] flex items-center justify-center overflow-hidden"
                         animate={!(activeShowTell === 'tell' || activeShowTell === 'both') ? { scale: [1, 1.08, 1] } : {}}
                         transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 0.5, delay: 0.3 }}
                       >
@@ -723,17 +723,17 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                       </motion.div>
                       <div>
                         <span className="text-sm font-semibold text-white block">Tell Trust</span>
-                        <span className="text-[10px] text-violet-400">Explicit attestations</span>
+                        <span className="text-[10px] text-brand-accent">Explicit attestations</span>
                       </div>
                     </div>
                     {!(activeShowTell === 'tell' || activeShowTell === 'both') && (
                       <motion.div
-                        className="flex items-center gap-1 px-2 py-1 bg-violet-500/15 border border-violet-400/30 rounded-full"
+                        className="flex items-center gap-1 px-2 py-1 bg-brand-accent/15 border border-brand-accent/[0.3] rounded-full"
                         animate={{ opacity: [0.7, 1, 0.7] }}
                         transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
                       >
-                        <span className="text-[9px] text-violet-400 font-medium">Tap to reveal</span>
-                        <ChevronRight className="w-3 h-3 text-violet-400" />
+                        <span className="text-[9px] text-brand-accent font-medium">Tap to reveal</span>
+                        <ChevronRight className="w-3 h-3 text-brand-accent" />
                       </motion.div>
                     )}
                   </div>
@@ -750,13 +750,13 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                           const IconComponent = action.icon === 'quote' ? QuoteBubbleIcon : action.icon === 'star' ? StarRatingIcon : TagLabelIcon;
                           return (
                             <div key={idx} className="flex items-center gap-2.5 text-xs text-slate-300">
-                              <IconComponent className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                              <IconComponent className="w-4 h-4 text-brand-accent flex-shrink-0" />
                               <span>{action.text}</span>
                             </div>
                           );
                         })}
-                        <div className="pt-3 mt-3 border-t border-violet-500/30 flex items-start gap-2">
-                          <ExplicitContextIcon className="w-4 h-4 text-violet-400 flex-shrink-0 mt-0.5" />
+                        <div className="pt-3 mt-3 border-t border-brand-accent/[0.3] flex items-start gap-2">
+                          <ExplicitContextIcon className="w-4 h-4 text-brand-accent flex-shrink-0 mt-0.5" />
                           <p className="text-[10px] text-slate-400 leading-relaxed">{scenario.tellInsight}</p>
                         </div>
                       </motion.div>
@@ -768,14 +768,14 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                         exit={{ opacity: 0 }}
                       >
                         <div className="flex -space-x-1">
-                          <div className="w-5 h-5 rounded-full bg-violet-500/20 border border-violet-400/40 flex items-center justify-center">
-                            <QuoteBubbleIcon className="w-2.5 h-2.5 text-violet-400" />
+                          <div className="w-5 h-5 rounded-full bg-brand-accent/20 border border-brand-accent/[0.4] flex items-center justify-center">
+                            <QuoteBubbleIcon className="w-2.5 h-2.5 text-brand-accent" />
                           </div>
-                          <div className="w-5 h-5 rounded-full bg-violet-500/20 border border-violet-400/40 flex items-center justify-center">
-                            <StarRatingIcon className="w-2.5 h-2.5 text-violet-400" />
+                          <div className="w-5 h-5 rounded-full bg-brand-accent/20 border border-brand-accent/[0.4] flex items-center justify-center">
+                            <StarRatingIcon className="w-2.5 h-2.5 text-brand-accent" />
                           </div>
-                          <div className="w-5 h-5 rounded-full bg-violet-500/20 border border-violet-400/40 flex items-center justify-center">
-                            <TagLabelIcon className="w-2.5 h-2.5 text-violet-400" />
+                          <div className="w-5 h-5 rounded-full bg-brand-accent/20 border border-brand-accent/[0.4] flex items-center justify-center">
+                            <TagLabelIcon className="w-2.5 h-2.5 text-brand-accent" />
                           </div>
                         </div>
                         <span className="text-[11px] text-slate-400">{scenario.tellActions.length} attestation types</span>
@@ -787,14 +787,14 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
 
               {activeShowTell === 'both' && (
                 <motion.div 
-                  className="relative z-10 mt-5 pt-4 border-t border-indigo-500/30"
+                  className="relative z-10 mt-5 pt-4 border-t border-brand-primary/[0.3]"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <div className="text-center mb-4">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-500/15 border border-indigo-400/30 rounded-full">
-                      <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-                      <p className="text-[10px] text-indigo-300 font-medium">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-primary/15 border border-brand-primary/[0.3] rounded-full">
+                      <div className="w-1.5 h-1.5 bg-brand-primary rounded-full animate-pulse" />
+                      <p className="text-[10px] text-brand-primary font-medium">
                         When Show + Tell combine, real-world applications unlock
                       </p>
                     </div>
@@ -803,15 +803,15 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                     {scenario.applications.map((app, idx) => (
                       <motion.div
                         key={idx}
-                        className="bg-slate-800/60 border border-slate-600/50 rounded-lg p-4 group hover:border-indigo-400/50 transition-colors"
+                        className="bg-slate-800/60 border border-slate-600/50 rounded-lg p-4 group hover:border-brand-primary/[0.5] transition-colors"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 + idx * 0.1 }}
                         style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}
                       >
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 rounded-md bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center">
-                            <NetworkWebIcon className="w-3 h-3 text-indigo-400" />
+                          <div className="w-6 h-6 rounded-md bg-brand-primary/20 border border-brand-primary/[0.4] flex items-center justify-center">
+                            <NetworkWebIcon className="w-3 h-3 text-brand-primary" />
                           </div>
                           <h4 className="text-xs font-semibold text-white">{app.title}</h4>
                         </div>
@@ -821,7 +821,7 @@ export function ShowVsTell({ mode }: { mode: UserMode }) {
                   </div>
                   
                   <motion.div 
-                    className="mt-6 pt-5 border-t border-indigo-500/20"
+                    className="mt-6 pt-5 border-t border-brand-primary/20"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4, type: "spring", stiffness: 300 }}

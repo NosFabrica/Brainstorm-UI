@@ -36,7 +36,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
         onClick={() => setMode('normal')}
         className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
           mode === 'normal'
-            ? 'bg-indigo-600 text-white'
+            ? 'bg-brand-primary text-white'
             : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
         }`}
         data-testid="toggle-normal"
@@ -48,7 +48,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
         onClick={() => setMode('power')}
         className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
           mode === 'power'
-            ? 'bg-indigo-600 text-white'
+            ? 'bg-brand-primary text-white'
             : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
         }`}
         data-testid="toggle-power"
@@ -84,7 +84,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+            className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/[0.5]"
             onClick={() => setLocation('/')}
             aria-label="Brainstorm home"
             data-testid="text-logo"

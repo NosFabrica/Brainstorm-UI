@@ -17,7 +17,7 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
             className="max-w-3xl mx-auto"
           >
             <motion.div 
-              className="relative bg-gradient-to-br from-indigo-500/20 via-slate-900/95 to-violet-500/20 backdrop-blur-xl rounded-2xl p-6 overflow-hidden border border-indigo-500/50"
+              className="relative bg-gradient-to-br from-brand-primary/20 via-slate-900/95 to-brand-accent/20 backdrop-blur-xl rounded-2xl p-6 overflow-hidden border border-brand-primary/[0.5]"
               initial={{ 
                 boxShadow: '0 8px 40px rgb(var(--brand-primary)/0.3), 0 16px 80px rgba(139, 92, 246, 0.2), 0 0 0 1px rgb(var(--brand-primary)/0.15), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
               }}
@@ -47,19 +47,19 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
               
               {/* Extra glow orbs */}
               <motion.div 
-                className="absolute -top-10 -left-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl"
+                className="absolute -top-10 -left-10 w-40 h-40 bg-brand-primary/20 rounded-full blur-3xl"
                 animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.2, 1] }}
                 transition={{ duration: 4, repeat: Infinity }}
               />
               <motion.div 
-                className="absolute -bottom-10 -right-10 w-40 h-40 bg-violet-500/20 rounded-full blur-3xl"
+                className="absolute -bottom-10 -right-10 w-40 h-40 bg-brand-accent/20 rounded-full blur-3xl"
                 animate={{ opacity: [0.3, 0.6, 0.3], scale: [1.2, 1, 1.2] }}
                 transition={{ duration: 4, repeat: Infinity, delay: 2 }}
               />
               
               {/* Top glow line */}
               <motion.div 
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent rounded-full"
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-brand-primary to-transparent rounded-full"
                 animate={{ opacity: [0.4, 0.9, 0.4] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
@@ -140,7 +140,7 @@ export function CtaSection({ mode, setLocation }: CtaSectionProps) {
                 </p>
                 <motion.button
                   onClick={() => setLocation('/dashboard')}
-                  className="px-5 py-2 text-sm font-medium text-indigo-300 rounded-lg transition-all inline-flex items-center gap-2 border border-indigo-500/40 hover:border-indigo-400/60 hover:text-white hover:bg-indigo-500/10"
+                  className="px-5 py-2 text-sm font-medium text-brand-primary rounded-lg transition-all inline-flex items-center gap-2 border border-brand-primary/[0.4] hover:border-brand-primary/60 hover:text-white hover:bg-brand-primary/10"
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                   data-testid="button-get-started"

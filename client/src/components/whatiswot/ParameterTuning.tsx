@@ -25,7 +25,7 @@ export function ParameterTuning() {
               </div>
 
               <div 
-                className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
+                className="relative bg-gradient-to-br from-brand-primary/15 via-slate-900/95 to-brand-accent/15 border border-brand-primary/[0.4] rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
                 style={{ 
                   boxShadow: '0 12px 48px rgb(var(--brand-primary)/0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgb(var(--brand-primary)/0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
                 }}
@@ -38,7 +38,7 @@ export function ParameterTuning() {
                   transition={{ duration: 5, repeat: Infinity }}
                 />
                 <motion.div 
-                  className="absolute -bottom-16 -left-16 w-40 h-40 bg-gradient-to-br from-violet-500/15 to-indigo-500/20 rounded-full blur-3xl pointer-events-none"
+                  className="absolute -bottom-16 -left-16 w-40 h-40 bg-gradient-to-br from-brand-accent/15 to-brand-primary/20 rounded-full blur-3xl pointer-events-none"
                   animate={{ opacity: [0.3, 0.5, 0.3], scale: [1.1, 1, 1.1] }}
                   transition={{ duration: 5, repeat: Infinity, delay: 2.5 }}
                 />
@@ -64,9 +64,9 @@ export function ParameterTuning() {
                   <div className="text-center mb-5">
                     <p className="text-[11px] text-slate-400 max-w-md mx-auto leading-relaxed">
                       Trust decays exponentially: each hop multiplies by <span className="font-mono text-emerald-400">α</span>. 
-                      At <span className="font-mono text-emerald-400">α={attenuation.toFixed(2)}</span> over <span className="font-mono text-violet-400">{hops} hop{hops > 1 ? 's' : ''}</span>, 
+                      At <span className="font-mono text-emerald-400">α={attenuation.toFixed(2)}</span> over <span className="font-mono text-brand-accent">{hops} hop{hops > 1 ? 's' : ''}</span>, 
                       {hops === 1 ? ' a direct friend' : hops === 2 ? ' a friend-of-friend' : ` a ${hops}-hop connection`} contributes <motion.span 
-                        className="font-mono text-indigo-400"
+                        className="font-mono text-brand-primary"
                         key={`${attenuation}-${hops}`}
                         initial={{ opacity: 0.5 }}
                         animate={{ opacity: 1 }}
@@ -106,7 +106,7 @@ export function ParameterTuning() {
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] font-mono text-slate-500">d =</span>
                         <motion.span
-                          className="text-lg font-mono font-bold text-violet-400"
+                          className="text-lg font-mono font-bold text-brand-accent"
                           key={hops}
                           initial={{ scale: 1.2 }}
                           animate={{ scale: 1 }}
@@ -121,7 +121,7 @@ export function ParameterTuning() {
                         step="1"
                         value={hops}
                         onChange={(e) => setHops(parseInt(e.target.value))}
-                        className="w-40 sm:w-20 h-2 bg-slate-700/70 rounded-lg appearance-none cursor-pointer accent-violet-500"
+                        className="w-40 sm:w-20 h-2 bg-slate-700/70 rounded-lg appearance-none cursor-pointer accent-brand-accent"
                         data-testid="range-hops"
                       />
                     </div>
@@ -157,7 +157,7 @@ export function ParameterTuning() {
                               }}
                               transition={{ duration: 2, repeat: Infinity }}
                             >
-                              <span className={i === 0 ? 'text-emerald-400' : 'text-violet-300'}>
+                              <span className={i === 0 ? 'text-emerald-400' : 'text-brand-accent'}>
                                 {score.toFixed(2)}
                               </span>
                             </motion.div>
@@ -173,13 +173,13 @@ export function ParameterTuning() {
                               transition={{ delay: i * 0.08 + 0.05 }}
                             >
                               <motion.div
-                                className="w-4 h-px bg-gradient-to-r from-violet-500/60 to-violet-500/30"
+                                className="w-4 h-px bg-gradient-to-r from-brand-accent/60 to-brand-accent/[0.3]"
                                 animate={{ opacity: [0.4, 0.8, 0.4] }}
                                 transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
                               />
                               <span className="text-[8px] text-slate-600 mx-0.5">×α</span>
                               <motion.div
-                                className="w-4 h-px bg-gradient-to-r from-violet-500/30 to-violet-500/60"
+                                className="w-4 h-px bg-gradient-to-r from-brand-accent/[0.3] to-brand-accent/60"
                                 animate={{ opacity: [0.4, 0.8, 0.4] }}
                                 transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 + 0.3 }}
                               />
@@ -195,9 +195,9 @@ export function ParameterTuning() {
                     <div className="flex items-center justify-between sm:justify-start gap-2 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/30">
                       <span className="text-[9px] text-slate-500">T(u) at d={hops}</span>
                       <motion.span
-                        className="text-sm font-mono font-bold text-indigo-400"
+                        className="text-sm font-mono font-bold text-brand-primary"
                         key={`${attenuation}-${hops}`}
-                        initial={{ color: '#818cf8' }}
+                        initial={{ color: '#7237ff' }}
                         animate={{ color: '#a5b4fc' }}
                         transition={{ duration: 0.3 }}
                       >
