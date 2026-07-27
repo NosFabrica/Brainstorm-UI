@@ -1,8 +1,5 @@
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
 import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -29,8 +26,8 @@ interface AppHeaderProps {
  * Google-like: a transparent (frosted-on-scroll) bar with only the B mark on
  * the left and the apps launcher + account menu on the right. Primary
  * destinations (Search/Dashboard/Network) live inside the account menu; the
- * apps launcher holds the product family. Mobile uses the hamburger →
- * MobileMenu.
+ * apps launcher holds the product family. On mobile the bottom tab bar +
+ * account sheet own navigation, so the header is just the wordmark.
  */
 export function AppHeader({ user, onLogout, calcDone = false, active, actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
@@ -41,18 +38,6 @@ export function AppHeader({ user, onLogout, calcDone = false, active, actions }:
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="lg:hidden">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={openMobileMenu}
-                className="text-slate-500 dark:text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-brand-deep dark:hover:text-white hover:bg-slate-900/5 dark:hover:bg-white/10"
-                data-testid="button-open-mobile-menu"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            </div>
-
             {/* Handwritten wordmark — the full brand signature (same as the
                 homepage hero). App-chrome pages (dashboard, network, settings,
                 FAQ, admin, /profile) have no header search bar, so the wordmark

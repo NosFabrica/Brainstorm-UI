@@ -13,7 +13,6 @@ import {
   USER_CHANGED_EVENT,
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +39,6 @@ import {
 import {
   Home,
   Search,
-  Menu,
   LogOut,
   Settings as SettingsIcon,
   Users,
@@ -589,12 +587,6 @@ export default function UserPanelPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-4 sm:gap-6 min-w-0">
-              <div className="lg:hidden">
-                <Button variant="ghost" size="icon" onClick={openMobileMenu} className="text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10" data-testid="button-open-mobile-menu">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </div>
-
               <button type="button" className="flex items-center gap-3 min-w-0 lg:hidden" onClick={() => navigate("/dashboard")} data-testid="button-agentsuite-mobile-brand">
                 <div className="h-9 w-9 rounded-2xl bg-white/5 border border-white/10 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)] flex items-center justify-center shrink-0">
                   <BrainLogo size={20} className="text-indigo-200" />

@@ -9,7 +9,6 @@ import { nip19 } from "nostr-tools";
 import {
   Home,
   LogOut,
-  Menu,
   X,
   Loader2,
   Copy,
@@ -94,7 +93,6 @@ import {
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { SignInButton } from "@/components/SignInButton";
 import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";

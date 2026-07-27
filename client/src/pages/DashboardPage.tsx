@@ -45,7 +45,6 @@ import {
   Info,
   RefreshCw,
   Network,
-  Menu,
   X,
   ChevronRight,
   ChevronDown,
@@ -86,7 +85,6 @@ import {
 } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { ToastAction } from "@/components/ui/toast";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

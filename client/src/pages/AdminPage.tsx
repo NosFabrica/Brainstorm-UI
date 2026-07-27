@@ -8,7 +8,6 @@ import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
@@ -50,7 +49,6 @@ import {
 import {
   Home,
   Search,
-  Menu,
   LogOut,
   Settings as SettingsIcon,
   Users,

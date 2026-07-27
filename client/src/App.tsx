@@ -44,7 +44,6 @@ import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
-import { MobileMenuHost } from "@/components/MobileMenuHost";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
@@ -156,7 +155,6 @@ function App() {
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <Toaster />
         <PovAutoDefault />
-        <MobileMenuHost />
         <MobileTabBar />
         <CommandPalette />
         <ScoringStatusBar />

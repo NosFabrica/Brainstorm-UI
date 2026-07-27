@@ -1,5 +1,4 @@
 import { useLocation } from "wouter";
-import { closeMobileMenu } from "@/lib/mobileMenuStore";
 
 function SignInIcon({ className = "" }: { className?: string }) {
   return (
@@ -64,7 +63,6 @@ export function SignInButton({
   const [location, navigate] = useLocation();
 
   const onClick = () => {
-    closeMobileMenu();
     onSuccess?.();
     const next =
       location && location.startsWith("/") && location !== "/login"

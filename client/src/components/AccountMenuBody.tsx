@@ -10,6 +10,7 @@ import {
   UserCircle,
   UserPlus,
   HelpCircle,
+  BookOpen,
   Settings as SettingsIcon,
   Shield,
   LogOut,
@@ -229,6 +230,7 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
+        <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
 
