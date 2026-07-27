@@ -192,7 +192,7 @@ export default function ArticlePage() {
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={16} className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                    <VerificationCoin score01={score01} pov="global" size={18} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
                   )}
                 </span>
                 <div className="min-w-0">
