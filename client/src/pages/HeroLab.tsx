@@ -12,20 +12,15 @@ import { Wordmark } from "@/components/Wordmark";
  * soft here — good for choosing a DIRECTION; the winner gets re-sourced hi-res
  * (~2560×1440 landscape) with nodes composited before it goes live.
  */
+// Shortlist — Benjamin's picks (2, 6, 7, 9, 10, 12). The full 13-candidate set
+// lives in git history if we ever want to revisit the others.
 const CANDIDATES = [
-  { file: "cand-01.webp", src: "1c2f0272…" },
   { file: "cand-02.webp", src: "45815f39…" },
-  { file: "cand-03.webp", src: "579a584b…" },
-  { file: "cand-04.webp", src: "820e0c22…" },
-  { file: "cand-05.webp", src: "9320c79a…" },
   { file: "cand-06.webp", src: "9772090d…" },
   { file: "cand-07.webp", src: "a1cd4917…" },
-  { file: "cand-08.webp", src: "b6eb20ff…" },
   { file: "cand-09.webp", src: "cdf43ffe…" },
   { file: "cand-10.webp", src: "d0983274…" },
-  { file: "cand-11.webp", src: "e1dc53a8…" },
   { file: "cand-12.webp", src: "fae82f83…" },
-  { file: "cand-13.webp", src: "grok-c40a3306…" },
 ];
 
 /** Per-image Nodes layouts (guidelines p10): each picks a safe zone in that
@@ -50,6 +45,12 @@ const NODE_LAYOUTS: Record<string, Layout> = {
   "cand-07.webp": {
     lines: ["M220,930 C440,860 640,980 860,910", "M860,910 C1080,850 1300,970 1520,910", "M1520,910 C1640,940 1740,900 1800,960"],
     dots: [[220, 930, C], [440, 980, P], [640, 920, C], [860, 910, V], [1080, 950, C], [1300, 905, P], [1520, 910, C], [1720, 950, V]],
+  },
+  // 09 social/beers → faces span the frame; safe zone is the low foreground
+  // (shirts + drinks below the faces), weaving between the amber glasses
+  "cand-09.webp": {
+    lines: ["M160,900 C380,840 560,950 780,890", "M780,890 C1000,830 1220,940 1440,880", "M1440,880 C1580,910 1700,870 1800,930"],
+    dots: [[160, 900, P], [380, 950, C], [560, 895, V], [780, 890, C], [1000, 940, P], [1220, 885, C], [1440, 880, V], [1640, 895, C], [1800, 930, P]],
   },
   // 10 city sunset → left + right building faces, clear of the bright center
   "cand-10.webp": {
