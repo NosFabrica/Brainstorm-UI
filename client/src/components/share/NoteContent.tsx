@@ -4,6 +4,7 @@ import { parseNoteContent, extractImageUrls, extractNoteTitle, toPlayableStreamU
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
@@ -103,6 +104,7 @@ export function NoteContent({
             return <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
+            if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
@@ -193,7 +195,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
+      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
     </div>
   );
 }

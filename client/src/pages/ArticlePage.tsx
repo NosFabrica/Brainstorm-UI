@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
+import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +22,34 @@ import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+
+const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
+const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
+
+/**
+ * Custom Markdown renderers so a long-form body reads like a top-tier client,
+ * not a wall of raw links: a hosted-video URL becomes an inline player, a bare
+ * media URL becomes an inline image / <video>, any other bare URL becomes a
+ * tidy favicon chip, and a genuinely-labelled link keeps its text but styled.
+ * (Full og-image/title/description previews for arbitrary links await the
+ * /api/unfurl proxy — see LinkPreview.tsx.)
+ */
+const mdComponents: Components = {
+  a({ href, children }) {
+    const url = typeof href === "string" ? href : "";
+    const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
+    const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
+    if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
+    if (url && bare && VID_RE.test(url)) {
+      return <video src={url} controls playsInline preload="metadata" className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+    }
+    if (url && bare && IMG_RE.test(url)) {
+      return <img src={url} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
+    }
+    if (url && bare) return <LinkChip url={url} />;
+    return <a href={url || undefined} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
+  },
+};
 
 type AddressPointer = { kind: number; pubkey: string; identifier: string; relays?: string[] };
 
@@ -175,7 +205,7 @@ export default function ArticlePage() {
 
             {/* Full article body — Brainstorm is the reading destination. */}
             <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
                 {ev.content || ""}
               </ReactMarkdown>
             </div>
