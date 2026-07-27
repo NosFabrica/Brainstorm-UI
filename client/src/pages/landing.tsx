@@ -711,7 +711,12 @@ export default function Landing() {
                 )}
                 <button
                   type="submit"
-                  disabled={isSearching || !query.trim()}
+                  // Disabled only while a search is in flight — at rest (even
+                  // with an empty box) the button stays solid Aurora Purple
+                  // (#7237ff) instead of washing out to a faded lavender.
+                  // handleSearch() no-ops on an empty query, so an idle click is
+                  // harmless.
+                  disabled={isSearching}
                   className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
