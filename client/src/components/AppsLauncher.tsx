@@ -71,7 +71,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
           size="icon"
           className={
             (isLight
-              ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 dark:hover:bg-white/10 rounded-xl "
+              ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-brand-primary hover:bg-slate-900/5 dark:hover:bg-white/10 rounded-xl "
               : "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl ") +
             (className ?? "")
           }
@@ -122,8 +122,8 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                     ? "cursor-default "
                     : tile.disabled
                       ? "opacity-40 cursor-not-allowed "
-                      : "cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-500/10 ") +
-                  (isActive && !inactive ? "bg-indigo-50/70 dark:bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/20 dark:ring-indigo-400/20 " : "")
+                      : "cursor-pointer hover:bg-brand-primary dark:hover:bg-brand-primary/10 ") +
+                  (isActive && !inactive ? "bg-brand-primary/70 dark:bg-brand-primary/15 ring-1 ring-inset ring-brand-primary/20 dark:ring-brand-primary/20 " : "")
                 }
                 data-testid={`app-tile-${tile.key}`}
               >
@@ -134,10 +134,10 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                       ? "bg-brand-accent/[0.08] border border-brand-accent/20 "
                       : tile.comingSoon
                         ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
-                        : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
+                        : "bg-gradient-to-br from-brand-primary/10 to-brand-primary/[0.04] " +
                           (tile.tone === "special"
-                            ? "border border-indigo-500/30 animate-pulse-glow"
-                            : "border border-indigo-500/10"))
+                            ? "border border-brand-primary/[0.3] animate-pulse-glow"
+                            : "border border-brand-primary/10"))
                   }
                 >
                   {tile.iconSrc ? (
@@ -158,7 +158,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                             ? "text-slate-400 dark:text-slate-500"
                             : tile.tone === "admin"
                               ? "text-amber-600"
-                              : "text-indigo-600")
+                              : "text-brand-primary")
                       }
                     />
                   ) : null}

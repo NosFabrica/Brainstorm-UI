@@ -186,7 +186,7 @@ export function LoginFailureModal({
                     <button
                       type="button"
                       onClick={openSecretKeyForm}
-                      className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full h-11 rounded-xl bg-brand-primary hover:bg-brand-primary text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
                       data-testid="button-show-nsec-form"
                     >
                       <KeyRound className="h-4 w-4" />
@@ -208,7 +208,7 @@ export function LoginFailureModal({
                     <button
                       type="button"
                       onClick={onRetryExtension}
-                      className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+                      className="w-full h-11 rounded-xl bg-brand-primary hover:bg-brand-primary text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
                       data-testid="button-retry-extension"
                     >
                       Try again
@@ -241,7 +241,7 @@ export function LoginFailureModal({
                                 href={ext.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                                className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                                 data-testid={`link-install-${ext.name.toLowerCase()}`}
                               >
                                 {ext.name}
@@ -318,13 +318,13 @@ export function LoginFailureModal({
                       spellCheck={false}
                       disabled={submitting}
                       autoFocus
-                      className="w-full h-11 pl-9 pr-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-sans transition-all disabled:opacity-60"
+                      className="w-full h-11 pl-9 pr-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 outline-none text-sm font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-sans transition-all disabled:opacity-60"
                       data-testid="input-nsec"
                     />
                     <button
                       type="button"
                       onClick={() => setShowSecretKey((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-brand-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       data-testid="button-toggle-nsec-visibility"
                       aria-label={showSecretKey ? "Hide key" : "Show key"}
                     >
@@ -356,7 +356,7 @@ export function LoginFailureModal({
                         placeholder="Backup password"
                         autoComplete="off"
                         disabled={submitting}
-                        className="w-full h-11 pl-9 pr-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all disabled:opacity-60"
+                        className="w-full h-11 pl-9 pr-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 outline-none text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-all disabled:opacity-60"
                         data-testid="input-backup-password"
                       />
                     </div>
@@ -385,7 +385,7 @@ export function LoginFailureModal({
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
                       disabled={submitting}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-slate-700 accent-indigo-600 cursor-pointer disabled:opacity-60"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-slate-700 accent-brand-primary cursor-pointer disabled:opacity-60"
                       data-testid="checkbox-remember-me"
                     />
                     <span className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -405,7 +405,7 @@ export function LoginFailureModal({
                   <button
                     type="submit"
                     disabled={submitting || !canSubmitKey}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+                    className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
                     data-testid="button-nsec-signin"
                   >
                     {submitting ? (
@@ -429,7 +429,7 @@ export function LoginFailureModal({
                       setSecretKeyError("");
                     }}
                     disabled={submitting}
-                    className="w-full h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 text-xs font-semibold transition-colors disabled:opacity-50"
+                    className="w-full h-9 rounded-xl text-slate-500 dark:text-slate-400 hover:text-brand-primary text-xs font-semibold transition-colors disabled:opacity-50"
                     data-testid="button-back-to-options"
                   >
                     Back to sign-in options

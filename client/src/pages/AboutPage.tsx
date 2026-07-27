@@ -163,7 +163,7 @@ export default function AboutPage() {
             <div className="flex flex-wrap items-center gap-3 order-4">
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
                 data-testid="button-hero-search"
               >
                 <Search className="h-4 w-4" />
@@ -171,7 +171,7 @@ export default function AboutPage() {
               </button>
               <button
                 onClick={() => navigate("/how-search-works")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-accent/40 hover:text-indigo-600 rounded-full transition-colors active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-accent/40 hover:text-brand-primary rounded-full transition-colors active:scale-[0.98]"
                 data-testid="button-hero-learn"
               >
                 How it works
@@ -189,7 +189,7 @@ export default function AboutPage() {
                   aria-current={i === slide}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     i === slide
-                      ? "w-7 bg-indigo-600"
+                      ? "w-7 bg-brand-primary"
                       : "w-1.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
                   }`}
                   data-testid={`hero-dot-${i}`}
@@ -294,7 +294,7 @@ export default function AboutPage() {
             data-testid="card-family-search"
           >
             <div className="flex items-center justify-between">
-              <div className="h-11 w-11 rounded-xl bg-indigo-600 shadow-[0_4px_14px_rgb(var(--brand-primary)/0.3)] flex items-center justify-center">
+              <div className="h-11 w-11 rounded-xl bg-brand-primary shadow-[0_4px_14px_rgb(var(--brand-primary)/0.3)] flex items-center justify-center">
                 <Search className="h-5 w-5 text-white" />
               </div>
               <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">Live</Chip>
@@ -305,7 +305,7 @@ export default function AboutPage() {
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed flex-1">
               Find real people across millions of profiles. Search by name, bio, or handle.
             </p>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary group-hover:gap-2 transition-all">
               Open search <ArrowRight className="h-4 w-4" />
             </span>
           </button>
@@ -390,7 +390,7 @@ export default function AboutPage() {
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 hover:underline transition-colors"
+              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-200 hover:text-brand-primary hover:underline transition-colors"
               data-testid="link-about-nosfabrica"
             >
               NosFabrica
@@ -501,7 +501,7 @@ function ThemeBand({
           <p className="mt-3 text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">{desc}</p>
           <button
             onClick={onClick}
-            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors self-start"
+            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors self-start"
             data-testid={`${testId}-cta`}
           >
             {ctaLabel}
