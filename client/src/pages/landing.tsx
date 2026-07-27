@@ -23,6 +23,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { queryClient } from "@/lib/queryClient";
@@ -1051,11 +1052,14 @@ export default function Landing() {
         )}
 
         {showNoResults && (
-          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12 text-center" data-testid="container-no-results">
-            <div className="p-6 sm:p-8 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
-              <Radar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">No profiles found</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Try a different name or paste an npub directly.</p>
+          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12" data-testid="container-no-results">
+            <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+              <EmptyState
+                icon={Radar}
+                compact
+                title="No profiles found"
+                description="Try a different name, or paste an npub directly."
+              />
             </div>
           </div>
         )}

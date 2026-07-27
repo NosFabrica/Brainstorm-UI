@@ -20,7 +20,9 @@ import {
   Check,
   SlidersHorizontal,
   UserPlus,
+  FileQuestion,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
@@ -1252,7 +1254,11 @@ export default function SharePage() {
         )}
 
         {!profileLoading && !hasContent && (
-          <p className="text-center text-sm text-slate-400 dark:text-slate-500 py-6" data-testid="share-empty">No public content found for this profile yet.</p>
+          <EmptyState
+            icon={FileQuestion}
+            title="Nothing public yet"
+            description="This profile hasn't shared any public posts, media, or details we can show here."
+          />
         )}
       </div>
 
