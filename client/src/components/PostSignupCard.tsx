@@ -153,7 +153,7 @@ export function PostSignupCard() {
   if (returningNeedsFollow) {
     return (
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-white/70 dark:bg-slate-900/55 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-none"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
         data-testid="card-returning-follow-nudge"
       >
         <div className="relative p-5 sm:p-6">
@@ -202,7 +202,7 @@ export function PostSignupCard() {
   return (
     <>
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/55 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-none"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
         data-testid="card-post-signup"
       >
         <div className="relative z-10 p-5 sm:p-6">
