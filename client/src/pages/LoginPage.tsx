@@ -11,7 +11,6 @@ import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
-import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 // Human-Signals photography (Design System v1.0) — people, with the nodes
 // overlay baked in — for the login brand panel. Served from public/brand.
@@ -188,15 +187,11 @@ export default function LoginPage() {
       <main className="flex-1 flex flex-col px-5 py-8 sm:p-8">
         <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0">
         <div className="w-full max-w-[420px] flex flex-col animate-fade-up">
-          {/* Mobile brand header (hidden on desktop) */}
-          <div className="flex lg:hidden items-center justify-center gap-2 mb-8">
-            <BrainLogo size={30} className="text-indigo-600" />
-            <span
-              className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-800 to-indigo-500"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Brainstorm
-            </span>
+          {/* Mobile brand header (hidden on desktop) — the handwritten wordmark
+              (gradient on light, white on dark), no B mark or text lockup. */}
+          <div className="flex lg:hidden items-center justify-center mb-8">
+            <Wordmark height={34} className="dark:hidden" />
+            <Wordmark height={34} variant="white" className="hidden dark:block" />
           </div>
 
           <div className="mb-10 text-center lg:text-left">
