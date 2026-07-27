@@ -488,13 +488,13 @@ export default function SettingsPage() {
         {hasStoredSecretKey() && (
           <div id="account-backup-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/60 scroll-mt-20" data-testid="row-account-backup">
             {backedUp ? (
-              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-                <div className="h-9 w-9 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+              <div className="flex items-center gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 p-3">
+                <div className="h-9 w-9 rounded-xl bg-white dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                   <Check className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Backed up</div>
-                  <div className="text-xs text-emerald-700">Encrypted backup file downloaded</div>
+                  <div className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Backed up</div>
+                  <div className="text-xs text-emerald-700 dark:text-emerald-400">Encrypted backup file downloaded</div>
                 </div>
               </div>
             ) : backupMode ? (
