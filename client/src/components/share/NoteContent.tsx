@@ -148,7 +148,7 @@ export function NoteContent({
             if (address) {
               // Links to the on-site article page; also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-indigo-500 font-medium hover:underline">
+                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   📄 article
                 </button>
               );
@@ -162,7 +162,7 @@ export function NoteContent({
                   key={i}
                   type="button"
                   onClick={() => requestNav({ kind: "profile", target: token.bech32, label: name || token.bech32.slice(0, 12) + "…", picture: prof?.picture })}
-                  className="text-indigo-600 font-medium hover:underline"
+                  className="text-brand-link font-medium hover:underline"
                 >
                   {label}
                 </button>
@@ -171,12 +171,12 @@ export function NoteContent({
             if (id) {
               // Links to the on-site event page; also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-indigo-500 font-medium hover:underline">
+                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   ↳ quoted note
                 </button>
               );
             }
-            return <span key={i} className="text-indigo-500 font-medium">@{token.bech32.slice(0, 10)}…</span>;
+            return <span key={i} className="text-brand-link font-medium">@{token.bech32.slice(0, 10)}…</span>;
           }
           case "hashtag":
             return (
@@ -184,7 +184,7 @@ export function NoteContent({
                 key={i}
                 type="button"
                 onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
-                className="text-indigo-500 font-medium hover:underline"
+                className="text-brand-link font-medium hover:underline"
               >
                 {token.value}
               </button>

@@ -60,7 +60,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
-      <span className="text-indigo-600 font-medium">@{name}</span>
+      <span className="text-brand-link font-medium">@{name}</span>
     </button>
   );
 }

@@ -19,7 +19,7 @@ export function LinkedText({ text }: { text: string }) {
               href={part}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-indigo-600 underline underline-offset-2 decoration-indigo-300 break-all"
+              className="text-brand-link underline underline-offset-2 decoration-brand-link/[0.4] break-all"
             >
               {display}
             </a>
