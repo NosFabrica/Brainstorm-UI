@@ -7,13 +7,14 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
 import { apiClient, hasSessionToken } from "@/services/api";
-import { collectRefs, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
+import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventHero } from "@/components/share/EventHero";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
+import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
 import { OpenInApp } from "@/components/share/OpenInApp";
@@ -306,13 +307,22 @@ export default function EventPage() {
                 </button>
               </div>
             )}
+            {/* The conversation this reply sits in — parent (+ root) above, so a
+                permalinked reply reads in context instead of floating alone. */}
+            <ThreadAncestors note={note} relayHints={relayHints} />
+
             {/* Author header */}
             <div className="flex items-center gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
-                <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
-                  <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
-                </Avatar>
+                <span className="relative shrink-0">
+                  <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
+                    <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
+                  </Avatar>
+                  {typeof score01 === "number" && Number.isFinite(score01) && (
+                    <VerificationCoin score01={score01} pov="global" size={18} className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                  )}
+                </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
@@ -321,13 +331,10 @@ export default function EventPage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>
               </Link>
-              {typeof score01 === "number" && Number.isFinite(score01) && (
-                <VerificationCoin score01={score01} pov="global" size={24} className="ml-auto" />
-              )}
             </div>
 
             {/* The event — notes via the rich card; media kinds render their media. */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm" data-testid="event-note">
+            <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
               {note.kind === 30311 ? (
                 <LiveHero event={note} />
               ) : note.kind === 31337 ? (

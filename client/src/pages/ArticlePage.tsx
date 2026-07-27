@@ -186,10 +186,15 @@ export default function ArticlePage() {
             {/* Author + trust + date */}
             <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
-                <Avatar className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
-                  <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
-                </Avatar>
+                <span className="relative shrink-0">
+                  <Avatar className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
+                    <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
+                  </Avatar>
+                  {typeof score01 === "number" && Number.isFinite(score01) && (
+                    <VerificationCoin score01={score01} pov="global" size={16} className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                  )}
+                </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
@@ -198,9 +203,6 @@ export default function ArticlePage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
-              {typeof score01 === "number" && Number.isFinite(score01) && (
-                <VerificationCoin score01={score01} pov="global" size={24} className="ml-auto" />
-              )}
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
