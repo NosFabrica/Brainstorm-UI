@@ -790,7 +790,7 @@ export default function Landing() {
                           </div>
                           {s.wotRank != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
-                              <BrainLogo size={10} className="shrink-0" />
+                              <BrainLogo mono size={10} className="shrink-0" />
                               {s.wotRank}
                             </span>
                           )}
@@ -1015,7 +1015,7 @@ export default function Landing() {
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                           {result.wotRank != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15" data-testid={`badge-rank-${idx}`}>
-                              <BrainLogo size={10} className="shrink-0" />
+                              <BrainLogo mono size={10} className="shrink-0" />
                               {result.wotRank}
                             </span>
                           )}

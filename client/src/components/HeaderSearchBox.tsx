@@ -161,7 +161,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
               >
                 <Avatar className="h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800">
                   {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="bg-indigo-50 text-[11px] font-bold text-brand-primary">{initialsFor(nameOf(r))}</AvatarFallback>
+                  <AvatarFallback className="bg-brand-primary/10 text-[11px] font-bold text-brand-primary">{initialsFor(nameOf(r))}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
@@ -169,10 +169,10 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
                 </div>
                 {r.wotRank != null && (
                   <span
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-indigo-100 dark:border-indigo-500/25 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400"
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-brand-primary/15 dark:border-white/15 bg-brand-primary/10 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-brand-primary dark:text-slate-100"
                     data-testid={`header-search-rank-${i}`}
                   >
-                    <BrainLogo size={10} className="shrink-0" />
+                    <BrainLogo mono size={10} className="shrink-0" />
                     {r.wotRank}
                   </span>
                 )}
