@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -27,8 +27,25 @@ export function PublicPageHeader({
   })();
   const handleLogout = () => { logout(); setUser(null); };
 
+  // Frost-on-scroll: transparent at the very top so the bar blends with the
+  // hero/banner, then a clean frosted surface + hairline + soft shadow once the
+  // page scrolls — so content never bleeds under a borderless bar.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 6);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md">
+    <header
+      className={`sticky top-0 z-40 transition-[background-color,box-shadow,border-color] duration-300 ${
+        scrolled
+          ? "border-b border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none"
+          : "border-b border-transparent bg-transparent"
+      }`}
+    >
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
         <Link href="/" className="flex shrink-0 items-center" aria-label="Brainstorm home" data-testid="public-brand">
           <BrainLogo size={26} />
