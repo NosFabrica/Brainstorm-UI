@@ -737,33 +737,26 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
                   data-testid="dialog-confirm-nip85-update"
                 >
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-accent/15 to-transparent" />
-                  </div>
-                  <div className="relative p-4 sm:p-5">
-                    <AlertDialogHeader className="space-y-2">
-                      <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-2xl bg-brand-deep/10 border border-brand-deep/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-accent)/0.22)] shrink-0" data-testid="icon-confirm-nip85-update">
-                          <BrainLogo size={18} className="text-brand-deep" />
-                        </div>
-                        <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
-                            Update NIP-85 Event?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-nip85-desc">
-                            This will re-sign and republish your Brainstorm service provider event to Nostr relays. This is useful if your previous event wasn't picked up by all relays, or if you want to refresh your service provider status.
-                          </AlertDialogDescription>
-                        </div>
+                  <div className="p-5 sm:p-6">
+                    <AlertDialogHeader className="space-y-0 text-left">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Service Provider</span>
+                        <div className="h-px w-10 bg-brand-link/30" />
                       </div>
+                      <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-nip85-title">
+                        Update NIP-85 Event?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-nip85-desc">
+                        This will re-sign and republish your Brainstorm service provider event to Nostr relays. This is useful if your previous event wasn't picked up by all relays, or if you want to refresh your service provider status.
+                      </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                    <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-nip85-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover"
+                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white shadow-lg shadow-brand-primary/25"
                         onClick={() => {
                           setNip85ConfirmOpen(false);
                           handleRepublishNip85();
@@ -798,33 +791,26 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-red-200/40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgba(239,68,68,0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
                   data-testid="dialog-confirm-nip85-deactivate"
                 >
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-400 via-red-500 to-red-400" />
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-red-500/10 to-transparent" />
-                  </div>
-                  <div className="relative p-4 sm:p-5">
-                    <AlertDialogHeader className="space-y-2">
-                      <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-2xl bg-red-50 border border-red-200/60 flex items-center justify-center shrink-0" data-testid="icon-confirm-nip85-deactivate">
-                          <X className="h-4 w-4 text-red-500" />
-                        </div>
-                        <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-deactivate-title">
-                            Deactivate Service Provider?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-deactivate-desc">
-                            This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
-                          </AlertDialogDescription>
-                        </div>
+                  <div className="p-5 sm:p-6">
+                    <AlertDialogHeader className="space-y-0 text-left">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-red-500 uppercase">Deactivate</span>
+                        <div className="h-px w-10 bg-red-500/30" />
                       </div>
+                      <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-deactivate-title">
+                        Deactivate Service Provider?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-deactivate-desc">
+                        This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
+                      </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                    <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-deactivate-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                        className="rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/25"
                         onClick={() => {
                           setDeactivateConfirmOpen(false);
                           handleDeactivateNip85();
@@ -1030,33 +1016,26 @@ export default function SettingsPage() {
                   )}
                 </button>
                 <AlertDialogContent
-                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-accent/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-accent)/0.10)] p-0 overflow-hidden"
+                  className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
                   data-testid="dialog-confirm-recalculate-settings"
                 >
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
-                    <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-accent/15 to-transparent" />
-                  </div>
-                  <div className="relative p-4 sm:p-5">
-                    <AlertDialogHeader className="space-y-2">
-                      <div className="flex items-start gap-3">
-                        <div className="h-9 w-9 rounded-2xl bg-brand-deep/10 border border-brand-deep/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-accent)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-settings">
-                          <BrainLogo size={18} className="text-brand-deep" />
-                        </div>
-                        <div className="min-w-0">
-                          <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-settings-title">
-                            Recalculate GrapeRank?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-recalculate-settings-desc">
-                            This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
-                          </AlertDialogDescription>
-                        </div>
+                  <div className="p-5 sm:p-6">
+                    <AlertDialogHeader className="space-y-0 text-left">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Trust Signals</span>
+                        <div className="h-px w-10 bg-brand-link/30" />
                       </div>
+                      <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-settings-title">
+                        Recalculate GrapeRank?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-recalculate-settings-desc">
+                        This re-runs your full network trust calculation. It typically takes 10–20 minutes and your current scores will be replaced with updated results.
+                      </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                    <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
                       <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-settings-cancel">Cancel</AlertDialogCancel>
                       <AlertDialogAction
-                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover"
+                        className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white shadow-lg shadow-brand-primary/25"
                         onClick={() => {
                           setRecalcConfirmOpen(false);
                           triggerGrapeRankMutation.mutate();

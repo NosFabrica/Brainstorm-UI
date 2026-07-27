@@ -1073,33 +1073,26 @@ export default function DashboardPage() {
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-brand-primary/20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-[0_0_18px_rgb(var(--brand-primary)/0.10)] p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary animate-gradient-x" />
-                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-primary/15 to-transparent" />
-                </div>
-                <div className="relative p-4 sm:p-5">
-                  <AlertDialogHeader className="space-y-2">
-                    <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-2xl bg-brand-primary/10 border border-brand-primary/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgb(var(--brand-primary)/0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
-                        <BrainLogo size={18} className="text-brand-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <AlertDialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
-                          Recalculate GrapeRank?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
-                          This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
-                        </AlertDialogDescription>
-                      </div>
+                <div className="p-5 sm:p-6">
+                  <AlertDialogHeader className="space-y-0 text-left">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Trust Signals</span>
+                      <div className="h-px w-10 bg-brand-link/30" />
                     </div>
+                    <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                      Recalculate GrapeRank?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-recalculate-dashboard-desc">
+                      This re-runs your full network trust calculation. It typically takes 10–20 minutes and your current scores will be replaced with updated results.
+                    </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                  <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
                     <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      className="rounded-xl bg-brand-primary hover:bg-brand-primary"
+                      className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white shadow-lg shadow-brand-primary/25"
                       onClick={() => {
                         setRecalcConfirmOpen(false);
                         triggerGrapeRankMutation.mutate();
