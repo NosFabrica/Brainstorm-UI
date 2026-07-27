@@ -467,7 +467,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-semibold transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                   data-testid={`button-assistant-view-profile-${variant}`}
                 >
-                  <BrainLogo size={12} className="text-white/95" />
+                  <BrainLogo mono size={12} className="text-white" />
                   View assistant profile
                 </button>
               )}
@@ -572,7 +572,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                       </>
                     ) : (
                       <>
-                        <BrainLogo size={14} className="text-white/95 relative z-10" />
+                        <BrainLogo mono size={14} className="text-white relative z-10" />
                         <span className="relative z-10">Publish my Assistant</span>
                         <ArrowRight className="h-4 w-4 relative z-10 transition-transform duration-300 group-hover/cta:translate-x-0.5" />
                       </>
@@ -594,7 +594,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                     </>
                   ) : (
                     <>
-                      <BrainLogo size={14} className="text-white/90" />
+                      <BrainLogo mono size={14} className="text-white" />
                       Publish my Assistant
                     </>
                   )}
