@@ -121,6 +121,9 @@ export default {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        // `font-display` utility (Figtree) so headings/titles stop re-applying
+        // the display face via inline style={{ fontFamily: "var(--font-display)" }}.
+        display: ["var(--font-display)"],
       },
       keyframes: {
         "accordion-down": {
