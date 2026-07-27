@@ -32,7 +32,7 @@
   --secondary-foreground: 223 41% 7%;
   --muted: 80 6% 94%;
   --muted-foreground: 216 11% 45%;
-  --accent: 262 83% 58%;
+  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
@@ -124,7 +124,7 @@
   --secondary-foreground: 0 0% 98%;
   --muted: 214 22% 21%;
   --muted-foreground: 240 5% 64.9%;
-  --accent: 262 83% 58%;
+  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;

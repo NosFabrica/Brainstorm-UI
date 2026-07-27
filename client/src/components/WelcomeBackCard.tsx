@@ -28,7 +28,7 @@ function Avatar({ j, size = "h-9 w-9" }: { j: NewJoiner; size?: string }) {
   return j.picture ? (
     <img src={j.picture} alt="" width={40} height={40} loading="lazy" className={`${size} rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800 shrink-0`} />
   ) : (
-    <div className={`${size} rounded-full bg-[#eef0ff] text-[#4338ca] text-xs font-bold flex items-center justify-center shrink-0`}>{initials(j)}</div>
+    <div className={`${size} rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-link dark:text-indigo-300 text-xs font-bold flex items-center justify-center shrink-0`}>{initials(j)}</div>
   );
 }
 
@@ -67,7 +67,7 @@ export function WelcomeBackCard() {
           </button>
 
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">Your invites</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">Your invites</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-welcome-back-title">
             {many ? `${joiners.length} people just joined` : `${joiners[0].name || "Someone"} just joined`}
@@ -187,7 +187,7 @@ function InviteCta() {
           <X className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2.5 mb-2">
-          <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">Grow your network</span>
+          <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">Grow your network</span>
         </div>
         <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           Grow your Web of Trust
