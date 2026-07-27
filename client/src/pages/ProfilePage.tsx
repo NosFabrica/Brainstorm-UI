@@ -215,7 +215,7 @@ function AdminHistoryTriggerBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
-    ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-500/25"
+    ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
     : lower === "periodic"
     ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
     : lower === "admin"
@@ -453,8 +453,8 @@ const GROUP_DEFS: GroupDef[] = [
   { key: "followed_by", label: "Follower", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
   { key: "following", label: "Following", colors: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-500/25" },
   { key: "mutual", label: "Mutual", colors: "bg-teal-50 dark:bg-teal-500/10 text-teal-500 dark:text-teal-400 border-teal-100 dark:border-teal-500/25" },
-  { key: "shared_followers", label: "Shared Follower", colors: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/25" },
-  { key: "shared_following", label: "Shared Following", colors: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/25" },
+  { key: "shared_followers", label: "Shared Follower", colors: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-link0 dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25" },
+  { key: "shared_following", label: "Shared Following", colors: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-link0 dark:text-brand-link border-brand-primary/15 dark:border-brand-primary/25" },
   { key: "muted_by", label: "Muted By", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
   { key: "muting", label: "Muting", colors: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-200 dark:border-amber-500/25" },
   { key: "reported_by", label: "Reported", colors: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 border-red-200 dark:border-red-500/25" },
@@ -470,10 +470,10 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
-  { value: "verified", label: "Verified", color: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400" },
+  { value: "verified", label: "Verified", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" },
   { value: "high", label: "Highly Trusted", color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   { value: "trusted", label: "Trusted", color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" },
-  { value: "neutral", label: "Neutral", color: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 dark:text-indigo-400" },
+  { value: "neutral", label: "Neutral", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-link0 dark:text-brand-link" },
   { value: "low", label: "Low Trust", color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   { value: "unverified", label: "Unverified", color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400" },
 ];
@@ -493,8 +493,8 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
   followed_by: "border-blue-300 dark:border-blue-500/30",
   following: "border-blue-300 dark:border-blue-500/30",
   mutual: "border-teal-300 dark:border-teal-500/30",
-  shared_followers: "border-indigo-300 dark:border-indigo-500/30",
-  shared_following: "border-indigo-300 dark:border-indigo-500/30",
+  shared_followers: "border-brand-primary/25 dark:border-brand-primary/[0.3]",
+  shared_following: "border-brand-primary/25 dark:border-brand-primary/[0.3]",
   muted_by: "border-amber-300 dark:border-amber-500/30",
   reported_by: "border-red-300 dark:border-red-500/30",
   muting: "border-amber-200 dark:border-amber-500/25",
@@ -668,7 +668,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, !filterDropdownOpen); }}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-indigo-300 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium transition-colors ${filter !== "all" ? "border-brand-primary/25 dark:border-brand-primary/[0.3] bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
@@ -688,10 +688,10 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                         onSetVisibleCount(key, 10);
                         onToggleFilterDropdown(key, false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                      className={`w-full text-left px-3 py-1.5 text-[11px] font-medium transition-colors flex items-center gap-2 ${filter === opt.value ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                       data-testid={`filter-${opt.value}-${key}`}
                     >
-                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-indigo-400" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-indigo-400" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`} />
+                      <span className={`w-2 h-2 rounded-full ${opt.value === "all" ? "bg-slate-300 dark:bg-slate-700" : opt.value === "verified" ? "bg-brand-primary" : opt.value === "high" ? "bg-emerald-500" : opt.value === "trusted" ? "bg-sky-400" : opt.value === "neutral" ? "bg-brand-primary" : opt.value === "low" ? "bg-amber-400" : "bg-slate-400 dark:bg-slate-600"}`} />
                       {opt.label}
                     </button>
                   ))}
@@ -738,7 +738,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           )}
 
           {reportMetaLoading && (
-            <span className="flex items-center gap-1 text-[10px] text-indigo-400 ml-auto">
+            <span className="flex items-center gap-1 text-[10px] text-brand-link ml-auto">
               <Loader2 className="h-2.5 w-2.5 animate-spin" />
               <span>fetching relay data</span>
             </span>
@@ -757,7 +757,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             onChange={(e) => { onSetSearch(key, e.target.value); onSetVisibleCount(key, 10); }}
             onClick={(e) => e.stopPropagation()}
             placeholder="Search by name or npub..."
-            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+            className="w-full pl-7 pr-7 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:border-brand-primary/25 focus:ring-1 focus:ring-brand-primary/20"
             data-testid={`search-input-${key}`}
           />
           {search && (
@@ -782,7 +782,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
           const trustPct = trustScore !== undefined && trustScore !== null ? Math.round(Math.min(1, Math.max(0, trustScore)) * 100) : null;
           const circ = 2 * Math.PI * 18;
           const trustOffset = trustPct !== null ? circ - (trustPct / 100) * circ : circ;
-          const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-indigo-500" : trustPct >= 20 ? "text-indigo-400" : trustPct >= 7 ? "text-indigo-300" : "text-indigo-200") : "text-indigo-100";
+          const ringColor = trustPct !== null ? (trustPct >= 50 ? "text-brand-link0" : trustPct >= 20 ? "text-brand-link" : trustPct >= 7 ? "text-brand-link" : "text-brand-link") : "text-brand-link";
 
           if (profile === undefined && !expandProfileAttempted.has(pk)) {
             return (
@@ -810,13 +810,13 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
             >
               <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
                 {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
-                <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs font-bold">
+                <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{displayName}</p>
-                {profile?.nip05 && <p className="text-xs text-indigo-500 truncate">{profile.nip05}</p>}
+                {profile?.nip05 && <p className="text-xs text-brand-link0 truncate">{profile.nip05}</p>}
                 {isReportSection && reportMeta && (
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <Badge variant="outline" className={`text-[9px] px-1.5 py-0 font-medium no-default-hover-elevate no-default-active-elevate ${REPORT_TYPE_BADGE_COLORS[reportMeta.reportType] || REPORT_TYPE_BADGE_COLORS.other}`} data-testid={`report-type-${pk.slice(0,8)}`}>
@@ -866,7 +866,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
                       return (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/25"
+                          className="text-[10px] px-1.5 py-0 gap-1 no-default-hover-elevate no-default-active-elevate bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
                           data-testid={`pill-you-${you}-${pk.slice(0,8)}`}
                         >
                           <meta.Icon className="h-2.5 w-2.5" />
@@ -883,15 +883,15 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               {trustScore !== undefined && trustScore !== null && (
                 <div className="w-6 h-6 relative shrink-0">
                   <svg viewBox="0 0 44 44" className="w-full h-full -rotate-90">
-                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-indigo-100 dark:text-indigo-500/20" />
+                    <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="4" className="text-brand-link dark:text-brand-link0/20" />
                     <circle cx="22" cy="22" r="18" fill="none" strokeWidth="4" strokeLinecap="round"
                       className={ringColor} style={{ strokeDasharray: circ, strokeDashoffset: trustOffset }} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{trustPct}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-brand-primary dark:text-brand-link">{trustPct}</span>
                 </div>
               )}
               {trustScore === undefined && (
-                <Loader2 className="h-3 w-3 text-indigo-300 animate-spin shrink-0" />
+                <Loader2 className="h-3 w-3 text-brand-link animate-spin shrink-0" />
               )}
             </div>
           );
@@ -1432,7 +1432,7 @@ export default function ProfilePage() {
         urlRegex.lastIndex = 0;
         const display = part.replace(/^https?:\/\//, '').replace(/\/$/, '');
         return (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline underline-offset-2 decoration-indigo-300 break-all" data-testid={`link-about-url-${i}`}>
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
             {display}
           </a>
         );
@@ -1664,9 +1664,9 @@ export default function ProfilePage() {
   // for the top tiers, muted violet for neutral, amber (semantic caution) for
   // low, brand grey for unverified. Text shades are darkened for on-white contrast.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-700 dark:text-violet-300", border: "border-violet-200 dark:border-violet-500/25", ring: "stroke-violet-600" },
+    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
     { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
-    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-violet-300", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
+    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-brand-link", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
     { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
@@ -1683,7 +1683,7 @@ export default function ProfilePage() {
     const pct = Math.round(score * 100);
     const name = nostrProfile?.display_name || nostrProfile?.name || "this identity";
     if (pct >= 50) return { label: "High confidence", color: "text-emerald-700 dark:text-emerald-300", iconColor: "text-emerald-500 dark:text-emerald-400", iconBg: "bg-emerald-100 dark:bg-emerald-500/15", bg: "bg-gradient-to-r from-emerald-50/90 via-emerald-50/60 to-white/40 dark:bg-none dark:bg-emerald-500/10", border: "border-emerald-200/60 dark:border-emerald-500/25", message: `Strong trust signals from your community for ${name}.`, pct, icon: "check" as const };
-    if (pct >= 20) return { label: "Moderate confidence", color: "text-indigo-700 dark:text-indigo-300", iconColor: "text-indigo-500 dark:text-indigo-400", iconBg: "bg-indigo-100 dark:bg-indigo-500/15", bg: "bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 dark:bg-none dark:bg-indigo-500/10", border: "border-indigo-200/60 dark:border-indigo-500/25", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
+    if (pct >= 20) return { label: "Moderate confidence", color: "text-brand-primary dark:text-brand-link", iconColor: "text-brand-link0 dark:text-brand-link", iconBg: "bg-brand-primary/15 dark:bg-brand-primary/15", bg: "bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10", border: "border-brand-primary/20 dark:border-brand-primary/25", message: `Some trust signals present. Your network has limited data on ${name}.`, pct, icon: "shield" as const };
     if (pct >= 7) return { label: "Low confidence", color: "text-slate-600 dark:text-slate-300", iconColor: "text-slate-400 dark:text-slate-500", iconBg: "bg-slate-100 dark:bg-slate-800", bg: "bg-gradient-to-r from-slate-50/90 via-slate-50/60 to-white/40 dark:bg-none dark:bg-slate-800/50", border: "border-slate-200/60 dark:border-slate-800/60", message: `Weak or mixed signals from your trusted community for ${name}.`, pct, icon: "alert" as const };
     return { label: "Very low confidence", color: "text-amber-700 dark:text-amber-300", iconColor: "text-amber-500 dark:text-amber-400", iconBg: "bg-amber-100 dark:bg-amber-500/15", bg: "bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-white/40 dark:bg-none dark:bg-amber-500/10", border: "border-amber-200/60 dark:border-amber-500/25", message: `Your community's signals suggest careful scrutiny before trusting ${name}.`, pct, icon: "x" as const };
   }, [profileResult, nostrProfile]);
@@ -1784,7 +1784,7 @@ export default function ProfilePage() {
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
       { tier: "trusted", label: "Trusted", color: "text-sky-500" },
-      { tier: "neutral", label: "Neutral", color: "text-indigo-400" },
+      { tier: "neutral", label: "Neutral", color: "text-brand-link" },
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
@@ -2036,7 +2036,7 @@ export default function ProfilePage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
       data-testid="page-profile"
     >
       <GlossBackground />
@@ -2046,7 +2046,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/about")}
-            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
+            className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
             data-testid="link-profile-about"
           >
             About
@@ -2115,7 +2115,7 @@ export default function ProfilePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                  className="gap-2 text-slate-500 dark:text-slate-400 hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
                   onClick={() => goBack(`/network?group=${fromGroup}`)}
                   data-testid="button-back-to-network"
                 >
@@ -2128,7 +2128,7 @@ export default function ProfilePage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
+                className="gap-2 text-slate-500 dark:text-slate-400 hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 -ml-1 no-default-hover-elevate no-default-active-elevate"
                 onClick={() => goBack("/")}
                 data-testid="button-back-to-search"
               >
@@ -2173,8 +2173,8 @@ export default function ProfilePage() {
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-xl overflow-hidden relative" data-testid="card-profile-error">
               <div className="p-7 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
                 <div className="relative">
-                  <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-indigo-500/40 to-indigo-800/25" />
-                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 dark:text-indigo-300 shadow-sm dark:shadow-none flex items-center justify-center" data-testid="icon-profile-error">
+                  <div className="absolute -inset-1 rounded-2xl blur-md opacity-70 bg-gradient-to-br from-brand-primary/[0.4] to-brand-primary/25" />
+                  <div className="relative h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-brand-primary dark:text-brand-link shadow-sm dark:shadow-none flex items-center justify-center" data-testid="icon-profile-error">
                     <User className="h-6 w-6" />
                   </div>
                 </div>
@@ -2205,11 +2205,11 @@ export default function ProfilePage() {
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-indigo-100 dark:border-indigo-500/25 shadow-md shrink-0">
+                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0">
                     {displayNostrProfile?.picture && (
                       <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
-                    <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base sm:text-lg font-bold">
+                    <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                       {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -2226,29 +2226,29 @@ export default function ProfilePage() {
                           </Badge>
                         </div>
                         {displayNostrProfile?.nip05 && (
-                          <p className="text-xs text-indigo-600 font-medium mt-0.5 truncate">{displayNostrProfile.nip05}</p>
+                          <p className="text-xs text-brand-primary font-medium mt-0.5 truncate">{displayNostrProfile.nip05}</p>
                         )}
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]">{displayNpub}</code>
                         </div>
                       </div>
                       <div
-                        className="flex flex-col items-center gap-0.5 bg-indigo-50/80 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
+                        className="flex flex-col items-center gap-0.5 bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/25 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
                         data-testid="badge-trust-score-seed"
                         aria-label="Brainstorm trust score loading"
                       >
                         <div className="flex items-center gap-1">
-                          <BrainLogo size={8} className="text-indigo-300 sm:hidden" />
-                          <BrainLogo size={10} className="text-indigo-300 hidden sm:block" />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-300">Brainstorm</span>
+                          <BrainLogo size={8} className="text-brand-link sm:hidden" />
+                          <BrainLogo size={10} className="text-brand-link hidden sm:block" />
+                          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-brand-link">Brainstorm</span>
                         </div>
                         <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                           <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 44 44">
-                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-indigo-100 dark:text-indigo-500/20" />
+                            <circle cx="22" cy="22" r="18" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-brand-link dark:text-brand-link0/20" />
                           </svg>
-                          <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-indigo-300" />
+                          <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin text-brand-link" />
                         </div>
-                        <div className="h-3 w-12 rounded bg-indigo-100 dark:bg-indigo-500/20 animate-pulse" />
+                        <div className="h-3 w-12 rounded bg-brand-primary/15 dark:bg-brand-primary/20 animate-pulse" />
                       </div>
                     </div>
                   </div>
@@ -2298,7 +2298,7 @@ export default function ProfilePage() {
                     return (
                       <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
                         {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
-                        <AvatarFallback className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-base sm:text-lg font-bold">
+                        <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -2316,7 +2316,7 @@ export default function ProfilePage() {
                           </h3>
                           {displayNostrProfile?.nip05 && (
                             <span className="inline-flex items-center gap-1 min-w-0 max-w-full text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 font-medium" data-testid="text-profile-nip05" title="Verified handle (NIP-05)">
-                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-indigo-500" />
+                              <BadgeCheck className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 text-brand-link0" />
                               <span className="truncate">{displayNostrProfile.nip05}</span>
                             </span>
                           )}
@@ -2334,7 +2334,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[120px] sm:max-w-[300px]" data-testid="text-profile-npub">{displayNpub}</code>
-                          <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-indigo-500 transition-colors shrink-0" data-testid="button-copy-profile-npub">
+                          <button onClick={() => handleCopyNpub(displayNpub)} className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-link0 transition-colors shrink-0" data-testid="button-copy-profile-npub">
                             {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                           </button>
                         </div>
@@ -2361,7 +2361,7 @@ export default function ProfilePage() {
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}
                   {theyFollowMe && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
                       <ArrowLeft className="h-3 w-3" /> Follows you
                     </span>
                   )}
@@ -2497,7 +2497,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-indigo-200 dark:border-indigo-500/25 bg-white dark:bg-slate-900 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-brand-primary/20 dark:border-brand-primary/25 bg-white dark:bg-slate-900 text-xs font-semibold text-brand-primary dark:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 hover:border-brand-primary/25 dark:hover:border-brand-primary/[0.4] transition-colors"
                         data-testid="link-public-page"
                         title="See the public, shareable version of this profile"
                       >
@@ -2517,7 +2517,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => setShareOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
+                        className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-brand-primary text-xs font-semibold text-white hover:bg-brand-primary transition-colors"
                         data-testid="button-share-profile"
                       >
                         <Share2 className="w-3.5 h-3.5 shrink-0" /> Share
@@ -2537,7 +2537,7 @@ export default function ProfilePage() {
                     {displayNostrProfile.about.length > 140 && (
                       <button
                         onClick={() => setAboutExpanded(!aboutExpanded)}
-                        className="text-xs text-indigo-500 font-medium mt-1"
+                        className="text-xs text-brand-link0 font-medium mt-1"
                         data-testid="button-about-toggle"
                       >
                         {aboutExpanded ? "Show less" : "Show more"}
@@ -2547,12 +2547,12 @@ export default function ProfilePage() {
                 )}
 
                 {isOwnProfile ? (
-                  <div className="mb-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-indigo-50/60 to-white/40 dark:bg-none dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/25 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 flex items-center justify-center shrink-0">
-                      <Eye className="h-4 w-4 text-indigo-500" />
+                  <div className="mb-4 rounded-xl bg-gradient-to-r from-brand-primary/10 via-brand-primary/10 to-white/40 dark:bg-none dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/25 backdrop-blur-sm px-3 sm:px-4 py-3 flex items-start gap-3" data-testid="banner-own-profile">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 flex items-center justify-center shrink-0">
+                      <Eye className="h-4 w-4 text-brand-link0" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs sm:text-sm font-bold text-indigo-700 dark:text-indigo-300">This is how others see you</span>
+                      <span className="text-xs sm:text-sm font-bold text-brand-primary dark:text-brand-link">This is how others see you</span>
                       <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                         {houseInfluence01 != null
                           ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
@@ -2562,7 +2562,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => setShareOpen(true)}
-                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 transition-colors"
+                          className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors"
                           data-testid="button-own-profile-invite"
                         >
                           <UserPlus className="h-3.5 w-3.5" /> Invite friends
@@ -2599,9 +2599,9 @@ export default function ProfilePage() {
                   const isAnyExpanded = expandedSections["shared_followers"] || expandedSections["shared_following"];
 
                   return (
-                    <div className="mb-4 rounded-xl border border-indigo-100 dark:border-indigo-500/25 bg-indigo-50/60 dark:bg-indigo-500/10 overflow-hidden" data-testid="banner-shared-connections">
+                    <div className="mb-4 rounded-xl border border-brand-primary/15 dark:border-brand-primary/25 bg-brand-primary/10 dark:bg-brand-primary/10 overflow-hidden" data-testid="banner-shared-connections">
                       <div
-                        className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-indigo-50/80 dark:hover:bg-indigo-500/15 transition-colors" : ""}`}
+                        className={`px-4 py-3 flex items-start gap-3 ${isExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/15 transition-colors" : ""}`}
                         onClick={isExpandable ? () => {
                           if (isAnyExpanded) {
                             setExpandedSections(prev => ({ ...prev, shared_followers: false, shared_following: false }));
@@ -2613,20 +2613,20 @@ export default function ProfilePage() {
                           }
                         } : undefined}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/25 flex items-center justify-center shrink-0 mt-0.5">
-                          <SharedConnectionIcon className="h-4 w-4 text-indigo-500" />
+                        <div className="w-8 h-8 rounded-lg bg-brand-primary/15 dark:bg-brand-primary/15 border border-brand-primary/20 dark:border-brand-primary/25 flex items-center justify-center shrink-0 mt-0.5">
+                          <SharedConnectionIcon className="h-4 w-4 text-brand-link0" />
                         </div>
                         <div className="flex-1 min-w-0">
                           {sharedCount > 0 ? (
                             <>
-                              <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+                              <p className="text-sm font-semibold text-brand-primary dark:text-brand-link">
                                 You share {sharedCount.toLocaleString()} connection{sharedCount !== 1 ? "s" : ""} with this person
                               </p>
-                              <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-0.5">
+                              <p className="text-xs text-brand-primary dark:text-brand-link mt-0.5">
                                 {mutualFollowersCount.toLocaleString()} mutual follower{mutualFollowersCount !== 1 ? "s" : ""} · {mutualFollowingCount.toLocaleString()} mutual following
                               </p>
                               {capHit && (
-                                <p className="text-[11px] text-indigo-500/60 dark:text-indigo-400/60 italic mt-1" data-testid="text-shared-connections-cap-notice">
+                                <p className="text-[11px] text-brand-link0/60 dark:text-brand-link italic mt-1" data-testid="text-shared-connections-cap-notice">
                                   Based on top 200 connections — full overlap may be larger
                                 </p>
                               )}
@@ -2643,25 +2643,25 @@ export default function ProfilePage() {
                           )}
                         </div>
                         {isExpandable && (
-                          <ChevronDown className={`h-4 w-4 text-indigo-400 shrink-0 mt-1 transition-transform ${isAnyExpanded ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`h-4 w-4 text-brand-link shrink-0 mt-1 transition-transform ${isAnyExpanded ? "rotate-180" : ""}`} />
                         )}
                       </div>
                       {isAnyExpanded && (
-                        <div className="border-t border-indigo-100 dark:border-indigo-500/25">
+                        <div className="border-t border-brand-primary/15 dark:border-brand-primary/25">
                           {mutualFollowersCount > 0 && (
                             <div>
                               <div
-                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 dark:bg-indigo-500/[0.06] cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-500/10 transition-colors"
+                                className="flex items-center justify-between px-4 py-2 bg-brand-primary/10 dark:bg-brand-primary/[0.06] cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors"
                                 onClick={(e) => { e.stopPropagation(); toggleSection("shared_followers"); }}
                                 data-testid="toggle-shared-followers"
                               >
                                 <div className="flex items-center gap-2">
-                                  <FollowersIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                  <FollowersIcon className="h-3.5 w-3.5 text-brand-link" />
+                                  <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
                                     Mutual Followers ({mutualFollowersCount.toLocaleString()})
                                   </span>
                                 </div>
-                                <ChevronDown className={`h-3.5 w-3.5 text-indigo-400 transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`} />
+                                <ChevronDown className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_followers"] ? "rotate-180" : ""}`} />
                               </div>
                               {renderExpandedPanel("shared_followers", sharedFollowerPubkeys)}
                             </div>
@@ -2669,17 +2669,17 @@ export default function ProfilePage() {
                           {mutualFollowingCount > 0 && (
                             <div>
                               <div
-                                className="flex items-center justify-between px-4 py-2 bg-indigo-50/40 dark:bg-indigo-500/[0.06] cursor-pointer hover:bg-indigo-50/70 dark:hover:bg-indigo-500/10 transition-colors border-t border-indigo-100/60 dark:border-indigo-500/20"
+                                className="flex items-center justify-between px-4 py-2 bg-brand-primary/10 dark:bg-brand-primary/[0.06] cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors border-t border-brand-primary/15 dark:border-brand-primary/20"
                                 onClick={(e) => { e.stopPropagation(); toggleSection("shared_following"); }}
                                 data-testid="toggle-shared-following"
                               >
                                 <div className="flex items-center gap-2">
-                                  <FollowingIcon className="h-3.5 w-3.5 text-indigo-400" />
-                                  <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                  <FollowingIcon className="h-3.5 w-3.5 text-brand-link" />
+                                  <span className="text-xs font-semibold text-brand-primary dark:text-brand-link">
                                     Mutual Following ({mutualFollowingCount.toLocaleString()})
                                   </span>
                                 </div>
-                                <ChevronDown className={`h-3.5 w-3.5 text-indigo-400 transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`} />
+                                <ChevronDown className={`h-3.5 w-3.5 text-brand-link transition-transform ${expandedSections["shared_following"] ? "rotate-180" : ""}`} />
                               </div>
                               {renderExpandedPanel("shared_following", sharedFollowingPubkeys)}
                             </div>
@@ -2706,7 +2706,7 @@ export default function ProfilePage() {
                     <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-reach">Social Reach</h4>
                         </div>
                         <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">Network Position</span>
@@ -2720,7 +2720,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
                               onClick={fbExpandable ? () => toggleSection("followed_by") : undefined}
                               data-testid="metric-profile-followers"
                             >
@@ -2758,7 +2758,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${fgExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
                               onClick={fgExpandable ? () => toggleSection("following") : undefined}
                               data-testid="metric-profile-following"
                             >
@@ -2795,7 +2795,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group ${mtExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("mutual") : undefined}
                               data-testid="metric-profile-mutual"
                             >
@@ -2832,9 +2832,9 @@ export default function ProfilePage() {
                           return (
                           <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 group cursor-help" title="Score from 0-1 based on social graph position. Higher means more connected to well-connected people." data-testid="metric-profile-influence">
                             <div className="flex items-center gap-2 sm:gap-3">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25 flex items-center justify-center shrink-0">
-                                <BrainLogo size={14} className="text-indigo-500 sm:hidden" />
-                                <BrainLogo size={16} className="text-indigo-500 hidden sm:block" />
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center shrink-0">
+                                <BrainLogo size={14} className="text-brand-link0 sm:hidden" />
+                                <BrainLogo size={16} className="text-brand-link0 hidden sm:block" />
                               </div>
                               <div>
                                 <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">Influence</p>
@@ -2843,7 +2843,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-2 sm:gap-2.5">
                               <div className="w-10 sm:w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
+                                <div className="h-full rounded-full bg-gradient-to-r from-brand-primary to-brand-primary" style={{ width: `${Math.min(infNum * 100, 100)}%` }} />
                               </div>
                               <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-influence">
                                 {typeof inf === "number" ? inf.toFixed(2) : "—"}
@@ -2856,7 +2856,7 @@ export default function ProfilePage() {
                           <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30" data-testid="card-audience-quality">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-1.5">
-                                <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                                <div className="w-1 h-1 rounded-full bg-brand-primary" />
                                 <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Audience Quality</span>
                               </div>
                               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{followerTierBreakdown.total.toLocaleString()} followers</span>
@@ -2897,7 +2897,7 @@ export default function ProfilePage() {
                     <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none">
                       <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-slate-50/60 via-slate-50/40 to-white/60 dark:bg-none dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-indigo-500" : "bg-slate-300 dark:bg-slate-700"}`} />
+                          <div className={`w-1.5 h-1.5 rounded-full ${hasRiskSignals ? "bg-brand-primary" : "bg-slate-300 dark:bg-slate-700"}`} />
                           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest" data-testid="header-social-context">Social Context</h4>
                         </div>
                         <span className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">{totalNegativeSignals > 0 ? `${totalNegativeSignals.toLocaleString()} total` : ""}</span>
@@ -2920,7 +2920,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : "cursor-help"}`}
                               title="A soft negative signal. Muting means someone chose to hide this account's content from their feed."
                               onClick={mbExpandable ? () => toggleSection("muted_by") : undefined}
                               data-testid="metric-profile-muted-by"
@@ -2957,7 +2957,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : "cursor-help"}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rbExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : "cursor-help"}`}
                               title="A stronger negative signal than muting. Reports indicate someone flagged this account for harmful or inappropriate behavior."
                               onClick={rbExpandable ? () => toggleSection("reported_by") : undefined}
                               data-testid="metric-profile-reported-by"
@@ -2994,7 +2994,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${mtExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
                               onClick={mtExpandable ? () => toggleSection("muting") : undefined}
                               data-testid="metric-profile-muting"
                             >
@@ -3025,7 +3025,7 @@ export default function ProfilePage() {
                           return (
                           <div>
                             <div
-                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-500/[0.06] transition-all duration-200" : ""}`}
+                              className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3.5 ${rpExpandable ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/[0.06] transition-all duration-200" : ""}`}
                               onClick={rpExpandable ? () => toggleSection("reporting") : undefined}
                               data-testid="metric-profile-reporting"
                             >
@@ -3062,7 +3062,7 @@ export default function ProfilePage() {
                         <div className="px-3 sm:px-4 py-3 sm:py-4 bg-slate-50/30 dark:bg-slate-900/30">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-1.5">
-                              <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                              <div className="w-1 h-1 rounded-full bg-brand-primary" />
                               <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Social Context</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -3252,7 +3252,7 @@ export default function ProfilePage() {
                 key={opt.value}
                 className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
                   reportReason === opt.value
-                    ? "border-indigo-300 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 shadow-sm dark:shadow-none"
+                    ? "border-brand-primary/25 dark:border-brand-primary/[0.3] bg-brand-primary/10 dark:bg-brand-primary/10 shadow-sm dark:shadow-none"
                     : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
                 }`}
                 data-testid={`report-option-${opt.value}`}
@@ -3318,7 +3318,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/developers")}
-            className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
+            className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
             data-testid="link-profile-developers"
           >
             Developers
@@ -3326,7 +3326,7 @@ export default function ProfilePage() {
           <button
             type="button"
             onClick={() => navigate("/how-search-works")}
-            className="font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
+            className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-primary transition-colors"
             data-testid="link-profile-how-search-works"
           >
             How search works

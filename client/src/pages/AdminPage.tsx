@@ -614,7 +614,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
@@ -627,7 +627,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           <Icon className="h-4 w-4 text-brand-deep" />
         </div>
         {scope && (
-          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-brand-primary dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border border-brand-primary dark:border-brand-primary/25" : "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"}`}>
+          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border border-brand-primary/20 dark:border-brand-primary/25" : "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"}`}>
             {scope === "system" ? "System" : "Your graph"}
           </span>
         )}
@@ -937,7 +937,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
   });
 
   return (
-    <tr className="bg-gradient-to-r from-slate-50/80 to-brand-primary/[0.3] dark:bg-none dark:bg-slate-900/40" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
+    <tr className="bg-gradient-to-r from-slate-50/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900/40" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
       <td colSpan={12} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
@@ -969,7 +969,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
             </div>
           </div>
 
-          <div className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary dark:border-brand-primary/25 shadow-sm dark:shadow-none">
+          <div className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/25 shadow-sm dark:shadow-none">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-brand-deep" />
@@ -1029,7 +1029,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                       const rowKey = item.private_id ?? idx;
                       return (
                         <Fragment key={rowKey}>
-                          <tr className={`border-b ${hasFail ? "border-red-200 dark:border-red-500/25 bg-red-50/20 dark:bg-red-500/10" : idx % 2 === 0 ? "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900" : "border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40"} hover:bg-brand-primary/[0.3] dark:hover:bg-brand-primary/10 transition-colors`}>
+                          <tr className={`border-b ${hasFail ? "border-red-200 dark:border-red-500/25 bg-red-50/20 dark:bg-red-500/10" : idx % 2 === 0 ? "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900" : "border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40"} hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
                               <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
                             </td>
@@ -1186,7 +1186,7 @@ function TriggerSourceBadge({ value }: { value: string | null }) {
   if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
-    ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-500/25"
+    ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
     : lower === "periodic"
     ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
     : lower === "admin"
@@ -1468,9 +1468,9 @@ const pipelineRowStyles = {
   },
   complete: {
     row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60 dark:border-b-slate-800/60",
-    hover: "hover:bg-brand-primary/[0.3] dark:hover:bg-brand-primary/10",
-    expanded: "bg-brand-primary/20 dark:bg-brand-primary/5",
-    expandedBorder: "border-brand-primary/60 dark:border-brand-primary/25",
+    hover: "hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10",
+    expanded: "bg-brand-primary/10 dark:bg-brand-primary/5",
+    expandedBorder: "border-brand-primary/15 dark:border-brand-primary/25",
     label: "",
     labelClass: "",
     dot: "",
@@ -1602,7 +1602,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
         <td className="px-2 py-2">
           <TriggerSourceBadge value={item.trigger_source} />
           {schedulingName && (
-            <div className="text-[8px] font-medium text-violet-600 dark:text-violet-400 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
+            <div className="text-[8px] font-medium text-brand-primary dark:text-brand-link mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
           )}
         </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
@@ -2832,7 +2832,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-3 border-b border-brand-accent/10 flex items-center justify-between gap-3">
                   <div>
@@ -2887,7 +2887,7 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex items-start justify-between gap-3">
@@ -3006,7 +3006,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
+              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
@@ -3240,8 +3240,8 @@ export default function AdminPage() {
                 );
               })()}
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
+                <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-fuchsia-500 to-brand-primary" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">API connectivity</p>
@@ -3275,7 +3275,7 @@ export default function AdminPage() {
 
           {activeTab === "users" && (
             <>
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
+            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
               <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
               <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
@@ -3469,7 +3469,7 @@ export default function AdminPage() {
                               return (
                                 <div
                                   key={profile.pubkey}
-                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-brand-accent/40 bg-brand-primary/[0.4]" : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:border-brand-accent/20 hover:bg-brand-primary/10"}`}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-brand-accent/40 bg-brand-primary/10" : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:border-brand-accent/20 hover:bg-brand-primary/10"}`}
                                   onClick={() => isQueued ? removeFromOnboardQueue(profile.pubkey) : addToOnboardQueue(profile)}
                                   data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
                                 >
@@ -3564,7 +3564,7 @@ export default function AdminPage() {
                                         ? progressItem.success
                                           ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
                                           : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
-                                        : "bg-brand-primary dark:bg-brand-primary/10 border-brand-accent/20 text-slate-700 dark:text-slate-200"
+                                        : "bg-brand-primary/10 dark:bg-brand-primary/10 border-brand-accent/20 text-slate-700 dark:text-slate-200"
                                     }`}
                                     data-testid={`queue-item-${profile.pubkey.slice(0, 8)}`}
                                   >
@@ -3669,7 +3669,7 @@ export default function AdminPage() {
                       }
                     };
                     return (
-                      <div className="px-3 py-2 rounded-xl bg-brand-primary/70 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
+                      <div className="px-3 py-2 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
                         <CheckSquare className="h-4 w-4 text-brand-deep" />
                         <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{dedupePubkeys.length} selected</span>
                         {canSelectAllMatching && (
@@ -3754,7 +3754,7 @@ export default function AdminPage() {
               )}
 
               {kpiFilter && (
-                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-brand-primary/[0.3] dark:bg-brand-primary/10 flex items-center gap-2" data-testid="kpi-filter-badge">
+                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-brand-primary/10 dark:bg-brand-primary/10 flex items-center gap-2" data-testid="kpi-filter-badge">
                   <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Filtered:</span>
                   <Chip
                     size="sm"
@@ -3911,7 +3911,7 @@ export default function AdminPage() {
                               <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-brand-primary/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-brand-link0/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
                                     <CopyButton text={npub} />
                                   </div>
                                   <div className="flex items-center gap-1">
@@ -4116,7 +4116,7 @@ export default function AdminPage() {
                               <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{prof?.name || npub.slice(0, 12) + "..."}</span>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] font-mono text-brand-primary/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
+                              <span className="text-[10px] font-mono text-brand-link0/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
                               <CopyButton text={npub} />
                             </div>
                           </div>
@@ -4278,7 +4278,7 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
@@ -4288,7 +4288,7 @@ export default function AdminPage() {
                   <SchedulingCard active={activeTab === "scheduling"} />
                 </div>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
@@ -4304,7 +4304,7 @@ export default function AdminPage() {
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
@@ -4344,7 +4344,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
+              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
                 <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -4479,7 +4479,7 @@ export default function AdminPage() {
                 const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
                     <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4500,8 +4500,8 @@ export default function AdminPage() {
                             onClick={() => setActivityTimeRange(p)}
                             className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                               activityTimeRange === p
-                                ? "bg-brand-deep text-white shadow-md shadow-brand-primary"
-                                : "bg-white/70 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-brand-primary hover:border-brand-primary hover:text-brand-deep"
+                                ? "bg-brand-deep text-white shadow-md shadow-brand-primary/20"
+                                : "bg-white/70 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-brand-primary/10 hover:border-brand-primary/20 hover:text-brand-deep"
                             }`}
                             data-testid={`time-range-${p}`}
                           >
@@ -4606,7 +4606,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
+              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
                 <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-blue-500 to-brand-primary" />
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4648,7 +4648,7 @@ export default function AdminPage() {
                         const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                         const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
                         return (
-                          <div className="mb-3 px-3 py-2 rounded-xl bg-brand-primary/70 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
+                          <div className="mb-3 px-3 py-2 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
                             <CheckSquare className="h-4 w-4 text-brand-deep" />
                             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {selectedCount} selected
@@ -4891,8 +4891,8 @@ export default function AdminPage() {
                 const statsLoading = assistantStatsQuery.isLoading;
                 const statsUnavailable = !statsLoading && stats === null;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
-                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-violet-500 to-brand-primary" />
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
+                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
@@ -4952,8 +4952,8 @@ export default function AdminPage() {
                 const total = data?.total ?? 0;
                 const totalPages = data?.pages ?? 1;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/[0.4] dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
-                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-violet-500 to-brand-primary" />
+                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
+                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary" />
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
@@ -5012,7 +5012,7 @@ export default function AdminPage() {
                                 return (
                                   <Fragment key={it.owner_pubkey}>
                                     <tr
-                                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-brand-primary/[0.4] dark:hover:bg-brand-primary/10 cursor-pointer"
+                                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 cursor-pointer"
                                       onClick={() => setExpandedAssistant(isExpanded ? null : it.owner_pubkey)}
                                       data-testid={`row-assistant-${it.owner_pubkey}`}
                                     >

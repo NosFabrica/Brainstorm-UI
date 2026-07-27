@@ -122,8 +122,8 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                     ? "cursor-default "
                     : tile.disabled
                       ? "opacity-40 cursor-not-allowed "
-                      : "cursor-pointer hover:bg-brand-primary dark:hover:bg-brand-primary/10 ") +
-                  (isActive && !inactive ? "bg-brand-primary/70 dark:bg-brand-primary/15 ring-1 ring-inset ring-brand-primary/20 dark:ring-brand-primary/20 " : "")
+                      : "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 ") +
+                  (isActive && !inactive ? "bg-brand-primary/10 dark:bg-brand-primary/15 ring-1 ring-inset ring-brand-primary/20 dark:ring-brand-primary/20 " : "")
                 }
                 data-testid={`app-tile-${tile.key}`}
               >

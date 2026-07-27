@@ -177,7 +177,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 dark:from-slate-900/95 via-white/88 dark:via-slate-900/90 to-brand-primary/60 dark:to-slate-950/80 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 dark:from-slate-900/95 via-white/88 dark:via-slate-900/90 to-brand-primary/10 dark:to-slate-950/80 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
         data-testid="dialog-activate-brainstorm"
       >
         <div className="absolute inset-0 pointer-events-none">
@@ -230,7 +230,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     className="w-full flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 text-left"
                     data-testid={`button-toggle-${section.key}`}
                   >
-                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-brand-primary dark:bg-brand-primary/15 border border-brand-primary dark:border-brand-primary/25 flex items-center justify-center text-brand-link shrink-0">
+                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-brand-primary/10 dark:bg-brand-primary/15 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center text-brand-link shrink-0">
                       {section.icon}
                     </div>
                     <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 flex-1">{section.title}</span>
