@@ -1144,7 +1144,7 @@ export default function NetworkPage() {
       >
         <div className="max-w-md w-full text-center">
           <div className="mb-6 flex justify-center">
-            <BrainLogo size={64} className="text-indigo-400 animate-pulse" />
+            <BrainLogo size={64} className="text-brand-link animate-pulse" />
           </div>
           <h1
             className="text-2xl font-bold text-white mb-3"
@@ -1178,7 +1178,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
       data-testid="page-network"
     >
       <GlossBackground />
@@ -1196,7 +1196,7 @@ export default function NetworkPage() {
             className="text-left relative z-10 mb-8 pt-2"
             data-testid="section-network-header"
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
               title={<>Your <span className="text-brand-link">Network</span></>}
@@ -1213,7 +1213,7 @@ export default function NetworkPage() {
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-none text-indigo-800 dark:text-indigo-300 ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-none text-brand-primary dark:text-brand-link ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
                     <Filter className="h-4 w-4" />
                   </div>
                   <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm min-w-0">
@@ -1240,17 +1240,17 @@ export default function NetworkPage() {
                         setVerifiedOnly(checked);
                         setCurrentPage(1);
                       }}
-                      className="data-[state=checked]:bg-indigo-600"
+                      className="data-[state=checked]:bg-brand-primary"
                       data-testid="switch-verified-only"
                     />
                     <span
-                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700 dark:text-indigo-300" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-400 dark:text-slate-500"}`}
                     >
                       Verified
                     </span>
                   </label>
                   <div
-                    className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 dark:text-indigo-300 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                    className="px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
                     data-testid="badge-nostr-network"
                   >
                     <img
@@ -1266,7 +1266,7 @@ export default function NetworkPage() {
 
               {/* Mobile: NOSTR badge pinned to top-right corner */}
               <div
-                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 dark:text-indigo-300 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5"
+                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5"
                 data-testid="badge-nostr-network-mobile"
               >
                 <img
@@ -1281,18 +1281,18 @@ export default function NetworkPage() {
               {/* Mobile: Verified toggle — full-width settings-style row */}
               <div className="sm:hidden mt-3">
                 <label
-                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25"
+                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25"
                   data-testid="toggle-verified-only-mobile"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
+                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-brand-primary/15 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
                     >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div
-                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-300"}`}
+                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-600 dark:text-slate-300"}`}
                       >
                         Verified
                       </div>
@@ -1307,7 +1307,7 @@ export default function NetworkPage() {
                       setVerifiedOnly(checked);
                       setCurrentPage(1);
                     }}
-                    className="data-[state=checked]:bg-indigo-600 shrink-0"
+                    className="data-[state=checked]:bg-brand-primary shrink-0"
                     data-testid="switch-verified-only-mobile"
                   />
                 </label>
@@ -1318,7 +1318,7 @@ export default function NetworkPage() {
               {/* Mobile dropdowns — hidden on sm+ */}
               <div className="sm:hidden flex gap-2">
                 <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
                     <Network className="h-3 w-3" />
                     Graph
                   </label>
@@ -1328,7 +1328,7 @@ export default function NetworkPage() {
                       setActiveGroup(e.target.value as GroupKey);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
                     data-testid="select-group-filter-mobile"
                   >
                     {(
@@ -1353,7 +1353,7 @@ export default function NetworkPage() {
                   </select>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
                     <ShieldCheck className="h-3 w-3" />
                     Trust
                   </label>
@@ -1363,7 +1363,7 @@ export default function NetworkPage() {
                       setTrustFilter(e.target.value as TrustTier);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
@@ -1418,7 +1418,7 @@ export default function NetworkPage() {
                             }}
                             className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
-                                ? "bg-indigo-800 text-white border border-indigo-800"
+                                ? "bg-brand-primary text-white border border-brand-primary"
                                 : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                             data-testid={`button-filter-${group.key}`}
@@ -1494,7 +1494,7 @@ export default function NetworkPage() {
                       key: "neutral" as TrustTier,
                       label: "Neutral",
                       shortLabel: "Neutral",
-                      icon: "text-indigo-400",
+                      icon: "text-brand-link",
                       ringFill: 0.37,
                       tooltip: "Average trust score",
                     },
@@ -1539,7 +1539,7 @@ export default function NetworkPage() {
                             isActive
                               ? tier.key === "flagged"
                                 ? "bg-red-600 text-white border border-red-600"
-                                : "bg-indigo-800 text-white border border-indigo-800"
+                                : "bg-brand-primary text-white border border-brand-primary"
                               : tier.key === "flagged"
                                 ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 dark:border-red-500/25 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-500/40"
                                 : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
@@ -1600,7 +1600,7 @@ export default function NetworkPage() {
                       </TooltipTrigger>
                       <TooltipContent
                         side="bottom"
-                        className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5`}
+                        className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-brand-primary"} text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5`}
                       >
                         <p className="text-xs font-medium">{tier.tooltip}</p>
                       </TooltipContent>
@@ -1611,10 +1611,10 @@ export default function NetworkPage() {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 <div className="relative group/input flex-1">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-primary to-brand-primary rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                   <div className="relative flex items-center">
                     {searchLoading ? (
-                      <Loader2 className="absolute left-3 h-4 w-4 text-indigo-500 z-10 animate-spin" />
+                      <Loader2 className="absolute left-3 h-4 w-4 text-brand-link0 z-10 animate-spin" />
                     ) : (
                       <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 dark:text-slate-500 z-10" />
                     )}
@@ -1624,7 +1624,7 @@ export default function NetworkPage() {
                           ? "Loading your network…"
                           : "Search by name or npub..."
                       }
-                      className={`relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
+                      className={`relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-brand-primary/[0.3] shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => {
                         setSearchFilter(e.target.value);
@@ -1651,7 +1651,7 @@ export default function NetworkPage() {
                   </div>
                   {searchFilter.trim().length >= 2 && searchLoading && (
                     <p
-                      className="mt-1 ml-1 text-[11px] text-indigo-500/80 flex items-center gap-1.5"
+                      className="mt-1 ml-1 text-[11px] text-brand-link0/80 flex items-center gap-1.5"
                       role="status"
                       aria-live="polite"
                       data-testid="text-network-search-loading"
@@ -1664,7 +1664,7 @@ export default function NetworkPage() {
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors shrink-0"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-primary/25 dark:hover:border-brand-primary/[0.4] hover:text-brand-primary dark:hover:text-brand-link transition-colors shrink-0"
                     onClick={() => {
                       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
                       setCurrentPage(1);
@@ -1680,7 +1680,7 @@ export default function NetworkPage() {
                   >
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("grid")}
                       data-testid="button-view-grid"
                     >
@@ -1688,7 +1688,7 @@ export default function NetworkPage() {
                     </button>
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400 dark:text-slate-500"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("list")}
                       data-testid="button-view-list"
                     >
@@ -1732,7 +1732,7 @@ export default function NetworkPage() {
               data-testid="card-network-empty"
             >
               <div className="p-8 flex flex-col items-center text-center">
-                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-indigo-800 dark:text-indigo-300 flex items-center justify-center mb-4">
+                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-brand-primary dark:text-brand-link flex items-center justify-center mb-4">
                   <Users className="h-6 w-6" />
                 </div>
                 <h3

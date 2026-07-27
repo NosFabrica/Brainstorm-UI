@@ -35,7 +35,7 @@ export const getVerificationGuidance = (pct: number, name: string) => {
   if (pct >= 20)
     return {
       label: "Moderate confidence",
-      color: "text-indigo-600 dark:text-indigo-400",
+      color: "text-brand-primary dark:text-brand-link",
       message: `${pct}% confidence that ${name} is a genuine participant. Your network has limited signals — consider reviewing their activity.`,
     };
   if (pct >= 7)

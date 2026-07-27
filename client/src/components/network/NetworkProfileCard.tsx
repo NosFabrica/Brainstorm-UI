@@ -199,10 +199,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           data-testid={`trust-loading-${pkShort}`}
         >
           <div
-            className={`rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/25 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}
+            className={`rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25 flex items-center justify-center shrink-0 ${compact ? "w-6 h-6" : "w-8 h-8"}`}
           >
             <Loader2
-              className={`text-indigo-300 animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`}
+              className={`text-brand-link animate-spin ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`}
             />
           </div>
         </div>
@@ -215,7 +215,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
       pct >= 50
         ? "stroke-emerald-500"
         : pct >= 20
-          ? "stroke-indigo-500"
+          ? "stroke-brand-primary"
           : pct >= 7
             ? "stroke-orange-300"
             : "stroke-amber-500";
@@ -245,7 +245,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="3"
-                  className="text-indigo-100 dark:text-indigo-500/20"
+                  className="text-brand-link dark:text-brand-link0/20"
                 />
                 <circle
                   cx="22"
@@ -263,7 +263,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 />
               </svg>
               <span
-                className={`${textSize} font-bold font-mono tabular-nums text-indigo-700 dark:text-indigo-300`}
+                className={`${textSize} font-bold font-mono tabular-nums text-brand-primary dark:text-brand-link`}
               >
                 {pct}
               </span>
@@ -350,7 +350,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                     className="object-cover"
                   />
                 ) : null}
-                <AvatarFallback className="bg-indigo-50 text-indigo-700 text-sm font-bold">
+                <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-sm font-bold">
                   {(profile?.display_name || profile?.name || "?")
                     .charAt(0)
                     .toUpperCase()}
@@ -367,7 +367,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 </p>
                 {profile?.nip05 && (
                   <p
-                    className="text-xs text-indigo-500 truncate"
+                    className="text-xs text-brand-link0 truncate"
                     data-testid={`detail-nip05-${pkShort}`}
                   >
                     {profile.nip05}
@@ -382,7 +382,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   </p>
                   <button
                     type="button"
-                    className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-indigo-600 transition-colors shrink-0"
+                    className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCopyNpub(npub, pk);
@@ -443,7 +443,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             <div>
               {isRefreshing && (
                 <div
-                  className="flex items-center gap-1.5 mb-2 text-[10px] text-indigo-500/80"
+                  className="flex items-center gap-1.5 mb-2 text-[10px] text-brand-link0/80"
                   data-testid={`detail-refreshing-${pkShort}`}
                 >
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -497,7 +497,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                   return (
                     <div
                       key={m.key}
-                      className="flex items-center gap-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 dark:border-indigo-500/20 shadow-sm dark:shadow-none px-3 py-2.5"
+                      className="flex items-center gap-2.5 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none px-3 py-2.5"
                       data-testid={`detail-metric-${m.key}-${pkShort}`}
                     >
                       <div
@@ -537,11 +537,11 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
 
               {effectiveDetail.influence !== undefined && (
                 <div
-                  className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-indigo-100/40 dark:border-indigo-500/20 shadow-sm dark:shadow-none px-3.5 py-2.5 mb-4"
+                  className="flex items-center gap-3 rounded-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm border border-brand-primary/15 dark:border-brand-primary/20 shadow-sm dark:shadow-none px-3.5 py-2.5 mb-4"
                   data-testid={`detail-influence-${pkShort}`}
                 >
-                  <div className="w-8 h-8 rounded-xl border border-indigo-200/60 bg-gradient-to-br from-indigo-50 to-indigo-100/60 flex items-center justify-center shrink-0">
-                    <BrainLogo size={16} className="text-indigo-500" />
+                  <div className="w-8 h-8 rounded-xl border border-brand-primary/20 bg-gradient-to-br from-brand-primary/10 to-brand-primary/15 flex items-center justify-center shrink-0">
+                    <BrainLogo size={16} className="text-brand-link0" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
@@ -720,7 +720,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </div>
           ) : isRefreshing ? (
             <div
-              className="flex items-center justify-center gap-2 py-4 text-xs text-indigo-500/80"
+              className="flex items-center justify-center gap-2 py-4 text-xs text-brand-link0/80"
               data-testid={`detail-loading-${pkShort}`}
             >
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -769,7 +769,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     return (
       <>
         <div
-          className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
+          className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl px-4 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer flex items-center gap-3 ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
           onClick={() => onToggleExpanded(pk)}
           onMouseEnter={() => onPrefetchEnter?.(pk)}
           onMouseLeave={() => onPrefetchLeave?.(pk)}
@@ -783,7 +783,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 className="object-cover"
               />
             ) : null}
-            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
+            <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">
               {(displayName || "?").charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -796,7 +796,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </p>
             {profile?.nip05 && (
               <span
-                className="text-xs text-indigo-500 truncate max-w-[140px] hidden sm:inline"
+                className="text-xs text-brand-link0 truncate max-w-[140px] hidden sm:inline"
                 data-testid={`text-profile-nip05-${pkShort}`}
               >
                 {profile.nip05}
@@ -834,7 +834,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           {renderTrustBadge(true)}
           <button
             type="button"
-            className="p-1 rounded text-slate-400 dark:text-slate-500 hover:text-indigo-600 transition-colors shrink-0"
+            className="p-1 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               onCopyNpub(npub, pk);
@@ -856,7 +856,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   return (
     <>
       <div
-        className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-indigo-300/60 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-indigo-300 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
+        className={`bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:border-brand-primary/25 hover:shadow-[0_2px_8px_rgb(var(--brand-primary)/0.08)] transition-all duration-200 cursor-pointer group ${isExpanded ? "border-brand-primary/25 shadow-[0_2px_8px_rgb(var(--brand-primary)/0.12)]" : "border-slate-200 dark:border-slate-800"}`}
         onClick={() => onToggleExpanded(pk)}
         onMouseEnter={() => onPrefetchEnter?.(pk)}
         onMouseLeave={() => onPrefetchLeave?.(pk)}
@@ -871,7 +871,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                 className="object-cover"
               />
             ) : null}
-            <AvatarFallback className="bg-indigo-50 text-indigo-700 text-xs font-bold">
+            <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">
               {(displayName || "?").charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -884,7 +884,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             </p>
             {profile?.nip05 && (
               <p
-                className="text-xs text-indigo-500 truncate"
+                className="text-xs text-brand-link0 truncate"
                 data-testid={`text-profile-nip05-${pkShort}`}
               >
                 {profile.nip05}
@@ -902,7 +902,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           </span>
           <button
             type="button"
-            className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-indigo-600 transition-colors shrink-0"
+            className="p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               onCopyNpub(npub, pk);
