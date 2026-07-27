@@ -1364,28 +1364,21 @@ export default function UserPanelPage() {
       <Footer />
 
       <AlertDialog open={activateConfirmOpen} onOpenChange={setActivateConfirmOpen}>
-        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[460px] rounded-2xl border border-brand-accent/20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-[0_0_30px_rgba(6,182,212,0.1)] p-0 overflow-hidden" data-testid="dialog-activate-confirm">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-accent via-brand-primary to-brand-accent" />
-            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-brand-accent/10 to-transparent" />
-          </div>
-          <div className="relative p-5">
-            <AlertDialogHeader className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-brand-accent/20 to-brand-primary/20 border border-brand-accent/20 flex items-center justify-center shadow-[0_8px_20px_-10px_rgba(6,182,212,0.3)] shrink-0">
-                  <AgentIcon className="h-5 w-5 text-brand-accent" />
-                </div>
-                <div className="min-w-0">
-                  <AlertDialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                    Deploy {agentNameInput.trim() || "Your Agent"}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-1">
-                    This will publish a kind 0 profile event to 5 Nostr relays, making your Brainstorm agent discoverable across the network.
-                  </AlertDialogDescription>
-                </div>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[460px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden" data-testid="dialog-activate-confirm">
+          <div className="p-5 sm:p-6">
+            <AlertDialogHeader className="space-y-0 text-left">
+              <div className="flex items-center gap-2.5 mb-3">
+                <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-accent uppercase">Agent Suite</span>
+                <div className="h-px w-10 bg-brand-accent/30" />
               </div>
+              <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+                Deploy {agentNameInput.trim() || "Your Agent"}?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5">
+                This will publish a kind 0 profile event to 5 Nostr relays, making your Brainstorm agent discoverable across the network.
+              </AlertDialogDescription>
 
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-2.5">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4 space-y-2.5 mt-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Agent Name</span>
                   <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{agentNameInput.trim()}</span>
@@ -1414,7 +1407,7 @@ export default function UserPanelPage() {
             </AlertDialogHeader>
             <AlertDialogFooter className="mt-4 gap-2">
               <AlertDialogCancel className="rounded-xl" data-testid="button-activate-cancel">Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmActivation} className="rounded-xl bg-gradient-to-r from-brand-accent to-brand-primary hover:from-brand-accent hover:to-brand-primary text-white gap-2" data-testid="button-activate-confirm">
+              <AlertDialogAction onClick={handleConfirmActivation} className="rounded-xl bg-gradient-to-r from-brand-accent to-brand-primary hover:opacity-90 text-white gap-2 shadow-lg shadow-brand-primary/25" data-testid="button-activate-confirm">
                 <AgentIcon className="h-4 w-4" /> Deploy Agent
               </AlertDialogAction>
             </AlertDialogFooter>
