@@ -20,7 +20,6 @@ import { HomeHeroBackground } from "@/components/HomeHeroBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
-import { AppsLauncher } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -610,10 +609,7 @@ export default function Landing() {
         {/* Right: actions — apps + avatar when signed in, else Sign in. */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           {user ? (
-            <>
-              <AppsLauncher user={user} calcDone={calcDone} active="home" variant="light" />
-              <AccountMenu user={user} onLogout={handleLogout} active="home" />
-            </>
+            <AccountMenu user={user} onLogout={handleLogout} active="home" />
           ) : (
             <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
           )}

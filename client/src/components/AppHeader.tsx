@@ -4,7 +4,7 @@ import { Menu } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
 import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { AdminBadge } from "@/components/AdminBadge";
-import { AppsLauncher, type AppKey } from "@/components/AppsLauncher";
+import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { type NostrUser } from "@/services/nostr";
@@ -73,9 +73,6 @@ export function AppHeader({ user, onLogout, calcDone = false, active, actions }:
           <div className="flex items-center gap-2 sm:gap-3">
             {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
             {isAdmin && <AdminBadge />}
-            <div className="hidden lg:flex items-center">
-              <AppsLauncher user={user} calcDone={calcDone} active={active} variant="light" />
-            </div>
             <AccountMenu user={user} onLogout={onLogout} active={active} />
           </div>
         </div>

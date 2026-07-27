@@ -8,13 +8,13 @@ import {
   Users,
   Copy,
   UserCircle,
-  Share2,
   UserPlus,
   HelpCircle,
   Settings as SettingsIcon,
   Shield,
   LogOut,
   Plus,
+  LayoutGrid,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
@@ -151,7 +151,7 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
             </div>
             <button
               type="button"
-              onClick={() => go(`/profile/${user.npub}`)}
+              onClick={() => go(`/p/${user.npub}`)}
               className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-4 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600"
               data-testid="dropdown-view-profile"
             >
@@ -159,8 +159,8 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
             </button>
           </div>
 
-          {/* Primary destinations as tiles */}
-          <div className="grid grid-cols-3 gap-2 px-3 pb-3">
+          {/* Primary destinations as tiles + a teased "Apps" slot */}
+          <div className="grid grid-cols-4 gap-2 px-3 pb-3">
             {NAV_TILES.map((t) => {
               const Icon = t.icon;
               const isActive = active === t.key;
@@ -184,13 +184,27 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
                 </button>
               );
             })}
+
+            {/* Apps — teased (product apps aren't live yet). Non-interactive; a
+                "Soon" pill sets expectations without a dead-end click. */}
+            <div
+              className="relative flex cursor-default flex-col items-center justify-center gap-1.5 rounded-xl px-2 py-3 text-center"
+              title="Brainstorm apps — coming soon"
+              aria-disabled="true"
+              data-testid="account-nav-apps"
+            >
+              <LayoutGrid className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+              <span className="text-[11px] font-medium leading-none text-slate-400 dark:text-slate-500">Apps</span>
+              <span className="absolute right-1 top-1 rounded-full border border-brand-accent/30 bg-brand-accent/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase leading-none tracking-wide text-brand-deep dark:text-brand-link">
+                Soon
+              </span>
+            </div>
           </div>
 
           <div className="mx-3 border-t border-slate-100 dark:border-slate-800" />
 
           {/* Grouped actions */}
           <div className="p-1.5">
-            <MenuRow icon={Share2} label="Share profile" onClick={() => go(`/p/${user.npub}`)} testId="dropdown-share-profile" />
             <MenuRow icon={UserPlus} label="Invite friends" onClick={() => { setOpen(false); setInviteOpen(true); }} testId="dropdown-invite" />
             <MenuRow icon={SettingsIcon} label="Settings" onClick={() => go("/settings")} testId="dropdown-settings" />
             <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => go("/faq")} testId="dropdown-faq" />

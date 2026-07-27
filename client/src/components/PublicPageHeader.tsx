@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
-import { AppsLauncher } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logout } from "@/services/nostr";
@@ -47,14 +46,7 @@ export function PublicPageHeader({
             <Search className="h-5 w-5" />
           </Link>
           {actions}
-          {user && (
-            <>
-              <div className="hidden sm:flex items-center">
-                <AppsLauncher user={user} calcDone={calcDone} variant="light" />
-              </div>
-              <AccountMenu user={user} onLogout={handleLogout} />
-            </>
-          )}
+          {user && <AccountMenu user={user} onLogout={handleLogout} />}
         </div>
       </div>
     </header>
