@@ -193,9 +193,9 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
           <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
             <DialogHeader>
               <div className="flex items-start gap-3">
-                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0" data-testid="icon-activate-brainstorm">
-                  <BrainLogo size={18} className="sm:hidden" />
-                  <BrainLogo size={22} className="hidden sm:block" />
+                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0" data-testid="icon-activate-brainstorm">
+                  <BrainLogo mono size={18} className="sm:hidden text-white" />
+                  <BrainLogo mono size={22} className="hidden sm:block text-white" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <DialogTitle
@@ -351,7 +351,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                     </>
                   ) : (
                     <>
-                      <BrainLogo size={16} className="text-white/80" />
+                      <BrainLogo mono size={16} className="text-white" />
                       Select Brainstorm as my Service Provider
                     </>
                   )}

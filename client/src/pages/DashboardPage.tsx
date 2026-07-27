@@ -1605,8 +1605,8 @@ export default function DashboardPage() {
               >
 
                 <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-white/70 dark:bg-slate-800/70 border border-brand-accent/20 shadow-sm flex items-center justify-center text-brand-deep shrink-0">
-                    <BrainLogo size={24} />
+                  <div className="h-12 w-12 rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0">
+                    <BrainLogo mono size={24} className="text-white" />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -1625,7 +1625,7 @@ export default function DashboardPage() {
                       className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                       data-testid="button-nip85-cta"
                     >
-                      <BrainLogo size={14} className="text-white/80" />
+                      <BrainLogo mono size={14} className="text-white" />
                       Select Brainstorm
                     </button>
                     <button
