@@ -511,6 +511,17 @@ export default function DashboardPage() {
 
   const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
 
+  // The backend `following` count lags for brand-new accounts — it only fills in
+  // after the first GrapeRank pass ingests the contact list. So a user who has
+  // already followed + triggered scoring still reads followingCount === 0 for a
+  // while. This flag (set the moment scoring is triggered, which requires having
+  // followed) lets us stop re-nagging them to "follow to begin" and instead show
+  // a calm "calculating" state until the count catches up.
+  const calcTriggered = (() => {
+    try { return !!user?.pubkey && !!localStorage.getItem(`brainstorm_calc_triggered_at:${user.pubkey}`); }
+    catch { return false; }
+  })();
+
   // The no-follows user just used the inline follow-picker → bridge to the
   // "calculating" state and suppress any stale "failed" status until the fresh
   // GrapeRank result replaces it.
@@ -1124,10 +1135,29 @@ export default function DashboardPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-            {/* No-follows users: an inline follow-picker (same suggestions as
-                /welcome) so they can start their Web of Trust without leaving. */}
-            {hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isPending && (
+            {/* Genuinely new, zero-follows, not-yet-started users → inline
+                follow-picker (same suggestions as /welcome) so they can start
+                their Web of Trust without leaving. */}
+            {hasNoFollowing && !calcTriggered && !justFollowed && !triggerGrapeRankMutation.isPending && (
               <FollowToCalculateCard onDone={handleFollowDone} />
+            )}
+
+            {/* Already followed + triggered scoring, but the backend
+                following-count hasn't caught up yet. Don't re-nag them to
+                follow — reassure that their scores are calculating. */}
+            {hasNoFollowing && calcTriggered && !justFollowed && !triggerGrapeRankMutation.isPending && (
+              <div
+                className="flex items-center gap-4 rounded-2xl border border-brand-accent/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-sm dark:shadow-none"
+                data-testid="card-building-wot"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary dark:text-brand-link">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your Web of Trust</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your trust scores are calculating. This can take a few minutes.</div>
+                </div>
+              </div>
             )}
 
             {/* Scores just went live → the viral beat: invite people in. Shown
