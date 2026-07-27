@@ -7,11 +7,10 @@ import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResu
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
-
-// The public-page header searches from the house ("nosfabrica") perspective —
-// visitors here are typically logged out, and the profile page re-applies the
-// viewer's own POV once they land.
-const POV = "nosfabrica" as const;
+import { getCurrentUser } from "@/services/nostr";
+import { useActivePov } from "@/hooks/useActivePov";
+import { useHasMywot } from "@/hooks/useHasMywot";
+import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
@@ -31,6 +30,17 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Search from the viewer's ACTIVE perspective — the same rule the landing box
+  // uses — so header suggestions rank identically to the home results. Use the
+  // personalized Web of Trust only when the viewer turned "My perspective" on
+  // AND is eligible (has a personalized graph + is permitted to be their own
+  // search observer); otherwise fall back to the house ("nosfabrica") view.
+  const [pov] = useActivePov();
+  const { hasMywot } = useHasMywot();
+  const { isSearchObserver } = useIsSearchObserver();
+  const effectivePov = pov === "mywot" && hasMywot && isSearchObserver ? "mywot" : "nosfabrica";
+  const observerPubkey = getCurrentUser()?.pubkey;
+
   // Live suggestions, debounced. A request token is bumped every keystroke so a
   // slow earlier response can't overwrite newer results. Direct identifiers
   // (npub / hex / nip05) skip suggestions — they resolve on submit.
@@ -49,7 +59,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
     setLoading(true); setOpen(true);
     timer.current = window.setTimeout(async () => {
       try {
-        const { results } = await searchByText(query, POV, undefined, 10);
+        const { results } = await searchByText(query, effectivePov, observerPubkey, 10);
         if (reqId.current !== id) return;
         setSuggestions(results.slice(0, 7)); setActive(-1); setOpen(true);
       } catch {
@@ -59,7 +69,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
         if (reqId.current === id) setLoading(false);
       }
     }, 120);
-  }, []);
+  }, [effectivePov, observerPubkey]);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
