@@ -28,11 +28,49 @@ const CANDIDATES = [
   { file: "cand-13.webp", src: "grok-c40a3306…" },
 ];
 
-/** Procedural Nodes overlay — an approximation of the brand Nodes asset
- *  (guidelines p10): purple/cyan points + connecting lines with a soft glow,
- *  Lighten-blended so only the light lines show over the photo. Positioned in
- *  the lower band + right edge to stay clear of the centered wordmark/search. */
-function NodesOverlay() {
+/** Per-image Nodes layouts (guidelines p10): each picks a safe zone in that
+ *  photo — away from faces + important detail, and off the light areas that
+ *  wash out a Lighten blend. viewBox space is 1920×1080. */
+type Dot = [number, number, string];
+type Layout = { lines: string[]; dots: Dot[] };
+const P = "#7237ff", V = "#8b5cf6", C = "#13d2e5";
+
+const NODE_LAYOUTS: Record<string, Layout> = {
+  // 02 clouds → blue-sky gaps, upper-right (white clouds wash out light nodes)
+  "cand-02.webp": {
+    lines: ["M1040,170 C1180,120 1320,220 1500,180", "M1500,180 C1660,150 1740,300 1660,440", "M1040,170 C1000,320 1180,340 1300,300"],
+    dots: [[1040, 170, C], [1200, 130, P], [1360, 205, C], [1500, 180, V], [1660, 150, C], [1720, 300, P], [1660, 440, C], [1300, 300, V], [1140, 330, C]],
+  },
+  // 06 library → upper third (shelves/stairs), above the readers
+  "cand-06.webp": {
+    lines: ["M240,220 C440,150 680,260 900,200", "M900,200 C1140,150 1360,250 1560,190", "M1560,190 C1680,230 1760,300 1740,360"],
+    dots: [[240, 220, P], [460, 160, C], [700, 240, V], [900, 200, P], [1140, 170, C], [1360, 230, P], [1560, 190, C], [1740, 320, V]],
+  },
+  // 07 networking → faces fill the frame; safe zone is the lower foreground
+  "cand-07.webp": {
+    lines: ["M220,930 C440,860 640,980 860,910", "M860,910 C1080,850 1300,970 1520,910", "M1520,910 C1640,940 1740,900 1800,960"],
+    dots: [[220, 930, C], [440, 980, P], [640, 920, C], [860, 910, V], [1080, 950, C], [1300, 905, P], [1520, 910, C], [1720, 950, V]],
+  },
+  // 10 city sunset → left + right building faces, clear of the bright center
+  "cand-10.webp": {
+    lines: ["M200,300 C340,220 480,420 560,540", "M200,300 C120,460 300,520 360,600", "M1420,270 C1560,190 1720,320 1780,470", "M1420,270 C1360,420 1540,450 1600,540"],
+    dots: [[200, 300, P], [400, 210, C], [560, 440, V], [340, 580, C], [1420, 270, C], [1660, 200, P], [1780, 470, C], [1560, 430, V]],
+  },
+  // 12 outdoor social → top band (trees + roofline), above heads
+  "cand-12.webp": {
+    lines: ["M240,190 C460,250 700,150 900,210", "M900,210 C1120,140 1340,220 1520,170", "M1520,170 C1640,200 1740,150 1800,230"],
+    dots: [[240, 190, C], [480, 240, P], [700, 155, C], [900, 210, V], [1140, 160, C], [1360, 210, P], [1520, 170, C], [1760, 220, V]],
+  },
+};
+const DEFAULT_LAYOUT: Layout = {
+  lines: ["M120,880 C360,700 520,940 760,820", "M760,820 C980,720 1080,900 1240,860", "M1600,300 C1500,480 1720,560 1660,760"],
+  dots: [[120, 880, P], [360, 760, V], [520, 900, C], [760, 820, P], [1000, 830, C], [1240, 860, P], [1600, 300, C], [1660, 760, P]],
+};
+
+/** Procedural Nodes overlay — purple/cyan points + connecting lines with a soft
+ *  glow, Lighten-blended so only the light overlay shows over the photo. */
+function NodesOverlay({ file }: { file: string }) {
+  const layout = NODE_LAYOUTS[file] ?? DEFAULT_LAYOUT;
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full mix-blend-lighten"
@@ -51,19 +89,10 @@ function NodesOverlay() {
         </linearGradient>
       </defs>
       <g fill="none" stroke="url(#nodeLine)" strokeWidth="1.5" opacity="0.85">
-        <path d="M120,880 C360,700 520,940 760,820" />
-        <path d="M760,820 C980,720 1080,900 1240,860" />
-        <path d="M1600,300 C1500,480 1720,560 1660,760" />
-        <path d="M1660,760 C1600,900 1780,940 1840,880" />
-        <path d="M120,880 C300,980 200,1020 420,1010" />
+        {layout.lines.map((d, k) => <path key={k} d={d} />)}
       </g>
-      {[
-        [120, 880, "#7237ff"], [360, 760, "#8b5cf6"], [520, 900, "#13d2e5"],
-        [760, 820, "#7237ff"], [1000, 830, "#13d2e5"], [1240, 860, "#7237ff"],
-        [1600, 300, "#13d2e5"], [1660, 760, "#7237ff"], [1840, 880, "#13d2e5"],
-        [420, 1010, "#8b5cf6"],
-      ].map(([x, y, c], i) => (
-        <circle key={i} cx={x as number} cy={y as number} r={i % 3 === 0 ? 7 : 4.5} fill={c as string} filter="url(#nodeGlow)" />
+      {layout.dots.map(([x, y, c], i) => (
+        <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 7 : 4.5} fill={c} filter="url(#nodeGlow)" />
       ))}
     </svg>
   );
@@ -122,7 +151,7 @@ export default function HeroLab() {
         {/* Hero background — mirrors HomeHeroBackground */}
         <div className="absolute inset-0">
           <img key={cand.file} src={`/brand/hero-lab/${cand.file}`} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
-          {nodes && <NodesOverlay />}
+          {nodes && <NodesOverlay file={cand.file} />}
           <div className={`absolute inset-0 transition-colors duration-500 ${scrim}`} />
           <div className="absolute left-1/2 top-[6%] h-[42%] w-[66%] -translate-x-1/2 rounded-full bg-brand-accent/10 blur-[130px] dark:bg-brand-primary/[0.16]" />
           <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white to-transparent dark:from-slate-950" />
