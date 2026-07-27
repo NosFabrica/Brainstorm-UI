@@ -24,6 +24,7 @@ import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
 import OnboardingWizard from "@/pages/OnboardingWizard";
+import HeroLab from "@/pages/HeroLab";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import FaqPage from "@/pages/FaqPage";
@@ -113,6 +114,7 @@ function Router() {
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
+        <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />
