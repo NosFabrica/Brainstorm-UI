@@ -50,11 +50,15 @@
      works). Reskin = change these values here; a `.dark` override set is added
      in the dark-mode phase. Codemod replaced ~1k hardcoded hex with the
      `brand-*` Tailwind utilities that read these. */
+  /* Canonical palette (guidelines p5): Aurora Purple, Aurora Cyan, Ink, White.
+     `*-hover` and `--brand-deep` are SANCTIONED SUPPORTING SHADES (derived depth/
+     hover steps of the accents, designer-approved) — not new brand colours.
+     Don't add other off-palette hues. Policy: docs/design-system.md. */
   --brand-primary: 114 55 255;        /* Aurora Purple #7237ff — primary buttons, wordmark */
-  --brand-primary-hover: 97 47 217;   /* #612fd9 — darker Aurora Purple, button hover */
+  --brand-primary-hover: 97 47 217;   /* #612fd9 — Aurora Purple hover (supporting) */
   --brand-accent: 19 210 229;         /* Aurora Cyan #13d2e5 — kickers, accent lines, chips */
-  --brand-accent-hover: 40 126 137;   /* Muted Teal #287e89 — accent hover */
-  --brand-deep: 43 23 79;             /* Deep Violet #2b174f — deep accent text */
+  --brand-accent-hover: 40 126 137;   /* #287e89 — Aurora Cyan hover (supporting) */
+  --brand-deep: 43 23 79;             /* #2b174f — dark tint of Aurora Purple (supporting) */
   --brand-link: 114 55 255;           /* Aurora Purple #7237ff — links */
 
   /* Brand typography (Design System v1.0): Figtree for interface content,
