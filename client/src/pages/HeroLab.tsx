@@ -79,6 +79,19 @@ export default function HeroLab() {
   const prev = () => setI((v) => (v - 1 + n) % n);
   const next = () => setI((v) => (v + 1) % n);
 
+  // The app's ThemeProvider sets `.dark` on <html>, and Tailwind `dark:`
+  // variants fire from any ancestor — so a local wrapper class can't override
+  // it. Drive the real <html> class from the lab toggle instead, and restore
+  // the user's theme when leaving the lab.
+  useEffect(() => {
+    const html = document.documentElement;
+    const original = html.classList.contains("dark");
+    return () => { html.classList.toggle("dark", original); };
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") prev();
