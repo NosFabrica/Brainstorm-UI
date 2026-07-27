@@ -14,7 +14,6 @@ import {
   Shield,
   LogOut,
   Plus,
-  LayoutGrid,
   BadgeCheck,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -174,8 +173,8 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
               </button>
             </div>
 
-            {/* Primary destinations as tiles + a teased "Apps" slot */}
-            <div className="grid grid-cols-4 gap-2 px-3 pb-3">
+            {/* Primary destinations as tiles */}
+            <div className="grid grid-cols-3 gap-2 px-3 pb-3">
               {NAV_TILES.map((t) => {
                 const Icon = t.icon;
                 const isActive = active === t.key;
@@ -199,22 +198,6 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
                   </button>
                 );
               })}
-
-              {/* Apps — teased (product apps aren't live yet). Non-interactive; a
-                  "Soon" chip under the label sets expectations without a
-                  dead-end click and without clipping the tile edge. */}
-              <div
-                className="flex cursor-default flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/60 dark:border-white/10 px-2 py-3 text-center"
-                title="Brainstorm apps — coming soon"
-                aria-disabled="true"
-                data-testid="account-nav-apps"
-              >
-                <LayoutGrid className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-                <span className="text-[11px] font-medium leading-none text-slate-400 dark:text-slate-500">Apps</span>
-                <span className="rounded-full bg-brand-accent/15 px-1.5 py-0.5 text-[8px] font-bold uppercase leading-none tracking-wide text-brand-deep dark:text-brand-link">
-                  Soon
-                </span>
-              </div>
             </div>
 
             <div className="mx-3 border-t border-slate-900/[0.08] dark:border-white/10" />
