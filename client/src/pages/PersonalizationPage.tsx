@@ -200,8 +200,9 @@ export default function PersonalizationPage() {
               })}
             </Card>
 
-            {/* Optional note callout */}
-            <div className="mt-6 rounded-2xl bg-brand-deep px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">
+            {/* Optional note callout — deep-violet on light; Aurora-tinted panel
+                on dark (brand-deep flips to a light violet there). */}
+            <div className="mt-6 rounded-2xl bg-brand-deep dark:bg-brand-primary/[0.15] dark:border dark:border-brand-accent/25 px-5 py-4 sm:px-6 sm:py-5" data-testid="callout-optional">
               <div className="flex items-start gap-3">
                 <div className="h-9 w-9 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
                   <UserCheck className="h-4 w-4 text-white" />

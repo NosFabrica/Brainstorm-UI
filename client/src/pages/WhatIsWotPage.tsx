@@ -462,9 +462,11 @@ export default function WhatIsWotPage() {
             </div>
           </section>
 
-          {/* Your network goes with you — dark callout */}
+          {/* Your network goes with you — brand emphasis callout. Deep-violet
+              solid on light; on dark, --brand-deep flips to a light violet, so
+              use a subtle Aurora-Purple-tinted panel + accent hairline instead. */}
           <section
-            className="rounded-2xl bg-brand-deep px-6 py-7 sm:px-10 sm:py-9"
+            className="rounded-2xl bg-brand-deep dark:bg-brand-primary/[0.15] dark:border dark:border-brand-accent/25 px-6 py-7 sm:px-10 sm:py-9"
             data-testid="section-wot-portable"
           >
             <div className="flex items-start gap-4 max-w-3xl">
@@ -568,12 +570,12 @@ export default function WhatIsWotPage() {
 
           {/* CTA + cross-link — photographic enterprise band */}
           <section
-            className="relative overflow-hidden rounded-2xl ring-1 ring-brand-deep/20 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.45)]"
+            className="relative overflow-hidden rounded-2xl ring-1 ring-brand-primary/20 shadow-[0_24px_70px_-20px_rgb(var(--brand-primary)/0.45)]"
             data-testid="section-wot-cta"
           >
             <div className="grid md:grid-cols-2">
               {/* Left: brand panel — copy on a solid, perfectly legible background */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-[#3a3893] via-[#2b2972] to-[#16143a] px-7 py-10 sm:px-12 sm:py-14 flex items-center order-2 md:order-1">
+              <div className="relative overflow-hidden bg-gradient-to-br from-brand-primary to-[#0A0E18] px-7 py-10 sm:px-12 sm:py-14 flex items-center order-2 md:order-1">
                 {/* faint concentric "ripples of trust" radiating from the corner */}
                 <svg
                   className="absolute -top-28 -right-28 w-[460px] h-[460px] text-white opacity-[0.08] pointer-events-none"
@@ -608,7 +610,7 @@ export default function WhatIsWotPage() {
                   <div className="mt-7 flex flex-wrap items-center gap-3">
                     <button
                       onClick={() => navigate("/")}
-                      className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-brand-deep bg-white hover:bg-slate-100 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_20px_rgba(0,0,0,0.25)]"
+                      className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-brand-primary bg-white hover:bg-slate-100 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_20px_rgba(0,0,0,0.25)]"
                       data-testid="button-wot-cta-search"
                     >
                       <Search className="h-4 w-4" />
@@ -636,7 +638,7 @@ export default function WhatIsWotPage() {
                   className="absolute inset-0 h-full w-full object-cover object-[center_38%]"
                 />
                 {/* desktop seam: fade the photo's left edge into the panel */}
-                <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-[#16143a] via-[#16143a]/10 to-transparent" />
+                <div className="absolute inset-0 hidden md:block bg-gradient-to-r from-[#0A0E18] via-[#0A0E18]/10 to-transparent" />
                 {/* mobile seam: fade the photo's bottom edge into the panel */}
                 <div className="absolute inset-0 md:hidden bg-gradient-to-b from-transparent via-transparent to-[#16143a]" />
               </div>
