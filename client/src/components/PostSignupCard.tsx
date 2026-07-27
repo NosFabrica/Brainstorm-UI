@@ -219,16 +219,25 @@ export function PostSignupCard() {
             <X className="h-4 w-4" />
           </button>
 
-          <div className="flex items-center gap-2.5 mb-3">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="shrink-0 text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-indigo-300 uppercase">
               Finish setting up
             </span>
-            <div className="h-px w-10 bg-brand-link/40 dark:bg-indigo-400/30" />
+            <div className="flex flex-1 items-center gap-1.5" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-colors duration-500 ${
+                    i < doneCount ? "bg-brand-primary dark:bg-brand-link" : "bg-slate-200/70 dark:bg-white/[0.12]"
+                  }`}
+                />
+              ))}
+            </div>
             <span
-              className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 tabular-nums"
+              className="shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums"
               data-testid="text-post-signup-progress"
             >
-              {doneCount} of 3 done
+              {doneCount} of 3
             </span>
           </div>
           <h3
@@ -300,7 +309,7 @@ export function PostSignupCard() {
                 data-testid="tile-complete-profile"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <ProfileIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
@@ -330,7 +339,7 @@ export function PostSignupCard() {
             ) : backupMode ? (
               <div className={tileBase} data-testid="tile-backup-form">
                 <div className="flex items-center gap-2.5 mb-2.5">
-                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <span className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</span>
@@ -385,7 +394,7 @@ export function PostSignupCard() {
                 data-testid="tile-backup"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
