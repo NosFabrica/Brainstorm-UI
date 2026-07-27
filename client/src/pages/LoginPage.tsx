@@ -12,6 +12,7 @@ import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { Wordmark } from "@/components/Wordmark";
+import { NodesOverlay } from "@/components/brand/NodesOverlay";
 // Human-Signals photography (Design System v1.0) — people, with the nodes
 // overlay baked in — for the login brand panel. Served from public/brand.
 const HERO_IMAGES: string[] = ["/brand/hero.jpg", "/brand/hero-2.jpg", "/brand/hero-3.jpg"];
@@ -161,6 +162,9 @@ export default function LoginPage() {
           {/* Ink scrim for legibility + a faint Aurora tint at the top. */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/25" />
           <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
+          {/* Brand Nodes constellation (guidelines p10) — glows over the scrim,
+              behind the z-10 copy. */}
+          <NodesOverlay preset="login" opacity={0.6} idSuffix="login" />
         </div>
 
         <div className="relative z-10">
