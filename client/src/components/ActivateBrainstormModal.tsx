@@ -177,39 +177,27 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[560px] max-h-[90vh] rounded-3xl border border-brand-accent/20 bg-gradient-to-b from-white/92 dark:from-slate-900/95 via-white/88 dark:via-slate-900/90 to-brand-primary/10 dark:to-slate-950/80 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgb(var(--brand-deep)/0.75)] overflow-hidden p-0"
+        className="sm:max-w-[540px] max-h-[90vh] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden p-0"
         data-testid="dialog-activate-brainstorm"
       >
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-brand-accent/20 blur-[90px]" />
-          <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-brand-deep/15 blur-[110px]" />
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgb(var(--brand-accent)/0.14)_0%,rgba(255,255,255,0.00)_40%,rgb(var(--brand-deep)/0.12)_100%)]" />
-        </div>
-
-        <div className="relative flex flex-col max-h-[90vh]">
-          <div className="h-1.5 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent animate-gradient-x shrink-0" />
-
+        <div className="flex flex-col max-h-[90vh]">
           <div className="overflow-y-auto flex-1 min-h-0">
-          <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
-            <DialogHeader>
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0" data-testid="icon-activate-brainstorm">
-                  <BrainLogo mono size={18} className="sm:hidden text-white" />
-                  <BrainLogo mono size={22} className="hidden sm:block text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <DialogTitle
-                    className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight"
-                    style={{ fontFamily: "var(--font-display)" }}
-                    data-testid="text-activate-title"
-                  >
-                    Select Brainstorm as your Web of Trust Service Provider
-                  </DialogTitle>
-                  <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-activate-subtitle">
-                    Broadcast your personalized trust scores across the nostr ecosystem.
-                  </DialogDescription>
-                </div>
+          <div className="px-5 sm:px-7 pt-6 sm:pt-8 pb-2">
+            <DialogHeader className="space-y-0 text-left">
+              <div className="flex items-center gap-2.5 mb-3">
+                <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Web of Trust</span>
+                <div className="h-px w-10 bg-brand-link/30" />
               </div>
+              <DialogTitle
+                className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 leading-[1.15] tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+                data-testid="text-activate-title"
+              >
+                Broadcast your scores <span className="text-brand-link">across Nostr</span>.
+              </DialogTitle>
+              <DialogDescription className="text-sm sm:text-[15px] text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed" data-testid="text-activate-subtitle">
+                Selecting Brainstorm as your service provider signs one nostr note that tells compatible clients where to find the personalized trust scores we publish for you.
+              </DialogDescription>
             </DialogHeader>
           </div>
 
@@ -219,7 +207,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
               return (
                 <div
                   key={section.key}
-                  className="rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm overflow-hidden transition-all duration-200 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800"
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 overflow-hidden transition-colors duration-200 cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/70"
                   onClick={() => toggleSection(section.key)}
                   role="button"
                   tabIndex={0}
