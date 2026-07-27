@@ -6,7 +6,6 @@ import { knownFollowCount } from "@/lib/followStore";
 import { downloadAccountBackup, downloadRawKeyBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { useToast } from "@/hooks/use-toast";
-import bgPhoto from "@assets/generated_images/signup_bg_abstract.webp";
 
 /** Profile icon (from supplied profile.svg), recolored via currentColor. */
 function ProfileIcon({ className }: { className?: string }) {
@@ -154,7 +153,7 @@ export function PostSignupCard() {
   if (returningNeedsFollow) {
     return (
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-white/70 dark:bg-slate-900/55 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-none"
         data-testid="card-returning-follow-nudge"
       >
         <div className="relative p-5 sm:p-6">
@@ -203,20 +202,9 @@ export function PostSignupCard() {
   return (
     <>
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-white/50 dark:border-white/10 bg-white/70 dark:bg-slate-900/55 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-none"
         data-testid="card-post-signup"
       >
-        {/* Faded person photo + white wash so dark text stays readable */}
-        <img
-          src={bgPhoto}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-white/60 dark:from-slate-900/95 dark:via-slate-900/85 dark:to-slate-900/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-transparent dark:from-slate-900/70" />
-
         <div className="relative z-10 p-5 sm:p-6">
           <button
             type="button"
