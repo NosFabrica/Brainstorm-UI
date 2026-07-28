@@ -167,12 +167,13 @@ export default function HopsPathPage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-xl flex items-center gap-3 px-4 sm:px-6 h-14">
-          <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="hops-back">
+          <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors" data-testid="hops-back">
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/" className="flex items-center" aria-label="Brainstorm home">
-              <Wordmark height={24} />
+              <Wordmark height={24} className="dark:hidden" />
+              <Wordmark height={24} variant="white" className="hidden dark:block" />
             </Link>
             {me && <AccountMenu user={me} onLogout={handleLogout} />}
           </div>
@@ -287,7 +288,7 @@ export default function HopsPathPage() {
                                 <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
                                 {Math.round((score as number) * 100)}%
                               </div>
-                              <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">{tier.name}</div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
                               {(() => {
                                 // Subtle hint when the OTHER view disagrees (after
                                 // rounding): its number + which way it moves.
@@ -496,7 +497,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
 
   if (done) {
     return (
-      <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600">
+      <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
         <Flag className="h-3 w-3" /> Reported
       </span>
     );
@@ -511,7 +512,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
             type="button"
             onClick={(e) => { stop(e); void submit(r); }}
             disabled={busy}
-            className="rounded-md border border-amber-300 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+            className="rounded-md border border-amber-300 dark:border-amber-500/40 bg-white dark:bg-amber-500/10 px-2 py-1 text-[11px] font-semibold capitalize text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/20 disabled:opacity-50"
           >
             {r}
           </button>
@@ -527,8 +528,8 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
       onClick={(e) => { stop(e); setOpen(true); }}
       className={`shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors ${
         emphasize
-          ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-700"
+          ? "border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-amber-300 hover:text-amber-700 dark:hover:border-amber-500/40 dark:hover:text-amber-300"
       }`}
       data-testid="hops-report"
     >

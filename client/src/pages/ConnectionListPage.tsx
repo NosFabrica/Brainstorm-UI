@@ -174,12 +174,13 @@ export default function ConnectionListPage() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
       <header className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline" data-testid="conn-back">
+          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors" data-testid="conn-back">
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
           </Link>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/" className="flex items-center" data-testid="conn-brand">
-              <Wordmark height={24} />
+              <Wordmark height={24} className="dark:hidden" />
+              <Wordmark height={24} variant="white" className="hidden dark:block" />
             </Link>
             {me && <AccountMenu user={me} onLogout={handleLogout} />}
           </div>
