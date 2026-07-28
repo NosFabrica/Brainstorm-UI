@@ -13,7 +13,7 @@ import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
-import { LOGIN_HERO_SCENES } from "@/lib/heroScenes";
+import { HERO_SOLO } from "@/lib/heroScenes";
 
 function getNextPath(): string {
   try {
@@ -109,7 +109,7 @@ export default function LoginPage() {
           {/* The panel is always dark editorial (violet→ink), so force the DARK
               (lit-constellation) scene variant regardless of app theme. The
               gradient base shows through until the first photo decodes. */}
-          <HeroSceneRotator variant="dark" scenes={LOGIN_HERO_SCENES} />
+          <HeroSceneRotator variant="dark" scenes={HERO_SOLO} />
           {/* Ink scrim for legibility + a faint Aurora tint at the top. */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/25" />
           <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />

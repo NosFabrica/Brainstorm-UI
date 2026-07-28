@@ -64,16 +64,7 @@ export const HERO_SOLO: HeroScene[] = [
   { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
 ];
 
-/**
- * The login brand panel's rotation. Per request: dropped the new mixer (01),
- * backyard party (02), podcast (04) and festival (06) scenes; kept the two worth
- * keeping (library 03, jam 05); and mixed the ORIGINAL login photos back in
- * (hero / hero-2 / hero-3). Those originals are single files (no light/dark
- * pair) — fine on the always-dark login panel.
- */
-const REMOVED_FROM_LOGIN = ["scene-01-", "scene-02-", "scene-04-", "scene-06-"];
-export const LOGIN_HERO_SCENES: HeroScene[] = [
-  ...HERO_SCENES.filter((s) => !REMOVED_FROM_LOGIN.some((k) => s.dark.includes(k))),
-  { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
-  { light: "/brand/hero-3.jpg", dark: "/brand/hero-3.jpg", objectPosition: "center" },
-];
+// The login panel now uses HERO_SOLO (single static hero.jpg) too: its Nodes are
+// baked in and edge-anchored, and the narrow login crop discards those side
+// edges — so login reads effectively node-free without clean plates. The other
+// photos have Nodes across the whole frame that no crop can hide.
