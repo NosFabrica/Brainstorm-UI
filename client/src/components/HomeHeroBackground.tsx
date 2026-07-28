@@ -15,29 +15,19 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
           shaped scrim below adapts it to light/dark. */}
       <HeroSceneRotator variant="auto" scenes={HERO_SOLO} />
 
-      {/* Shaped text-protection gradient — the craft move that replaces the flat
-          veil. It only lifts contrast behind the wordmark/search zone and fades
-          to clear at the edges, so the photo breathes. LIGHT: a soft white core
-          → near-white/airy (p19). DARK: an ink core, photo staying prominent
-          (p18). Two layers toggled by the .dark class. */}
+      {/* Shaped scrim that REVEALS the photo on search — the behavior we liked.
+          At REST it's a full near-white (light, p19) / ink (dark, p18) fade, so
+          the hero stays calm and the search leads. When a search starts the scrim
+          THINS (opacity drops) so the photo comes FORWARD with its color — the
+          "wake up" moment — sharp, no blur. Smooth opacity cross-fade; two layers
+          toggled by the .dark class. */}
       <div
-        className="absolute inset-0 dark:hidden"
+        className={`absolute inset-0 dark:hidden transition-opacity duration-500 ease-out ${dimmed ? "opacity-50" : "opacity-100"}`}
         style={{ background: "radial-gradient(125% 95% at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.72) 100%)" }}
       />
       <div
-        className="absolute inset-0 hidden dark:block"
+        className={`absolute inset-0 hidden dark:block transition-opacity duration-500 ease-out ${dimmed ? "opacity-[0.45]" : "opacity-100"}`}
         style={{ background: "radial-gradient(120% 78% at 50% 40%, rgba(2,6,23,0.74) 0%, rgba(2,6,23,0.34) 50%, rgba(2,6,23,0) 100%)" }}
-      />
-
-      {/* Focus while a search is in progress: the hero gently DEFOCUSES + dims so
-          the results take over — a calm depth-of-field step-back (iOS/macOS-style),
-          not a reveal. Persistent layer so it cross-fades smoothly (no snap). */}
-      <div
-        className={`absolute inset-0 transition-all duration-500 ease-out ${
-          dimmed
-            ? "bg-white/25 dark:bg-slate-950/40 backdrop-blur-[3px]"
-            : "bg-white/0 dark:bg-slate-950/0 backdrop-blur-0"
-        }`}
       />
 
       {/* Clean fades so the header + footer dissolve into the page background. */}
