@@ -85,6 +85,14 @@ export interface HeroSceneRotatorProps {
 }
 
 /**
+ * One subtle grade applied to EVERY scene so the set reads as one art-directed
+ * collection rather than a stock carousel — a gentle desaturation + a touch of
+ * contrast, no cinematic look (per the brand guidelines' "no cinematic grading").
+ * Per-scene `filter` (rare, for a genuine exposure outlier) composes on top.
+ */
+const SCENE_GRADE = "saturate(0.92) contrast(1.03) brightness(1.02)";
+
+/**
  * A theme-aware, crossfading backdrop of Human-Signal hero photography. Fills
  * its positioned parent (the caller sizes it + layers scrims on top). Preloads
  * the variants it will show so fades and theme swaps never flash; pauses on
@@ -93,7 +101,7 @@ export interface HeroSceneRotatorProps {
 export function HeroSceneRotator({
   variant = "auto",
   scenes = HERO_SCENES,
-  intervalMs = 9000,
+  intervalMs = 13000,
   objectPosition = "center",
   className,
 }: HeroSceneRotatorProps) {
@@ -147,10 +155,13 @@ export function HeroSceneRotator({
           loading={i === 0 ? "eager" : "lazy"}
           fetchPriority={i === 0 ? "high" : "low"}
           decoding="async"
-          style={{ objectPosition: s.objectPosition ?? objectPosition, filter: s.filter }}
+          style={{
+            objectPosition: s.objectPosition ?? objectPosition,
+            filter: s.filter ? `${SCENE_GRADE} ${s.filter}` : SCENE_GRADE,
+          }}
           className={cn(
             "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
-            reduced ? "duration-0" : "duration-[1500ms]",
+            reduced ? "duration-0" : "duration-[2000ms]",
             i === index ? "opacity-100" : "opacity-0",
           )}
         />
