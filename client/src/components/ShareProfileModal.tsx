@@ -142,7 +142,14 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
           <div className="flex items-center gap-4">
             {/* QR */}
             <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-2.5" data-testid="share-qr">
-              <QRCodeSVG value={canonicalUrl || "https://brainstorm.world"} size={96} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+              <QRCodeSVG
+                value={canonicalUrl || "https://brainstorm.world"}
+                size={96}
+                bgColor="#ffffff"
+                fgColor="#0A0E18"
+                level="H"
+                imageSettings={{ src: "/favicon.svg", height: 24, width: 24, excavate: true }}
+              />
             </div>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Scan to open on a phone, or share directly:</p>
