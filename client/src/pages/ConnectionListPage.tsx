@@ -14,7 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Wordmark } from "@/components/Wordmark";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
@@ -210,9 +210,15 @@ export default function ConnectionListPage() {
               <SlidersHorizontal className="h-4 w-4" />
             </button>
           </div>
-          {!loading && items.length > 0 && (
-            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
-          )}
+          {/* Subtitle + the POV lens. The perspective sits ABOVE the tier/sort
+              filters (it reframes every score and the tier buckets themselves),
+              stays visible while scanning, and drives the sitewide store. */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {!loading && items.length > 0 && (
+              <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+            )}
+            <PovToggle canPersonalize={signedIn && calcDone} className="ml-auto shrink-0" />
+          </div>
 
           {filtersOpen && (
             <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">

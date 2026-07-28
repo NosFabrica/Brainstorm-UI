@@ -10,6 +10,7 @@ import {
 import { useActivePov } from "@/hooks/useActivePov";
 import { hasSessionToken } from "@/services/api";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { cn } from "@/lib/utils";
 
 /**
  * The sitewide "whose view is this score?" system (team feedback):
@@ -60,6 +61,59 @@ export function PovTag({ pov }: { pov: ScorePov }) {
     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" data-testid="pov-tag">
       <Globe className="h-2.5 w-2.5" /> Global
     </span>
+  );
+}
+
+/**
+ * Compact segmented POV control for list / collection surfaces (followers,
+ * following, muters, reporters) where every row's score — and the tier filters
+ * that bucket them — are POV-dependent, so the active lens must stay VISIBLE
+ * while scanning, not hidden behind a filter popover. It drives the SAME sitewide
+ * store as the score modal and the account-menu switcher, so flipping it reframes
+ * the whole app (one source of truth), and the surrounding list re-queries on its
+ * own. When the viewer has no personal Web of Trust yet (`canPersonalize` false)
+ * there's only one perspective — we state it honestly with a static Global tag
+ * instead of a dead switch.
+ */
+export function PovToggle({ canPersonalize, className }: { canPersonalize: boolean; className?: string }) {
+  const { pov, setPersonalized } = useScorePov();
+  if (!canPersonalize) return <PovTag pov="global" />;
+  const active: ScorePov = pov === "personalized" ? "personalized" : "global";
+  const opts = [
+    { key: "global" as const, label: "Brainstorm", Icon: Globe },
+    { key: "personalized" as const, label: "My view", Icon: UserRound },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Trust perspective"
+      className={cn("inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5", className)}
+      data-testid="pov-toggle"
+    >
+      {opts.map(({ key, label, Icon }) => {
+        const on = active === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setPersonalized(key === "personalized")}
+            aria-pressed={on}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors",
+              on
+                ? key === "personalized"
+                  ? "bg-brand-primary/10 text-brand-primary dark:text-brand-link"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300",
+            )}
+            data-testid={`pov-toggle-${key}`}
+          >
+            <Icon className={cn("h-3 w-3", on && key === "personalized" && "text-brand-primary")} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
