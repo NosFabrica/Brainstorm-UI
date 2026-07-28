@@ -63,3 +63,11 @@ export const HOME_HERO_SCENES: HeroScene[] = [
 export const HERO_SOLO: HeroScene[] = [
   { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
 ];
+
+/**
+ * The login brand panel's rotation — the new scenes minus the podcast (04) and
+ * the backyard party (02), per request.
+ */
+export const LOGIN_HERO_SCENES: HeroScene[] = HERO_SCENES.filter(
+  (s) => !s.dark.includes("scene-02-") && !s.dark.includes("scene-04-"),
+);
