@@ -36,6 +36,38 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+/**
+ * Remember the scene last shown by ANY rotator, in sessionStorage so it survives
+ * a real navigation (homepage → /login), not just client-side routing. The next
+ * rotator to mount starts on a DIFFERENT scene — the app should never look like
+ * the same photo is stamped on every page. Keyed by the scene's light src, which
+ * identifies the scene regardless of which variant (light/dark) is on screen.
+ */
+const LAST_SCENE_STORAGE_KEY = "brainstorm_hero_last_scene";
+
+function readLastShown(): string | undefined {
+  try {
+    return sessionStorage.getItem(LAST_SCENE_STORAGE_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberShown(key: string | undefined): void {
+  if (!key) return;
+  try {
+    sessionStorage.setItem(LAST_SCENE_STORAGE_KEY, key);
+  } catch {}
+}
+
+function pickStartIndex(scenes: HeroScene[]): number {
+  if (scenes.length <= 1) return 0;
+  const avoid = readLastShown();
+  const fresh = scenes.map((_, i) => i).filter((i) => scenes[i].light !== avoid);
+  const pool = fresh.length > 0 ? fresh : scenes.map((_, i) => i);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export interface HeroSceneRotatorProps {
   /**
    * Which variant of each scene to show. "auto" tracks the app theme (light
@@ -61,14 +93,21 @@ export interface HeroSceneRotatorProps {
 export function HeroSceneRotator({
   variant = "auto",
   scenes = HERO_SCENES,
-  intervalMs = 7000,
+  intervalMs = 9000,
   objectPosition = "center",
   className,
 }: HeroSceneRotatorProps) {
   const isDark = useIsDark();
   const reduced = usePrefersReducedMotion();
   const dark = variant === "auto" ? isDark : variant === "dark";
-  const [index, setIndex] = useState(0);
+  // Start on a random scene that isn't the one another surface just showed, so
+  // navigating (e.g. homepage → login) doesn't land on the same photo.
+  const [index, setIndex] = useState(() => pickStartIndex(scenes));
+
+  // Record the on-screen scene so the next rotator to mount can avoid it.
+  useEffect(() => {
+    rememberShown(scenes[index]?.light);
+  }, [scenes, index]);
 
   // Preload the variants we'll actually show, so crossfades + theme swaps are
   // instant (browser serves the already-decoded image from cache).
@@ -111,7 +150,7 @@ export function HeroSceneRotator({
           style={{ objectPosition: s.objectPosition ?? objectPosition }}
           className={cn(
             "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
-            reduced ? "duration-0" : "duration-1000",
+            reduced ? "duration-0" : "duration-[1500ms]",
             i === index ? "opacity-100" : "opacity-0",
           )}
         />

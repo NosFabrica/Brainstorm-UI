@@ -27,3 +27,16 @@ export const HERO_SCENES: HeroScene[] = [
   { light: "/brand/scenes/scene-05-light.webp", dark: "/brand/scenes/scene-05-dark.webp", objectPosition: "center 35%" },
   { light: "/brand/scenes/scene-06-light.webp", dark: "/brand/scenes/scene-06-dark.webp", objectPosition: "center 45%" },
 ];
+
+/**
+ * The homepage rotation: the new scenes plus the ORIGINAL homepage photograph
+ * (`/brand/hero.jpg`), retained for continuity. That image predates the
+ * light/dark pairs and has no separate dark variant, so it serves in both modes
+ * exactly as it did before. Homepage only — the login panel keeps HERO_SCENES
+ * (the purpose-built dark/lit scenes), so a bright daytime photo never lands on
+ * that dark editorial panel.
+ */
+export const HOME_HERO_SCENES: HeroScene[] = [
+  ...HERO_SCENES,
+  { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
+];

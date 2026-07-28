@@ -1,4 +1,5 @@
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
+import { HOME_HERO_SCENES } from "@/lib/heroScenes";
 
 // The homepage backdrop (Design System v1.0, Homepage): a Human-Signals
 // photograph with the Nodes overlay (baked into the asset), behind a
@@ -11,7 +12,7 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-home-hero">
       {/* Theme-aware rotating Human-Signal photography: the high-key/faded
           variant in light mode, the moody lit-constellation variant on Ink. */}
-      <HeroSceneRotator variant="auto" />
+      <HeroSceneRotator variant="auto" scenes={HOME_HERO_SCENES} />
       {/* Theme-adaptive scrim (guidelines p18 Dark / p19 Light). LIGHT: a clean
           wash at rest, the photo REVEALS — comes forward — while searching. DARK:
           prominent photo on Ink at rest (p18), fading while searching so results
