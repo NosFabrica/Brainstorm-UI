@@ -186,9 +186,19 @@ export function LegalDocLayout({
             style={{ fontFamily: "var(--font-display)" }}
             data-testid={`text-${docKind}-title`}
           >
-            <span className="block bg-gradient-to-r from-brand-deep via-brand-accent to-brand-deep bg-[length:200%_auto] bg-clip-text pb-1 text-transparent drop-shadow-sm animate-gradient-x">
-              {title}
-            </span>
+            {/* Match the FAQ heading: brand word in the heading color, the doc
+                subject accented in brand-link purple (not the cyan gradient). */}
+            {(() => {
+              const i = title.indexOf(" ");
+              return i === -1 ? (
+                title
+              ) : (
+                <>
+                  {title.slice(0, i)}{" "}
+                  <span className="text-brand-link">{title.slice(i + 1)}</span>
+                </>
+              );
+            })()}
           </h1>
           <div
             className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 dark:border-slate-800/80 bg-white/60 dark:bg-slate-900/60 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 backdrop-blur-sm"
