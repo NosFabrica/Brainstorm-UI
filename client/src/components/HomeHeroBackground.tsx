@@ -1,5 +1,5 @@
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
-import { HOME_HERO_SCENES } from "@/lib/heroScenes";
+import { HERO_SOLO } from "@/lib/heroScenes";
 
 // The homepage backdrop (Design System v1.0, Homepage pp.18–19): a rotating
 // Human-Signal photograph blended into the page with SHAPED light, not a flat
@@ -10,9 +10,10 @@ import { HOME_HERO_SCENES } from "@/lib/heroScenes";
 export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-home-hero">
-      {/* Theme-aware photography: the high-key LIGHT variant in light mode, the
-          moody lit DARK variant on Ink. A shared grade keeps the set cohesive. */}
-      <HeroSceneRotator variant="auto" scenes={HOME_HERO_SCENES} />
+      {/* A SINGLE static hero (hero.jpg) — restraint reads as tier, and this is
+          the strongest image with the on-spec (subtle, edge-anchored) Nodes. The
+          shaped scrim below adapts it to light/dark. */}
+      <HeroSceneRotator variant="auto" scenes={HERO_SOLO} />
 
       {/* Shaped text-protection gradient — the craft move that replaces the flat
           veil. It only lifts contrast behind the wordmark/search zone and fades

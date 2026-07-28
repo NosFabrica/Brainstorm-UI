@@ -49,3 +49,17 @@ export const HOME_HERO_SCENES: HeroScene[] = [
   ...HERO_SCENES,
   { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
 ];
+
+/**
+ * The homepage runs a SINGLE static hero (guidelines pp.18–19 show one static
+ * photo; Apple/Google-tier = restraint + total cohesion). `hero.jpg` is the
+ * strongest of the set and the only one whose Nodes motif is done per spec —
+ * subtle, edge-anchored, off the faces. Same file both modes; the shaped scrim
+ * adapts it (near-white/airy in light, prominent on Ink in dark). Kept as an
+ * array so the rotator's grade/preload path is reused with zero rotation
+ * (`scenes.length <= 1` disables the interval). `HERO_SCENES`/`HOME_HERO_SCENES`
+ * stay available for a future curated rotation once clean plates land.
+ */
+export const HERO_SOLO: HeroScene[] = [
+  { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
+];
