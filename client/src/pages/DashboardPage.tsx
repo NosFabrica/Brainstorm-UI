@@ -2481,7 +2481,7 @@ export default function DashboardPage() {
 
                     <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
                       <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-link text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-primary/15 border border-brand-primary/25 text-[#a78bfa] text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
                           <Terminal className="h-3 w-3" aria-hidden="true" />
                           <span>For Developers</span>
                         </div>
@@ -2496,7 +2496,7 @@ export default function DashboardPage() {
                               <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-developer-title">
                                 Get Your Client Featured
                               </h2>
-                              <p className="text-xs sm:text-sm font-medium text-brand-link uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
+                              <p className="text-xs sm:text-sm font-medium text-[#a78bfa] uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
                             </div>
                           </div>
                           <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
