@@ -12,15 +12,7 @@ import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { Wordmark } from "@/components/Wordmark";
-// Human-Signals photography (Design System v1.0) — people, with the nodes
-// overlay baked in — for the login brand panel. Served from public/brand.
-const HERO_IMAGES: string[] = ["/brand/hero.jpg", "/brand/hero-2.jpg", "/brand/hero-3.jpg"];
-// A tiny (16px) inline thumbnail of the first hero, blurred + scaled up as a
-// "blur-up" placeholder. Inlined so it paints on first frame with no network
-// round-trip, filling the panel with the photo's own colors until the full
-// image decodes. The opaque hero images cover it once loaded.
-const HERO_BLUR =
-  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QB0RXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAABIAAAAAQAAAEgAAAABAAKgAgAEAAAAAQAAABCgAwAEAAAAAQAAAAkAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/iAmRJQ0NfUFJPRklMRQABAQAAAlRsY21zBDAAAG1udHJSR0IgWFlaIAfqAAcAFAAKAAAACGFjc3BBUFBMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD21gABAAAAANMtbGNtcwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC2Rlc2MAAAEIAAAAPmNwcnQAAAFIAAAATHd0cHQAAAGUAAAAFGNoYWQAAAGoAAAALHJYWVoAAAHUAAAAFGJYWVoAAAHoAAAAFGdYWVoAAAH8AAAAFHJUUkMAAAIQAAAAIGdUUkMAAAIQAAAAIGJUUkMAAAIQAAAAIGNocm0AAAIwAAAAJG1sdWMAAAAAAAAAAQAAAAxlblVTAAAAIgAAABwAcwBSAEcAQgAgAEkARQBDADYAMQA5ADYANgAtADIALgAxAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAADAAAAAcAE4AbwAgAGMAbwBwAHkAcgBpAGcAaAB0ACwAIAB1AHMAZQAgAGYAcgBlAGUAbAB5WFlaIAAAAAAAAPbWAAEAAAAA0y1zZjMyAAAAAAABDEIAAAXe///zJQAAB5MAAP2Q///7of///aIAAAPcAADAblhZWiAAAAAAAABvoAAAOPUAAAOQWFlaIAAAAAAAACSfAAAPhAAAtsNYWVogAAAAAAAAYpcAALeHAAAY2XBhcmEAAAAAAAMAAAACZmYAAPKnAAANWQAAE9AAAApbY2hybQAAAAAAAwAAAACj1wAAVHsAAEzNAACZmgAAJmYAAA9c/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAFhYWFhYWJhYWJjYmJiY2STY2NjZJXElJSUlJXG9cXFxcXFxvb29vb29vb4aGhoaGhpycnJycr6+vr6+vr6+vr//bAEMBGx0dLSktTCkpTLd8Zny3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t7e3t//dAAQAAf/aAAwDAQACEQMRAD8Ax3nklURnhUUAAnj/APXVd7iRXZW5/HNUh1oPWgD/2Q==";
+import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 
 function getNextPath(): string {
   try {
@@ -54,7 +46,6 @@ export default function LoginPage() {
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
   const [failureMessage, setFailureMessage] = useState("");
-  const [heroIndex, setHeroIndex] = useState(0);
 
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
@@ -64,29 +55,6 @@ export default function LoginPage() {
       navigate(nextPath, { replace: true });
     }
   }, [navigate, nextPath]);
-
-  useEffect(() => {
-    if (HERO_IMAGES.length <= 1) return;
-    const prefersReducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (prefersReducedMotion) return;
-
-    // The hero panel is only rendered on lg+ (hidden on mobile), so skip
-    // preloading images and running the rotation interval on small screens.
-    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-    if (!isDesktop) return;
-
-    HERO_IMAGES.forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
-
-    const interval = setInterval(() => {
-      setHeroIndex((i) => (i + 1) % HERO_IMAGES.length);
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Returning users (extension/nsec) land where they intended (home, or ?next=) —
   // no forced /activate wizard. An unscored-but-following account is scored in the
@@ -137,27 +105,10 @@ export default function LoginPage() {
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
-          {/* Blur-up placeholder over the violet→ink gradient base: the panel
-              shows the hero's own colours instantly (no network round-trip),
-              then the full photo fades in on top and covers it. */}
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url("${HERO_BLUR}")`, filter: "blur(24px)", transform: "scale(1.1)" }}
-          />
-          {HERO_IMAGES.map((src, i) => (
-            <img
-              key={src}
-              src={src}
-              alt=""
-              draggable={false}
-              loading={i === 0 ? "eager" : "lazy"}
-              fetchPriority={i === 0 ? "high" : "low"}
-              decoding="async"
-              className={`absolute inset-0 w-full h-full object-cover select-none transition-opacity duration-1000 ease-in-out ${
-                i === heroIndex ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          ))}
+          {/* The panel is always dark editorial (violet→ink), so force the DARK
+              (lit-constellation) scene variant regardless of app theme. The
+              gradient base shows through until the first photo decodes. */}
+          <HeroSceneRotator variant="dark" />
           {/* Ink scrim for legibility + a faint Aurora tint at the top. */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/25" />
           <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />

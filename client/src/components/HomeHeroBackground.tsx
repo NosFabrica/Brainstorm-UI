@@ -1,3 +1,5 @@
+import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
+
 // The homepage backdrop (Design System v1.0, Homepage): a Human-Signals
 // photograph with the Nodes overlay (baked into the asset), behind a
 // theme-adaptive scrim. Light mode fades the photo to near-white (page 20);
@@ -7,20 +9,19 @@
 export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-home-hero">
-      <img
-        src="/brand/hero.jpg"
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-      {/* Theme-adaptive scrim (guidelines p18 Dark / p19 Light). LIGHT: a clean,
-          light wash at rest (photo receded), and the photo REVEALS — comes
-          forward — while searching. DARK: prominent photo on Ink at rest (p18),
-          fading while searching so results stay readable. Opacity values must
-          come from Tailwind's rendered scale (…60, 80, 90…) — non-scale steps
-          like /92 or /55 generate NO rule (transparent). */}
+      {/* Theme-aware rotating Human-Signal photography: the high-key/faded
+          variant in light mode, the moody lit-constellation variant on Ink. */}
+      <HeroSceneRotator variant="auto" />
+      {/* Theme-adaptive scrim (guidelines p18 Dark / p19 Light). LIGHT: a clean
+          wash at rest, the photo REVEALS — comes forward — while searching. DARK:
+          prominent photo on Ink at rest (p18), fading while searching so results
+          stay readable. The designer's light variant is already high-key, so the
+          rest wash is lighter (/70) than before to let it read. Opacity values
+          must come from Tailwind's rendered scale (…60, 70, 90…) — non-scale
+          steps like /92 or /55 generate NO rule (transparent). */}
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          dimmed ? "bg-white/60 dark:bg-slate-950/90" : "bg-white/80 dark:bg-slate-950/60"
+          dimmed ? "bg-white/60 dark:bg-slate-950/90" : "bg-white/70 dark:bg-slate-950/60"
         }`}
       />
       {/* Aurora glow behind the hero for brand cohesion + legibility. */}
