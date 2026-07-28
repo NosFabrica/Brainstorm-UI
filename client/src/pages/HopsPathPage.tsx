@@ -232,9 +232,9 @@ export default function HopsPathPage() {
                 const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
                 const isEntryBad = i === entryBadIndex; // the flagged account to report
                 const tint = isWeakLink
-                  ? "bg-amber-50 ring-1 ring-amber-200"
+                  ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
                   : isEntryBad
-                    ? "bg-rose-50 ring-1 ring-rose-200"
+                    ? "bg-rose-50 dark:bg-rose-500/10 ring-1 ring-rose-200 dark:ring-rose-500/25"
                     : "";
                 return (
                   <li key={`${pk}-${i}`} className="flex gap-3" data-testid={`hops-node-${i}`}>
@@ -258,12 +258,12 @@ export default function HopsPathPage() {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-deep transition-colors">{name}</span>
                               {isWeakLink && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a flagged account into your network">
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a flagged account into your network">
                                   Weak link
                                 </span>
                               )}
                               {isEntryBad && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 border border-rose-300 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700" data-testid={`hops-flagged-${i}`} title="Low-trust / flagged account — reporting it disconnects it and anything downstream from your web of trust">
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Low-trust / flagged account — reporting it disconnects it and anything downstream from your web of trust">
                                   Flagged
                                 </span>
                               )}
@@ -372,12 +372,12 @@ export default function HopsPathPage() {
 function WeakLinkNote({ scammerName }: { scammerName: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-3 border-t border-amber-200/70 pt-2.5">
+    <div className="mt-3 border-t border-amber-200/70 dark:border-amber-500/25 pt-2.5">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 hover:text-amber-800 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors"
         data-testid="hops-weaklink-why"
       >
         <ShieldAlert className="h-3.5 w-3.5" />
@@ -385,7 +385,7 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900" data-testid="hops-weaklink-detail">
+        <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900 dark:text-amber-200/90" data-testid="hops-weaklink-detail">
           This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a flagged
           account. Likely an honest mistake, but it's how {scammerName} got into your network.{" "}
           <span className="font-semibold">Report {scammerName}</span> below to remove it — and anything hiding behind it —
@@ -402,8 +402,8 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
  */
 function DirectFollowNote({ name }: { name: string }) {
   return (
-    <div className="mt-3 border-t border-rose-200/70 pt-2.5">
-      <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-rose-800">
+    <div className="mt-3 border-t border-rose-200/70 dark:border-rose-500/25 pt-2.5">
+      <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-rose-800 dark:text-rose-300">
         <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
         <span>
           You follow <span className="font-semibold">{name}</span> directly — this flagged account is in your network
