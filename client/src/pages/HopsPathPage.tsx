@@ -236,7 +236,7 @@ export default function HopsPathPage() {
                 const score = scores?.get(pk);
                 const tier = typeof score === "number" ? tierForScore(score) : null;
                 const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
-                const isEntryBad = i === entryBadIndex; // the flagged account to report
+                const isEntryBad = i === entryBadIndex; // low-trust account to report (score-derived, NOT an existing report/mute)
                 const tint = isWeakLink
                   ? "bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/25"
                   : isEntryBad
@@ -264,13 +264,13 @@ export default function HopsPathPage() {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-deep transition-colors">{name}</span>
                               {isWeakLink && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a flagged account into your network">
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" data-testid={`hops-weaklink-${i}`} title="The trusted account whose follow let a low-trust account into your network">
                                   Weak link
                                 </span>
                               )}
                               {isEntryBad && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Low-trust / flagged account — reporting it disconnects it and anything downstream from your web of trust">
-                                  Flagged
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Low-trust account (scored low in your Web of Trust) — reporting it disconnects it and anything downstream. This reflects its score, not an existing report.">
+                                  Low trust
                                 </span>
                               )}
                             </div>
@@ -392,7 +392,7 @@ function WeakLinkNote({ scammerName }: { scammerName: string }) {
       </button>
       {open && (
         <p className="mt-2 text-[12.5px] leading-relaxed text-amber-900 dark:text-amber-200/90" data-testid="hops-weaklink-detail">
-          This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a flagged
+          This is an account you trust, but it follows <span className="font-semibold">{scammerName}</span> — a low-trust
           account. Likely an honest mistake, but it's how {scammerName} got into your network.{" "}
           <span className="font-semibold">Report {scammerName}</span> below to remove it — and anything hiding behind it —
           from your network.
@@ -412,7 +412,7 @@ function DirectFollowNote({ name }: { name: string }) {
       <p className="flex items-start gap-1.5 text-[12.5px] leading-relaxed text-rose-800 dark:text-rose-300">
         <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
         <span>
-          You follow <span className="font-semibold">{name}</span> directly — this flagged account is in your network
+          You follow <span className="font-semibold">{name}</span> directly — this low-trust account is in your network
           through your own follow. Review it, and if it's a scammer, report it (or unfollow) to cut it off.
         </span>
       </p>
