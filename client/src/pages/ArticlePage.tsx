@@ -206,7 +206,7 @@ export default function ArticlePage() {
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
-            <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
+            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
                 {ev.content || ""}
               </ReactMarkdown>
