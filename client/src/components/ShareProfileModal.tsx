@@ -59,11 +59,15 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
         data-testid="modal-share-profile"
       >
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
-          <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+          <DialogHeader className="space-y-0 text-left">
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">{invite ? "Grow your web" : "Web of Trust"}</span>
+              <div className="h-px w-10 bg-brand-link/30" />
+            </div>
+            <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
               {invite ? "Invite to Brainstorm" : "Share this profile"}
             </DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
               {invite
                 ? "Share your link — when someone joins through it, they start connected to you."
                 : "Reputation scored by real connections — not an algorithm."}

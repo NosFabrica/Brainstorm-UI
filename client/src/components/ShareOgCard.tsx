@@ -1,5 +1,4 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
 import { BadgeCheck } from "lucide-react";
 import { initialsFor } from "@/lib/profileDefaults";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -37,10 +36,7 @@ export function ShareOgCard({
       <div className="relative h-full w-full flex flex-col justify-between p-[5%]">
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BrainLogo size={22} className="text-brand-primary" />
-            <span className="text-[3.2cqw] font-bold tracking-tight text-brand-primary font-brand">Brainstorm</span>
-          </div>
+          <img src="/brand/wordmark.svg" alt="Brainstorm" draggable={false} className="h-[5cqw] w-auto select-none" />
           <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Web of Trust</span>
         </div>
 
