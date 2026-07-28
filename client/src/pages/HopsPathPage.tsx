@@ -3,13 +3,15 @@ import { useRoute, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, getCurrentUser } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap, logout } from "@/services/nostr";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
@@ -31,7 +33,8 @@ export default function HopsPathPage() {
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const relayHints = decoded?.relays || [];
 
-  const me = getCurrentUser();
+  const [me, setMe] = useCurrentUser();
+  const handleLogout = () => { logout(); setMe(null); };
   const fromPubkey = me?.pubkey || "";
   const toPubkey = decoded?.pubkey || "";
   const signedIn = hasSessionToken();
@@ -167,9 +170,11 @@ export default function HopsPathPage() {
           <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="hops-back">
             <ArrowLeft className="h-4 w-4" /> Back
           </Link>
-          <div className="ml-auto flex items-center gap-2">
-            <BrainLogo size={22} className="text-brand-primary" />
-            <span className="text-base font-bold text-brand-primary font-brand">Brainstorm</span>
+          <div className="ml-auto flex items-center gap-3">
+            <Link href="/" className="flex items-center" aria-label="Brainstorm home">
+              <Wordmark height={24} />
+            </Link>
+            {me && <AccountMenu user={me} onLogout={handleLogout} />}
           </div>
         </div>
       </header>

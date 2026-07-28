@@ -3,13 +3,15 @@ import { useRoute, Redirect, Link } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
 import { TrustScoreModal, useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
@@ -37,6 +39,8 @@ const PAGE = 20;
 
 export default function ConnectionListPage() {
   const [, params] = useRoute("/p/:id/:type");
+  const [me, setMe] = useCurrentUser();
+  const handleLogout = () => { logout(); setMe(null); };
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -173,10 +177,12 @@ export default function ConnectionListPage() {
           <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline" data-testid="conn-back">
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
           </Link>
-          <Link href="/" className="ml-auto flex items-center gap-2" data-testid="conn-brand">
-            <BrainLogo size={22} className="text-brand-primary" />
-            <span className="text-base font-bold tracking-tight text-brand-primary font-brand">Brainstorm</span>
-          </Link>
+          <div className="ml-auto flex items-center gap-3">
+            <Link href="/" className="flex items-center" data-testid="conn-brand">
+              <Wordmark height={24} />
+            </Link>
+            {me && <AccountMenu user={me} onLogout={handleLogout} />}
+          </div>
         </div>
       </header>
 
