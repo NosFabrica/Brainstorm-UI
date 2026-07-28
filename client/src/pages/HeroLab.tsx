@@ -21,6 +21,10 @@ const CANDIDATES = [
   { file: "cand-09.webp", src: "cdf43ffe…" },
   { file: "cand-10.webp", src: "d0983274…" },
   { file: "cand-12.webp", src: "fae82f83…" },
+  // New abstract/atmospheric direction (light + airy).
+  { file: "cand-14.webp", src: "88a779d6… salt-flat horizon" },
+  { file: "cand-15.webp", src: "4372d3ba… sunlit tree" },
+  { file: "cand-16.webp", src: "77a79d77… light rays" },
 ];
 
 /** Per-image Nodes layouts (guidelines p10): each picks a safe zone in that
