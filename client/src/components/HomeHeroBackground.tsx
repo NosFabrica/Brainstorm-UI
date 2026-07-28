@@ -29,9 +29,16 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
         style={{ background: "radial-gradient(120% 78% at 50% 40%, rgba(2,6,23,0.74) 0%, rgba(2,6,23,0.34) 50%, rgba(2,6,23,0) 100%)" }}
       />
 
-      {/* Gentle focus while a search is in progress — the photo recedes a touch
-          (one direction, no restless reveal). */}
-      {dimmed && <div className="absolute inset-0 bg-white/20 dark:bg-slate-950/30 transition-opacity duration-500" />}
+      {/* Focus while a search is in progress: the hero gently DEFOCUSES + dims so
+          the results take over — a calm depth-of-field step-back (iOS/macOS-style),
+          not a reveal. Persistent layer so it cross-fades smoothly (no snap). */}
+      <div
+        className={`absolute inset-0 transition-all duration-500 ease-out ${
+          dimmed
+            ? "bg-white/25 dark:bg-slate-950/40 backdrop-blur-[3px]"
+            : "bg-white/0 dark:bg-slate-950/0 backdrop-blur-0"
+        }`}
+      />
 
       {/* Clean fades so the header + footer dissolve into the page background. */}
       <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white dark:from-slate-950 to-transparent" />
