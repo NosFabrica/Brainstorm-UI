@@ -9,6 +9,13 @@ export interface HeroScene {
    * — e.g. "center 38%" keeps upper-body subjects in frame.
    */
   objectPosition?: string;
+  /**
+   * Optional CSS filter to normalize this scene's exposure toward the rest of
+   * the set — the source photos vary (airy outdoor vs moody indoor), so the
+   * darker ones get a brightness lift so no single slide reads "off". Applied to
+   * the <img> in both modes.
+   */
+  filter?: string;
 }
 
 /**
@@ -23,9 +30,9 @@ export const HERO_SCENES: HeroScene[] = [
   { light: "/brand/scenes/scene-01-light.webp", dark: "/brand/scenes/scene-01-dark.webp", objectPosition: "center 40%" },
   { light: "/brand/scenes/scene-02-light.webp", dark: "/brand/scenes/scene-02-dark.webp", objectPosition: "center 42%" },
   { light: "/brand/scenes/scene-03-light.webp", dark: "/brand/scenes/scene-03-dark.webp", objectPosition: "center 38%" },
-  { light: "/brand/scenes/scene-04-light.webp", dark: "/brand/scenes/scene-04-dark.webp", objectPosition: "center 40%" },
-  { light: "/brand/scenes/scene-05-light.webp", dark: "/brand/scenes/scene-05-dark.webp", objectPosition: "center 35%" },
-  { light: "/brand/scenes/scene-06-light.webp", dark: "/brand/scenes/scene-06-dark.webp", objectPosition: "center 45%" },
+  { light: "/brand/scenes/scene-04-light.webp", dark: "/brand/scenes/scene-04-dark.webp", objectPosition: "center 40%", filter: "brightness(1.16) contrast(0.97)" },
+  { light: "/brand/scenes/scene-05-light.webp", dark: "/brand/scenes/scene-05-dark.webp", objectPosition: "center 35%", filter: "brightness(1.16) contrast(0.97)" },
+  { light: "/brand/scenes/scene-06-light.webp", dark: "/brand/scenes/scene-06-dark.webp", objectPosition: "center 45%", filter: "brightness(1.24) contrast(0.95)" },
 ];
 
 /**
