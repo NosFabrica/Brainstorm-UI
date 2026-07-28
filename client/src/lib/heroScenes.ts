@@ -75,6 +75,5 @@ const REMOVED_FROM_LOGIN = ["scene-01-", "scene-02-", "scene-04-", "scene-06-"];
 export const LOGIN_HERO_SCENES: HeroScene[] = [
   ...HERO_SCENES.filter((s) => !REMOVED_FROM_LOGIN.some((k) => s.dark.includes(k))),
   { light: "/brand/hero.jpg", dark: "/brand/hero.jpg", objectPosition: "center" },
-  { light: "/brand/hero-2.jpg", dark: "/brand/hero-2.jpg", objectPosition: "center" },
   { light: "/brand/hero-3.jpg", dark: "/brand/hero-3.jpg", objectPosition: "center" },
 ];
