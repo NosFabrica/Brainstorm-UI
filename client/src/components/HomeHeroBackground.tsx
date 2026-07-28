@@ -22,7 +22,7 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
           (p18). Two layers toggled by the .dark class. */}
       <div
         className="absolute inset-0 dark:hidden"
-        style={{ background: "radial-gradient(120% 78% at 50% 40%, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.46) 50%, rgba(255,255,255,0.08) 100%)" }}
+        style={{ background: "radial-gradient(125% 95% at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.72) 100%)" }}
       />
       <div
         className="absolute inset-0 hidden dark:block"
