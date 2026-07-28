@@ -148,8 +148,9 @@ export default function HeroLab() {
   }, [i, n]);
 
   const cand = CANDIDATES[i];
-  // Same scrim curve as the live hero (reveal-on-search in light; fade in dark).
-  const scrim = searching ? "bg-white/60 dark:bg-slate-950/90" : "bg-white/80 dark:bg-slate-950/60";
+  // Same scrim curve as the live hero — reveal-on-search in BOTH themes: calm at
+  // rest (near-white in light, dim ink in dark), photo comes FORWARD on search.
+  const scrim = searching ? "bg-white/60 dark:bg-slate-950/40" : "bg-white/80 dark:bg-slate-950/75";
 
   return (
     <div className={dark ? "dark" : ""}>
