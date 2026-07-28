@@ -210,14 +210,15 @@ export default function ConnectionListPage() {
               <SlidersHorizontal className="h-4 w-4" />
             </button>
           </div>
-          {/* Subtitle + the POV lens. The perspective sits ABOVE the tier/sort
-              filters (it reframes every score and the tier buckets themselves),
-              stays visible while scanning, and drives the sitewide store. */}
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            {!loading && items.length > 0 && (
-              <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
-            )}
-            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="ml-auto shrink-0" />
+          {!loading && items.length > 0 && (
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+          )}
+          {/* The POV lens sits LEFT, in the primary reading path, on its own line
+              (both breakpoints) — it reframes every score and the tier buckets,
+              so it reads as the list's lens, not a right-rail utility like the
+              filter. Left-aligned = one clean content edge + better discovery. */}
+          <div className="mt-3">
+            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="shrink-0" />
           </div>
 
           {filtersOpen && (
