@@ -26,7 +26,7 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
         style={{ background: "radial-gradient(125% 95% at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.72) 100%)" }}
       />
       <div
-        className={`absolute inset-0 hidden dark:block transition-opacity duration-500 ease-out ${dimmed ? "opacity-[0.6]" : "opacity-100"}`}
+        className={`absolute inset-0 hidden dark:block transition-opacity duration-500 ease-out ${dimmed ? "opacity-[0.52]" : "opacity-100"}`}
         style={{ background: "radial-gradient(130% 100% at 50% 42%, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0.70) 55%, rgba(2,6,23,0.58) 100%)" }}
       />
 
