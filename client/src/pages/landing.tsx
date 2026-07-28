@@ -632,7 +632,7 @@ export default function Landing() {
               <Wordmark height={52} variant={query.length > 0 ? "black" : "gradient"} className="mx-auto dark:hidden" />
               <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
             </h1>
-            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium drop-shadow-sm" data-testid="text-home-subtitle">
+            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium" data-testid="text-home-subtitle">
               Search through the people you trust.
             </p>
           </div>
@@ -781,11 +781,11 @@ export default function Landing() {
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
                               {getDisplayLabel(s)}
                             </p>
                             {handle && (
-                              <p className="text-[11px] text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
+                              <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
                                 <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                                 {handle}
                               </p>
@@ -934,7 +934,7 @@ export default function Landing() {
         <BackupReminder />
 
         {isSearching && (
-          <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
+          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
@@ -950,9 +950,9 @@ export default function Landing() {
         )}
 
         {!isSearching && hasSearched && results.length > 0 && (
-          <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
+          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
+              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
                 About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
             </div>
@@ -985,25 +985,25 @@ export default function Landing() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
                         </div>
                         {result.nip05 && (
-                          <p className="text-[10px] sm:text-[11px] text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
+                          <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
                             <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                             {result.nip05.replace(/^_@/, "")}
                           </p>
                         )}
                         {result.lud16 && (
-                          <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
-                            <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
+                            <Zap className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
                             {result.lud16}
                           </p>
                         )}
                         {websiteDisplay && (
-                          <p className="text-[10px] sm:text-[11px] text-emerald-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
-                            <Globe className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
+                            <Globe className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
                             <a
                               href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
                               target="_blank"
@@ -1074,7 +1074,7 @@ export default function Landing() {
 
       {/* Footer (Google-search pattern): secondary/info links sit quietly at the
           bottom, muted and small, so they never compete with the search box. */}
-      <footer className="relative z-10 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+      <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
         {[
           { label: "About", path: "/about" },
           { label: "How search works", path: "/how-search-works" },
