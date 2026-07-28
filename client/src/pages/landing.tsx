@@ -618,12 +618,13 @@ export default function Landing() {
       </header>
 
       <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10" : "justify-center -mt-10 sm:-mt-16"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center" style={{ animation: "homeFadeUp 0.5s ease-out" }}>
+        <div className="w-full max-w-2xl mx-auto text-center" style={prefersReducedMotion ? undefined : { animation: "homeFadeUp 0.5s ease-out" }}>
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8">
             <h1 className="mb-2.5" data-testid="text-home-title">
-              <span className="sr-only">Brainstorm</span>
+              {/* Wordmark <img> carries the "Brainstorm" accessible name (its
+                  alt), so no sr-only duplicate. */}
               {/* Website hero → wordmark. Light hero: the Aurora gradient at rest,
                   switching to Ink (#0A0E18) once the user starts typing — it reads
                   cleanly as the photo reveals behind the search. Dark hero: always
@@ -677,7 +678,7 @@ export default function Landing() {
                     }
                   }}
                   placeholder=""
-                  aria-label="Search profiles"
+                  aria-label="Search people, topics, or handles"
                   className="w-full bg-transparent text-slate-900 dark:text-slate-100 text-base outline-none py-1.5 min-w-0"
                   autoFocus={!hasSearched}
                   role="combobox"
@@ -714,6 +715,7 @@ export default function Landing() {
                 )}
                 <button
                   type="submit"
+                  aria-label="Search"
                   // Disabled only while a search is in flight — at rest (even
                   // with an empty box) the button stays solid Aurora Purple
                   // (#7237ff) instead of washing out to a faded lavender.
@@ -820,7 +822,7 @@ export default function Landing() {
           </div>
 
           {!user ? (
-            <div className="mt-6 flex flex-col items-center gap-2.5" data-testid="text-home-hint">
+            <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
               {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill (guidelines homepage). */}
               <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
@@ -829,7 +831,7 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => setLocation("/login")}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:text-brand-deep dark:hover:text-white"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                   data-testid="toggle-home-pov-signin"
                 >
                   <UserRound className="h-3 w-3" /> My perspective
@@ -838,14 +840,14 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-xs text-brand-link hover:underline transition-colors"
+                className="text-xs text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="link-home-learn-more"
               >
                 What is this?
               </button>
             </div>
           ) : (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs" data-testid="text-home-hint">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
               {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill — the active segment
                   carries the Aurora gradient fill. */}
               <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5" data-testid="toggle-home-pov">
@@ -902,7 +904,7 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors"
+                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                   data-testid="link-home-calculate-yours"
                 >
                   Calculate yours <ArrowRight className="h-3 w-3" />
@@ -912,7 +914,7 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-brand-link hover:underline transition-colors"
+                className="text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="link-home-learn-more"
               >
                 What is this?
@@ -959,14 +961,19 @@ export default function Landing() {
                 const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                 const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                 return (
-                  <button
+                  <div
                     key={result.pubkey}
-                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
+                    role="button"
+                    tabIndex={0}
+                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                     onMouseEnter={() => handlePrefetchEnter(result)}
                     onMouseLeave={() => handlePrefetchLeave(result)}
                     onFocus={() => handlePrefetchEnter(result)}
                     onBlur={() => handlePrefetchLeave(result)}
                     onClick={() => goToProfile(result)}
+                    // Only the card itself (not a bubbled keypress from the inner
+                    // website link / copy button) navigates on Enter/Space.
+                    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToProfile(result); } }}
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
@@ -1028,15 +1035,15 @@ export default function Landing() {
                           )}
                           <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
                             {result.npub.slice(0, 12)}...
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer"
+                            <button
+                              type="button"
+                              aria-label="Copy npub"
+                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                               data-testid={`button-copy-npub-${idx}`}
                               onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
                             >
                               <Copy className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
-                            </span>
+                            </button>
                           </span>
                         </div>
                       </div>
@@ -1044,7 +1051,7 @@ export default function Landing() {
                         View →
                       </span>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1078,7 +1085,7 @@ export default function Landing() {
             key={l.path}
             type="button"
             onClick={() => setLocation(l.path)}
-            className="font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white"
+            className="font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
             data-testid={`footer-home-${l.path.slice(1)}`}
           >
             {l.label}
