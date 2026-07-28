@@ -217,7 +217,7 @@ export default function ConnectionListPage() {
             {!loading && items.length > 0 && (
               <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
             )}
-            <PovToggle canPersonalize={signedIn && calcDone} className="ml-auto shrink-0" />
+            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="ml-auto shrink-0" />
           </div>
 
           {filtersOpen && (

@@ -10,6 +10,8 @@ import {
 import { useActivePov } from "@/hooks/useActivePov";
 import { hasSessionToken } from "@/services/api";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,44 +77,56 @@ export function PovTag({ pov }: { pov: ScorePov }) {
  * there's only one perspective — we state it honestly with a static Global tag
  * instead of a dead switch.
  */
-export function PovToggle({ canPersonalize, className }: { canPersonalize: boolean; className?: string }) {
+export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersonalize: boolean; avatarUrl?: string; className?: string }) {
   const { pov, setPersonalized } = useScorePov();
-  if (!canPersonalize) return <PovTag pov="global" />;
-  const active: ScorePov = pov === "personalized" ? "personalized" : "global";
-  const opts = [
-    { key: "global" as const, label: "Brainstorm", Icon: Globe },
-    { key: "personalized" as const, label: "My view", Icon: UserRound },
-  ];
+
+  // Mirror the homepage POV pill (landing.tsx): an Aurora-gradient-washed
+  // container, the ACTIVE segment carrying the solid Aurora fill, the Brainstorm
+  // side rendered as the wordmark ("Brainstorm view"), and the personal side
+  // carrying the viewer's own avatar. Same visual language everywhere the POV is
+  // switched, so it reads as one control.
+  const wrap = "inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5";
+  const seg = "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const activeSeg = "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm";
+  const idleSeg = "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white";
+
+  // No personal Web of Trust yet → Brainstorm's view is the only perspective, so
+  // state it as the single active branded chip instead of a dead two-way switch.
+  if (!canPersonalize) {
+    return (
+      <span className={cn(wrap, className)} data-testid="pov-toggle-static">
+        <span className={cn(seg, activeSeg)}>
+          <img src="/brand/wordmark-white.svg" alt="Brainstorm" className="h-3.5 w-auto select-none" /> view
+        </span>
+      </span>
+    );
+  }
+
+  const personalized = pov === "personalized";
   return (
-    <div
-      role="group"
-      aria-label="Trust perspective"
-      className={cn("inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5", className)}
-      data-testid="pov-toggle"
-    >
-      {opts.map(({ key, label, Icon }) => {
-        const on = active === key;
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setPersonalized(key === "personalized")}
-            aria-pressed={on}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors",
-              on
-                ? key === "personalized"
-                  ? "bg-brand-primary/10 text-brand-primary dark:text-brand-link"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300",
-            )}
-            data-testid={`pov-toggle-${key}`}
-          >
-            <Icon className={cn("h-3 w-3", on && key === "personalized" && "text-brand-primary")} />
-            {label}
-          </button>
-        );
-      })}
+    <div role="group" aria-label="Trust perspective" className={cn(wrap, className)} data-testid="pov-toggle">
+      <button
+        type="button"
+        onClick={() => setPersonalized(false)}
+        aria-pressed={!personalized}
+        className={cn(seg, !personalized ? activeSeg : idleSeg)}
+        data-testid="pov-toggle-global"
+      >
+        <img src={!personalized ? "/brand/wordmark-white.svg" : "/brand/wordmark.svg"} alt="Brainstorm" className="h-3.5 w-auto select-none" /> view
+      </button>
+      <button
+        type="button"
+        onClick={() => setPersonalized(true)}
+        aria-pressed={personalized}
+        className={cn(seg, personalized ? activeSeg : idleSeg)}
+        data-testid="pov-toggle-personalized"
+      >
+        <Avatar className="h-4 w-4 shrink-0">
+          {avatarUrl ? <AvatarImage src={avatarUrl} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+        </Avatar>
+        My perspective
+      </button>
     </div>
   );
 }
