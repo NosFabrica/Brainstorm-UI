@@ -9,19 +9,24 @@ try {
   }
 } catch {}
 
-export const PRESET_THRESHOLDS: Record<TrustPreset, number> = {
-  relax: 0.00,
-  default: 0.02,
-  strict: 0.15,
-};
+// No flat per-preset "verified threshold" here, deliberately: a preset carries
+// three per-relationship cutoffs (follower / muter / reporter) that the server
+// resolves, and flattening them to one number is what made the page disagree
+// with the profile's published Trusted Assertion. Ask the backend — section
+// counts from /stats, per-row verdicts from `verified`/`tier` on /connections.
+
+// The DEFAULT preset's follower cutoff, mirroring `DEFAULT_VERIFIED_THRESHOLD`
+// in `app/core/tier_thresholds.py`. ONLY for badges handed a bare score with no
+// observer context (note cards, search rows, OG images) — there's no response to
+// read a `verified`/`tier` off. Wherever the backend can answer, use its answer.
+export const DEFAULT_VERIFIED_LINE = 0.02;
 
 // Tier-band lower bounds. Keys match the GR `count_values` / backend
 // `ConnectionTierCounts` bucket names — each value is the lower bound of
 // the bucket it names (influence >= TIER_THRESHOLDS.high → tier "high",
 // >= .medium_high → tier "medium_high", etc.). Kept in sync with
-// `app/core/tier_thresholds.py` on the backend.
-// Currently NOT preset-driven — only verified_threshold (above) moves with
-// preset.
+// `app/core/tier_thresholds.py` on the backend. Fixed, not preset-driven —
+// the preset moves the verified line under them, which is the server's call.
 export const TIER_THRESHOLDS = {
   high: 0.50,
   medium_high: 0.20,
@@ -74,10 +79,6 @@ export function setActivePreset(preset: TrustPreset): void {
   try {
     localStorage.setItem(STORAGE_KEY, preset);
   } catch {}
-}
-
-export function getVerifiedThreshold(): number {
-  return PRESET_THRESHOLDS[getActivePreset()];
 }
 
 const PRESET_DISPLAY_LABEL: Record<TrustPreset, string> = {

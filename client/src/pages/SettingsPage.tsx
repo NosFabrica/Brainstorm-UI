@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { setActivePreset, presetToBackend, presetDisplayLabel, presetDisplayLabelFromBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { presetDisplayLabel, presetDisplayLabelFromBackend, type TrustPreset } from "@/services/trustThreshold";
 import { PresetBadge } from "@/components/PresetBadge";
-import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
+import { useTrustPresetSync, useSetTrustPreset } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -158,20 +158,14 @@ export default function SettingsPage() {
   const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
   const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
 
-  const setPresetMutation = useMutation({
-    mutationFn: (preset: TrustPreset) => apiClient.setGrapeRankPreset(presetToBackend(preset)),
+  const setPresetMutation = useSetTrustPreset({
+    pubkey: user?.pubkey,
     onMutate: (preset) => {
       const previous = optimisticPreset;
       setOptimisticPreset(preset);
       return { previous };
     },
-    onSuccess: (_data, preset) => {
-      setActivePreset(preset);
-      const key = trustPresetQueryKey(user?.pubkey);
-      queryClient.setQueryData(key, {
-        data: { preset: presetToBackend(preset) },
-      });
-      queryClient.invalidateQueries({ queryKey: key });
+    onSettledOk: (preset) => {
       setOptimisticPreset(null);
       const lastResult = queryClient.getQueryData<any>(["/user/graperankResult"]);
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
@@ -186,7 +180,7 @@ export default function SettingsPage() {
       });
     },
     onError: (error, _preset, context) => {
-      setOptimisticPreset(context?.previous ?? null);
+      setOptimisticPreset((context as { previous?: TrustPreset } | undefined)?.previous ?? null);
       toast({
         variant: "destructive",
         title: "Couldn't save preset",
@@ -1074,7 +1068,10 @@ export default function SettingsPage() {
 
       <div className="p-5 space-y-4">
         <p className="text-sm text-slate-600 leading-relaxed" data-testid="text-presets-desc">
-          Adjust how strict the verified threshold is across Brainstorm. This controls which accounts appear as "verified" on Dashboard, Network, and Profile pages.
+          How strict your web of trust is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
+        </p>
+        <p className="text-xs text-slate-500 leading-relaxed" data-testid="text-presets-persistence">
+          Saved to your account, so it follows you across devices. Your published Trusted Assertions keep the old numbers until your next calculation.
         </p>
 
         {presetLoading && !serverPreset ? (

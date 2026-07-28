@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PageHeader } from "@/components/PageHeader";
-import { getVerifiedThreshold, PRESET_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -349,11 +349,8 @@ export default function DashboardPage() {
   // stable across `trustPreset` lifecycle transitions.
   const overviewQuery = useSelfOverview(user?.pubkey);
   const historyQuery = useSelfHistory(user?.pubkey);
-  // Stats verified/tier counts DO depend on threshold. Derive from the
-  // server-confirmed preset (stable) rather than `getVerifiedThreshold()`
-  // (which reads localStorage and can flip mid-mount).
-  const statsThreshold = trustPreset ? PRESET_THRESHOLDS[trustPreset] : undefined;
-  const statsQuery = useSelfStats(user?.pubkey, statsThreshold !== undefined ? { verified_threshold: statsThreshold } : undefined);
+  // Preset-driven server-side; a preset change invalidates this query.
+  const statsQuery = useSelfStats(user?.pubkey);
 
   const grapeRankQuery = useQuery({
     queryKey: ["/user/graperankResult"],

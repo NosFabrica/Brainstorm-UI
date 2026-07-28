@@ -22,8 +22,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BrainLogo } from "@/components/BrainLogo";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
-import { toPubkeys, toInfluenceMap } from "@/services/graphHelpers";
+import { toPubkeys } from "@/services/graphHelpers";
 import {
   detailMetrics,
   metricIcons,
@@ -114,25 +113,13 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     });
   }, [memberGroups, socialListsLoading, isFollowingUser, isMutedUser]);
 
-  const getVerifiedFlagCounts = () => {
-    if (!graphData) return { verifiedMuters: 0, verifiedReporters: 0 };
-    const TA_THRESHOLD = getVerifiedThreshold();
-    let verifiedMuters = 0;
-    let verifiedReporters = 0;
-    for (const muterPk of graphData.muted_by || []) {
-      const score = trustCacheRef.current?.get(muterPk);
-      if (typeof score === "number" && score >= TA_THRESHOLD) verifiedMuters++;
-    }
-    for (const reporterPk of graphData.reported_by || []) {
-      const score = trustCacheRef.current?.get(reporterPk);
-      if (typeof score === "number" && score >= TA_THRESHOLD)
-        verifiedReporters++;
-    }
-    return { verifiedMuters, verifiedReporters };
-  };
-
+  // Straight from /stats: muters and reporters clear different preset cutoffs.
+  // The old local count compared one flat threshold against whichever muters
+  // happened to be in the list's trust cache — wrong bar and partial
+  // denominator. Zero until stats arrive for this row.
   const renderVerifiedFlags = () => {
-    const { verifiedMuters, verifiedReporters } = getVerifiedFlagCounts();
+    const verifiedMuters = stats?.muted_by?.verified ?? 0;
+    const verifiedReporters = stats?.reported_by?.verified ?? 0;
     if (verifiedMuters === 0 && verifiedReporters === 0) return null;
     return (
       <div
@@ -157,8 +144,8 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               <p className="text-xs leading-relaxed">
                 {verifiedMuters} verified{" "}
                 {verifiedMuters === 1 ? "user has" : "users have"} muted this
-                account. Verified users have a trust assertion score of 0.01 or
-                above.
+                account. "Verified" is your trust preset's muter cutoff — change
+                the preset in Settings and this number moves with it.
               </p>
             </TooltipContent>
           </UITooltip>
@@ -181,8 +168,8 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               <p className="text-xs leading-relaxed">
                 {verifiedReporters} verified{" "}
                 {verifiedReporters === 1 ? "user has" : "users have"} reported
-                this account. Verified users have a trust assertion score of
-                0.01 or above.
+                this account. "Verified" is your trust preset's reporter cutoff
+                — change the preset in Settings and this number moves with it.
               </p>
             </TooltipContent>
           </UITooltip>
@@ -464,11 +451,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                     m.key === "following" ||
                     m.key === "muted_by" ||
                     m.key === "reported_by";
-                  // Prefer server-side stats (accurate over the full set) for
-                  // verified-vs-total display. Fall back to per-pubkey
-                  // influence map derived from a seed array when stats
-                  // haven't landed yet — that path still works for
-                  // muted_by/reported_by from the eager trust-score pass.
+                  // Verified counts come from /stats only — they're the
+                  // observer's saved preset applied to the full relationship.
+                  // Until stats land we show the plain total rather than a
+                  // count derived from a threshold this side invented.
                   const serverStat = isVerifiable ? stats?.[m.key] : undefined;
                   let count = Array.isArray(raw)
                     ? toPubkeys(raw).length
@@ -476,23 +462,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
                       ? raw
                       : 0;
                   let verifiedCount = 0;
-                  let hasVerifiedData = false;
+                  const hasVerifiedData = !!serverStat;
                   if (serverStat) {
                     count = serverStat.total;
                     verifiedCount = serverStat.verified;
-                    hasVerifiedData = true;
-                  } else if (isVerifiable && Array.isArray(raw)) {
-                    const infMap = toInfluenceMap(raw);
-                    infMap.forEach((score) => {
-                      if (
-                        typeof score === "number" &&
-                        score >= getVerifiedThreshold()
-                      )
-                        verifiedCount++;
-                    });
-                    hasVerifiedData =
-                      infMap.size > 0 &&
-                      Array.from(infMap.values()).some((v) => v !== null);
                   }
                   return (
                     <div

@@ -10,7 +10,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
 import { fetchProfileMap } from "@/services/nostr";
-import { getActivePreset, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { getActivePreset, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 
@@ -24,6 +24,15 @@ const SORTS: { key: SortMode; label: string }[] = [
   { key: "top", label: "Top" },
   { key: "latest", label: "Latest" },
 ];
+// Page-local floors for ranking relay notes by their author's score — a "how
+// noisy a feed do you want" knob with no backend equivalent. NOT the verified
+// line, which is per-relationship and server-owned (see trustThreshold.ts).
+const STRICTNESS_FLOOR: Record<TrustPreset, number> = {
+  relax: 0.0,
+  default: 0.02,
+  strict: 0.15,
+};
+
 const PRESETS: { key: TrustPreset; label: string }[] = [
   { key: "relax", label: "Relax" },
   { key: "default", label: "Default" },
@@ -99,7 +108,7 @@ export default function HashtagPage() {
 
   // Page-local filter + sort: strictness (threshold) and Top/Latest re-apply instantly.
   const events = useMemo(
-    () => rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[preset], sort),
+    () => rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[preset], sort),
     [candidates, scores, preset, sort],
   );
   const voiceCount = useMemo(() => new Set(events.map((e) => e.pubkey)).size, [events]);
