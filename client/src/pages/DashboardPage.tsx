@@ -2221,12 +2221,12 @@ export default function DashboardPage() {
                     <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">
                       The Power of Transitive Trust
                     </h3>
-                    <Badge variant="secondary" className="hidden sm:flex bg-brand-primary/10 text-brand-link border border-brand-primary/20 backdrop-blur-md shadow-sm">
+                    <Badge variant="secondary" className="hidden sm:flex bg-brand-primary/15 text-[#a78bfa] border border-brand-primary/25 backdrop-blur-md shadow-sm">
                       Graph Theory
                     </Badge>
                   </div>
-                  <p className="text-base sm:text-lg text-brand-link leading-relaxed max-w-2xl font-light">
-                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-brand-primary/[0.3] pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-brand-link italic">Trust flows through your connections.</span>
+                  <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl font-light">
+                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-brand-primary/[0.3] pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-[#a78bfa] italic">Trust flows through your connections.</span>
                   </p>
                 </div>
 
