@@ -10,9 +10,11 @@ import { HOME_HERO_SCENES } from "@/lib/heroScenes";
 export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-home-hero">
-      {/* Theme-aware rotating Human-Signal photography: the high-key/faded
-          variant in light mode, the moody lit-constellation variant on Ink. */}
-      <HeroSceneRotator variant="auto" scenes={HOME_HERO_SCENES} />
+      {/* One rich photo per scene (the full-exposure variant) — the SCRIM below
+          does all the light/dark adaptation + reveal-on-search, exactly like the
+          original hero.jpg. Avoids the double-fade the pre-faded light variants
+          caused in light mode. */}
+      <HeroSceneRotator variant="dark" scenes={HOME_HERO_SCENES} />
       {/* Theme-adaptive scrim (guidelines p18 Dark / p19 Light). LIGHT: a clean
           wash at rest, the photo REVEALS — comes forward — while searching. DARK:
           prominent photo on Ink at rest (p18), fading while searching so results
@@ -22,7 +24,7 @@ export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
           steps like /92 or /55 generate NO rule (transparent). */}
       <div
         className={`absolute inset-0 transition-colors duration-700 ${
-          dimmed ? "bg-white/60 dark:bg-slate-950/90" : "bg-white/70 dark:bg-slate-950/60"
+          dimmed ? "bg-white/50 dark:bg-slate-950/90" : "bg-white/70 dark:bg-slate-950/60"
         }`}
       />
       {/* Aurora glow behind the hero for brand cohesion + legibility. */}
