@@ -108,7 +108,7 @@ export function HeroSceneRotator({
           loading={i === 0 ? "eager" : "lazy"}
           fetchPriority={i === 0 ? "high" : "low"}
           decoding="async"
-          style={{ objectPosition }}
+          style={{ objectPosition: s.objectPosition ?? objectPosition }}
           className={cn(
             "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
             reduced ? "duration-0" : "duration-1000",

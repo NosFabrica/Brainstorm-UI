@@ -9,8 +9,12 @@ panel (`pages/LoginPage.tsx`), via the manifest in
 
 ## Naming
 
-`<scene>-light.<ext>` and `<scene>-dark.<ext>` — same base name per pair.
-`.webp` preferred (smaller); `.jpg` fine. Target ~1920px wide, <400KB each.
+`<scene>-light.webp` and `<scene>-dark.webp` — same base name per pair. Stored
+as 1920w WebP (~25–130KB each; the 4K originals from the designer are overkill
+for a scrimmed hero). Per-scene crop framing is tuned via `objectPosition` in
+the manifest. To add a scene, drop a `-light`/`-dark` pair and add a row to
+`heroScenes.ts`. Regenerate from a 4K source with:
+`cwebp -q 80 -resize 1920 0 src.jpg -o scene-NN-dark.webp`.
 
 Scenes seen in the drop (rename to these, or drop as-is and tell me the names):
 
