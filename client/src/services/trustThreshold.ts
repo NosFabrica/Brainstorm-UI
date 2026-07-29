@@ -68,9 +68,19 @@ export function presetToBackend(preset: TrustPreset): "PERMISSIVE" | "DEFAULT" |
   return PRESET_TO_BACKEND[preset];
 }
 
+// Scope the preference per signed-in pubkey (or "anon" when logged out) so a
+// second account on the same browser doesn't inherit or overwrite the first
+// one's filter setting. Pubkey read straight from the stored session to avoid a
+// service import cycle.
+function scopedKey(): string {
+  let who = "anon";
+  try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || "anon"; } catch {}
+  return `${STORAGE_KEY}:${who}`;
+}
+
 export function getActivePreset(): TrustPreset {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(scopedKey());
     if (stored === "relax" || stored === "default" || stored === "strict") return stored;
   } catch {}
   return "default";
@@ -78,7 +88,7 @@ export function getActivePreset(): TrustPreset {
 
 export function setActivePreset(preset: TrustPreset): void {
   try {
-    localStorage.setItem(STORAGE_KEY, preset);
+    localStorage.setItem(scopedKey(), preset);
   } catch {}
 }
 
