@@ -1656,14 +1656,17 @@ export default function DashboardPage() {
             <DashboardLookup />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 lg:auto-rows-min">
+          {/* Flagship main + sidebar: Network Alerts (2/3) beside a right column
+              stacking Social Graph + Extended Reach (1/3). Flex (not grid) so the
+              two columns size to their own content — the alerts list never has to
+              match the taller sidebar's height. Stacks on mobile. */}
+          <div className="flex flex-col lg:flex-row gap-4 mb-6 lg:items-start">
 
-            {/* Flagship: Network Alerts spans a large left cell; Social Graph +
-                Extended Reach stack in the right column (bento priority). */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:col-span-2 lg:row-span-2">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:w-2/3">
               <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
 
+            <div className="flex flex-col gap-4 lg:w-1/3">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
                 className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
@@ -1839,6 +1842,7 @@ export default function DashboardPage() {
                 </div>
               </Card>
             </motion.div>
+            </div>
           </div>
 
           {!hasNoFollowing && (
