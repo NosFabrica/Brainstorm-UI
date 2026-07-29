@@ -1692,7 +1692,10 @@ export default function DashboardPage() {
               What was a full-bleed marketing band plus a ~420px client carousel is
               now one quiet row: education stays one click away for anyone who wants
               it, without a billboard between the feed and the footer. */}
-          <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200/70 dark:border-slate-800/60 pt-4 text-xs" data-testid="dashboard-footer-strip">
+          {/* Stacks centered on mobile (no awkward left/right split), settles into
+              one spaced row on desktop. The client list is its own centered line
+              so it never collides with the two links. */}
+          <div className="mb-8 flex flex-col items-center gap-3 border-t border-slate-200/70 dark:border-slate-800/60 pt-4 text-xs sm:flex-row sm:justify-between sm:gap-6" data-testid="dashboard-footer-strip">
             <button
               type="button"
               onClick={() => navigate("/what-is-wot")}
@@ -1701,14 +1704,14 @@ export default function DashboardPage() {
             >
               How trust works <ArrowRight className="h-3 w-3" />
             </button>
-            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-slate-400 dark:text-slate-500">
               <span>Works with</span>
               <span className="font-medium text-slate-500 dark:text-slate-400">Amethyst · Ditto · Nostria · Primal</span>
             </div>
             <button
               type="button"
               onClick={() => navigate("/nostr")}
-              className="ml-auto font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+              className="font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
               data-testid="link-supported-clients"
             >
               See all clients →
