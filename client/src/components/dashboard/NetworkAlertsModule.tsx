@@ -19,7 +19,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertSet, ignoreAlert, unignoreAlert } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertSet, ignoreAlert, ignoreAlerts, unignoreAlert, unignoreAlerts, hydrateIgnoredFromNostr } from "@/lib/networkAlertsIgnored";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -61,7 +61,14 @@ export function useAlertActions(observer: string) {
   const { toast } = useToast();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [ignored, setIgnored] = useState<Set<string>>(() => ignoredAlertSet(observer));
-  useEffect(() => { setIgnored(ignoredAlertSet(observer)); }, [observer]);
+  useEffect(() => {
+    // Local copy paints immediately; the account's encrypted NIP-78 list merges
+    // in when it arrives, so a dismissal made on another device carries over.
+    setIgnored(ignoredAlertSet(observer));
+    let live = true;
+    void hydrateIgnoredFromNostr(observer).then((merged) => { if (live) setIgnored(merged); }).catch(() => {});
+    return () => { live = false; };
+  }, [observer]);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,11 +83,29 @@ export function useAlertActions(observer: string) {
   function handleIgnore(pubkey: string, name: string) {
     setIgnored(ignoreAlert(observer, pubkey));
     toast({
+      // The main barrier to using Ignore is fear that it does something public —
+      // so the toast leads with what it does NOT do.
       title: `Ignored ${name}`,
-      description: "Hidden from your alerts. No changes were published.",
+      description: "Hidden from your alerts. Nothing was published and they won't be notified.",
       duration: 6000,
       action: (
         <ToastAction altText="Undo ignore" onClick={() => setIgnored(unignoreAlert(observer, pubkey))}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  }
+
+  /** Bulk ignore (e.g. every flagged account in extended reach) with a batch Undo. */
+  function handleIgnoreMany(pubkeys: string[], label: string) {
+    if (pubkeys.length === 0) return;
+    setIgnored(ignoreAlerts(observer, pubkeys));
+    toast({
+      title: `Ignored ${pubkeys.length} ${label}`,
+      description: "Hidden from your alerts. Nothing was published and they won't be notified.",
+      duration: 8000,
+      action: (
+        <ToastAction altText="Undo ignore" onClick={() => setIgnored(unignoreAlerts(observer, pubkeys))}>
           Undo
         </ToastAction>
       ),
@@ -199,7 +224,7 @@ export function useAlertActions(observer: string) {
     </>
   );
 
-  return { dismissed, ignored, isHidden, actionsFor, dialogs: dialogs as ReactNode };
+  return { dismissed, ignored, isHidden, actionsFor, ignoreMany: handleIgnoreMany, dialogs: dialogs as ReactNode };
 }
 
 /**
@@ -241,8 +266,9 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
 
-  const { isHidden, actionsFor, dialogs } = useAlertActions(observer);
+  const { isHidden, actionsFor, ignoreMany, dialogs } = useAlertActions(observer);
   const [showExtended, setShowExtended] = useState(false);
+  const [confirmBulkIgnore, setConfirmBulkIgnore] = useState(false);
 
   // New-first within each section so a freshly-flagged account jumps to the top
   // (and carries the NEW tag) instead of hiding mid-list or in extended.
@@ -357,10 +383,24 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
               )}
               {restExtended.length > 0 && (
                 <>
-                  <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
-                    <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
-                    Also in your extended reach ({restExtended.length})
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
+                      <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
+                      Also in your extended reach ({restExtended.length})
+                    </button>
+                    {/* Extended reach is the high-volume, low-action bucket — clearing
+                        it one row at a time is unworkable, so it gets an explicit
+                        scoped bulk ignore. Deliberately NOT wired to "Mark all seen":
+                        acknowledging badges must never silently empty the queue. */}
+                    <button
+                      type="button"
+                      onClick={() => setConfirmBulkIgnore(true)}
+                      className="ml-auto text-[11px] font-semibold text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+                      data-testid="network-alerts-ignore-extended"
+                    >
+                      Ignore all
+                    </button>
+                  </div>
                   {showExtended && (
                     <div className="mt-1.5 space-y-1.5">
                       {restExtended.slice(0, EXT_CAP).map((e) => (
@@ -388,6 +428,32 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
           </button>
         </>
       )}
+
+      {/* Bulk ignore confirm — explicit, scoped, and reversible (batch Undo). */}
+      <AlertDialog open={confirmBulkIgnore} onOpenChange={setConfirmBulkIgnore}>
+        <AlertDialogContent data-testid="network-alerts-bulk-ignore-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ignore all {restExtended.length} in your extended reach?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They'll be hidden from your alerts. Nothing is published and no one is notified — this
+              only affects what you see. Your {visibleDirect.length} flagged {visibleDirect.length === 1 ? "follow" : "follows"} stay in the list, and you can bring
+              these back anytime from "Show ignored" on the alerts page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(ev) => {
+                ev.preventDefault();
+                ignoreMany(restExtended.map((e) => e.pubkey), "accounts in your extended reach");
+                setConfirmBulkIgnore(false);
+              }}
+            >
+              Ignore all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {dialogs}
     </Card>

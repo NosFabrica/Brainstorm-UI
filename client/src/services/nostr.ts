@@ -1,4 +1,4 @@
-import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
+import { nip19, nip44, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
 import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
@@ -838,6 +838,104 @@ export async function publishProfilePrefs(
     kind: 30078,
     tags: [["d", PROFILE_PREFS_D_TAG]],
     content: JSON.stringify(prefs),
+    created_at: Math.floor(Date.now() / 1000),
+    pubkey: user.pubkey,
+  };
+  try {
+    const signed = await signEventLocally(event);
+    return await publishToRelays(signed);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+  }
+}
+
+// NIP-78 application-specific data: the user's PRIVATE Network-Alerts prefs
+// (today: the "ignored" list). Unlike profile-prefs above this is NOT public —
+// which flagged accounts you chose to dismiss is your own moderation state, and
+// publishing it in the clear would leak those decisions (and read as an
+// association with them). So the content is NIP-44 encrypted to yourself: still
+// portable across your devices/clients, readable only by your key.
+export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
+
+/** NIP-44 encrypt to self — extension path first (we never see the key), else
+ *  the locally-held key. Returns null when no signer can encrypt. */
+async function encryptToSelf(plaintext: string): Promise<string | null> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return null;
+  const ext = (window as any).nostr?.nip44;
+  if (ext?.encrypt) {
+    try { return await ext.encrypt(user.pubkey, plaintext); } catch { /* fall through */ }
+  }
+  try {
+    await ensureUnlocked();
+    const sk = getStoredSecretKey();
+    if (!sk) return null;
+    return nip44.v2.encrypt(plaintext, nip44.v2.utils.getConversationKey(sk, user.pubkey));
+  } catch {
+    return null;
+  }
+}
+
+/** Inverse of `encryptToSelf`. Returns null when it can't be decrypted. */
+async function decryptFromSelf(ciphertext: string): Promise<string | null> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return null;
+  const ext = (window as any).nostr?.nip44;
+  if (ext?.decrypt) {
+    try { return await ext.decrypt(user.pubkey, ciphertext); } catch { /* fall through */ }
+  }
+  try {
+    await ensureUnlocked();
+    const sk = getStoredSecretKey();
+    if (!sk) return null;
+    return nip44.v2.decrypt(ciphertext, nip44.v2.utils.getConversationKey(sk, user.pubkey));
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
+export async function fetchAlertPrefs(timeoutMs = 6000): Promise<Record<string, unknown> | null> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return null;
+  try {
+    const relays = loadOutboxRelayListFromDb(user.pubkey, PROFILE_RELAYS);
+    const newest = await new Promise<any | null>((resolve) => {
+      let best: any = null;
+      const sub = pool.request(relays, {
+        kinds: [30078],
+        authors: [user.pubkey],
+        "#d": [ALERT_PREFS_D_TAG],
+      }).subscribe({
+        next: (event: any) => {
+          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) best = event;
+        },
+        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
+        complete: () => resolve(best),
+      });
+      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
+    });
+    const content = (newest as any)?.content;
+    if (!content) return null;
+    const plain = await decryptFromSelf(content);
+    if (!plain) return null;
+    return JSON.parse(plain);
+  } catch {
+    return null;
+  }
+}
+
+/** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
+export async function publishAlertPrefs(prefs: unknown): Promise<{ success: boolean; error?: string }> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  if (!window.nostr && !hasLocalSecretKey()) return { success: false, error: "No signer available" };
+  const ciphertext = await encryptToSelf(JSON.stringify(prefs));
+  if (!ciphertext) return { success: false, error: "Could not encrypt" };
+  const event = {
+    kind: 30078,
+    tags: [["d", ALERT_PREFS_D_TAG]],
+    content: ciphertext,
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
   };

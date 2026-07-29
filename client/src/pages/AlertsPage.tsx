@@ -133,15 +133,22 @@ export default function AlertsPage() {
         {/* Ignored accounts are hidden by default; this brings them back so nothing
             an "Ignore" click removed is ever permanently lost. */}
         {ignoredCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowIgnored((v) => !v)}
-            className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-            data-testid="alerts-show-ignored"
-          >
-            {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
-          </button>
+          <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <button
+              type="button"
+              onClick={() => setShowIgnored((v) => !v)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+              data-testid="alerts-show-ignored"
+            >
+              {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
+            </button>
+            {/* Says once, where it's actionable, what Ignore actually is — rather
+                than repeating the caveat in every toast. */}
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+              · Ignoring only changes what you see — nothing is published, and it syncs to your account.
+            </span>
+          </div>
         )}
 
         {/* Body */}
