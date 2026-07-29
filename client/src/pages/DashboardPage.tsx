@@ -1203,7 +1203,10 @@ export default function DashboardPage() {
               />
             )}
 
-            {(showOnboarding || isRecalculating) && (
+            {/* Recalculating (established users) no longer gets this full hero —
+                status shows via the top-right Trust signals card + the app-wide
+                ScoringStatusBar pill. Only brand-new onboarding keeps it. */}
+            {showOnboarding && (
               <div
                 className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-brand-primary border border-white/10 shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:shadow-[0_28px_70px_-20px_rgb(var(--brand-accent)/0.35)] overflow-hidden relative transition-shadow"
                 onMouseMove={handleMouseMove}
