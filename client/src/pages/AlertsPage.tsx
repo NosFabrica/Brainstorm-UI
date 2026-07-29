@@ -43,7 +43,7 @@ export default function AlertsPage() {
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  const { dismissed, ignored, actionsFor, dialogs } = useAlertActions(observer);
+  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer);
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<SortKey>("reports");
   const [query, setQuery] = useState("");
@@ -51,8 +51,12 @@ export default function AlertsPage() {
 
   // Acted-on accounts (unfollow/mute/report) always drop off; ignored ones drop
   // off too unless the user toggles "Show ignored".
-  const live = flagged.filter((e) => !dismissed.has(e.pubkey) && (showIgnored || !ignored.has(e.pubkey)));
-  const ignoredCount = flagged.filter((e) => ignored.has(e.pubkey) && !dismissed.has(e.pubkey)).length;
+  // Ignored accounts reappear on their own once reports climb sharply, so an
+  // escalated one counts as live even while it sits in the ignored set.
+  const isSuppressed = (e: NetworkAlertEntry) =>
+    ignored.has(e.pubkey) && !isEscalated(e.pubkey, e.verifiedReporterCount);
+  const live = flagged.filter((e) => !dismissed.has(e.pubkey) && (showIgnored || !isSuppressed(e)));
+  const ignoredCount = flagged.filter((e) => isSuppressed(e) && !dismissed.has(e.pubkey)).length;
   const followsCount = live.filter((e) => e.hops <= 1).length;
   const extendedCount = live.filter((e) => e.hops >= 2).length;
 
@@ -162,10 +166,10 @@ export default function AlertsPage() {
         ) : (
           <div className="space-y-1.5" data-testid="alerts-list">
             {rows.map((e) => (
-              <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1}
+              <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1} escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
                 onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
-                {...actionsFor(e.pubkey, nameFor(e.pubkey), {
+                {...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
                   picture: profiles.get(e.pubkey)?.picture,
                   nip05: profiles.get(e.pubkey)?.nip05,
                 })}

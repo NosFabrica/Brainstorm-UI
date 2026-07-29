@@ -18,7 +18,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertSet, ignoreAlert, ignoreAlerts, unignoreAlert, unignoreAlerts, hydrateIgnoredFromNostr } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, ignoreAlert, unignoreAlert, hydrateIgnoredFromNostr, hasEscalated } from "@/lib/networkAlertsIgnored";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -61,11 +61,11 @@ function isWidelyMuted(e: NetworkAlertEntry): boolean {
 export function useAlertActions(observer: string) {
   const { toast } = useToast();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [ignored, setIgnored] = useState<Set<string>>(() => ignoredAlertSet(observer));
+  const [ignored, setIgnored] = useState<Map<string, number | null>>(() => ignoredAlertMap(observer));
   useEffect(() => {
     // Local copy paints immediately; the account's encrypted NIP-78 list merges
     // in when it arrives, so a dismissal made on another device carries over.
-    setIgnored(ignoredAlertSet(observer));
+    setIgnored(ignoredAlertMap(observer));
     let live = true;
     void hydrateIgnoredFromNostr(observer).then((merged) => { if (live) setIgnored(merged); }).catch(() => {});
     return () => { live = false; };
@@ -79,15 +79,27 @@ export function useAlertActions(observer: string) {
   const [reportNote, setReportNote] = useState("");
   const [reporting, setReporting] = useState(false);
 
-  const isHidden = (pk: string) => dismissed.has(pk) || ignored.has(pk);
+  /**
+   * Acted-on accounts stay gone. Ignored ones stay hidden UNTIL their reports
+   * materially worsen — ignoring someone at 9 reports shouldn't blind you at 60.
+   */
+  const isHidden = (pk: string, currentReports: number) => {
+    if (dismissed.has(pk)) return true;
+    if (!ignored.has(pk)) return false;
+    return !hasEscalated(ignored.get(pk) ?? null, currentReports);
+  };
+  /** True when this row is back only because it got materially worse. */
+  const isEscalated = (pk: string, currentReports: number) =>
+    ignored.has(pk) && hasEscalated(ignored.get(pk) ?? null, currentReports);
+  const ignoredBaseline = (pk: string) => ignored.get(pk) ?? null;
 
-  function handleIgnore(pubkey: string, name: string) {
-    setIgnored(ignoreAlert(observer, pubkey));
+  function handleIgnore(pubkey: string, name: string, atReports: number) {
+    setIgnored(ignoreAlert(observer, pubkey, atReports));
     toast({
       // The main barrier to using Ignore is fear that it does something public —
       // so the toast leads with what it does NOT do.
       title: `Ignored ${name}`,
-      description: "Hidden from your alerts. Nothing was published and they won't be notified.",
+      description: "Hidden from your alerts \u2014 we'll only raise it again if the reports climb sharply. Nothing was published.",
       duration: 6000,
       action: (
         <ToastAction altText="Undo ignore" onClick={() => setIgnored(unignoreAlert(observer, pubkey))}>
@@ -97,21 +109,6 @@ export function useAlertActions(observer: string) {
     });
   }
 
-  /** Bulk ignore (e.g. every flagged account in extended reach) with a batch Undo. */
-  function handleIgnoreMany(pubkeys: string[], label: string) {
-    if (pubkeys.length === 0) return;
-    setIgnored(ignoreAlerts(observer, pubkeys));
-    toast({
-      title: `Ignored ${pubkeys.length} ${label}`,
-      description: "Hidden from your alerts. Nothing was published and they won't be notified.",
-      duration: 8000,
-      action: (
-        <ToastAction altText="Undo ignore" onClick={() => setIgnored(unignoreAlerts(observer, pubkeys))}>
-          Undo
-        </ToastAction>
-      ),
-    });
-  }
 
   async function runAction() {
     if (!pending) return;
@@ -143,8 +140,8 @@ export function useAlertActions(observer: string) {
     }
   }
 
-  const actionsFor = (pubkey: string, name: string, profile?: ActionProfile): RowActions => ({
-    onIgnore: () => handleIgnore(pubkey, name),
+  const actionsFor = (pubkey: string, name: string, atReports: number, profile?: ActionProfile): RowActions => ({
+    onIgnore: () => handleIgnore(pubkey, name, atReports),
     onUnfollow: () => setPending({ pubkey, name, action: "unfollow" }),
     onMute: () => setPending({ pubkey, name, action: "mute" }),
     onReport: () => {
@@ -255,7 +252,7 @@ export function useAlertActions(observer: string) {
     </>
   );
 
-  return { dismissed, ignored, isHidden, actionsFor, ignoreMany: handleIgnoreMany, dialogs: dialogs as ReactNode };
+  return { dismissed, ignored, isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs: dialogs as ReactNode };
 }
 
 /**
@@ -297,23 +294,18 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
 
-  const { isHidden, actionsFor, ignoreMany, dialogs } = useAlertActions(observer);
-  const [showExtended, setShowExtended] = useState(false);
-  const [confirmBulkIgnore, setConfirmBulkIgnore] = useState(false);
+  const { isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer);
 
   // New-first within each section so a freshly-flagged account jumps to the top
   // (and carries the NEW tag) instead of hiding mid-list or in extended.
   const newFirst = (arr: NetworkAlertEntry[]) =>
     [...arr].sort((a, b) => (newSet.has(b.pubkey) ? 1 : 0) - (newSet.has(a.pubkey) ? 1 : 0));
-  const visibleDirect = newFirst(direct.filter((e) => !isHidden(e.pubkey)));
-  const visibleExtended = newFirst(extended.filter((e) => !isHidden(e.pubkey)));
-  const newCount = [...visibleDirect, ...visibleExtended].filter((e) => newSet.has(e.pubkey)).length;
-  const flaggedCount = visibleDirect.length + visibleExtended.length;
-  // Extended reach can be large (up to 100). Pin the NEW ones (always visible) and
-  // cap the rest behind the toggle so the tile never balloons to a 100-row list.
-  const EXT_CAP = 6;
-  const newExtended = visibleExtended.filter((e) => newSet.has(e.pubkey));
-  const restExtended = visibleExtended.filter((e) => !newSet.has(e.pubkey));
+  const visibleDirect = newFirst(direct.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)));
+  // Extended reach is NOT a queue — it renders as a single count below, so it is
+  // deliberately not filtered by ignore state.
+  const extendedCount = extended.length;
+  const newCount = visibleDirect.filter((e) => newSet.has(e.pubkey)).length;
+  const flaggedCount = visibleDirect.length;
 
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
@@ -328,9 +320,10 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
     picture: profiles.get(e.pubkey)?.picture,
     isNew: newSet.has(e.pubkey),
     following: e.hops <= 1,
+    escalatedFrom: isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null,
     onDeepDive: () => navigate(`/profile/${npubFromPubkey(e.pubkey)}`),
     onWhy: () => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`),
-    ...actionsFor(e.pubkey, nameFor(e.pubkey), {
+    ...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
       picture: profiles.get(e.pubkey)?.picture,
       nip05: profiles.get(e.pubkey)?.nip05,
     }),
@@ -387,7 +380,7 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
           Couldn't scan your network.{" "}
           <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">Try again</button>
         </div>
-      ) : visibleDirect.length === 0 && visibleExtended.length === 0 ? (
+      ) : visibleDirect.length === 0 && extendedCount === 0 ? (
         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300" data-testid="network-alerts-clear">
           <ShieldCheck className="h-4 w-4 text-emerald-500" />
           Your network looks clean — no flagged accounts.
@@ -403,53 +396,25 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
             </div>
           )}
 
-          {visibleExtended.length > 0 && (
-            <div data-testid="network-alerts-extended">
-              {/* Newly-flagged extended accounts are always shown — never buried. */}
-              {newExtended.length > 0 && (
-                <div className="space-y-1.5 mb-1.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">New in your extended reach</p>
-                  {newExtended.map((e) => (
-                    <AlertRow key={e.pubkey} {...rowProps(e)} />
-                  ))}
-                </div>
-              )}
-              {restExtended.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
-                      <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
-                      Also in your extended reach ({restExtended.length})
-                    </button>
-                    {/* Extended reach is the high-volume, low-action bucket — clearing
-                        it one row at a time is unworkable, so it gets an explicit
-                        scoped bulk ignore. Deliberately NOT wired to "Mark all seen":
-                        acknowledging badges must never silently empty the queue. */}
-                    <button
-                      type="button"
-                      onClick={() => setConfirmBulkIgnore(true)}
-                      className="ml-auto text-[11px] font-semibold text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-                      data-testid="network-alerts-ignore-extended"
-                    >
-                      Ignore all
-                    </button>
-                  </div>
-                  {showExtended && (
-                    <div className="mt-1.5 space-y-1.5">
-                      {restExtended.slice(0, EXT_CAP).map((e) => (
-                        <AlertRow key={e.pubkey} {...rowProps(e)} />
-                      ))}
-                      {restExtended.length > EXT_CAP && (
-                        <p className="px-1 pt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                          +{restExtended.length - EXT_CAP} more flagged in your extended reach
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+          {/* Extended reach is a FACT about your neighbourhood, not a queue. 88
+              strangers you don't follow can't be meaningfully triaged, and
+              rendering them as actionable rows turned ambient context into
+              homework. One count, one link. */}
+          {extendedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate("/alerts?scope=extended")}
+              className="flex w-full items-center gap-2 rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/60 px-3 py-2 text-left transition-colors hover:border-slate-200 dark:hover:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="network-alerts-extended-stat"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+              <span className="text-xs text-slate-600 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{extendedCount}</span> flagged in your extended reach
+              </span>
+              <ArrowRight className="ml-auto h-3 w-3 shrink-0 text-slate-400" />
+            </button>
           )}
+
 
           <button
             type="button"
@@ -462,41 +427,16 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
         </>
       )}
 
-      {/* Bulk ignore confirm — explicit, scoped, and reversible (batch Undo). */}
-      <AlertDialog open={confirmBulkIgnore} onOpenChange={setConfirmBulkIgnore}>
-        <AlertDialogContent data-testid="network-alerts-bulk-ignore-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Ignore all {restExtended.length} in your extended reach?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Nothing is published and no one is notified — this only affects what you see.
-              {visibleDirect.length > 0 && (
-                <> Your {visibleDirect.length} flagged {visibleDirect.length === 1 ? "follow stays" : "follows stay"} in the list.</>
-              )}{" "}
-              You can bring these back anytime from "Show ignored" on the alerts page.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(ev) => {
-                ev.preventDefault();
-                ignoreMany(restExtended.map((e) => e.pubkey), "accounts in your extended reach");
-                setConfirmBulkIgnore(false);
-              }}
-            >
-              Ignore all
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {dialogs}
     </Card>
   );
 }
 
-export function AlertRow({ entry, name, picture, isNew, following, onDeepDive, onWhy, onIgnore, onUnfollow, onMute, onReport }: {
+export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom = null, onDeepDive, onWhy, onIgnore, onUnfollow, onMute, onReport }: {
   entry: NetworkAlertEntry; name: string; picture?: string; isNew: boolean; following: boolean;
+  /** Reports at the time this was ignored — set only when it came back worse. */
+  escalatedFrom?: number | null;
   onDeepDive: () => void; onWhy: () => void; onIgnore: () => void; onUnfollow: () => void; onMute: () => void; onReport: () => void;
 }) {
   const actionBtn = "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
@@ -514,13 +454,18 @@ export function AlertRow({ entry, name, picture, isNew, following, onDeepDive, o
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={onDeepDive} className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-brand-link focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">{name}</button>
             {isNew && <span className="shrink-0 rounded-full bg-red-500 text-white px-1.5 py-0.5 text-[9px] font-bold leading-none" data-testid="network-alert-new">NEW</span>}
+            {escalatedFrom != null && (
+              <span className="shrink-0 rounded-full bg-red-500 text-white px-1.5 py-0.5 text-[9px] font-bold leading-none" data-testid="network-alert-escalated">WORSE</span>
+            )}
             <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-1.5 py-0.5 text-[9px] font-bold" data-testid="network-alert-reported">
               <AlertTriangle className="h-2.5 w-2.5" />Reported · {entry.verifiedReporterCount}
             </span>
             {isWidelyMuted(entry) && <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold"><VolumeX className="h-2.5 w-2.5" />muted</span>}
           </div>
           <button type="button" onClick={onWhy} className="block truncate text-left text-[11px] text-slate-500 dark:text-slate-400 hover:text-brand-link hover:underline" data-testid="network-alert-why">
-            {entry.verifiedReporterCount} verified reports{entry.verifiedMuterCount > 0 ? ` · muted by ${entry.verifiedMuterCount}` : ""} · why?
+            {escalatedFrom != null
+              ? `You ignored this at ${escalatedFrom} reports — now ${entry.verifiedReporterCount}`
+              : `${entry.verifiedReporterCount} verified reports${entry.verifiedMuterCount > 0 ? ` · muted by ${entry.verifiedMuterCount}` : ""}`} · why?
           </button>
         </div>
         <VerificationCoin score01={entry.influence} pov="global" size={22} className="shrink-0" />
