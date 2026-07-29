@@ -23,9 +23,13 @@ const MAX_AUTHORS = 100;
 const ARTICLE_KIND = 30023;
 const DAY = 24 * 60 * 60;
 /** Primary recency window. Long-form is low-frequency, so this is generous. */
-const FRESH_WINDOW_DAYS = 120;
-/** Single widen-once fallback so smaller networks aren't left with an empty card. */
-const FALLBACK_WINDOW_DAYS = 400;
+const FRESH_WINDOW_DAYS = 90;
+/**
+ * Widen-once fallback. Deliberately modest: a year-old post is not "reading from
+ * your network", it's archaeology. Better to show two fresh items than four
+ * stale ones, so the card is allowed to come back short.
+ */
+const FALLBACK_WINDOW_DAYS = 180;
 /** One article per author — otherwise a single prolific writer takes every slot. */
 const MAX_PER_AUTHOR = 1;
 
