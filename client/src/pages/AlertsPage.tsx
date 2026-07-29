@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 type Scope = "all" | "follows" | "extended";
 type SortKey = "reports" | "muted" | "influence";
-type ProfileLite = { name?: string; display_name?: string; picture?: string };
+type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
 /**
  * The full, filterable Network Alerts list — the "view all" surface behind the
@@ -165,7 +165,10 @@ export default function AlertsPage() {
               <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1}
                 onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
-                {...actionsFor(e.pubkey, nameFor(e.pubkey))}
+                {...actionsFor(e.pubkey, nameFor(e.pubkey), {
+                  picture: profiles.get(e.pubkey)?.picture,
+                  nip05: profiles.get(e.pubkey)?.nip05,
+                })}
               />
             ))}
           </div>

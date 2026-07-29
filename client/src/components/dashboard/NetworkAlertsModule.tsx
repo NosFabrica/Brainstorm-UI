@@ -22,7 +22,9 @@ import { ignoredAlertSet, ignoreAlert, ignoreAlerts, unignoreAlert, unignoreAler
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
-type ReportTarget = { pubkey: string; name: string };
+type ReportTarget = { pubkey: string; name: string; picture?: string; nip05?: string };
+/** Display bits used to confirm WHO is about to be reported. */
+export type ActionProfile = { picture?: string; nip05?: string };
 
 /** Per-row action handlers, produced by useAlertActions for a given account. */
 export interface RowActions {
@@ -141,11 +143,15 @@ export function useAlertActions(observer: string) {
     }
   }
 
-  const actionsFor = (pubkey: string, name: string): RowActions => ({
+  const actionsFor = (pubkey: string, name: string, profile?: ActionProfile): RowActions => ({
     onIgnore: () => handleIgnore(pubkey, name),
     onUnfollow: () => setPending({ pubkey, name, action: "unfollow" }),
     onMute: () => setPending({ pubkey, name, action: "mute" }),
-    onReport: () => { setReportType(""); setReportNote(""); setReportTarget({ pubkey, name }); },
+    onReport: () => {
+      setReportType("");
+      setReportNote("");
+      setReportTarget({ pubkey, name, picture: profile?.picture, nip05: profile?.nip05 });
+    },
   });
 
   const dialogs = (
@@ -176,11 +182,34 @@ export function useAlertActions(observer: string) {
       <AlertDialog open={!!reportTarget} onOpenChange={(o) => { if (!o && !reporting) setReportTarget(null); }}>
         <AlertDialogContent data-testid="network-alerts-report">
           <AlertDialogHeader>
-            <AlertDialogTitle>Report {reportTarget?.name}?</AlertDialogTitle>
+            {/* Generic title + an explicit identity row below: reporting publishes a
+                public accusation signed with the user's key, so who they're acting
+                on must be unmistakable — and the name can be an unresolved npub. */}
+            <AlertDialogTitle>Report this account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This publishes a public report on Nostr. Pick a reason:
+              Published publicly on Nostr and signed with your key. You can withdraw it
+              later, though copies may remain on relays.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-2.5" data-testid="report-identity">
+            <Avatar className="h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
+              {reportTarget?.picture ? <AvatarImage src={reportTarget.picture} alt={reportTarget?.name ?? ""} className="object-cover" /> : null}
+              <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{reportTarget?.name}</p>
+              {reportTarget?.nip05 ? (
+                <p className="truncate text-xs text-brand-primary dark:text-brand-link">{reportTarget.nip05.replace(/^_@/, "")}</p>
+              ) : (
+                <p className="truncate font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                  {reportTarget ? npubFromPubkey(reportTarget.pubkey) : ""}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-600 dark:text-slate-300">Pick a reason:</p>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Report reason">
             {REPORT_TYPES.map((t) => (
               <button
@@ -298,7 +327,10 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
     following: e.hops <= 1,
     onDeepDive: () => navigate(`/profile/${npubFromPubkey(e.pubkey)}`),
     onWhy: () => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`),
-    ...actionsFor(e.pubkey, nameFor(e.pubkey)),
+    ...actionsFor(e.pubkey, nameFor(e.pubkey), {
+      picture: profiles.get(e.pubkey)?.picture,
+      nip05: profiles.get(e.pubkey)?.nip05,
+    }),
   });
 
   // ---- states -------------------------------------------------------------
