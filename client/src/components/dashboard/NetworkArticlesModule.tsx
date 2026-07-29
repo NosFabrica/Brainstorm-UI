@@ -62,11 +62,12 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
                 <EmbeddedArticleCard event={event as MinimalEvent} author={profiles.get(event.pubkey)} />
               </div>
               {/* Why you're seeing this — the one line no other client can print.
-                  Worded to match what the data actually means: verified followers
-                  are accounts inside the observer's web of trust. */}
+                  The count is now literally what it says: how many accounts the
+                  observer FOLLOWS also follow this author (co-follows from real
+                  kind-3 lists), so the claim and the ranking input can't drift. */}
               <p className="mt-auto px-1 text-[11px] text-slate-500 dark:text-slate-400">
-                {author.verifiedFollowerCount > 0
-                  ? `Followed by ${author.verifiedFollowerCount} account${author.verifiedFollowerCount === 1 ? "" : "s"} you trust`
+                {author.trustedFollowerCount > 0
+                  ? `Followed by ${author.trustedFollowerCount} account${author.trustedFollowerCount === 1 ? "" : "s"} you trust`
                   : "In your extended network"}
                 <span className="text-slate-300 dark:text-slate-600"> · </span>
                 {author.hops} hops away

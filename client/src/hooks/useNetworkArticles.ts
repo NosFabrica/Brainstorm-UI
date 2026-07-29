@@ -1,25 +1,30 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNetworkAlerts } from "@/hooks/useNetworkAlerts";
-import { fetchEventsByFilter } from "@/services/nostr";
+import { fetchEventsByFilter, CONTENT_RELAYS } from "@/services/nostr";
+import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { type NostrEvent } from "applesauce-core/helpers";
-import type { NetworkAlertEntry } from "@/services/api";
 
 /**
  * Long-form articles from the observer's EXTENDED network — people they don't
- * follow yet, but whom their trusted follows vouch for.
+ * follow yet, but whom their own follows vouch for.
  *
  * This is the discovery angle no other Nostr client can build: every reader app
  * can show you your own follows, but only a trust graph can tell you who's worth
  * reading one hop further out. It also feeds the product loop — discover a good
  * author, follow them, the graph sharpens.
  *
- * Author list is reused from `/networkAlerts` (already in flight on the
- * dashboard, so this costs no extra backend call): `extendedNetwork` entries are
- * hops >= 2, and `influence` ranks them. Articles are then fetched by author.
+ * Authors come from REAL kind-3 contact lists: the observer's follows, then the
+ * follows of those follows. An earlier cut sourced them from `/networkAlerts`,
+ * which returns FLAGGED accounts — so this card was quietly recommending the
+ * writing of people the network had REPORTED, drawn from a pool the moderation
+ * endpoint capped at 100. Content discovery must never inherit a moderation
+ * query's population (the dashboard thread module was fixed for the same reason).
+ *
+ * A candidate's trust signal is its CO-FOLLOW COUNT — how many of the observer's
+ * own follows follow them. That's both the ranking input and literally what the
+ * card's "Followed by N accounts you trust" line claims, so the two can't drift.
  */
 
-const MAX_AUTHORS = 100;
 const ARTICLE_KIND = 30023;
 const DAY = 24 * 60 * 60;
 /** Primary recency window. Long-form is low-frequency, so this is generous. */
@@ -32,6 +37,15 @@ const FRESH_WINDOW_DAYS = 90;
 const FALLBACK_WINDOW_DAYS = 180;
 /** One article per author — otherwise a single prolific writer takes every slot. */
 const MAX_PER_AUTHOR = 1;
+/**
+ * How many of the observer's follows we read contact lists for. Each kind-3 can
+ * carry hundreds of tags, so this bounds the payload while still producing a
+ * two-hop set in the thousands — orders of magnitude more candidates than the 100
+ * the moderation endpoint returned.
+ */
+const SAMPLE_FOLLOWS = 60;
+/** Candidate authors to actually query articles for, best-vouched first. */
+const MAX_AUTHORS = 400;
 /**
  * Recency half-life for ranking. At 30 days an item keeps half the recency
  * credit of a same-day post, at 60 days a quarter — so age tells against a piece
@@ -69,10 +83,18 @@ function looksLikeArticle(title: string, summary: string, content: string): bool
   return (summary.trim().length + content.trim().length) >= 400;
 }
 
+/** An extended-network author, with the trust context for "why am I seeing this". */
+export interface ArticleAuthor {
+  pubkey: string;
+  /** How many of the observer's OWN follows follow this author. */
+  trustedFollowerCount: number;
+  /** 2 by construction — these are follows-of-follows the observer doesn't follow. */
+  hops: number;
+}
+
 export interface NetworkArticle {
   event: NostrEvent;
-  /** Trust context for "why am I seeing this". */
-  author: NetworkAlertEntry;
+  author: ArticleAuthor;
 }
 
 function tagVal(e: NostrEvent, name: string): string | undefined {
@@ -109,22 +131,17 @@ function substanceScore(e: NostrEvent): number {
 
 /**
  * Composite rank: trust · recency · substance, with fresh-window items tiered
- * above widened ones.
- *
- * Trust was previously used only to choose the author POOL and then thrown away,
- * so ordering was pure `created_at` — the graph, the one thing Brainstorm knows
- * that nobody else does, had no say in what actually surfaced.
+ * above widened ones. Ordering used to be pure `created_at`, so the graph — the
+ * one signal no other client has — had no say in what actually surfaced.
  */
-function rankArticle(e: NostrEvent, author: NetworkAlertEntry, nowSec: number, freshSince: number): number {
+function rankArticle(e: NostrEvent, author: ArticleAuthor, nowSec: number, freshSince: number): number {
   const ageDays = Math.max(0, (nowSec - (e.created_at ?? nowSec)) / 86400);
   const recency = Math.pow(0.5, ageDays / RECENCY_HALF_LIFE_DAYS);
 
-  // Log-scaled: 1375 trusted followers vs 1084 is noise, 1375 vs 12 is not. Raw
-  // counts would let the single most-followed author own the card forever.
-  const vfc = Math.max(0, author.verifiedFollowerCount ?? 0);
-  const reach = Math.min(1, Math.log10(1 + vfc) / Math.log10(1 + 2000));
-  const influence = Math.min(1, Math.max(0, author.influence ?? 0));
-  const trust = 0.6 * reach + 0.4 * influence;
+  // Log-scaled: 40 co-followers vs 32 is noise, 40 vs 2 is not. Raw counts would
+  // let the single most-followed author own the card forever.
+  const co = Math.max(0, author.trustedFollowerCount);
+  const trust = Math.min(1, Math.log10(1 + co) / Math.log10(1 + 50));
 
   const tier = (e.created_at ?? 0) >= freshSince ? FRESH_TIER_BONUS : 0;
   return tier + 45 * trust + 35 * recency + 20 * substanceScore(e);
@@ -132,24 +149,42 @@ function rankArticle(e: NostrEvent, author: NetworkAlertEntry, nowSec: number, f
 
 export function useNetworkArticles(observer: string, opts?: { enabled?: boolean }) {
   const enabled = opts?.enabled !== false && !!observer;
-  const alerts = useNetworkAlerts(observer, { enabled, limit: 100 });
 
-  // Highest-influence accounts two or more hops out. Deliberately excludes
-  // direct follows (hops <= 1) — those already appear in every client the user
-  // has; the value here is what's just OUTSIDE their circle.
-  const authors = useMemo(() => {
-    const extended = alerts.data?.data?.extendedNetwork ?? [];
-    return [...extended]
-      .filter((e) => e.hops >= 2)
-      .sort((a, b) => (b.influence ?? 0) - (a.influence ?? 0))
-      .slice(0, MAX_AUTHORS);
-  }, [alerts.data]);
+  // Two-hop author set, built from real contact lists. One REQ for the sampled
+  // follows' kind-3 events rather than N round-trips.
+  const authorsQuery = useQuery({
+    queryKey: ["network-article-authors", observer],
+    enabled,
+    staleTime: 10 * 60_000,
+    retry: false,
+    queryFn: async (): Promise<ArticleAuthor[]> => {
+      const mine = getFollowedPubkeys(await fetchContactList(observer));
+      if (mine.size === 0) return [];
+      const sample = Array.from(mine).slice(0, SAMPLE_FOLLOWS);
+      const lists = await fetchEventsByFilter({ kinds: [3], authors: sample }, CONTENT_RELAYS, 8000);
 
+      // Co-follow tally across my follows' follows.
+      const co = new Map<string, number>();
+      for (const list of lists) {
+        for (const pk of getFollowedPubkeys(list)) {
+          // "Beyond who you follow" — drop myself and anyone I already follow.
+          if (pk === observer || mine.has(pk)) continue;
+          co.set(pk, (co.get(pk) ?? 0) + 1);
+        }
+      }
+      return Array.from(co.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, MAX_AUTHORS)
+        .map(([pubkey, trustedFollowerCount]) => ({ pubkey, trustedFollowerCount, hops: 2 }));
+    },
+  });
+
+  const authors = authorsQuery.data ?? [];
   const authorKeys = useMemo(() => authors.map((a) => a.pubkey), [authors]);
   const byPubkey = useMemo(() => new Map(authors.map((a) => [a.pubkey, a])), [authors]);
 
   const articlesQuery = useQuery({
-    queryKey: ["network-articles", authorKeys.join(",")],
+    queryKey: ["network-articles", authorKeys.length, authorKeys[0] ?? ""],
     queryFn: async () => {
       const now = Math.floor(Date.now() / 1000);
       // Constrain the FETCH by recency — sorting newest-first over a stale set
@@ -157,19 +192,15 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
       // through. Widen once (not forever) if the fresh window comes back thin,
       // so smaller networks still see something without resurfacing ancient posts.
       const freshSince = now - FRESH_WINDOW_DAYS * DAY;
-      const fresh = await fetchEventsByFilter({
-        kinds: [ARTICLE_KIND],
-        authors: authorKeys,
-        since: freshSince,
-        limit: 120,
-      });
+      const fresh = await fetchEventsByFilter(
+        { kinds: [ARTICLE_KIND], authors: authorKeys, since: freshSince, limit: 200 },
+        CONTENT_RELAYS,
+      );
       if (fresh.length >= 8) return { events: fresh, freshSince };
-      const wider = await fetchEventsByFilter({
-        kinds: [ARTICLE_KIND],
-        authors: authorKeys,
-        since: now - FALLBACK_WINDOW_DAYS * DAY,
-        limit: 120,
-      });
+      const wider = await fetchEventsByFilter(
+        { kinds: [ARTICLE_KIND], authors: authorKeys, since: now - FALLBACK_WINDOW_DAYS * DAY, limit: 200 },
+        CONTENT_RELAYS,
+      );
       // UNION, not replace. The old code swapped the whole set for the wider one,
       // so a thin fresh window meant every slot competed on equal footing with
       // half-year-old posts. Now the widened items merely join the pool and the
@@ -187,6 +218,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
     const events = articlesQuery.data?.events ?? [];
     const freshSince = articlesQuery.data?.freshSince ?? 0;
     const nowSec = Math.floor(Date.now() / 1000);
+
     // Long-form is addressable: the same article re-published keeps its `d` tag,
     // so collapse to the newest per (author, d) or duplicates stack up.
     const newest = new Map<string, NostrEvent>();
@@ -200,21 +232,17 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
 
     // Best-first by composite rank (was newest-first, which ignored trust and
     // substance entirely), then cap per author so one prolific writer can't take
-    // every slot (a single account held half the card before this).
+    // every slot. Resolve the author FIRST — ranking reads its trust fields, so an
+    // event whose author fell out of the pool must be dropped before it's scored.
     const perAuthor = new Map<string, number>();
     const out: NetworkArticle[] = [];
-    // Resolve the author FIRST — ranking reads author trust fields, so an event
-    // whose author fell out of the pool must be dropped before it's scored.
     const ranked = Array.from(newest.values())
       .flatMap((event) => {
         const author = byPubkey.get(event.pubkey);
         return author ? [{ event, author, rank: rankArticle(event, author, nowSec, freshSince) }] : [];
       })
-      .sort((a, b) => b.rank - a.rank)
-      .map((r) => r.event);
-    for (const event of ranked) {
-      const author = byPubkey.get(event.pubkey);
-      if (!author) continue;
+      .sort((a, b) => b.rank - a.rank);
+    for (const { event, author } of ranked) {
       const used = perAuthor.get(event.pubkey) ?? 0;
       if (used >= MAX_PER_AUTHOR) continue;
       perAuthor.set(event.pubkey, used + 1);
@@ -226,8 +254,8 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
   return {
     articles,
     // Loading while we're still resolving authors OR fetching their articles.
-    isLoading: alerts.isLoading || (authorKeys.length > 0 && articlesQuery.isLoading),
-    isError: alerts.isError || articlesQuery.isError,
+    isLoading: authorsQuery.isLoading || (authorKeys.length > 0 && articlesQuery.isLoading),
+    isError: authorsQuery.isError || articlesQuery.isError,
     hasAuthors: authorKeys.length > 0,
   };
 }
