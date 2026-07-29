@@ -2087,9 +2087,11 @@ export default function ProfilePage() {
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
           {(() => {
-            const cameFromInternal = !!fromGroup || !!fromAdmin || fromSearch;
             const goBack = (fallback: string) => {
-              if (cameFromInternal && typeof window !== "undefined" && window.history.length > 1) {
+              // Prefer real browser history so "back" returns to wherever you came
+              // from — the dashboard, search, or a chained profile — instead of a
+              // hardcoded destination. Fall back only on a cold deep-link.
+              if (typeof window !== "undefined" && window.history.length > 1) {
                 window.history.back();
               } else {
                 navigate(fallback);
@@ -2133,7 +2135,7 @@ export default function ProfilePage() {
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back to Search
+                {fromSearch ? "Back to Search" : "Back"}
               </Button>
             );
           })()}
