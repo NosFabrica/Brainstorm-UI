@@ -1206,8 +1206,11 @@ export default function Landing() {
       </main>
 
       {/* Footer (Google-search pattern): secondary/info links sit quietly at the
-          bottom, muted and small, so they never compete with the search box. */}
-      <footer className="relative z-10 flex flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+          bottom, muted and small, so they never compete with the search box.
+          Hidden on mobile — on a phone the viewport belongs to the search box,
+          and these wrap into a block that crowds it. The mobile tab bar already
+          carries the primary navigation. */}
+      <footer className="relative z-10 hidden sm:flex flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
         {[
           { label: "About", path: "/about" },
           { label: "How search works", path: "/how-search-works" },

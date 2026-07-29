@@ -570,6 +570,45 @@
 }
 
 /*
+ * Slim, quiet scrollbars app-wide. The OS default (especially macOS with
+ * "always show scroll bars") renders a wide light trough that reads as chrome
+ * competing with the content. This thins it and tones it to the theme.
+ *
+ * Deliberately NOT hidden: a scrollbar is the only persistent affordance that
+ * tells a user there IS more content and where they are in it. Removing it on
+ * long pages costs real usability and accessibility for a cosmetic gain.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.35);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184 / 0.6);
+}
+.dark * {
+  scrollbar-color: rgb(100 116 139 / 0.45) transparent;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background-color: rgb(100 116 139 / 0.4);
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(100 116 139 / 0.65);
+}
+
+/*
  * Password-manager autofill detection. Chrome applies :-webkit-autofill the
  * instant a field is filled but does NOT fire a React onChange, so controlled
  * inputs miss the value. This no-op keyframe fires an `animationstart` event we

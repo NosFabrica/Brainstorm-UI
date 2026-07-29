@@ -192,12 +192,15 @@ export function useAlertActions(observer: string) {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-2.5" data-testid="report-identity">
+          {/* min-w-0 at BOTH levels: an npub is one unbroken token, so without it
+              the flex row refuses to shrink and widens the whole dialog past the
+              viewport on mobile. */}
+          <div className="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-2.5" data-testid="report-identity">
             <Avatar className="h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
               {reportTarget?.picture ? <AvatarImage src={reportTarget.picture} alt={reportTarget?.name ?? ""} className="object-cover" /> : null}
               <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{reportTarget?.name}</p>
               {reportTarget?.nip05 ? (
                 <p className="truncate text-xs text-brand-primary dark:text-brand-link">{reportTarget.nip05.replace(/^_@/, "")}</p>
