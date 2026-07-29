@@ -90,6 +90,16 @@ export default function InsightsPage() {
   const published = isDone(grapeRank?.internal_publication_status);
   const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
+  // Self-scoped calculation history — renders only when /user/history exposes a
+  // records array (admins get the full table via /admin/users/:pubkey/history;
+  // the user endpoint currently returns a summary, so this needs a small backend
+  // addition before it populates).
+  const calcRecords: any[] = Array.isArray((history as any)?.items)
+    ? (history as any).items
+    : Array.isArray((history as any)?.records)
+      ? (history as any).records
+      : [];
+
   const handleLogout = () => { logout(); setUser(null); };
 
   return (
@@ -153,6 +163,37 @@ export default function InsightsPage() {
             <RefreshCw className="h-3 w-3" /> Recalculate or change preset in settings
           </button>
         </Card>
+
+        {/* Calculation history (self-scoped; renders when the endpoint returns records) */}
+        {calcRecords.length > 0 && (
+          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation history</span>
+              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{calcRecords.length} record{calcRecords.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 text-left">
+                    <th className="py-1.5 pr-3 font-semibold">When</th>
+                    <th className="py-1.5 pr-3 font-semibold">Source</th>
+                    <th className="py-1.5 pr-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calcRecords.slice(0, 12).map((r, i) => (
+                    <tr key={r.private_id ?? i} className="border-t border-slate-100 dark:border-slate-800/60">
+                      <td className="py-2 pr-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtWhen(r.created_at) ?? "—"}</td>
+                      <td className="py-2 pr-3 text-slate-600 dark:text-slate-400">{r.trigger_source || "—"}</td>
+                      <td className="py-2 pr-3">{isDone(r.internal_publication_status) ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Published</span> : <span className="font-medium text-amber-600 dark:text-amber-400">{r.status || "In progress"}</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
 
         {/* Your standing */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
