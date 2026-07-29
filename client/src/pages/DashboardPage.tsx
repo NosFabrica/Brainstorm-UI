@@ -1656,7 +1656,13 @@ export default function DashboardPage() {
             <DashboardLookup />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 lg:auto-rows-min">
+
+            {/* Flagship: Network Alerts spans a large left cell; Social Graph +
+                Extended Reach stack in the right column (bento priority). */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:col-span-2 lg:row-span-2">
+              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+            </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <Card
@@ -1748,10 +1754,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </Card>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
