@@ -570,42 +570,60 @@
 }
 
 /*
- * Slim, quiet scrollbars app-wide. The OS default (especially macOS with
- * "always show scroll bars") renders a wide light trough that reads as chrome
- * competing with the content. This thins it and tones it to the theme.
- *
- * Deliberately NOT hidden: a scrollbar is the only persistent affordance that
- * tells a user there IS more content and where they are in it. Removing it on
- * long pages costs real usability and accessibility for a cosmetic gain.
+ * No scrollbars on the member-facing app. The OS trough (especially macOS with
+ * "always show scroll bars") reads as chrome competing with the content, and
+ * these surfaces are short enough that the scroll affordance isn't load-bearing.
+ * Scrolling itself is untouched — wheel, trackpad, keyboard and touch all work.
  */
+html,
+body,
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*
+ * Admin is the exception: its tables scroll horizontally across many columns,
+ * where the scrollbar is the only cue that more columns exist and how far along
+ * you are — ScrollableTable even mirrors a second one above the table. AdminPage
+ * puts `admin-scrollbars` on <html> while mounted (see its useEffect), which is
+ * what re-enables them here — including the window scrollbar, which lives on
+ * <html> and so can't be reached by a selector scoped inside the page.
+ */
+html.admin-scrollbars,
+html.admin-scrollbars body,
+html.admin-scrollbars * {
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+}
+html.admin-scrollbars *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-*::-webkit-scrollbar-track {
+html.admin-scrollbars *::-webkit-scrollbar-track {
   background: transparent;
 }
-*::-webkit-scrollbar-thumb {
+html.admin-scrollbars *::-webkit-scrollbar-thumb {
   background-color: rgb(148 163 184 / 0.35);
   border: 3px solid transparent;
   border-radius: 9999px;
   background-clip: content-box;
 }
-*::-webkit-scrollbar-thumb:hover {
+html.admin-scrollbars *::-webkit-scrollbar-thumb:hover {
   background-color: rgb(148 163 184 / 0.6);
 }
-.dark * {
+html.admin-scrollbars.dark *,
+html.dark.admin-scrollbars * {
   scrollbar-color: rgb(100 116 139 / 0.45) transparent;
 }
-.dark *::-webkit-scrollbar-thumb {
+html.admin-scrollbars.dark *::-webkit-scrollbar-thumb,
+html.dark.admin-scrollbars *::-webkit-scrollbar-thumb {
   background-color: rgb(100 116 139 / 0.4);
-}
-.dark *::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(100 116 139 / 0.65);
 }
 
 /*

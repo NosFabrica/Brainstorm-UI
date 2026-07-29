@@ -1739,6 +1739,16 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
+
+  // Scrollbars are hidden app-wide (see index.css); admin opts back in while
+  // mounted. Its wide tables need the horizontal scrollbar to show there ARE
+  // more columns — ScrollableTable even mirrors one above the table. Set on
+  // <html> because the window scrollbar lives there, out of reach of any
+  // selector scoped inside the page.
+  useEffect(() => {
+    document.documentElement.classList.add("admin-scrollbars");
+    return () => document.documentElement.classList.remove("admin-scrollbars");
+  }, []);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
