@@ -20,6 +20,7 @@ import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule"
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
+import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -1679,6 +1680,11 @@ export default function DashboardPage() {
               hops out that the graph vouches for. Renders nothing until there's
               something worth showing. */}
           <NetworkArticlesModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+
+          {/* The circle you already chose (1 hop), under the discovery module.
+              Read-only: notes open the full conversation at /e/:id rather than
+              faking a composer the product doesn't have yet. */}
+          <NetworkThreadModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
 
           <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
