@@ -18,6 +18,7 @@ import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
+import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
@@ -793,6 +794,8 @@ export default function DashboardPage() {
 
   const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const isCalculationComplete = calcDone || isRecalculating;
+  // Recently-active faces for the Your Network tiles (follows + followers).
+  const facesQuery = useNetworkFaces(user?.pubkey ?? "", isCalculationComplete);
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
@@ -1671,6 +1674,8 @@ export default function DashboardPage() {
                 health={currentPieData}
                 onNavigate={navigate}
                 wide
+                followersFaces={facesQuery.data?.followers ?? []}
+                followingFaces={facesQuery.data?.following ?? []}
               />
             </motion.div>
           </div>

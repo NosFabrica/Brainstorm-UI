@@ -2,6 +2,9 @@ import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Users, UserPlus, Award, Network, ChevronRight, Loader2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import type { NetworkFace } from "@/hooks/useNetworkFaces";
 
 type HealthSlice = { name: string; value: number; color: string };
 
@@ -24,6 +27,8 @@ export function YourNetworkCard({
   health,
   onNavigate,
   wide = false,
+  followersFaces = [],
+  followingFaces = [],
 }: {
   isReady: boolean;
   loading: boolean;
@@ -37,12 +42,15 @@ export function YourNetworkCard({
   onNavigate: (path: string) => void;
   /** Full-width layout: the three sections sit side by side instead of stacked. */
   wide?: boolean;
+  /** Up to 5 recently-active followers / follows, shown as a small avatar cluster. */
+  followersFaces?: NetworkFace[];
+  followingFaces?: NetworkFace[];
 }) {
   const segments = health.filter((s) => s.value > 0);
   const total = segments.reduce((acc, s) => acc + s.value, 0);
   const statValue = (v: number) => (loading || !isReady ? <BrainLogo size={18} className="animate-pulse text-brand-link" /> : v.toLocaleString());
 
-  const statTile = (label: string, value: number, icon: React.ReactNode, group: string) => (
+  const statTile = (label: string, value: number, icon: React.ReactNode, group: string, faces: NetworkFace[] = []) => (
     <div
       className={`relative flex h-full flex-col rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
       onClick={() => isReady && onNavigate(`/network?group=${group}&view=list`)}
@@ -57,10 +65,35 @@ export function YourNetworkCard({
       </div>
       <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none">{statValue(value)}</div>
       {isReady && (
-        <div className="mt-auto pt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></div>
+        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+          {faceStack(faces)}
+          <div className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></div>
+        </div>
       )}
     </div>
   );
+
+  // A small overlapping avatar cluster of recently-active people, with an honest
+  // "active recently" caption (no fake "online" — Nostr has no presence signal).
+  // Renders nothing until the faces load, so the tile never reserves empty space.
+  const faceStack = (faces: NetworkFace[]) => {
+    if (faces.length === 0) return <span />;
+    return (
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex -space-x-2">
+          {faces.map((f) => (
+            <Avatar key={f.pubkey} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 border border-slate-200 dark:border-slate-800" title={f.name || "Recently active"}>
+              {f.picture ? <AvatarImage src={f.picture} alt={f.name ?? ""} className="object-cover" /> : null}
+              <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+            </Avatar>
+          ))}
+        </div>
+        <span className="inline-flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <span className="h-1 w-1 rounded-full bg-brand-accent" /> Active recently
+        </span>
+      </div>
+    );
+  };
 
   return (
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full w-full relative" data-testid="card-your-network">
@@ -87,8 +120,8 @@ export function YourNetworkCard({
         <div className={wide ? "grid gap-3 lg:grid-cols-4 lg:items-stretch" : "flex flex-col gap-3"}>
         {/* Social graph */}
         <div className={wide ? "contents" : "grid grid-cols-2 gap-2"}>
-          {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by")}
-          {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following")}
+          {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by", followersFaces)}
+          {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following", followingFaces)}
         </div>
 
         {/* Extended reach + hop slider */}
