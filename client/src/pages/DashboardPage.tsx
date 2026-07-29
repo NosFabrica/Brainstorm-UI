@@ -5,7 +5,6 @@ import { getVerifiedThreshold, PRESET_THRESHOLDS, TRUST_TIER_COLORS } from "@/se
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
-import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
@@ -93,8 +92,6 @@ import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import {
   Dialog,
   DialogContent,
@@ -1691,351 +1688,33 @@ export default function DashboardPage() {
           <NetworkThreadModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
 
-          <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
-            <div className="absolute inset-0 bg-[#020617] border-y border-brand-primary/20">
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#7237ff10_1px,transparent_1px),linear-gradient(to_bottom,#7237ff10_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
-              <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-brand-primary/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
-              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-brand-accent/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
+          {/* The dashboard is a workspace, so it ends on the user's own content.
+              What was a full-bleed marketing band plus a ~420px client carousel is
+              now one quiet row: education stays one click away for anyone who wants
+              it, without a billboard between the feed and the footer. */}
+          <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-slate-200/70 dark:border-slate-800/60 pt-4 text-xs" data-testid="dashboard-footer-strip">
+            <button
+              type="button"
+              onClick={() => navigate("/what-is-wot")}
+              className="inline-flex items-center gap-1.5 font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+              data-testid="button-learn-wot"
+            >
+              How trust works <ArrowRight className="h-3 w-3" />
+            </button>
+            <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
+              <span>Works with</span>
+              <span className="font-medium text-slate-500 dark:text-slate-400">Amethyst · Damus · Primal</span>
             </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12">
-                <div className="flex-shrink-0 relative group-hover:scale-110 transition-transform duration-700 ease-out">
-                  <div className="absolute -inset-8 bg-brand-primary/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
-                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgb(var(--brand-primary)/0.5)] text-brand-link" />
-                </div>
-
-                <div className="flex-1 text-center md:text-left">
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
-                    <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">
-                      The Power of Transitive Trust
-                    </h3>
-                    <Badge variant="secondary" className="hidden sm:flex bg-brand-primary/15 text-[#a78bfa] border border-brand-primary/25 backdrop-blur-md shadow-sm">
-                      Graph Theory
-                    </Badge>
-                  </div>
-                  <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl font-light">
-                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-brand-primary/[0.3] pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-[#a78bfa] italic">Trust flows through your connections.</span>
-                  </p>
-                </div>
-
-                <div className="flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    className="!bg-white !text-brand-primary border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
-                    onClick={() => navigate("/what-is-wot")}
-                    data-testid="button-learn-wot"
-                  >
-                    Learn about WOT?
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover/btn:translate-x-1 transition-transform text-brand-primary" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/nostr")}
+              className="ml-auto font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+              data-testid="link-supported-clients"
+            >
+              See all clients →
+            </button>
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="mb-8">
-            <Carousel opts={{ align: "start", loop: true }} className="relative" data-testid="carousel-supported-clients">
-              <CarouselContent className="-ml-4">
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-amethyst">
-                  <Card
-                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#2a1b4e] to-[#1a1638] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-amethyst'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-amethyst"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
-                      <img src={amethystHeroImg} alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-[#1a1033]/60 sm:to-transparent" />
-                    </div>
-
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/10 border border-brand-accent/20 text-[#c7d2fe] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                              <line x1="12" y1="18" x2="12.01" y2="18" />
-                            </svg>
-                            <span>Supported Clients</span>
-                          </div>
-                          <div className="relative group/info">
-                            <button
-                              type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[#c7d2fe] hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
-                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
-                              aria-label="What are Supported Clients?"
-                              data-testid="button-supported-clients-info"
-                            >
-                              <Info className="h-3 w-3" />
-                            </button>
-                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <img src={amethystLogoImg} alt="Amethyst Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-amethyst-title">
-                                Amethyst
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-[#c7d2fe]/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-accent/15 border border-brand-accent/25 text-[#ddd6fe] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
-                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                <span>NIP-85</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-amethyst-description">Experience true freedom with the premier Android client for Nostr. Direct, intermediary-free communication in a beautiful, feature-rich interface.</p>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
-                          <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-android">
-                              <Download className="mr-2 h-4 w-4" />
-                              Download for Android
-                            </Button>
-                          </a>
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-brand-deep/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-learn">
-                              Learn More
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-accent/20 rounded-full blur-[80px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-brand-accent/20 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-brand-accent/10 rounded-full pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-nostria">
-                  <Card
-                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#f26b1d] via-[#f59f2e] to-[#f7b24a] ring-1 ring-white/15 shadow-[0_24px_80px_-44px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_28px_90px_-46px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-nostria'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-nostria"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
-                      <img src={nostriaHeroImg} alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <img src={nostriaManifestoImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
-                      <img
-                        src={nostriaTeaserImg}
-                        alt=""
-                        className="absolute right-[-24%] top-[-14%] w-[80%] h-auto opacity-[0.52] mix-blend-soft-light saturate-[0.92] contrast-[1.04] brightness-[1.06] rotate-[-2deg] blur-[0.35px] pointer-events-none hidden sm:block"
-                        style={{
-                          WebkitMaskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
-                          maskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
-                        }}
-                        aria-hidden="true"
-                        data-testid="img-nostria-ui-teaser"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#3a1606] via-[#3a1606]/85 to-[#3a1606]/60 sm:to-transparent" />
-                    </div>
-
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients-nostria">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                              <line x1="12" y1="18" x2="12.01" y2="18" />
-                            </svg>
-                            <span>Supported Clients</span>
-                          </div>
-                          <div className="relative group/info">
-                            <button
-                              type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-orange-100 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
-                              aria-label="What are Supported Clients?"
-                              data-testid="button-supported-clients-info-nostria"
-                            >
-                              <Info className="h-3 w-3" />
-                            </button>
-                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <img src={nostriaIconImg} alt="Nostria Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-nostria-title">
-                                Nostria
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-200/15 border border-orange-200/25 text-orange-100 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-nostria-nip85">
-                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                <span>NIP-85</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-orange-50/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-nostria-description">
-                            Get started in seconds. No email. No phone. Just you. A clean, scalable Nostr client focused on ownership, privacy, and a calmer social experience.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
-                          <a href="https://play.google.com/store/apps/details?id=app.nostria.twa" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-nostria-android">
-                              <Download className="mr-2 h-4 w-4" />
-                              Download for Android
-                            </Button>
-                          </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/10 transition-all hover:scale-105 border border-white/15 text-sm sm:text-base" style={{ backgroundColor: '#ffffff26', color: 'white' }} data-testid="button-supported-nostria-learn">
-                              Learn More
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-orange-300/20 rounded-full blur-[90px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-52 border border-orange-200/25 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 border border-orange-100/10 rounded-full pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-developer">
-                  <Card
-                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#1a1033] to-[#0f172a] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-developer'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-developer"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0">
-                      <img
-                        src={brainstormHeroImg}
-                        alt=""
-                        className="absolute right-[-10%] top-[5%] w-[75%] h-auto opacity-[0.45] mix-blend-screen saturate-[0.8] brightness-[0.95] pointer-events-none group-hover:opacity-[0.55] transition-opacity duration-700 hidden sm:block"
-                        style={{
-                          WebkitMaskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
-                          maskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
-                        }}
-                        aria-hidden="true"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/85 to-[#1a1033]/60 sm:to-transparent" />
-                    </div>
-
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-primary/15 border border-brand-primary/25 text-[#a78bfa] text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
-                          <Terminal className="h-3 w-3" aria-hidden="true" />
-                          <span>For Developers</span>
-                        </div>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
-                              <BrainLogo size={32} className="text-white sm:hidden" />
-                              <BrainLogo size={48} className="text-white hidden sm:block" />
-                            </div>
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-developer-title">
-                                Get Your Client Featured
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-[#a78bfa] uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
-                          <div data-testid="link-developer-contact" onClick={(e) => { e.stopPropagation(); navigate("/faq?tab=developers"); }}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base cursor-pointer" data-testid="button-developer-contact">
-                              <HelpCircle className="mr-2 h-4 w-4" />
-                              Learn More
-                            </Button>
-                          </div>
-                          <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-brand-primary !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-brand-primary/[0.3] transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
-                              View NIP-85 Spec
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-brand-accent/15 rounded-full blur-[90px] pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-              </CarouselContent>
-
-              <div
-                className="flex justify-center mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-3 items-center gap-2 rounded-full bg-black/20 border border-white/15 px-3 py-2 backdrop-blur-md shadow-lg w-fit mx-auto sm:mx-0 sm:w-auto"
-                data-testid="nav-supported-carousel-dots"
-              >
-                {[0, 1, 2].map((idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="h-2.5 w-2.5 rounded-full bg-white/40 hover:bg-white/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                    aria-label={idx === 0 ? "Go to Amethyst slide" : idx === 1 ? "Go to Nostria slide" : "Go to developer slide"}
-                    data-testid={idx === 0 ? "dot-supported-amethyst" : idx === 1 ? "dot-supported-nostria" : "dot-supported-developer"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const root = (e.currentTarget as HTMLButtonElement).closest('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      root?.dispatchEvent(new KeyboardEvent("keydown", { key: idx === 0 ? "ArrowLeft" : "ArrowRight" }));
-                    }}
-                  />
-                ))}
-              </div>
-            </Carousel>
-          </motion.div>
 
 
         </div>

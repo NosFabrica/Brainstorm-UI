@@ -11,7 +11,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { cn } from "@/lib/utils";
 
 /**
- * "From your circle" — recent posts and replies from the people you actually
+ * "From your network" — recent posts and replies from the people you actually
  * follow, in two modes:
  *   Trending — ranked by engagement (replies, reposts, reactions) from anyone.
  *   Latest   — plain reverse-chronological.
@@ -28,8 +28,8 @@ import { cn } from "@/lib/utils";
 const DAY = 24 * 60 * 60;
 const WINDOW_DAYS = 7;
 const MAX_AUTHORS = 300;
-const MAX_PER_AUTHOR = 2;
-const MAX_ROWS = 12;
+const MAX_PER_AUTHOR = 3;
+const MAX_ROWS = 40;
 
 type Mode = "trending" | "latest";
 
@@ -59,7 +59,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
         kinds: [1],
         authors,
         since: Math.floor(Date.now() / 1000) - WINDOW_DAYS * DAY,
-        limit: 200,
+        limit: 400,
       }),
     enabled: enabled && authors.length > 0,
     staleTime: 2 * 60_000,
@@ -178,7 +178,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
           <MessagesSquare className="h-3.5 w-3.5" />
         </div>
         <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          From your circle
+          From your network
         </span>
         <div className="ml-auto inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" role="group" aria-label="Feed mode">
           {tab("trending", "Trending", Flame)}
@@ -188,12 +188,12 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
 
       {loading && notes.length === 0 ? (
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="network-thread-loading">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Catching up on your circle…
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Catching up on your network…
         </div>
       ) : (
-        // Bounded scroll: an engagement feed should invite scrolling without the
-        // dashboard growing without limit.
-        <div className="max-h-[32rem] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 -mx-1 px-1" data-testid="network-thread-list">
+        // Flows with the page rather than living in an inner scrollbox: a feed
+        // inside a scrollbox reads as a widget, not a place you settle into.
+        <div className="divide-y divide-slate-100 dark:divide-slate-800/60" data-testid="network-thread-list">
           {notes.map((e) => {
             const s = scores.get(e.id);
             return (
