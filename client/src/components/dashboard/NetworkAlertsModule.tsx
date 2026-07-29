@@ -62,11 +62,7 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   useEffect(() => {
     if (!observer || !data) return;
     const { newPubkeys } = computeNewAlerts(observer, flaggedPubkeys);
-    const ns = new Set(newPubkeys);
-    setNewSet(ns);
-    // If a newly-flagged account is in the collapsed extended section, open it so
-    // the user can see WHICH one is new — not just a count with nothing tagged.
-    if (extended.some((e) => ns.has(e.pubkey))) setShowExtended(true);
+    setNewSet(new Set(newPubkeys));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
 
@@ -83,7 +79,11 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   const visibleDirect = newFirst(direct.filter((e) => !dismissed.has(e.pubkey)));
   const visibleExtended = newFirst(extended.filter((e) => !dismissed.has(e.pubkey)));
   const newCount = [...visibleDirect, ...visibleExtended].filter((e) => newSet.has(e.pubkey)).length;
-  const newExtendedCount = visibleExtended.filter((e) => newSet.has(e.pubkey)).length;
+  // Extended reach can be large (up to 100). Pin the NEW ones (always visible) and
+  // cap the rest behind the toggle so the tile never balloons to a 100-row list.
+  const EXT_CAP = 6;
+  const newExtended = visibleExtended.filter((e) => newSet.has(e.pubkey));
+  const restExtended = visibleExtended.filter((e) => !newSet.has(e.pubkey));
 
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
@@ -180,17 +180,12 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
 
           {visibleExtended.length > 0 && (
             <div data-testid="network-alerts-extended">
-              <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
-                <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
-                Also in your extended reach ({visibleExtended.length})
-                {newExtendedCount > 0 && (
-                  <span className="ml-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold normal-case text-red-600 dark:text-red-400">{newExtendedCount} new</span>
-                )}
-              </button>
-              {showExtended && (
-                <div className="mt-1.5 space-y-1.5">
-                  {visibleExtended.map((e) => (
-                    <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={newSet.has(e.pubkey)}
+              {/* Newly-flagged extended accounts are always shown — never buried. */}
+              {newExtended.length > 0 && (
+                <div className="space-y-1.5 mb-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">New in your extended reach</p>
+                  {newExtended.map((e) => (
+                    <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew
                       onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
                       onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
                       onUnfollow={() => setPending({ pubkey: e.pubkey, name: nameFor(e.pubkey), action: "unfollow" })}
@@ -198,6 +193,31 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
                     />
                   ))}
                 </div>
+              )}
+              {restExtended.length > 0 && (
+                <>
+                  <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
+                    <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
+                    Also in your extended reach ({restExtended.length})
+                  </button>
+                  {showExtended && (
+                    <div className="mt-1.5 space-y-1.5">
+                      {restExtended.slice(0, EXT_CAP).map((e) => (
+                        <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false}
+                          onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
+                          onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
+                          onUnfollow={() => setPending({ pubkey: e.pubkey, name: nameFor(e.pubkey), action: "unfollow" })}
+                          onMute={() => setPending({ pubkey: e.pubkey, name: nameFor(e.pubkey), action: "mute" })}
+                        />
+                      ))}
+                      {restExtended.length > EXT_CAP && (
+                        <p className="px-1 pt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                          +{restExtended.length - EXT_CAP} more flagged in your extended reach
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
