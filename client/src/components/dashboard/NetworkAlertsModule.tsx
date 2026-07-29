@@ -116,6 +116,7 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
       <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
         Network Alerts
       </span>
+      <PovTag pov="personalized" />
       {newCount > 0 && (
         <span className="ml-1 inline-flex items-center rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-2 py-0.5 text-[11px] font-bold" data-testid="network-alerts-new-count">
           {newCount} new
