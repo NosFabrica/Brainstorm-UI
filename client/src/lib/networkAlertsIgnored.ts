@@ -95,6 +95,35 @@ export function unignoreAlert(observer: string, pubkey: string): Map<string, num
   return persist(observer, load(observer).filter((e) => e.pubkey !== pubkey));
 }
 
+// ---------------------------------------------------------------------------
+// "Acted-on" store — accounts the user unfollowed / muted / reported. Unlike
+// ignore (a reversible local dismiss), these are real actions, so the account
+// stays hidden PERMANENTLY and everywhere: persisted per-account and shared by
+// the dashboard module and the /alerts page (each mounts its own hook), so a
+// report on one surface hides it on the other and survives a reload — instead of
+// reappearing until the backend's next recalculation drops it from the feed.
+const actedKey = (observer: string) => `brainstorm_network_alerts_acted:${observer}`;
+
+export function actedAlertSet(observer: string): Set<string> {
+  if (!observer) return new Set();
+  try {
+    const raw = localStorage.getItem(actedKey(observer));
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markActed(observer: string, pubkey: string): Set<string> {
+  const next = actedAlertSet(observer);
+  next.add(pubkey);
+  if (observer) {
+    try { localStorage.setItem(actedKey(observer), JSON.stringify(Array.from(next))); } catch {}
+  }
+  return next;
+}
+
 /** Merge the account's published ignore list into the local one. */
 export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<string, number | null>> {
   const local = load(observer);

@@ -18,7 +18,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertMap, ignoreAlert, unignoreAlert, hydrateIgnoredFromNostr, hasEscalated } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, ignoreAlert, unignoreAlert, hydrateIgnoredFromNostr, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -60,12 +60,15 @@ function isWidelyMuted(e: NetworkAlertEntry): boolean {
  */
 export function useAlertActions(observer: string) {
   const { toast } = useToast();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  // Persisted so an unfollow/mute/report hides the account on every surface
+  // (dashboard + /alerts) and across reloads, not just in this hook instance.
+  const [dismissed, setDismissed] = useState<Set<string>>(() => actedAlertSet(observer));
   const [ignored, setIgnored] = useState<Map<string, number | null>>(() => ignoredAlertMap(observer));
   useEffect(() => {
     // Local copy paints immediately; the account's encrypted NIP-78 list merges
     // in when it arrives, so a dismissal made on another device carries over.
     setIgnored(ignoredAlertMap(observer));
+    setDismissed(actedAlertSet(observer));
     let live = true;
     void hydrateIgnoredFromNostr(observer).then((merged) => { if (live) setIgnored(merged); }).catch(() => {});
     return () => { live = false; };
@@ -118,7 +121,7 @@ export function useAlertActions(observer: string) {
     setBusy(false);
     setPending(null);
     if (res.success) {
-      setDismissed((s) => new Set(s).add(pubkey));
+      setDismissed(markActed(observer, pubkey));
       toast({ title: action === "unfollow" ? `Unfollowed ${name}` : `Muted ${name}`, duration: 4000 });
     } else {
       toast({ title: `Couldn't ${action} ${name}`, description: res.error, variant: "destructive", duration: 6000 });
@@ -133,7 +136,7 @@ export function useAlertActions(observer: string) {
     setReporting(false);
     setReportTarget(null);
     if (res.success) {
-      setDismissed((s) => new Set(s).add(pubkey));
+      setDismissed(markActed(observer, pubkey));
       toast({ title: `Reported ${name}`, description: "Your report was published to Nostr.", duration: 4000 });
     } else {
       toast({ title: `Couldn't report ${name}`, description: res.error, variant: "destructive", duration: 6000 });
