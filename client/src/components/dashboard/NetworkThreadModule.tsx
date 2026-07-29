@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { MessagesSquare, Loader2, Flame, Clock, Heart, Repeat2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
+import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { eventPath } from "@/lib/shareId";
@@ -172,6 +173,10 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
   );
 
   return (
+    // ShareNavProvider makes #hashtags and @mentions inside notes clickable —
+    // hashtags jump straight to /t/:tag (their trust-ranked feed), mentions
+    // confirm then open the profile. Without it these render as dead buttons.
+    <ShareNavProvider>
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-6" data-testid="card-network-thread">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
@@ -226,5 +231,6 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
         </button>
       )}
     </Card>
+    </ShareNavProvider>
   );
 }
