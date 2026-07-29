@@ -141,8 +141,11 @@ export function YourNetworkCard({
               ))}
             </div>
           </div>
+          {/* List ALL tiers (not just the ones with data, and no 4-item cap), so
+              the breakdown reads as complete — a user seeing only 3 of the 6 named
+              tiers reasonably thinks it's broken. Zero-value tiers show 0%. */}
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {segments.slice(0, 4).map((s, i) => (
+            {health.map((s, i) => (
               <span key={i} className="inline-flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
                 {s.name} <span className="font-mono text-slate-400 dark:text-slate-500">{total > 0 ? `${Math.round((s.value / total) * 100)}%` : "—"}</span>
