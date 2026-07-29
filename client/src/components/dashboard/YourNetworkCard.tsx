@@ -23,6 +23,7 @@ export function YourNetworkCard({
   onHopChange,
   health,
   onNavigate,
+  wide = false,
 }: {
   isReady: boolean;
   loading: boolean;
@@ -34,6 +35,8 @@ export function YourNetworkCard({
   onHopChange: (v: number[]) => void;
   health: HealthSlice[];
   onNavigate: (path: string) => void;
+  /** Full-width layout: the three sections sit side by side instead of stacked. */
+  wide?: boolean;
 }) {
   const segments = health.filter((s) => s.value > 0);
   const total = segments.reduce((acc, s) => acc + s.value, 0);
@@ -67,7 +70,7 @@ export function YourNetworkCard({
           <span className="text-xs font-semibold tracking-wide text-slate-500 dark:text-slate-400">Scores calculating…</span>
         </div>
       )}
-      <div className={!isReady ? "opacity-30 pointer-events-none select-none flex flex-col gap-3" : "flex flex-col gap-3"}>
+      <div className={`${!isReady ? "opacity-30 pointer-events-none select-none " : ""}flex flex-col gap-3`}>
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
             <Users className="h-3.5 w-3.5" />
@@ -78,6 +81,7 @@ export function YourNetworkCard({
           </span>
         </div>
 
+        <div className={wide ? "grid gap-3 lg:grid-cols-3 lg:items-start" : "flex flex-col gap-3"}>
         {/* Social graph */}
         <div className="grid grid-cols-2 gap-2">
           {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by")}
@@ -133,6 +137,7 @@ export function YourNetworkCard({
               </span>
             ))}
           </div>
+        </div>
         </div>
       </div>
     </Card>

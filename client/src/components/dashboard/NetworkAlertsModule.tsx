@@ -263,7 +263,12 @@ export function useAlertActions(observer: string) {
  * NEW since the last visit. Every flagged row reads as a negative event (red accent
  * + "Reported" chip) and offers ignore / unfollow / mute / report.
  */
-export function NetworkAlertsModule({ observer, enabled }: { observer: string; enabled: boolean }) {
+export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
+  observer: string;
+  enabled: boolean;
+  /** Lets the dashboard reflow: with nothing to act on, alerts shouldn't hold a column. */
+  onEmptyChange?: (empty: boolean) => void;
+}) {
   const [, navigate] = useLocation();
   const q = useNetworkAlerts(observer, { enabled });
   const data = q.data?.data;
@@ -308,6 +313,9 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   const flaggedCount = visibleDirect.length;
 
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
+
+  const isEmpty = enabled && !q.isLoading && !q.isError && visibleDirect.length === 0 && extendedCount === 0;
+  useEffect(() => { onEmptyChange?.(isEmpty); }, [isEmpty, onEmptyChange]);
 
   function markAllSeen() {
     markAlertsSeen(observer, flaggedPubkeys);

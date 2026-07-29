@@ -224,6 +224,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // With nothing flagged, alerts collapse to a strip and Your Network takes the
+  // full row — an all-clear should not hold a two-thirds column hostage.
+  const [alertsEmpty, setAlertsEmpty] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
@@ -1654,13 +1657,13 @@ export default function DashboardPage() {
               full Network Health pie; the pie's tier drill-downs now live on
               /network). Flex (not grid) so each column sizes to its own content.
               Stacks on mobile. */}
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4 mb-6">
+          <div className={`flex flex-col gap-4 mb-6 ${alertsEmpty ? "" : "lg:flex-row lg:items-start"}`}>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:w-2/3 flex">
-              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className={alertsEmpty ? "w-full flex" : "lg:w-2/3 flex"}>
+              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} onEmptyChange={setAlertsEmpty} />
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:w-1/3 flex">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={alertsEmpty ? "w-full flex" : "lg:w-1/3 flex"}>
               <YourNetworkCard
                 isReady={isCalculationComplete}
                 loading={overviewQuery.isLoading || statsQuery.isLoading}
@@ -1672,6 +1675,7 @@ export default function DashboardPage() {
                 onHopChange={setHopRange}
                 health={currentPieData}
                 onNavigate={navigate}
+                wide={alertsEmpty}
               />
             </motion.div>
           </div>
