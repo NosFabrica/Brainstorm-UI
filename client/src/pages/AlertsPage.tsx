@@ -161,7 +161,11 @@ export default function AlertsPage() {
         ) : rows.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 py-8">
             <ShieldCheck className="h-5 w-5 text-emerald-500" />
-            {live.length === 0 ? "Your network looks clean — no flagged accounts." : "No matches for this filter."}
+            {live.length > 0
+              ? "No matches for this filter."
+              : ignoredCount > 0
+                ? `Nothing needs your attention — ${ignoredCount} ignored ${ignoredCount === 1 ? "account is" : "accounts are"} hidden.`
+                : "Your network looks clean — no flagged accounts."}
           </div>
         ) : (
           <div className="space-y-1.5" data-testid="alerts-list">

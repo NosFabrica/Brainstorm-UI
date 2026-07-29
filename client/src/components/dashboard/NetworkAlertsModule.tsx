@@ -301,9 +301,9 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   const newFirst = (arr: NetworkAlertEntry[]) =>
     [...arr].sort((a, b) => (newSet.has(b.pubkey) ? 1 : 0) - (newSet.has(a.pubkey) ? 1 : 0));
   const visibleDirect = newFirst(direct.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)));
-  // Extended reach is NOT a queue — it renders as a single count below, so it is
-  // deliberately not filtered by ignore state.
-  const extendedCount = extended.length;
+  // Extended reach renders as a single count, not a queue — but it must still
+  // respect ignores, or the number links through to an empty /alerts page.
+  const extendedCount = extended.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)).length;
   const newCount = visibleDirect.filter((e) => newSet.has(e.pubkey)).length;
   const flaggedCount = visibleDirect.length;
 
@@ -381,9 +381,20 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
           <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">Try again</button>
         </div>
       ) : visibleDirect.length === 0 && extendedCount === 0 ? (
-        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300" data-testid="network-alerts-clear">
-          <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          Your network looks clean — no flagged accounts.
+        /* Clean state fills the card and centres, so the height it shares with
+           "Your Network" reads as a deliberate all-clear rather than a card that
+           ran out of content. Deliberately NOT hidden: for a safety feature the
+           absence of the widget is ambiguous ("is it still watching?"), whereas
+           an explicit all-clear is itself the reassurance. */
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center" data-testid="network-alerts-clear">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
+            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+          </div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Your network looks clean</p>
+          <p className="max-w-[26rem] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            Nothing flagged right now. We keep watching in the background and will raise it here
+            the moment someone in your network gets reported.
+          </p>
         </div>
       ) : (
         <>
