@@ -52,16 +52,24 @@ import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 const ANON_POV = "nosfabrica" as const;
 
 // Example prompts the empty search box gently cycles through to teach
-// visitors what they can search for. The first entry is the static
-// fallback (used as-is when the user prefers reduced motion).
+// first-time visitors what they can search for. The first entry is the
+// static fallback — used as-is when the user prefers reduced motion, and
+// for returning visitors who've already seen the rotating hints (see
+// SEEN_SEARCH_HINTS_KEY). Kept deliberately generic (mainstream names +
+// topics, no insider references) so it reads for a broad audience.
 const PLACEHOLDER_EXAMPLES = [
   "Search people and topics…",
-  'Search "Jack"',
+  'Search "Maria"',
   'Search "Prague"',
-  'Try a topic like "#bitcoin"',
-  'Search a handle like "odell@primal.net"',
+  'Try a topic like "#soccer"',
+  'Search a handle like "alex@primal.net"',
   "Search a public key…",
 ];
+
+// localStorage flag: set on a visitor's first landing view. Its presence
+// marks a "returning" visitor, who gets the calm static placeholder instead
+// of the rotating hints. First-party + functional → no consent banner needed.
+const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 
 function truncateAbout(text: string, maxLen = 120): string {
   if (text.length <= maxLen) return text;
@@ -101,6 +109,13 @@ export default function Landing() {
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  // First-time visitors get the rotating hints (a gentle "here's what you can
+  // search" onboarding); returning visitors get the calm static placeholder.
+  // Read once at mount so the current visit reflects prior visits, then persist
+  // below so the NEXT visit is treated as returning.
+  const [isFirstVisit] = useState(() => {
+    try { return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY); } catch { return true; }
+  });
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
   // Full search results state (merged in from the retired /search page).
@@ -169,11 +184,19 @@ export default function Landing() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // Gently cycle the empty box's placeholder through example prompts. Runs only
-  // while the field is empty and motion is allowed; a soft fade-out/in (300ms)
-  // bridges each swap. Pauses the moment the user types (query non-empty).
+  // Mark this browser as having seen the search hints, so the next visit is
+  // treated as returning (calm static placeholder). Set once, on first mount.
   useEffect(() => {
-    if (prefersReducedMotion || query.length > 0) {
+    if (!isFirstVisit) return;
+    try { localStorage.setItem(SEEN_SEARCH_HINTS_KEY, "1"); } catch {}
+  }, [isFirstVisit]);
+
+  // Gently cycle the empty box's placeholder through example prompts. Runs only
+  // for a first-time visitor, while the field is empty and motion is allowed; a
+  // soft fade-out/in (300ms) bridges each swap. Pauses the moment the user types
+  // (query non-empty). Returning visitors keep the static first entry.
+  useEffect(() => {
+    if (!isFirstVisit || prefersReducedMotion || query.length > 0) {
       window.clearTimeout(phFadeTimerRef.current);
       setPhVisible(true);
       return;
@@ -190,7 +213,7 @@ export default function Landing() {
       window.clearInterval(interval);
       window.clearTimeout(phFadeTimerRef.current);
     };
-  }, [prefersReducedMotion, query]);
+  }, [isFirstVisit, prefersReducedMotion, query]);
 
   // Keep the keyboard-highlighted suggestion scrolled into view.
   useEffect(() => {
@@ -704,7 +727,7 @@ export default function Landing() {
                       className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
-                      {prefersReducedMotion ? PLACEHOLDER_EXAMPLES[0] : PLACEHOLDER_EXAMPLES[phIndex]}
+                      {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
                     </span>
                   </span>
                 )}
