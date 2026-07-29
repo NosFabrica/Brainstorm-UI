@@ -1382,7 +1382,7 @@ export default function NetworkPage() {
               {/* Desktop pill rows — hidden on mobile */}
               <div>
                 <div
-                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2"
+                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5"
                   data-testid="row-group-filters-graph"
                 >
                   <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60 dark:border-slate-800">
@@ -1416,7 +1416,7 @@ export default function NetworkPage() {
                               setActiveGroup(group.key);
                               setCurrentPage(1);
                             }}
-                            className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                            className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
                                 ? "bg-brand-primary text-white border border-brand-primary"
                                 : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
