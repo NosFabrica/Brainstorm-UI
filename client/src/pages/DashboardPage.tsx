@@ -18,6 +18,7 @@ import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
+import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,6 @@ import {
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
@@ -225,7 +225,6 @@ export default function DashboardPage() {
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
-  const [healthView, setHealthView] = useState<"followers" | "following">("followers");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
   const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
@@ -734,23 +733,6 @@ export default function DashboardPage() {
 
   // Stats `tier_counts` field names now match the GR `count_values` keys
   // used by TIER_CONFIG — pass straight through.
-  const directTierCounts = useMemo(
-    () => (stats?.followed_by?.tier_counts ?? {}) as Record<string, number>,
-    [stats],
-  );
-  const directFollowingTierCounts = useMemo(
-    () => (stats?.following?.tier_counts ?? {}) as Record<string, number>,
-    [stats],
-  );
-
-  const followingPieData = useMemo(() => {
-    return TIER_CONFIG.map((tier) => ({
-      name: tier.name,
-      value: directFollowingTierCounts[tier.key] ?? 0,
-      color: tier.color,
-    })).filter(d => d.value > 0 || d.name === "Flagged");
-  }, [directFollowingTierCounts]);
-
   const handleExport = () => {
     const data = {
       format: "brainstorm-v1",
@@ -1664,333 +1646,34 @@ export default function DashboardPage() {
             <DashboardLookup />
           </div>
 
-          {/* Flagship main + sidebar: Network Alerts (2/3) beside a right column
-              stacking Social Graph + Extended Reach (1/3). Flex (not grid) so the
-              two columns size to their own content — the alerts list never has to
-              match the taller sidebar's height. Stacks on mobile. */}
+          {/* Three boxes total: the Look-up bar above, then Network Alerts (2/3)
+              beside the condensed "Your Network" card (1/3) — which folds in what
+              used to be three separate tiles (Social Graph, Extended Reach and the
+              full Network Health pie; the pie's tier drill-downs now live on
+              /network). Flex (not grid) so each column sizes to its own content.
+              Stacks on mobile. */}
           <div className="flex flex-col lg:flex-row gap-4 mb-6 lg:items-start">
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:w-2/3">
               <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
 
-            <div className="flex flex-col gap-4 lg:w-1/3">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-              <Card
-                className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
-                title={!isCalculationComplete ? "Available after calculation completes" : undefined}
-                data-testid="card-social-graph"
-              >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div className="flex flex-col h-full gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
-                      <Users className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      Social Graph
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mt-1">
-                    <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
-                      onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
-                      data-testid="card-trusted-followers"
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
-                          <Award className="h-3 w-3" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Followers</span>
-                      </div>
-                      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : verifiedFollowersCount}
-                      </div>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
-                      {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
-                          <span>Explore</span>
-                          <ChevronRight className="h-2.5 w-2.5" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
-                      onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
-                      data-testid="card-trusted-following"
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">
-                          <UserPlus className="h-3 w-3" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Following</span>
-                      </div>
-                      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : verifiedFollowingCount}
-                      </div>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
-                      {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60">
-                          <span>Explore</span>
-                          <ChevronRight className="h-2.5 w-2.5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-auto flex items-center justify-between pt-2">
-                    <div className="inline-flex items-center gap-2 text-xs font-mono text-slate-500 dark:text-slate-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Live
-                    </div>
-                    <span
-                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 ${isCalculationComplete ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
-                      onClick={() => isCalculationComplete && navigate("/network")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      data-testid="button-view-all-network"
-                    >
-                      View All
-                      <ChevronRight className="ml-1.5 h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
-              </Card>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:w-1/3">
+              <YourNetworkCard
+                isReady={isCalculationComplete}
+                loading={overviewQuery.isLoading || statsQuery.isLoading}
+                followers={verifiedFollowersCount}
+                following={verifiedFollowingCount}
+                extendedCount={extendedNetworkCount}
+                hopRange={hopRange}
+                maxHop={maxHopInData}
+                onHopChange={setHopRange}
+                health={currentPieData}
+                onNavigate={navigate}
+              />
             </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
-                {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
-                    {isErrorState ? (
-                      <>
-                        <Network className="w-5 h-5 text-slate-300 dark:text-slate-600 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Calculate scores to unlock</span>
-                      </>
-                    ) : (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin text-slate-400 dark:text-slate-500 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Scores calculating...</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
-                        <Network className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                        Extended Reach
-                      </span>
-                    </div>
-                    <UITooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3 w-3 text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-brand-accent/20 text-slate-700 dark:text-slate-200 shadow-xl p-3">
-                        <div className="space-y-1 max-w-xs">
-                          <p className="font-bold text-xs text-brand-deep">About Extended Reach</p>
-                          <p className="text-xs leading-relaxed">
-                            This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
-                          </p>
-                          <p className="text-xs leading-relaxed border-t border-slate-100 dark:border-slate-800/60 pt-1 mt-1">
-                            <span className="font-semibold text-brand-primary dark:text-brand-link">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
-                          </p>
-                        </div>
-                      </TooltipContent>
-                    </UITooltip>
-                  </div>
-
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-brand-link" /> : extendedNetworkCount.toLocaleString()}
-                    </div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-extended-network-label">Unique profiles in range</p>
-                  </div>
-
-                  <div className="mt-auto space-y-2 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60">
-                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300">
-                      <span>Reach Depth</span>
-                      <span className="text-brand-primary dark:text-brand-link font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
-                    </div>
-                    <Slider
-                      value={hopRange}
-                      onValueChange={(v) => {
-                        if (!isCalculationComplete) return;
-                        const next = (v ?? [1, maxHopInData]).slice(0, 2) as number[];
-                        const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
-                        const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
-                        setHopRange([lo, hi]);
-                        if (lo !== 1 || hi !== 1) setHealthView("followers");
-                      }}
-                      max={maxHopInData}
-                      min={1}
-                      step={1}
-                      className={isCalculationComplete ? "cursor-pointer py-1" : "cursor-not-allowed py-1 opacity-50"}
-                      disabled={!isCalculationComplete}
-                    />
-                    <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">
-                      <span>Direct</span>
-                      <span>Global</span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-            </div>
           </div>
 
-          {!hasNoFollowing && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className={`bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:border-brand-accent/40 hover:-translate-y-1" : ""}`}>
-                {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
-                    {isErrorState ? (
-                      <>
-                        <Users className="w-6 h-6 text-slate-300 dark:text-slate-600 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Calculate scores to unlock</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Network health data will appear once scores are ready</span>
-                      </>
-                    ) : (
-                      <>
-                        <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 tracking-wide">Scores calculating...</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 mt-1">Network health data will appear once scores are ready</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
-                <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-3 px-5">
-                  <div className="flex flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-800/60 shadow-sm text-brand-deep ring-1 ring-slate-100 dark:ring-slate-800">
-                        <Users className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm relative">
-                        <CardTitle className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-tight relative z-10" style={{ fontFamily: "var(--font-display)" }}>
-                          Network Health
-                        </CardTitle>
-                        <CardDescription className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="px-2 py-0.5 rounded-full bg-brand-accent/10 text-xs font-bold text-brand-deep border border-brand-accent/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                      <span className="text-brand-link">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex flex-col md:flex-row items-center gap-6 px-4 sm:px-8">
-                    <div className="h-48 w-full md:w-5/12">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={1} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" }; const tier = tierMap[sliceData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
-                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); return sliceData.map((entry: { color: string }, index: number) => (
-                              <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
-                            )); })()}
-                          </Pie>
-                          {isCalculationComplete && (
-                          <Tooltip
-                            formatter={(value: number, _name: string) => {
-                              if ((overviewQuery.isLoading || statsQuery.isLoading)) return ["\u2014", ""];
-                              const hopLabel = hopRange[0] === hopRange[1] ? `Hop ${hopRange[0]}` : `Hops ${hopRange[0]}–${hopRange[1]}`;
-                              return [`${value.toLocaleString()} profiles · ${hopLabel}`, ""];
-                            }}
-                            contentStyle={{
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                              backgroundColor: "#ffffff",
-                              color: "#0f172a",
-                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                              fontSize: "12px",
-                            }}
-                            itemStyle={{ color: "#0f172a" }}
-                          />
-                          )}
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {(() => {
-                      const isHop1 = hopRange[0] === 1 && hopRange[1] === 1;
-                      const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData;
-                      const activeTierCounts = isHop1 && healthView === "following" ? directFollowingTierCounts : directTierCounts;
-                      const activeGroup = isHop1 && healthView === "following" ? "following" : "followed_by";
-                      const totalActive = activePieData.reduce((acc, curr) => acc + curr.value, 0);
-                      return (
-                    <div className="w-full md:w-7/12 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 sm:gap-y-3">
-                      <div className="col-span-1 sm:col-span-2 mb-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
-                          </div>
-                          {isHop1 && (
-                            <div className="flex items-center rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-brand-primary text-white shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {activePieData.map((dist, i) => {
-                        const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" };
-                        const tier = tierMap[dist.name];
-                        const canClick = isCalculationComplete && calcDone && !!tier;
-                        const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
-                        return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-800 ${canClick ? "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10" : "cursor-default hover:bg-slate-50 dark:hover:bg-slate-800"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
-                          <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center mb-1 gap-2">
-                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 min-w-0">
-                                <p className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
-                              </div>
-                              <span className="text-xs font-mono text-slate-400 dark:text-slate-500 group-hover:text-brand-primary transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
-                                {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-brand-link inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: isCalculationComplete ? `${(dist.value / totalActive) * 100}%` : "0%" }}
-                                transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                                className="h-full rounded-full"
-                                style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                      );
-                    })()}
-                  </div>
-                </CardContent>
-                </div>
-              </Card>
-            </motion.div>
-          </div>)}
 
           <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
             <div className="absolute inset-0 bg-[#020617] border-y border-brand-primary/20">
