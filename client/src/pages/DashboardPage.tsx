@@ -1703,7 +1703,7 @@ export default function DashboardPage() {
             </button>
             <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
               <span>Works with</span>
-              <span className="font-medium text-slate-500 dark:text-slate-400">Amethyst · Damus · Primal</span>
+              <span className="font-medium text-slate-500 dark:text-slate-400">Amethyst · Ditto · Nostria · Primal</span>
             </div>
             <button
               type="button"

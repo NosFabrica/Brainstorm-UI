@@ -52,14 +52,19 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finding what your network is reading…
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
           {top.map(({ event, author }) => (
-            <div key={event.id} className="flex flex-col gap-1" data-testid="network-article">
-              <EmbeddedArticleCard event={event as MinimalEvent} author={profiles.get(event.pubkey)} />
+            // h-full + a flex-1 media slot so both cards in the row share one
+            // height whether or not they have a summary; the attribution is
+            // pinned to the bottom so those baselines line up too.
+            <div key={event.id} className="flex h-full flex-col gap-1" data-testid="network-article">
+              <div className="flex-1 [&>*]:!mt-0 [&>*]:h-full">
+                <EmbeddedArticleCard event={event as MinimalEvent} author={profiles.get(event.pubkey)} />
+              </div>
               {/* Why you're seeing this — the one line no other client can print.
                   Worded to match what the data actually means: verified followers
                   are accounts inside the observer's web of trust. */}
-              <p className="px-1 text-[11px] text-slate-500 dark:text-slate-400">
+              <p className="mt-auto px-1 text-[11px] text-slate-500 dark:text-slate-400">
                 {author.verifiedFollowerCount > 0
                   ? `Followed by ${author.verifiedFollowerCount} account${author.verifiedFollowerCount === 1 ? "" : "s"} you trust`
                   : "In your extended network"}

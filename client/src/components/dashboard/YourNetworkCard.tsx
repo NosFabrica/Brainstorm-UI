@@ -44,7 +44,7 @@ export function YourNetworkCard({
 
   const statTile = (label: string, value: number, icon: React.ReactNode, group: string) => (
     <div
-      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
+      className={`relative flex h-full flex-col rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
       onClick={() => isReady && onNavigate(`/network?group=${group}&view=list`)}
       role={isReady ? "button" : undefined}
       tabIndex={isReady ? 0 : -1}
@@ -57,7 +57,7 @@ export function YourNetworkCard({
       </div>
       <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none">{statValue(value)}</div>
       {isReady && (
-        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></div>
+        <div className="mt-auto pt-2 flex items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></div>
       )}
     </div>
   );
@@ -81,34 +81,41 @@ export function YourNetworkCard({
           </span>
         </div>
 
-        <div className={wide ? "grid gap-3 lg:grid-cols-3 lg:items-start" : "flex flex-col gap-3"}>
+        {/* Wide (all-clear) → four equal cells on one row. `contents` dissolves
+            the followers/following wrapper so its two tiles join the same 4-col
+            grid, and items-stretch makes every box share one height. */}
+        <div className={wide ? "grid gap-3 lg:grid-cols-4 lg:items-stretch" : "flex flex-col gap-3"}>
         {/* Social graph */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className={wide ? "contents" : "grid grid-cols-2 gap-2"}>
           {statTile("Followers", followers, <Award className="h-3 w-3" />, "followed_by")}
           {statTile("Following", following, <UserPlus className="h-3 w-3" />, "following")}
         </div>
 
         {/* Extended reach + hop slider */}
-        <div className="rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
+        <div className="flex h-full flex-col rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider"><Network className="h-3 w-3" /> Extended reach</span>
             <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">{loading || !isReady ? "—" : extendedCount.toLocaleString()}</span>
           </div>
-          <Slider
-            value={hopRange}
-            onValueChange={(v) => {
-              if (!isReady) return;
-              const next = (v ?? [1, maxHop]).slice(0, 2) as number[];
-              const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
-              const hi = Math.min(maxHop, Math.max(next[0] ?? 1, next[1] ?? 1));
-              onHopChange([lo, hi]);
-            }}
-            max={maxHop}
-            min={1}
-            step={1}
-            disabled={!isReady}
-            className={isReady ? "cursor-pointer py-1" : "cursor-not-allowed py-1 opacity-50"}
-          />
+          {/* Fixed-height band centres the slider track so it lands on the exact
+              same line as the trust-health bar in the box beside it. */}
+          <div className="flex h-5 items-center">
+            <Slider
+              value={hopRange}
+              onValueChange={(v) => {
+                if (!isReady) return;
+                const next = (v ?? [1, maxHop]).slice(0, 2) as number[];
+                const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
+                const hi = Math.min(maxHop, Math.max(next[0] ?? 1, next[1] ?? 1));
+                onHopChange([lo, hi]);
+              }}
+              max={maxHop}
+              min={1}
+              step={1}
+              disabled={!isReady}
+              className={isReady ? "cursor-pointer w-full" : "cursor-not-allowed w-full opacity-50"}
+            />
+          </div>
           <div className="flex justify-between text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500">
             <span>Direct</span>
             <span className="text-brand-primary dark:text-brand-link">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}–${hopRange[1]}`} hops</span>
@@ -119,17 +126,20 @@ export function YourNetworkCard({
         {/* Trust health — compact stacked bar + legend, full detail on /network.
             Same boxed chrome as Extended Reach so the two align on one baseline
             when the card goes wide. */}
-        <div className="rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
+        <div className="flex h-full flex-col rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trust health</span>
             <button type="button" onClick={() => onNavigate("/network")} className="text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="your-network-health-details">
               Details →
             </button>
           </div>
-          <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" data-testid="your-network-health-bar">
-            {total > 0 && segments.map((s, i) => (
-              <div key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(s.value / total) * 100}%`, backgroundColor: isReady ? s.color : "#cbd5e1" }} title={`${s.name}: ${s.value.toLocaleString()}`} />
-            ))}
+          {/* Same 20px band + 1.5 bar height as the slider so both sit on one line. */}
+          <div className="flex h-5 items-center">
+            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" data-testid="your-network-health-bar">
+              {total > 0 && segments.map((s, i) => (
+                <div key={i} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${(s.value / total) * 100}%`, backgroundColor: isReady ? s.color : "#cbd5e1" }} title={`${s.name}: ${s.value.toLocaleString()}`} />
+              ))}
+            </div>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5">
             {segments.slice(0, 4).map((s, i) => (

@@ -193,7 +193,10 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
       ) : (
         // Flows with the page rather than living in an inner scrollbox: a feed
         // inside a scrollbox reads as a widget, not a place you settle into.
-        <div className="divide-y divide-slate-100 dark:divide-slate-800/60" data-testid="network-thread-list">
+        // Centered reading column: a social feed run at the full ~1500px card
+        // width makes every image a giant band. ~640px is the width real feeds
+        // use, so cropped media reads as tasteful on desktop and mobile alike.
+        <div className="mx-auto max-w-xl divide-y divide-slate-100 dark:divide-slate-800/60" data-testid="network-thread-list">
           {notes.map((e) => {
             const s = scores.get(e.id);
             return (
