@@ -1,5 +1,5 @@
 import { UserRound, Globe, Lock, AlertCircle, ArrowRight } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -78,7 +78,8 @@ export function PovTag({ pov }: { pov: ScorePov }) {
  * instead of a dead switch.
  */
 export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersonalize: boolean; avatarUrl?: string; className?: string }) {
-  const { pov, setPersonalized } = useScorePov();
+  const { pov, loggedIn, setPersonalized } = useScorePov();
+  const [location] = useLocation();
 
   // Mirror the homepage POV pill (landing.tsx): a quiet NEUTRAL segmented control
   // — the active segment is a plain white chip, no gradient / no wordmark image
@@ -89,8 +90,32 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
   const activeSeg = "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm";
   const idleSeg = "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white";
 
-  // No personal Web of Trust yet → Brainstorm's view is the only perspective, so
-  // state it as the single active branded chip instead of a dead two-way switch.
+  // Logged OUT → keep the "My perspective" affordance the homepage offers, but as
+  // an HONEST sign-in hook: a locked segment that routes to /login (returning here
+  // after), so a list becomes a contextual "see this through your own Web of Trust"
+  // conversion moment. Matches the locked-Personalized option in the score modal.
+  if (!canPersonalize && !loggedIn) {
+    const loginHref = `/login?next=${encodeURIComponent(location)}`;
+    return (
+      <span role="group" aria-label="Trust perspective" className={cn(wrap, className)} data-testid="pov-toggle-signin">
+        <span className={cn(seg, activeSeg)} data-testid="pov-toggle-global">
+          <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
+        </span>
+        <Link
+          href={loginHref}
+          className={cn(seg, idleSeg)}
+          aria-label="Sign in to see this through your own Web of Trust"
+          data-testid="pov-toggle-signin-link"
+        >
+          <Lock className="h-3 w-3" /> My perspective
+        </Link>
+      </span>
+    );
+  }
+
+  // Signed in but no personal Web of Trust yet (scores still calculating) →
+  // Brainstorm's view is the only perspective; state it as a single active
+  // branded chip instead of a dead two-way switch or a wrong "sign in" prompt.
   if (!canPersonalize) {
     return (
       <span className={cn(wrap, className)} data-testid="pov-toggle-static">
