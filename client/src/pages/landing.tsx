@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getRecentSearches, pushRecentSearch, removeRecentSearch, clearRecentSearches, type RecentSearch } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import {
@@ -15,6 +16,7 @@ import {
   UserRound,
   Radar,
   Copy,
+  Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -116,6 +118,10 @@ export default function Landing() {
   const [isFirstVisit] = useState(() => {
     try { return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY); } catch { return true; }
   });
+  // Per-browser recent searches, shown under an empty, focused box (returning
+  // visitors only — a first-timer has none). `focused` gates that panel.
+  const [recent, setRecent] = useState<RecentSearch[]>(() => getRecentSearches());
+  const [focused, setFocused] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
   // Full search results state (merged in from the retired /search page).
@@ -392,6 +398,8 @@ export default function Landing() {
   const handleSearch = useCallback(async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    // Remember this query for the "Recent" list (de-duped, most-recent-first).
+    setRecent(pushRecentSearch(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -570,6 +578,9 @@ export default function Landing() {
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
   const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
+  // "Recent" shows under an empty, focused box before any search this session —
+  // never alongside the suggestions dropdown or a results list.
+  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
   useLayoutEffect(() => {
@@ -682,8 +693,10 @@ export default function Landing() {
                     scheduleSuggest(e.target.value);
                   }}
                   onFocus={() => {
+                    setFocused(true);
                     if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
                   }}
+                  onBlur={() => setFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
@@ -847,6 +860,59 @@ export default function Landing() {
                     </button>
                   </>
                 )}
+              </div>
+            )}
+
+            {showRecent && (
+              <div
+                role="listbox"
+                aria-label="Recent searches"
+                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                data-testid="container-home-recent"
+              >
+                <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
+                  <button
+                    type="button"
+                    // onMouseDown + preventDefault keeps the input focused so the
+                    // click lands before the box blurs and closes this panel.
+                    onMouseDown={(e) => { e.preventDefault(); setRecent(clearRecentSearches()); }}
+                    className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:text-brand-primary"
+                    data-testid="button-home-recent-clear"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="pb-1.5">
+                  {recent.map((item, i) => (
+                    <div
+                      key={item.q}
+                      role="option"
+                      aria-selected={false}
+                      className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      data-testid={`home-recent-${i}`}
+                    >
+                      <button
+                        type="button"
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                        onMouseDown={(e) => { e.preventDefault(); setQuery(item.q); handleSearch(item.q); }}
+                        data-testid={`home-recent-run-${i}`}
+                      >
+                        <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                        <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove "${item.q}" from recent searches`}
+                        onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentSearch(item.q)); }}
+                        className="opacity-0 group-hover/recent:opacity-100 focus:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                        data-testid={`home-recent-remove-${i}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
