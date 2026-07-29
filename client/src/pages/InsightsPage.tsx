@@ -254,19 +254,25 @@ export default function InsightsPage() {
             </p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {scoreHistory.slice(0, 12).map((e) => {
+              {scoreHistory.slice(0, 12).map((e, i) => {
                 const up = (e.delta ?? 0) > 0;
                 const flat = e.delta === 0 || e.delta == null;
+                // The newest run is the one behind your CURRENT score — it gets the
+                // filled pill. Older rows carry the same info as a quiet dot+label,
+                // so the column reads as data instead of a stack of loud pills.
+                const isActiveRun = i === 0;
                 return (
-                  // Two columns that hold at every width: date + the preset it ran
-                  // at on the left, the score movement on the right. min-w-0 lets
-                  // the date truncate on narrow phones instead of pushing the numbers off.
+                  // One clean line at every width: date then the preset it ran at,
+                  // inline, with the score movement held right. min-w-0 lets the
+                  // date shrink on narrow phones instead of pushing the numbers off.
                   <li key={e.t} className="flex items-center justify-between gap-3 py-2" data-testid="insights-score-row">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
                       <p className="truncate text-sm text-slate-600 dark:text-slate-300">
                         {new Date(e.t).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                       </p>
-                      {e.preset && <div className="mt-0.5"><PresetBadge preset={e.preset} size="xs" /></div>}
+                      {e.preset && (
+                        <PresetBadge preset={e.preset} size="xs" variant={isActiveRun ? "pill" : "quiet"} className="shrink-0" />
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                       {e.previous != null && (

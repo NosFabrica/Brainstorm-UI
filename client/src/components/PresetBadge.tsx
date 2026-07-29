@@ -5,6 +5,13 @@ type PresetBadgeProps = {
   size?: "xs" | "sm";
   className?: string;
   testId?: string;
+  /**
+   * "quiet" drops the pill chrome (no background/border) and keeps just the
+   * colour dot + label. For dense lists where every row carries a preset, a
+   * column of filled pills reads as noise — reserve the pill for the ACTIVE one
+   * and let the historical rows sit quietly.
+   */
+  variant?: "pill" | "quiet";
 };
 
 const STYLES: Record<TrustPreset, { bg: string; text: string; border: string; dot: string }> = {
@@ -28,7 +35,7 @@ const STYLES: Record<TrustPreset, { bg: string; text: string; border: string; do
   },
 };
 
-export function PresetBadge({ preset, size = "xs", className = "", testId }: PresetBadgeProps) {
+export function PresetBadge({ preset, size = "xs", className = "", testId, variant = "pill" }: PresetBadgeProps) {
   if (!preset) return null;
   const upper = preset.toUpperCase();
   if (upper !== "PERMISSIVE" && upper !== "DEFAULT" && upper !== "RESTRICTIVE") return null;
@@ -39,6 +46,18 @@ export function PresetBadge({ preset, size = "xs", className = "", testId }: Pre
     size === "sm"
       ? "px-2.5 py-1 text-[10px]"
       : "px-2 py-0.5 text-[9px]";
+
+  if (variant === "quiet") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 ${className}`}
+        data-testid={testId}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+        {label}
+      </span>
+    );
+  }
 
   return (
     <span
