@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink, Info } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
@@ -24,11 +24,17 @@ const SORTS: { key: SortMode; label: string }[] = [
   { key: "top", label: "Top" },
   { key: "latest", label: "Latest" },
 ];
+// User-facing labels describe the WIDTH of the trust filter, not dev jargon —
+// "Default" tells a user nothing about what it does. Keys stay relax/default/strict
+// (they map to the backend + shared preset store); only the display changes.
 const PRESETS: { key: TrustPreset; label: string }[] = [
-  { key: "relax", label: "Relax" },
-  { key: "default", label: "Default" },
+  { key: "relax", label: "Wide" },
+  { key: "default", label: "Balanced" },
   { key: "strict", label: "Strict" },
 ];
+const MIN_RESULTS = 5;
+// Next-wider preset for the auto-widen fallback (strict → default → relax → none).
+const WIDER: Record<TrustPreset, TrustPreset | null> = { strict: "default", default: "relax", relax: null };
 
 /** Set/reset the document title + OG meta for shareable previews. */
 function useHashtagMeta(tag: string) {
@@ -95,13 +101,21 @@ export default function HashtagPage() {
 
   const candidates = contentQuery.data?.events ?? [];
   const scores = useMemo(() => contentQuery.data?.scores ?? new Map<string, number>(), [contentQuery.data]);
-  const candidateCount = contentQuery.data?.candidateCount ?? 0;
 
   // Page-local filter + sort: strictness (threshold) and Top/Latest re-apply instantly.
-  const events = useMemo(
-    () => rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[preset], sort),
-    [candidates, scores, preset, sort],
-  );
+  // Auto-widen: a near-empty page is a worse first impression than a slightly
+  // looser one, so if the selected strictness returns too few we fall to the
+  // next-wider preset until we clear a small floor (or hit the widest). Results
+  // widen; the selected chip stays put, and a note explains what happened.
+  const { events, widened } = useMemo(() => {
+    let p = preset;
+    let evs = rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[p], sort);
+    while (evs.length < MIN_RESULTS && WIDER[p]) {
+      p = WIDER[p]!;
+      evs = rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[p], sort);
+    }
+    return { events: evs, widened: p !== preset };
+  }, [candidates, scores, preset, sort]);
   const voiceCount = useMemo(() => new Set(events.map((e) => e.pubkey)).size, [events]);
 
   // Related topics: hashtags co-occurring in the trusted results.
@@ -221,22 +235,25 @@ export default function HashtagPage() {
                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-accent/10 border border-brand-accent/20 text-brand-deep">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
+                {/* Auto-widen has already fallen to the widest filter before we
+                    reach here, so an empty page means genuinely nothing trusted —
+                    the old "loosen the filter" prompt would be a dead end. */}
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {candidateCount > 0 && preset !== "relax" ? `Nothing at this strictness for #${tag}` : `No trusted content for #${tag} yet`}
+                  No trusted posts on #{tag} yet
                 </p>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {candidateCount > 0 && preset !== "relax"
-                    ? "Try loosening the trust filter to Relax to see more."
-                    : "We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut."}
+                  We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut. Check back as your network grows.
                 </p>
-                {candidateCount > 0 && preset !== "relax" && (
-                  <button type="button" onClick={() => setPreset("relax")} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover" data-testid="hashtag-relax">
-                    Loosen to Relax
-                  </button>
-                )}
               </div>
             ) : (
-              events.map((ev) =>
+              <>
+              {widened && (
+                <div className="mb-3 flex items-start gap-2 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-3 py-2 text-xs text-slate-600 dark:text-slate-300" data-testid="hashtag-widened">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-accent" />
+                  <span>Few highly-trusted posts on <span className="font-semibold">#{tag}</span> yet — showing wider results so there's something to read.</span>
+                </div>
+              )}
+              {events.map((ev) =>
                 ev.kind === 30023 ? (
                   <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                 ) : (
@@ -244,7 +261,8 @@ export default function HashtagPage() {
                     <ShareNoteCard event={ev as MinimalEvent} profiles={profiles} eventsById={EMPTY} href={eventPath(ev)} showAuthor authorScore={scores.get(ev.pubkey)} />
                   </div>
                 ),
-              )
+              )}
+              </>
             )}
           </div>
 
