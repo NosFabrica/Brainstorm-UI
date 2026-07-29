@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
-import { getRecentSearches, pushRecentSearch, removeRecentSearch, clearRecentSearches, type RecentSearch } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import {
@@ -120,7 +120,7 @@ export default function Landing() {
   });
   // Per-browser recent searches, shown under an empty, focused box (returning
   // visitors only — a first-timer has none). `focused` gates that panel.
-  const [recent, setRecent] = useState<RecentSearch[]>(() => getRecentSearches());
+  const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
   const [focused, setFocused] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
@@ -326,6 +326,15 @@ export default function Landing() {
   }, [effectivePov]);
 
   const goToProfile = useCallback((result: SearchResult) => {
+    // Remember the people opened from search in the "Recent" list (avatar + name),
+    // so they're one tap to get back to — not just the words typed into the box.
+    setRecent(pushRecentProfile({
+      pubkey: result.pubkey,
+      npub: result.npub,
+      label: getDisplayLabel(result),
+      picture: result.picture,
+      nip05: result.nip05,
+    }));
     seedAndPrefetchProfile(result);
     const hex = (result.pubkey || "").toLowerCase();
     const hasNosfabricaRank =
@@ -399,7 +408,7 @@ export default function Landing() {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
-    setRecent(pushRecentSearch(q));
+    setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -884,34 +893,66 @@ export default function Landing() {
                   </button>
                 </div>
                 <div className="pb-1.5">
-                  {recent.map((item, i) => (
-                    <div
-                      key={item.q}
-                      role="option"
-                      aria-selected={false}
-                      className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                      data-testid={`home-recent-${i}`}
-                    >
-                      <button
-                        type="button"
-                        className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
-                        onMouseDown={(e) => { e.preventDefault(); setQuery(item.q); handleSearch(item.q); }}
-                        data-testid={`home-recent-run-${i}`}
+                  {recent.map((item, i) => {
+                    // Two row shapes share the hover container + remove button:
+                    // a person you opened (avatar → re-open) or a text query
+                    // (clock → re-run). onMouseDown + preventDefault keeps the
+                    // input focused so the action lands before the panel closes.
+                    const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
+                    const removeLabel = item.type === "profile"
+                      ? `Remove ${item.label} from recent`
+                      : `Remove "${item.q}" from recent searches`;
+                    return (
+                      <div
+                        key={recentKey(item)}
+                        role="option"
+                        aria-selected={false}
+                        className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        data-testid={`home-recent-${i}`}
                       >
-                        <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
-                        <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Remove "${item.q}" from recent searches`}
-                        onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentSearch(item.q)); }}
-                        className="opacity-0 group-hover/recent:opacity-100 focus:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                        data-testid={`home-recent-remove-${i}`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        {item.type === "profile" ? (
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult); }}
+                            data-testid={`home-recent-open-${i}`}
+                          >
+                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
+                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
+                              {handle && (
+                                <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5 leading-tight">
+                                  <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />{handle}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); setQuery(item.q); handleSearch(item.q); }}
+                            data-testid={`home-recent-run-${i}`}
+                          >
+                            <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={removeLabel}
+                          onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentItem(item)); }}
+                          className="opacity-0 group-hover/recent:opacity-100 focus:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                          data-testid={`home-recent-remove-${i}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

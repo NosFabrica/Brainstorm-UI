@@ -1,52 +1,111 @@
-// Per-browser "recent searches" for the home search box. Stores only what the
-// user typed into their own search box, first-party + functional → no consent
-// banner (same lightweight localStorage pattern as brainstorm_seen_search_hints).
+// Per-browser "Recent" for the home search box. A unified, most-recent-first
+// list of two kinds of thing the visitor did from search:
+//   • query   — a text search they ran (re-run on click)
+//   • profile — a person they opened from search (re-open on click, shown with
+//               their avatar/handle)
+// Stores only the visitor's own search activity, first-party + functional → no
+// consent banner (same lightweight localStorage pattern as the hints flag).
 // Because it needs no backend, it's inherently a returning-visitor affordance:
-// a first-time visitor has no recents, so the list simply doesn't render.
+// a first-timer has none, so the list simply doesn't render.
 const KEY = "brainstorm_recent_searches";
 const MAX = 6;
 
-export interface RecentSearch {
-  /** The exact query the user searched (name, handle, #topic, npub, …). */
-  q: string;
-  /** Epoch ms of the most recent time this query was searched. */
-  t: number;
+export type RecentItem =
+  | { type: "query"; q: string; t: number }
+  | {
+      type: "profile";
+      pubkey: string;
+      npub: string;
+      label: string;
+      picture?: string;
+      nip05?: string;
+      t: number;
+    };
+
+/** Stable identity for de-dupe / removal / React keys. */
+export function recentKey(item: RecentItem): string {
+  return item.type === "profile"
+    ? `profile:${item.pubkey.toLowerCase()}`
+    : `query:${item.q.toLowerCase()}`;
 }
 
-export function getRecentSearches(): RecentSearch[] {
+// Tolerate old records: pre-profile entries were bare { q, t } with no `type`.
+function normalize(e: any): RecentItem | null {
+  if (!e || typeof e.t !== "number") return null;
+  if (e.type === "profile") {
+    if (typeof e.pubkey !== "string" || typeof e.npub !== "string" || typeof e.label !== "string") return null;
+    return {
+      type: "profile",
+      pubkey: e.pubkey,
+      npub: e.npub,
+      label: e.label,
+      picture: typeof e.picture === "string" ? e.picture : undefined,
+      nip05: typeof e.nip05 === "string" ? e.nip05 : undefined,
+      t: e.t,
+    };
+  }
+  if (typeof e.q === "string") return { type: "query", q: e.q, t: e.t };
+  return null;
+}
+
+export function getRecentItems(): RecentItem[] {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((e): e is RecentSearch => !!e && typeof e.q === "string" && typeof e.t === "number")
-      .slice(0, MAX);
+    return parsed.map(normalize).filter((x): x is RecentItem => x !== null).slice(0, MAX);
   } catch {
     return [];
   }
 }
 
-function write(list: RecentSearch[]): RecentSearch[] {
+function write(list: RecentItem[]): RecentItem[] {
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {}
   return list;
 }
 
-// Record a committed search. De-dupes case-insensitively (keeping the newest
-// entry's casing), moves it to the front, and caps the list. Returns the new
-// list so callers can sync React state in one line.
-export function pushRecentSearch(q: string): RecentSearch[] {
+// Move an item to the front, de-duped by identity, capped. Returns the new list
+// so callers can sync React state in one line.
+function unshift(item: RecentItem): RecentItem[] {
+  const key = recentKey(item);
+  const rest = getRecentItems().filter((e) => recentKey(e) !== key);
+  return write([item, ...rest].slice(0, MAX));
+}
+
+export function pushRecentQuery(q: string): RecentItem[] {
   const query = q.trim();
-  if (!query) return getRecentSearches();
-  const rest = getRecentSearches().filter((e) => e.q.toLowerCase() !== query.toLowerCase());
-  return write([{ q: query, t: Date.now() }, ...rest].slice(0, MAX));
+  if (!query) return getRecentItems();
+  return unshift({ type: "query", q: query, t: Date.now() });
 }
 
-export function removeRecentSearch(q: string): RecentSearch[] {
-  const query = q.trim().toLowerCase();
-  return write(getRecentSearches().filter((e) => e.q.toLowerCase() !== query));
+export interface RecentProfileInput {
+  pubkey: string;
+  npub: string;
+  label: string;
+  picture?: string;
+  nip05?: string;
 }
 
-export function clearRecentSearches(): RecentSearch[] {
+export function pushRecentProfile(p: RecentProfileInput): RecentItem[] {
+  const pubkey = (p.pubkey || "").toLowerCase();
+  if (!pubkey || !p.npub) return getRecentItems();
+  return unshift({
+    type: "profile",
+    pubkey,
+    npub: p.npub,
+    label: p.label || p.npub,
+    picture: p.picture || undefined,
+    nip05: p.nip05 || undefined,
+    t: Date.now(),
+  });
+}
+
+export function removeRecentItem(item: RecentItem): RecentItem[] {
+  const key = recentKey(item);
+  return write(getRecentItems().filter((e) => recentKey(e) !== key));
+}
+
+export function clearRecentSearches(): RecentItem[] {
   return write([]);
 }
