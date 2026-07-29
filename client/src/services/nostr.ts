@@ -895,7 +895,10 @@ async function decryptFromSelf(ciphertext: string): Promise<string | null> {
 }
 
 /** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
-export async function fetchAlertPrefs(timeoutMs = 6000): Promise<Record<string, unknown> | null> {
+export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
+
+/** Fetch + decrypt one of the user's private app-data blobs (or null). */
+export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PREFS_D_TAG): Promise<Record<string, unknown> | null> {
   const user = getCurrentUser();
   if (!user?.pubkey) return null;
   try {
@@ -905,7 +908,7 @@ export async function fetchAlertPrefs(timeoutMs = 6000): Promise<Record<string, 
       const sub = pool.request(relays, {
         kinds: [30078],
         authors: [user.pubkey],
-        "#d": [ALERT_PREFS_D_TAG],
+        "#d": [dTag],
       }).subscribe({
         next: (event: any) => {
           if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) best = event;
@@ -926,7 +929,7 @@ export async function fetchAlertPrefs(timeoutMs = 6000): Promise<Record<string, 
 }
 
 /** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
-export async function publishAlertPrefs(prefs: unknown): Promise<{ success: boolean; error?: string }> {
+export async function publishAlertPrefs(prefs: unknown, dTag: string = ALERT_PREFS_D_TAG): Promise<{ success: boolean; error?: string }> {
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (!window.nostr && !hasLocalSecretKey()) return { success: false, error: "No signer available" };
@@ -934,7 +937,7 @@ export async function publishAlertPrefs(prefs: unknown): Promise<{ success: bool
   if (!ciphertext) return { success: false, error: "Could not encrypt" };
   const event = {
     kind: 30078,
-    tags: [["d", ALERT_PREFS_D_TAG]],
+    tags: [["d", dTag]],
     content: ciphertext,
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
@@ -11,6 +12,10 @@ import { logout } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
+import { getScoreJournal, hydrateScoreJournal, recordScore, withDeltas, type ScoreEntry } from "@/lib/scoreJournal";
+import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: "Highly Trusted", trusted: "Trusted", neutral: "Neutral", low: "Low Trust", unverified: "Unverified",
@@ -18,6 +23,18 @@ const TIER_LABEL: Record<VerificationTier, string> = {
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
 const withZ = (s: string) => (s.endsWith("Z") ? s : s + "Z");
+
+/** Epoch ms for a backend timestamp, or null when unparseable. */
+function toMs(iso?: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(withZ(iso)).getTime();
+  return isNaN(t) ? null : t;
+}
+
+/** Influence 0–1 → the 0–100 number shown everywhere else in the product. */
+function score100(v: number): number {
+  return Math.round(Math.min(1, Math.max(0, v)) * 100);
+}
 
 function fmtWhen(iso?: string | null): string | null {
   if (!iso) return null;
@@ -87,6 +104,28 @@ export default function InsightsPage() {
   const counts = overview?.counts ?? {};
   const verifiedFollowers = stats?.followed_by?.verified ?? counts.followed_by ?? 0;
   const verifiedFollowing = stats?.following?.verified ?? counts.following ?? 0;
+
+  // Score journal: the backend records that a run happened but not what it
+  // scored, so we capture the score each time we observe a NEW completed
+  // calculation. Forward-only — nothing to backfill from.
+  const [journal, setJournal] = useState<ScoreEntry[]>(() => getScoreJournal(pubkey ?? ""));
+  useEffect(() => {
+    if (!pubkey) return;
+    let live = true;
+    void hydrateScoreJournal(pubkey).then((j) => { if (live) setJournal(j); }).catch(() => {});
+    return () => { live = false; };
+  }, [pubkey]);
+  const lastCalcMs = toMs(history?.last_time_calculated_graperank);
+  useEffect(() => {
+    if (!pubkey || lastCalcMs == null || globalInfluence == null) return;
+    setJournal(recordScore(pubkey, lastCalcMs, globalInfluence));
+  }, [pubkey, lastCalcMs, globalInfluence]);
+  const scoreHistory = useMemo(() => withDeltas(journal), [journal]);
+
+  const assistant = useMemo(() => readPublishedAssistant(), []);
+  const assistantProfile = useMemo(() => (assistant ? readAssistantProfile() : null), [assistant]);
+  const assistantName =
+    assistantProfile?.display_name || assistantProfile?.name || "Brainstorm assistant";
 
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
   const duration = fmtDuration(grapeRank?.created_at, grapeRank?.updated_at);
@@ -163,9 +202,79 @@ export default function InsightsPage() {
               </div>
             )}
           </dl>
+
+          {/* Who publishes these scores. Surfaced here rather than as its own
+              dashboard card: this page is about how your scores are computed and
+              published, so the assistant is context, not promotion. */}
+          {assistant && (
+            <div className="mt-3 flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-800/60 pt-3" data-testid="insights-assistant">
+              <span className="text-sm text-slate-500 dark:text-slate-400">Published by</span>
+              <button
+                type="button"
+                onClick={() => navigate(`/p/${assistant.npub}`)}
+                className="group flex min-w-0 items-center gap-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                data-testid="insights-assistant-link"
+              >
+                <Avatar className="h-6 w-6 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
+                  {assistantProfile?.picture ? <AvatarImage src={assistantProfile.picture} alt={assistantName} className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+                <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-link">{assistantName}</span>
+                <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">your assistant</span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-slate-400 group-hover:text-brand-link" />
+              </button>
+            </div>
+          )}
+
           <button type="button" onClick={() => navigate("/settings?tab=trust")} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="insights-recalculate">
             <RefreshCw className="h-3 w-3" /> Recalculate or change preset in settings
           </button>
+        </Card>
+
+        {/* Score history — outcome-first: what each calculation DID to your score.
+            Journalled client-side because the backend records that a run happened
+            but not what it scored. Forward-only, so it starts empty for everyone. */}
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4" data-testid="insights-score-history">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Score history</span>
+            {scoreHistory.length > 0 && (
+              <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}</span>
+            )}
+          </div>
+          {scoreHistory.length === 0 ? (
+            <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400" data-testid="insights-score-history-empty">
+              Nothing recorded yet. We start tracking your score from now on — after your
+              next calculation completes, you'll see how it moved and why.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
+              {scoreHistory.slice(0, 12).map((e) => {
+                const up = (e.delta ?? 0) > 0;
+                const flat = e.delta === 0 || e.delta == null;
+                return (
+                  <li key={e.t} className="flex items-center gap-3 py-2" data-testid="insights-score-row">
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
+                      {new Date(e.t).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </span>
+                    {e.previous != null && (
+                      <span className="shrink-0 font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">
+                        {score100(e.previous)} →
+                      </span>
+                    )}
+                    <span className="shrink-0 font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
+                    <span
+                      className={`shrink-0 w-14 text-right font-mono text-xs font-semibold tabular-nums ${
+                        flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                      }`}
+                    >
+                      {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
 
         {/* Calculation history (self-scoped; renders when the endpoint returns records) */}
