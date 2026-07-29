@@ -13,7 +13,7 @@ export function DashboardLookup() {
       <Telescope className="hidden sm:block h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
       <HeaderSearchBox
         className="flex-1"
-        placeholder="Investigate anyone in your network…"
+        placeholder="Look up anyone in your network…"
         profileHref={(npub) => `/profile/${npub}`}
         resolveDirect
       />
