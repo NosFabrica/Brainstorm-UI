@@ -468,9 +468,11 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
           <AlertDialogHeader>
             <AlertDialogTitle>Ignore all {restExtended.length} in your extended reach?</AlertDialogTitle>
             <AlertDialogDescription>
-              They'll be hidden from your alerts. Nothing is published and no one is notified — this
-              only affects what you see. Your {visibleDirect.length} flagged {visibleDirect.length === 1 ? "follow" : "follows"} stay in the list, and you can bring
-              these back anytime from "Show ignored" on the alerts page.
+              Nothing is published and no one is notified — this only affects what you see.
+              {visibleDirect.length > 0 && (
+                <> Your {visibleDirect.length} flagged {visibleDirect.length === 1 ? "follow stays" : "follows stay"} in the list.</>
+              )}{" "}
+              You can bring these back anytime from "Show ignored" on the alerts page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
