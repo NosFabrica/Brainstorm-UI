@@ -116,10 +116,12 @@ export function YourNetworkCard({
           </div>
         </div>
 
-        {/* Trust health — compact stacked bar + legend, full detail on /network */}
-        <div className="space-y-1.5">
+        {/* Trust health — compact stacked bar + legend, full detail on /network.
+            Same boxed chrome as Extended Reach so the two align on one baseline
+            when the card goes wide. */}
+        <div className="rounded-lg border border-slate-100 dark:border-slate-800/60 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trust health</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Trust health</span>
             <button type="button" onClick={() => onNavigate("/network")} className="text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="your-network-health-details">
               Details →
             </button>
