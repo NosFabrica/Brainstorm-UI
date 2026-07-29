@@ -17,6 +17,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
+import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -1652,6 +1653,12 @@ export default function DashboardPage() {
               toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
             }}
           />
+
+          {/* Investigate command bar — research entry point into the deep-dive
+              analytics (/profile/:npub) for anyone in your network. */}
+          <div className="mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-2.5 shadow-sm" data-testid="dashboard-lookup-bar">
+            <DashboardLookup />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 

@@ -4,6 +4,7 @@ import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
+import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
@@ -18,7 +19,21 @@ import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
  * to that profile; submitting free text routes to the home results surface
  * (`/?q=`). Rendered inline in PublicPageHeader on ≥sm; mobile uses the icon.
  */
-export function HeaderSearchBox({ className = "" }: { className?: string }) {
+export function HeaderSearchBox({
+  className = "",
+  placeholder = "Search Brainstorm",
+  /** Where picking a profile navigates. Default = public share page. The
+   *  dashboard "Investigate" box overrides this to the deep-dive `/profile`. */
+  profileHref = (npub: string) => `/p/${npub}`,
+  /** When true, submitting a direct identifier (npub / hex) jumps straight to
+   *  `profileHref` instead of the `/?q=` results surface. */
+  resolveDirect = false,
+}: {
+  className?: string;
+  placeholder?: string;
+  profileHref?: (npub: string) => string;
+  resolveDirect?: boolean;
+}) {
   const [, navigate] = useLocation();
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
@@ -87,9 +102,7 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
   const goProfile = (r: SearchResult) => {
     setOpen(false);
     setActive(-1);
-    // Logged-out visitors get the public share page (/p); members get the
-    // personalized /profile view. Matches the landing search convention.
-    navigate(`/p/${r.npub}`);
+    navigate(profileHref(r.npub));
   };
 
   const goTopic = (tag: string) => {
@@ -106,6 +119,11 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
     const query = q.trim();
     if (!query) return;
     setOpen(false);
+    // Investigate box: a pasted npub/hex jumps straight to the deep-dive profile.
+    if (resolveDirect) {
+      if (isLikelyNpub(query)) { navigate(profileHref(query)); return; }
+      if (isHexPubkey(query)) { try { navigate(profileHref(npubFromPubkey(query))); return; } catch { /* fall through */ } }
+    }
     navigate(`/?q=${encodeURIComponent(query)}`);
   };
 
@@ -130,8 +148,8 @@ export function HeaderSearchBox({ className = "" }: { className?: string }) {
             onChange={(e) => { setQ(e.target.value); schedule(e.target.value); }}
             onFocus={() => { if (suggestions.length) setOpen(true); }}
             onKeyDown={onKeyDown}
-            placeholder="Search Brainstorm"
-            aria-label="Search Brainstorm"
+            placeholder={placeholder}
+            aria-label={placeholder}
             autoComplete="off"
             className="w-full rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 py-2 pl-9 pr-9 text-sm text-slate-900 dark:text-slate-100 transition placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
             data-testid="header-search-input"
