@@ -4,7 +4,24 @@ import { Users, UserPlus, Award, Network, ChevronRight, Loader2 } from "lucide-r
 import { BrainLogo } from "@/components/BrainLogo";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { npubFromPubkey } from "@/lib/shareId";
 import type { NetworkFace } from "@/hooks/useNetworkFaces";
+
+/** Compact "2h ago" phrasing from an epoch-SECONDS timestamp (Nostr created_at). */
+function activeAgo(epochSeconds: number): string {
+  if (!epochSeconds) return "recently";
+  const diff = Math.max(0, Math.floor(Date.now() / 1000) - epochSeconds);
+  if (diff < 60) return "just now";
+  const m = Math.floor(diff / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (w < 5) return `${w}w ago`;
+  return `${Math.floor(d / 30)}mo ago`;
+}
 
 type HealthSlice = { name: string; value: number; color: string };
 
@@ -51,23 +68,33 @@ export function YourNetworkCard({
   const statValue = (v: number) => (loading || !isReady ? <BrainLogo size={18} className="animate-pulse text-brand-link" /> : v.toLocaleString());
 
   const statTile = (label: string, value: number, icon: React.ReactNode, group: string, faces: NetworkFace[] = []) => (
+    // The tile is a plain container, NOT a role="button". Its primary action is a
+    // real <button> whose ::after stretches over the whole card, so the big click
+    // target survives while the avatars below stay independently clickable —
+    // nesting links inside a role="button" is invalid and unusable with a screen
+    // reader. Faces sit above the overlay via z-10.
     <div
-      className={`relative flex h-full flex-col rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "cursor-pointer border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
-      onClick={() => isReady && onNavigate(`/network?group=${group}&view=list`)}
-      role={isReady ? "button" : undefined}
-      tabIndex={isReady ? 0 : -1}
-      onKeyDown={(e) => { if (isReady && (e.key === "Enter" || e.key === " ")) onNavigate(`/network?group=${group}&view=list`); }}
+      className={`relative flex h-full flex-col rounded-xl border bg-gradient-to-br from-white via-white to-brand-primary/[0.06] dark:from-slate-900 dark:via-slate-900 dark:to-brand-primary/[0.12] p-3 transition-all duration-300 overflow-hidden ${isReady ? "border-slate-200/80 dark:border-slate-800/80 hover:border-brand-accent/40 hover:shadow-[0_8px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:-translate-y-0.5" : "border-slate-100 dark:border-slate-800/60"}`}
       data-testid={`your-network-${group}`}
     >
-      <div className="flex items-center gap-1.5 mb-2">
-        <div className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">{icon}</div>
-        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
-      </div>
-      <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none">{statValue(value)}</div>
+      <button
+        type="button"
+        disabled={!isReady}
+        onClick={() => onNavigate(`/network?group=${group}&view=list`)}
+        aria-label={`${label} — explore the full list`}
+        className={`text-left outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-brand-accent/50 ${isReady ? "cursor-pointer" : "cursor-default"}`}
+        data-testid={`your-network-${group}-explore`}
+      >
+        <span className="mb-2 flex items-center gap-1.5">
+          <span className="p-1 rounded-md bg-brand-deep/8 text-brand-deep">{icon}</span>
+          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
+        </span>
+        <span className="block text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight leading-none">{statValue(value)}</span>
+      </button>
       {isReady && (
         <div className="mt-auto pt-2 flex items-end justify-between gap-2">
           {faceStack(faces)}
-          <div className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></div>
+          <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-brand-deep/60"><span>Explore</span><ChevronRight className="h-2.5 w-2.5" /></span>
         </div>
       )}
     </div>
@@ -76,17 +103,36 @@ export function YourNetworkCard({
   // A small overlapping avatar cluster of recently-active people, with an honest
   // "active recently" caption (no fake "online" — Nostr has no presence signal).
   // Renders nothing until the faces load, so the tile never reserves empty space.
+  //
+  // Faces are people, so each one opens THAT person's deep-dive. The caption is
+  // metadata, not a control — a clickable "Active recently" has no destination a
+  // user could predict. z-10 lifts the cluster above the tile's stretched overlay
+  // so these clicks land here instead of navigating to the list.
   const faceStack = (faces: NetworkFace[]) => {
     if (faces.length === 0) return <span />;
     return (
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="relative z-10 flex min-w-0 flex-col gap-1">
         <div className="flex -space-x-2">
-          {faces.map((f) => (
-            <Avatar key={f.pubkey} className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 border border-slate-200 dark:border-slate-800" title={f.name || "Recently active"}>
-              {f.picture ? <AvatarImage src={f.picture} alt={f.name ?? ""} className="object-cover" /> : null}
-              <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
-            </Avatar>
-          ))}
+          {faces.map((f) => {
+            const who = f.name || `${npubFromPubkey(f.pubkey).slice(0, 12)}…`;
+            const when = activeAgo(f.lastActive);
+            return (
+              <button
+                key={f.pubkey}
+                type="button"
+                onClick={() => onNavigate(`/profile/${npubFromPubkey(f.pubkey)}`)}
+                title={`${who} · active ${when}`}
+                aria-label={`${who}, active ${when} — open profile`}
+                className="rounded-full outline-none transition-transform hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+                data-testid="your-network-face"
+              >
+                <Avatar className="h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 border border-slate-200 dark:border-slate-800">
+                  {f.picture ? <AvatarImage src={f.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+              </button>
+            );
+          })}
         </div>
         <span className="inline-flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
           <span className="h-1 w-1 rounded-full bg-brand-accent" /> Active recently
