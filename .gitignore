@@ -6,3 +6,11 @@ vite.config.ts.*
 *.tar.gz
 .env
 .claude/
+# macOS Finder duplicates ("foo 2.ts"). These are stale snapshots, not source —
+# one of them sat in services/ for a week still carrying the signEventLocally
+# account-overwrite bug. Keep them from ever being committed or type-checked.
+* 2.ts
+* 2.tsx
+* 2.png
+* 2.jpg
+* 2.json
