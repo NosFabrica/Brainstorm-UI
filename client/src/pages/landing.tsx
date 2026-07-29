@@ -16,7 +16,7 @@ import {
   Radar,
   Copy,
 } from "lucide-react";
-import { HomeHeroBackground } from "@/components/HomeHeroBackground";
+import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
@@ -588,7 +588,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
-      <HomeHeroBackground dimmed={lifted} />
+      <GlossBackground />
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
           search box owns it. B symbol left · account actions right — transparent
