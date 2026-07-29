@@ -12,6 +12,7 @@ import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
+import AlertsPage from "@/pages/AlertsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -106,6 +107,7 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
+        <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfilePage} />}</Route>

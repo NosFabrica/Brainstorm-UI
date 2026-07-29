@@ -221,6 +221,15 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
               )}
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => navigate("/alerts")}
+            className="mt-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+            data-testid="network-alerts-view-all"
+          >
+            View all flagged accounts →
+          </button>
         </>
       )}
 
@@ -248,7 +257,7 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   );
 }
 
-function AlertRow({ entry, name, picture, isNew, onDeepDive, onWhy, onUnfollow, onMute }: {
+export function AlertRow({ entry, name, picture, isNew, onDeepDive, onWhy, onUnfollow, onMute }: {
   entry: NetworkAlertEntry; name: string; picture?: string; isNew: boolean;
   onDeepDive: () => void; onWhy: () => void; onUnfollow: () => void; onMute: () => void;
 }) {
