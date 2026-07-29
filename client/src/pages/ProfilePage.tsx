@@ -6,6 +6,7 @@ import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
+import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
 import {
   Home,
   LogOut,
@@ -2726,6 +2727,8 @@ export default function ProfilePage() {
                     </div>
                   );
                 })()}
+
+                {hexPubkey && <ProfileRecentPosts pubkey={hexPubkey} />}
 
                 {(profileResult.followed_by || profileResult.following || profileResult.influence !== undefined) && (() => {
                   const _ovCounts = profileOverviewQuery.data?.counts;
