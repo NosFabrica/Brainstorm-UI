@@ -42,7 +42,9 @@ import {
   Globe,
   Eye,
   BadgeCheck,
+  AlertTriangle,
 } from "lucide-react";
+import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { ZapModal } from "@/components/ZapModal";
 import { FlashIcon } from "@/components/FlashIcon";
@@ -1716,6 +1718,13 @@ export default function ProfilePage() {
     };
   }, [profileResult, sectionInfluenceMaps, trustPreset, profileOverviewQuery.data, sectionStats]);
 
+  // Same predicate the public page (/p/:id) and Network Alerts use, so one
+  // account never reads as "flagged" on one surface and clean on another.
+  const isFlaggedProfile = useMemo(
+    () => isFlaggedByReporters(verifiedCounts.reportedBy, verifiedCounts.followers),
+    [verifiedCounts.reportedBy, verifiedCounts.followers],
+  );
+
   const followerTierBreakdown = useMemo(() => {
     if (!profileResult) return null;
     // Prefer server-computed tier counts (full relationship); fall back to
@@ -2570,6 +2579,32 @@ export default function ProfilePage() {
                           <UserPlus className="h-3.5 w-3.5" /> Invite friends
                         </button>
                       )}
+                    </div>
+                  </div>
+                ) : isFlaggedProfile ? (
+                  /* Flagged leads — the same verdict the public page and the
+                     dashboard's Network Alerts show, so a member who clicks
+                     "View" from an alert doesn't land on a profile that looks
+                     clean. Worded "your network" here: this is the signed-in,
+                     personalized surface (the public page says "the network"). */
+                  <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-3 sm:px-4 py-3" data-testid="banner-profile-flagged">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-red-100 dark:bg-red-500/15 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="min-w-0 flex-1 text-xs leading-relaxed">
+                      <span className="text-xs sm:text-sm font-bold text-red-700 dark:text-red-300">Flagged by your network</span>
+                      <p className="mt-0.5 text-[11px] sm:text-xs text-red-700/90 dark:text-red-300/90">
+                        Reported by {verifiedCounts.reportedBy} verified {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your Web of Trust
+                        {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <button type="button" onClick={() => navigate(`/p/${npubParam}/reporters`)} className="font-semibold text-red-700 dark:text-red-300 underline underline-offset-2 hover:text-red-800 dark:hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 rounded" data-testid="banner-profile-flagged-who">
+                          See who reported
+                        </button>
+                        <button type="button" onClick={() => navigate("/what-is-wot")} className="font-medium text-red-700/80 dark:text-red-300/80 underline underline-offset-2 hover:text-red-800 dark:hover:text-red-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 rounded" data-testid="banner-profile-flagged-why">
+                          Why am I seeing this?
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : confidenceGuidance && (

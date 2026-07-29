@@ -1,29 +1,22 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search } from "lucide-react";
+import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
-import { AlertRow } from "@/components/dashboard/NetworkAlertsModule";
+import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
 import { PovTag } from "@/components/score/TrustScorePov";
 import type { NetworkAlertEntry } from "@/services/api";
-import { unfollowUser, muteUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
 
 type Scope = "all" | "follows" | "extended";
 type SortKey = "reports" | "muted" | "influence";
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
-type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
 
 /**
  * The full, filterable Network Alerts list — the "view all" surface behind the
@@ -34,7 +27,6 @@ type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute"
 export default function AlertsPage() {
   const [, navigate] = useLocation();
   const [user, setUser] = useCurrentUser();
-  const { toast } = useToast();
   const observer = user?.pubkey ?? "";
 
   const q = useNetworkAlerts(observer, { enabled: !!observer, limit: 100 });
@@ -52,14 +44,16 @@ export default function AlertsPage() {
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
+  const { dismissed, ignored, actionsFor, dialogs } = useAlertActions(observer);
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<SortKey>("reports");
   const [query, setQuery] = useState("");
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [pending, setPending] = useState<PendingAction | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [showIgnored, setShowIgnored] = useState(false);
 
-  const live = flagged.filter((e) => !dismissed.has(e.pubkey));
+  // Acted-on accounts (unfollow/mute/report) always drop off; ignored ones drop
+  // off too unless the user toggles "Show ignored".
+  const live = flagged.filter((e) => !dismissed.has(e.pubkey) && (showIgnored || !ignored.has(e.pubkey)));
+  const ignoredCount = flagged.filter((e) => ignored.has(e.pubkey) && !dismissed.has(e.pubkey)).length;
   const followsCount = live.filter((e) => e.hops <= 1).length;
   const extendedCount = live.filter((e) => e.hops >= 2).length;
 
@@ -76,21 +70,6 @@ export default function AlertsPage() {
   }, [live, scope, query, sort, profiles]);
 
   const handleLogout = () => { logout(); setUser(null); };
-
-  async function runAction() {
-    if (!pending) return;
-    setBusy(true);
-    const { pubkey, name, action } = pending;
-    const res = action === "unfollow" ? await unfollowUser(pubkey) : await muteUser(pubkey);
-    setBusy(false);
-    setPending(null);
-    if (res.success) {
-      setDismissed((s) => new Set(s).add(pubkey));
-      toast({ title: action === "unfollow" ? `Unfollowed ${name}` : `Muted ${name}`, duration: 4000 });
-    } else {
-      toast({ title: `Couldn't ${action} ${name}`, description: res.error, variant: "destructive", duration: 6000 });
-    }
-  }
 
   const scopeTab = (val: Scope, label: string, count: number) => (
     <button
@@ -151,6 +130,20 @@ export default function AlertsPage() {
           </div>
         </div>
 
+        {/* Ignored accounts are hidden by default; this brings them back so nothing
+            an "Ignore" click removed is ever permanently lost. */}
+        {ignoredCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowIgnored((v) => !v)}
+            className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+            data-testid="alerts-show-ignored"
+          >
+            {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
+          </button>
+        )}
+
         {/* Body */}
         {!observer ? null : q.isLoading ? (
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-8"><Loader2 className="h-4 w-4 animate-spin" /> Scanning your network…</div>
@@ -164,33 +157,17 @@ export default function AlertsPage() {
         ) : (
           <div className="space-y-1.5" data-testid="alerts-list">
             {rows.map((e) => (
-              <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false}
+              <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1}
                 onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
-                onUnfollow={() => setPending({ pubkey: e.pubkey, name: nameFor(e.pubkey), action: "unfollow" })}
-                onMute={() => setPending({ pubkey: e.pubkey, name: nameFor(e.pubkey), action: "mute" })}
+                {...actionsFor(e.pubkey, nameFor(e.pubkey))}
               />
             ))}
           </div>
         )}
       </main>
 
-      <AlertDialog open={!!pending} onOpenChange={(o) => { if (!o && !busy) setPending(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{pending?.action === "unfollow" ? `Unfollow ${pending?.name}?` : `Mute ${pending?.name}?`}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.action === "unfollow" ? "This updates your follow list on Nostr. You can re-follow anytime." : "This adds them to your mute list on Nostr. You can unmute anytime."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(ev) => { ev.preventDefault(); runAction(); }} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : pending?.action === "unfollow" ? "Unfollow" : "Mute"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {dialogs}
     </div>
   );
 }
