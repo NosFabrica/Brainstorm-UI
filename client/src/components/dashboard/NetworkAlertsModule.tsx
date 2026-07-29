@@ -381,20 +381,13 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
           <button type="button" onClick={() => q.refetch()} className="font-semibold text-brand-link hover:underline">Try again</button>
         </div>
       ) : visibleDirect.length === 0 && extendedCount === 0 ? (
-        /* Clean state fills the card and centres, so the height it shares with
-           "Your Network" reads as a deliberate all-clear rather than a card that
-           ran out of content. Deliberately NOT hidden: for a safety feature the
-           absence of the widget is ambiguous ("is it still watching?"), whereas
-           an explicit all-clear is itself the reassurance. */
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center" data-testid="network-alerts-clear">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
-            <ShieldCheck className="h-5 w-5 text-emerald-500" />
-          </div>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Your network looks clean</p>
-          <p className="max-w-[26rem] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-            Nothing flagged right now. We keep watching in the background and will raise it here
-            the moment someone in your network gets reported.
-          </p>
+        /* All-clear is the steady state, so it gets one line — not half the row.
+           Still shown rather than hidden: for a safety feature a missing widget
+           is ambiguous ("is it still watching?"), and hiding it would make the
+           dashboard reflow every time an alert arrives or clears. */
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="network-alerts-clear">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+          <span><span className="font-semibold text-slate-700 dark:text-slate-300">Your network looks clean.</span> We're watching in the background.</span>
         </div>
       ) : (
         <>
