@@ -46,6 +46,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Home-screen name. iOS has no manifest fallback for the icon label — it
+         uses the <title>, which is "Brainstorm - Web of Trust for Nostr" and got
+         truncated to "Brainstorm-We…" under the icon. This meta is the only thing
+         iOS honours; the manifest's short_name covers Android/Chrome. -->
+    <meta name="apple-mobile-web-app-title" content="Brainstorm" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/site.webmanifest" />
     <script src="/config.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
