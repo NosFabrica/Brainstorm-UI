@@ -63,14 +63,23 @@ export default function InsightsPage() {
     enabled: !!pubkey,
     staleTime: 60_000,
   });
+  // Your OWN perspective always scores you 100 — meaningless here. Fetch the
+  // GLOBAL (house) score: how the network actually rates you (what others see).
+  const houseQuery = useQuery({
+    queryKey: ["insights-house-influence", pubkey],
+    queryFn: () => apiClient.getHouseInfluence(pubkey!),
+    enabled: !!pubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
   const history = historyQuery.data?.data ?? null;
   const grapeRank = grapeRankQuery.data as any;
 
-  const influence: number = overview?.influence ?? 0;
-  const tier = tierForScore01(influence);
+  const globalInfluence = houseQuery.data ?? null;
+  const tier = globalInfluence != null ? tierForScore01(globalInfluence) : null;
   const counts = overview?.counts ?? {};
   const verifiedFollowers = stats?.followed_by?.verified ?? counts.followed_by ?? 0;
   const verifiedFollowing = stats?.following?.verified ?? counts.following ?? 0;
@@ -152,10 +161,10 @@ export default function InsightsPage() {
             <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Your standing</span>
           </div>
           <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
-            <VerificationCoin score01={influence} pov="personalized" size={40} />
+            <VerificationCoin score01={globalInfluence} pov="global" size={40} />
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{TIER_LABEL[tier]}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Your verification score across the network</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? TIER_LABEL[tier] : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">How the network scores you — the number others see on your profile</p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
