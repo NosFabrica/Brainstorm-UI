@@ -10,7 +10,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
 import { fetchProfileMap } from "@/services/nostr";
-import { getActivePreset, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { getActivePreset, PRESET_THRESHOLDS, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 
@@ -25,13 +25,14 @@ const SORTS: { key: SortMode; label: string }[] = [
   { key: "latest", label: "Latest" },
 ];
 // User-facing labels describe the WIDTH of the trust filter, not dev jargon —
-// "Default" tells a user nothing about what it does. Keys stay relax/default/strict
-// (they map to the backend + shared preset store); only the display changes.
-const PRESETS: { key: TrustPreset; label: string }[] = [
-  { key: "relax", label: "Wide" },
-  { key: "default", label: "Balanced" },
-  { key: "strict", label: "Strict" },
-];
+// Labels come from the shared preset vocabulary, NOT a local rename. This filter
+// seeds from the same global preset as Settings' Trust Perspective, so calling the
+// identical values Wide/Balanced/Strict here (as an earlier cut did) meant a user
+// who chose "Relax" in Settings arrived to find "Wide" selected — one setting
+// wearing two names. Settings' descriptions ride along as tooltips.
+const PRESETS: { key: TrustPreset; label: string; hint: string }[] = (
+  ["relax", "default", "strict"] as const
+).map((key) => ({ key, label: presetDisplayLabel(key), hint: presetDescription(key) }));
 const MIN_RESULTS = 5;
 // Next-wider preset for the auto-widen fallback (strict → default → relax → none).
 const WIDER: Record<TrustPreset, TrustPreset | null> = { strict: "default", default: "relax", relax: null };
@@ -60,7 +61,7 @@ function useHashtagMeta(tag: string) {
 
 /** Segmented pill control (tabs style), matching the rest of the app. */
 function Segmented<T extends string>({ value, options, onChange, testId }: {
-  value: T; options: { key: T; label: string }[]; onChange: (v: T) => void; testId?: string;
+  value: T; options: { key: T; label: string; hint?: string }[]; onChange: (v: T) => void; testId?: string;
 }) {
   return (
     <div className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5" data-testid={testId}>
@@ -70,6 +71,10 @@ function Segmented<T extends string>({ value, options, onChange, testId }: {
           type="button"
           onClick={() => onChange(o.key)}
           aria-pressed={value === o.key}
+          // The row is too tight for Settings' descriptions inline, so they ride
+          // along as the tooltip/label instead of being dropped entirely.
+          title={o.hint ? `${o.label} — ${o.hint}` : undefined}
+          aria-label={o.hint ? `${o.label} — ${o.hint}` : undefined}
           className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
             value === o.key ? "bg-white dark:bg-slate-900 text-brand-link shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           }`}

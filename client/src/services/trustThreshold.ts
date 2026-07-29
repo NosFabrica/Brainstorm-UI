@@ -106,6 +106,28 @@ export function presetDisplayLabel(preset: TrustPreset): string {
   return PRESET_DISPLAY_LABEL[preset];
 }
 
+/**
+ * The one-line "what does this mean" for each preset, matching the Trust
+ * Perspective control in Settings.
+ *
+ * Label AND description live here because the same three presets are surfaced in
+ * several places (Settings' Trust Perspective, the topic-page filter, PresetBadge
+ * on Insights) and they had already drifted: the topic page called them
+ * Wide/Balanced/Strict while Settings called the identical values
+ * Relax/Default/Strict. A user who picked "Relax" in Settings then saw "Wide"
+ * selected on a topic page — same setting, two vocabularies. Anything showing a
+ * preset to a human reads these, so it can't drift again.
+ */
+const PRESET_DESCRIPTION: Record<TrustPreset, string> = {
+  relax: "More trusting",
+  default: "Balanced",
+  strict: "Safety-first",
+};
+
+export function presetDescription(preset: TrustPreset): string {
+  return PRESET_DESCRIPTION[preset];
+}
+
 export function presetDisplayLabelFromBackend(value: string | null | undefined): string | null {
   if (!value) return null;
   const upper = value.toUpperCase();

@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { setActivePreset, presetToBackend, presetDisplayLabel, presetDisplayLabelFromBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { setActivePreset, presetToBackend, presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
 import { PresetBadge } from "@/components/PresetBadge";
 import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -1088,11 +1088,12 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2" data-testid="row-presets-chips">
-            {([
-              { key: "relax" as const, label: "Relax", desc: "More trusting" },
-              { key: "default" as const, label: "Default", desc: "Balanced" },
-              { key: "strict" as const, label: "Strict", desc: "Safety-first" },
-            ]).map((preset) => {
+            {/* Label + description come from trustThreshold, the shared preset
+                vocabulary — the topic-page filter reads the same helpers, so the
+                two surfaces can't drift into calling one setting by two names. */}
+            {(["relax", "default", "strict"] as const)
+              .map((key) => ({ key, label: presetDisplayLabel(key), desc: presetDescription(key) }))
+              .map((preset) => {
               const isActive = activePreset === preset.key;
               const isPendingThis = setPresetMutation.isPending && setPresetMutation.variables === preset.key;
               return (
