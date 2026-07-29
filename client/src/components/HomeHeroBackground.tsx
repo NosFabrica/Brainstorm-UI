@@ -9,7 +9,11 @@ import { HERO_SOLO } from "@/lib/heroScenes";
 // primary element; the imagery supports it and never competes.
 export function HomeHeroBackground({ dimmed = false }: { dimmed?: boolean }) {
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true" data-testid="bg-home-hero">
+    <div
+      className={`absolute inset-x-0 top-0 pointer-events-none overflow-hidden transition-[height] duration-500 ease-out ${dimmed ? "h-[420px]" : "h-screen"}`}
+      aria-hidden="true"
+      data-testid="bg-home-hero"
+    >
       {/* A SINGLE static hero (hero.jpg) — restraint reads as tier, and this is
           the strongest image with the on-spec (subtle, edge-anchored) Nodes. The
           shaped scrim below adapts it to light/dark. */}

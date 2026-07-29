@@ -587,7 +587,7 @@ export default function Landing() {
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <HomeHeroBackground dimmed={lifted} />
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
