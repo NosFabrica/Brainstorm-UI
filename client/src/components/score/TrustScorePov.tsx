@@ -80,15 +80,14 @@ export function PovTag({ pov }: { pov: ScorePov }) {
 export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersonalize: boolean; avatarUrl?: string; className?: string }) {
   const { pov, setPersonalized } = useScorePov();
 
-  // Mirror the homepage POV pill (landing.tsx): an Aurora-gradient-washed
-  // container, the ACTIVE segment carrying the solid Aurora fill, the Brainstorm
-  // side rendered as the wordmark ("Brainstorm view"), and the personal side
-  // carrying the viewer's own avatar. Same visual language everywhere the POV is
-  // switched, so it reads as one control.
-  const wrap = "inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5";
+  // Mirror the homepage POV pill (landing.tsx): a quiet NEUTRAL segmented control
+  // — the active segment is a plain white chip, no gradient / no wordmark image
+  // (guidelines p16/p17). Brainstorm side = a Globe glyph, personal side = the
+  // viewer's own avatar. One calm control everywhere POV is switched.
+  const wrap = "inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5";
   const seg = "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
-  const activeSeg = "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm";
-  const idleSeg = "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white";
+  const activeSeg = "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm";
+  const idleSeg = "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white";
 
   // No personal Web of Trust yet → Brainstorm's view is the only perspective, so
   // state it as the single active branded chip instead of a dead two-way switch.
@@ -96,7 +95,7 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
     return (
       <span className={cn(wrap, className)} data-testid="pov-toggle-static">
         <span className={cn(seg, activeSeg)}>
-          <img src="/brand/wordmark-white.svg" alt="Brainstorm" className="h-3.5 w-auto select-none" /> view
+          <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
         </span>
       </span>
     );
@@ -112,7 +111,7 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
         className={cn(seg, !personalized ? activeSeg : idleSeg)}
         data-testid="pov-toggle-global"
       >
-        <img src={!personalized ? "/brand/wordmark-white.svg" : "/brand/wordmark.svg"} alt="Brainstorm" className="h-3.5 w-auto select-none" /> view
+        <Globe className={cn("h-3 w-3", !personalized && "text-brand-primary")} /> Brainstorm
       </button>
       <button
         type="button"

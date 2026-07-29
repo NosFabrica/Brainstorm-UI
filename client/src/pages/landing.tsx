@@ -625,11 +625,10 @@ export default function Landing() {
             <h1 className="mb-2.5" data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
-              {/* Website hero → wordmark. Light hero: the Aurora gradient at rest,
-                  switching to Ink (#0A0E18) once the user starts typing — it reads
-                  cleanly as the photo reveals behind the search. Dark hero: always
-                  the white mark (best contrast on the photograph). */}
-              <Wordmark height={52} variant={query.length > 0 ? "black" : "gradient"} className="mx-auto dark:hidden" />
+              {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
+                  brand moment); it sits over the near-white scrim core, so it
+                  stays legible without recoloring as you type. Dark: white mark. */}
+              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden" />
               <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
             </h1>
             <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium" data-testid="text-home-subtitle">
@@ -639,7 +638,8 @@ export default function Landing() {
 
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              <div className="absolute -inset-1 bg-gradient-to-r from-brand-accent/0 via-brand-accent/15 to-brand-accent/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              {/* (accent-discipline preview) focus "bloom" glow removed — the
+                  crisp border + shadow below is the guideline focus treatment. */}
               <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
                 <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <div className="relative flex-1 min-w-0">
@@ -823,15 +823,16 @@ export default function Landing() {
 
           {!user ? (
             <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill (guidelines homepage). */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-primary to-brand-accent px-3.5 py-1 text-xs font-semibold text-white shadow-sm" data-testid="text-home-pov-label">
-                  <img src="/brand/wordmark-white.svg" alt="Brainstorm" className="h-3.5 w-auto select-none" /> view
+              {/* (accent-discipline preview) quiet neutral segmented control —
+                  no gradient chrome, no embedded wordmark (guidelines p16/p17). */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-slate-900 px-3.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-sm" data-testid="text-home-pov-label">
+                  <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
                 </span>
                 <button
                   type="button"
                   onClick={() => setLocation("/login")}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                   data-testid="toggle-home-pov-signin"
                 >
                   <UserRound className="h-3 w-3" /> My perspective
@@ -848,9 +849,9 @@ export default function Landing() {
             </div>
           ) : (
             <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* DEFAULT VIEW / MY PERSPECTIVE gradient pill — the active segment
-                  carries the Aurora gradient fill. */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-brand-accent/25 bg-gradient-to-r from-brand-primary/[0.10] to-brand-accent/[0.10] p-0.5" data-testid="toggle-home-pov">
+              {/* Quiet neutral segmented control — active segment is a plain white
+                  chip, no gradient / no wordmark image (guidelines p16/p17). */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" data-testid="toggle-home-pov">
                 <button
                   type="button"
                   onClick={() => setPov("nosfabrica")}
@@ -858,17 +859,12 @@ export default function Landing() {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
-                      : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white")
+                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
+                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  {effectivePov === "nosfabrica" ? (
-                    <img src="/brand/wordmark-white.svg" alt="Brainstorm" className="h-3.5 w-auto select-none" />
-                  ) : (
-                    <img src="/brand/wordmark.svg" alt="Brainstorm" className="h-3.5 w-auto select-none" />
-                  )}{" "}
-                  view
+                  <Globe className={`h-3 w-3 ${effectivePov === "nosfabrica" ? "text-brand-primary" : ""}`} /> Brainstorm
                 </button>
                 <button
                   type="button"
@@ -887,8 +883,8 @@ export default function Landing() {
                   className={
                     "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "mywot"
-                      ? "bg-gradient-to-r from-brand-primary to-brand-accent font-semibold text-white shadow-sm"
-                      : "font-medium text-slate-600 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white") +
+                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
+                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
