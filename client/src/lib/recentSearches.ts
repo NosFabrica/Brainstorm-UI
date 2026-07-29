@@ -1,14 +1,25 @@
-// Per-browser "Recent" for the home search box. A unified, most-recent-first
+// Per-ACCOUNT "Recent" for the home search box. A unified, most-recent-first
 // list of two kinds of thing the visitor did from search:
 //   • query   — a text search they ran (re-run on click)
 //   • profile — a person they opened from search (re-open on click, shown with
 //               their avatar/handle)
 // Stores only the visitor's own search activity, first-party + functional → no
 // consent banner (same lightweight localStorage pattern as the hints flag).
-// Because it needs no backend, it's inherently a returning-visitor affordance:
-// a first-timer has none, so the list simply doesn't render.
-const KEY = "brainstorm_recent_searches";
+//
+// Scoped per pubkey (and a separate "anon" bucket when logged out): on a shared
+// browser, signing in as a different account — or creating a new one — must not
+// inherit or overwrite the previous person's search history. Each identity keeps
+// its own list, so switching back restores it untouched.
+import { getCurrentUser } from "@/services/nostr";
+
+const KEY_PREFIX = "brainstorm_recent_searches";
 const MAX = 6;
+
+function storageKey(): string {
+  let who = "anon";
+  try { who = getCurrentUser()?.pubkey || "anon"; } catch { /* SSR / no storage */ }
+  return `${KEY_PREFIX}:${who}`;
+}
 
 export type RecentItem =
   | { type: "query"; q: string; t: number }
@@ -50,7 +61,7 @@ function normalize(e: any): RecentItem | null {
 
 export function getRecentItems(): RecentItem[] {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(storageKey());
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -61,7 +72,7 @@ export function getRecentItems(): RecentItem[] {
 }
 
 function write(list: RecentItem[]): RecentItem[] {
-  try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {}
+  try { localStorage.setItem(storageKey(), JSON.stringify(list)); } catch {}
   return list;
 }
 
