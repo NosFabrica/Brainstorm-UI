@@ -10,6 +10,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/services/nostr";
 import { apiClient } from "@/services/api";
+import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
+import { presetToBackend } from "@/services/trustThreshold";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: "Highly Trusted", trusted: "Trusted", neutral: "Neutral", low: "Low Trust", unverified: "Unverified",
@@ -72,6 +74,9 @@ export default function InsightsPage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  // Active preset (from settings) — the fallback for "Settings preset" when the
+  // latest run hasn't stamped graperank_preset_used yet (e.g. mid-recalculation).
+  const { preset: activePreset } = useTrustPresetSync(!!pubkey);
 
   const overview = overviewQuery.data?.data ?? null;
   const stats = statsQuery.data?.data ?? null;
@@ -87,6 +92,7 @@ export default function InsightsPage() {
   const calculatedAt = fmtWhen(history?.last_time_calculated_graperank);
   const duration = fmtDuration(grapeRank?.created_at, grapeRank?.updated_at);
   const preset = grapeRank?.graperank_preset_used as string | undefined;
+  const presetForBadge = preset ?? (activePreset ? presetToBackend(activePreset) : undefined);
   const published = isDone(grapeRank?.internal_publication_status);
   const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
@@ -138,7 +144,7 @@ export default function InsightsPage() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Settings preset</dt>
-              <dd className="text-right">{preset ? <PresetBadge preset={preset} size="xs" /> : <span className="text-slate-400">—</span>}</dd>
+              <dd className="text-right">{presetForBadge ? <PresetBadge preset={presetForBadge} size="xs" /> : <span className="text-slate-400">—</span>}</dd>
             </div>
             {duration && (
               <div className="flex items-center justify-between gap-3">
