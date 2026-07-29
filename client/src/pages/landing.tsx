@@ -589,6 +589,13 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <GlossBackground />
+      {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
+          active, so the wordmark + search feel alive without any idle noise. */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 top-[44%] z-0 h-[380px] w-[680px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-[100px] transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+        style={{ background: "radial-gradient(ellipse at center, rgba(114,55,255,0.16) 0%, rgba(19,210,229,0.10) 45%, transparent 72%)" }}
+      />
 
       {/* Homepage top bar (Google-search pattern): the center stays empty so the
           search box owns it. B symbol left · account actions right — transparent
