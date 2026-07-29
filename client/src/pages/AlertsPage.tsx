@@ -80,11 +80,16 @@ export default function AlertsPage() {
   // "Ignore all" acts on exactly what's visible (current scope + search), so the
   // count on the button is always what gets ignored — no hidden surprises.
   const searching = query.trim().length > 0;
-  const bulkLabel = searching
-    ? `Ignore all ${rows.length} shown`
-    : scope === "extended" ? `Ignore all ${rows.length} in extended reach`
-    : scope === "follows" ? `Ignore all ${rows.length} follows`
-    : `Ignore all ${rows.length}`;
+  // The count line carries the SCOPE ("55 in extended reach") and the button
+  // carries the ACTION ("Ignore all 55"). Splitting them keeps the button short
+  // enough to read on a phone while the pair stays unambiguous about what would
+  // be ignored — the two sit side by side on desktop, stacked on mobile.
+  const countLabel = searching
+    ? `${rows.length} matching “${query.trim()}”`
+    : scope === "extended" ? `${rows.length} in extended reach`
+    : scope === "follows" ? `${rows.length} of your follows`
+    : `${rows.length} ${rows.length === 1 ? "account" : "accounts"}`;
+  const bulkLabel = `Ignore all ${rows.length}`;
   const bulkScopeLabel = searching ? undefined
     : scope === "extended" ? "extended reach"
     : scope === "follows" ? "your follows"
@@ -157,40 +162,57 @@ export default function AlertsPage() {
           </div>
         </div>
 
-        {/* Bulk ignore — scoped to exactly what's shown. Clears a long batch of
-            reviewed alerts in one move; reversible via "Show ignored" + the toast's
-            Undo. Only worth offering when there's more than one to clear. */}
-        {rows.length > 1 && (
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => (bulkHasFollows ? setConfirmBulk(true) : runBulkIgnore())}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep hover:border-brand-accent/40 dark:hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-              data-testid="alerts-ignore-all"
-            >
-              <EyeOff className="h-3.5 w-3.5" /> {bulkLabel}
-            </button>
-          </div>
-        )}
+        {/* List action bar — one row that belongs to the list rather than three
+            stacked strips of chrome. Left: what you're looking at, plus the undo
+            path back to ignored accounts. Right: the bulk action.
 
-        {/* Ignored accounts are hidden by default; this brings them back so nothing
-            an "Ignore" click removed is ever permanently lost. */}
-        {ignoredCount > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <button
-              type="button"
-              onClick={() => setShowIgnored((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-              data-testid="alerts-show-ignored"
-            >
-              {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
-            </button>
-            {/* Says once, where it's actionable, what Ignore actually is — rather
-                than repeating the caveat in every toast. */}
-            <span className="text-[11px] text-slate-400 dark:text-slate-500">
-              · Ignoring only changes what you see — nothing is published, and it syncs to your account.
-            </span>
+            Desktop puts the action opposite the count (the Gmail/Linear shape).
+            Mobile stacks and takes the button FULL WIDTH: a lone right-floated
+            pill on a phone reads as an afterthought and sits away from the thumb,
+            the same problem the footer strip had. */}
+        {(rows.length > 1 || ignoredCount > 0) && (
+          <div className="mb-4 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-testid="alerts-count">
+                  {countLabel}
+                </span>
+                {/* Ignored accounts are hidden by default; this brings them back so
+                    nothing an "Ignore" click removed is ever permanently lost. */}
+                {ignoredCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowIgnored((v) => !v)}
+                    className="inline-flex items-center gap-1.5 rounded text-xs font-semibold text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
+                    data-testid="alerts-show-ignored"
+                  >
+                    {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
+                  </button>
+                )}
+              </div>
+
+              {rows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => (bulkHasFollows ? setConfirmBulk(true) : runBulkIgnore())}
+                  className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white sm:w-auto sm:py-1.5"
+                  data-testid="alerts-ignore-all"
+                >
+                  <EyeOff className="h-3.5 w-3.5" /> {bulkLabel}
+                </button>
+              )}
+            </div>
+
+            {/* Says what Ignore actually IS, wherever the action is offered — not
+                only once you've already ignored something. The old gate meant a
+                first-timer facing 55 alerts saw "Ignore all" with no explanation,
+                which is exactly the person who needs the reassurance before they
+                dare touch a safety control. */}
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+              Ignoring only changes what you see — nothing is published, it syncs to your
+              account, and anyone whose reports climb sharply comes back.
+            </p>
           </div>
         )}
 
