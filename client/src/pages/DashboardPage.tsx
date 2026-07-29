@@ -790,12 +790,16 @@ export default function DashboardPage() {
     try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
   }, [calcDone, user?.pubkey]);
 
+  // Recently-active faces for the Your Network tiles (follows + followers).
+  // MUST stay above the early return below — a hook called after a conditional
+  // return changes hook order between renders and crashes the whole page.
+  const recalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
+  const facesQuery = useNetworkFaces(user?.pubkey ?? "", calcDone || recalculating);
+
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
+  const isRecalculating = recalculating;
   const isCalculationComplete = calcDone || isRecalculating;
-  // Recently-active faces for the Your Network tiles (follows + followers).
-  const facesQuery = useNetworkFaces(user?.pubkey ?? "", isCalculationComplete);
   const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
