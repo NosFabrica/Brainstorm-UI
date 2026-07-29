@@ -221,9 +221,6 @@ export default function DashboardPage() {
   const [user, setUser] = useState<NostrUser | null>(null);
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  // With nothing flagged, alerts collapse to a strip and Your Network takes the
-  // full row — an all-clear should not hold a two-thirds column hostage.
-  const [alertsEmpty, setAlertsEmpty] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
@@ -1648,19 +1645,20 @@ export default function DashboardPage() {
             <DashboardLookup />
           </div>
 
-          {/* Three boxes total: the Look-up bar above, then Network Alerts (2/3)
-              beside the condensed "Your Network" card (1/3) — which folds in what
-              used to be three separate tiles (Social Graph, Extended Reach and the
-              full Network Health pie; the pie's tier drill-downs now live on
-              /network). Flex (not grid) so each column sizes to its own content.
-              Stacks on mobile. */}
-          <div className={`flex flex-col gap-4 mb-6 ${alertsEmpty ? "" : "lg:flex-row lg:items-start"}`}>
+          {/* Stacked, never side-by-side: Network Alerts sits full-width on top,
+              "Your Network" full-width below. Minimizing/expanding Alerts is a pure
+              vertical accordion — it drops its body down in place and never shoves
+              "Your Network" to the side. "Your Network" folds in what used to be
+              three separate tiles (Social Graph, Extended Reach and the full
+              Network Health pie; the pie's tier drill-downs now live on /network)
+              and always renders in its wide four-cell row. */}
+          <div className="flex flex-col gap-4 mb-6">
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className={alertsEmpty ? "w-full flex" : "lg:w-2/3 flex"}>
-              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} onEmptyChange={setAlertsEmpty} />
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="w-full flex">
+              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={alertsEmpty ? "w-full flex" : "lg:w-1/3 flex"}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="w-full flex">
               <YourNetworkCard
                 isReady={isCalculationComplete}
                 loading={overviewQuery.isLoading || statsQuery.isLoading}
@@ -1672,7 +1670,7 @@ export default function DashboardPage() {
                 onHopChange={setHopRange}
                 health={currentPieData}
                 onNavigate={navigate}
-                wide={alertsEmpty}
+                wide
               />
             </motion.div>
           </div>
