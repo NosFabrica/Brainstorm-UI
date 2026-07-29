@@ -1070,7 +1070,7 @@ export default function Landing() {
 
       {/* Footer (Google-search pattern): secondary/info links sit quietly at the
           bottom, muted and small, so they never compete with the search box. */}
-      <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+      <footer className="relative z-10 flex flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
         {[
           { label: "About", path: "/about" },
           { label: "How search works", path: "/how-search-works" },
