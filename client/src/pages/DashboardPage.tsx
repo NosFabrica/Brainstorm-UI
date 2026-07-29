@@ -224,8 +224,6 @@ export default function DashboardPage() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [riskDialogOpen, setRiskDialogOpen] = useState(false);
-  const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [healthView, setHealthView] = useState<"followers" | "following">("followers");
   const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
@@ -639,11 +637,6 @@ export default function DashboardPage() {
     return Math.max(maxH, 5);
   }, [countValues]);
 
-  useEffect(() => {
-    return () => {
-      if (riskTeaserTimerRef.current) window.clearTimeout(riskTeaserTimerRef.current);
-    };
-  }, []);
 
 
   const mouseX = useMotionValue(0);
@@ -1981,43 +1974,6 @@ export default function DashboardPage() {
               </Card>
             </motion.div>
           </div>)}
-
-          {false && (
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mb-8">
-              <Card className="bg-gradient-to-br from-brand-deep via-[#1e1b4b] to-slate-950 text-white border-brand-accent/20 shadow-[0_20px_60px_-15px_rgb(var(--brand-deep)/0.3)] overflow-hidden relative group" onMouseMove={handleMouseMove}>
-                <div className="relative z-10 p-6 sm:p-8">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                    Discover Your Tribe
-                  </h2>
-                  <p className="text-brand-link mt-2 max-w-xl text-sm sm:text-base font-light">
-                    Identify and connect with high-signal clusters in the global trust graph matching your interests.
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    {INTEREST_CLUSTERS.map((cluster) => (
-                      <div key={cluster.id} className="relative rounded-2xl overflow-hidden cursor-pointer group/cluster">
-                        <img src={cluster.image} alt={cluster.label} className="w-full h-32 object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <p className="text-sm font-bold text-white">{cluster.label}</p>
-                          <p className="text-xs text-white/60">{cluster.count.toLocaleString()} {cluster.unit}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
-          {false && (
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mb-8 text-center">
-              <h2 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-deep via-brand-accent to-brand-deep bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Grow Your Network
-                </span>
-              </h2>
-            </motion.div>
-          )}
 
           <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
             <div className="absolute inset-0 bg-[#020617] border-y border-brand-primary/20">
