@@ -104,10 +104,14 @@ export function YourNetworkCard({
   // "active recently" caption (no fake "online" — Nostr has no presence signal).
   // Renders nothing until the faces load, so the tile never reserves empty space.
   //
-  // Faces are people, so each one opens THAT person's deep-dive. The caption is
-  // metadata, not a control — a clickable "Active recently" has no destination a
-  // user could predict. z-10 lifts the cluster above the tile's stretched overlay
-  // so these clicks land here instead of navigating to the list.
+  // Faces are people, so each one opens THAT person's public page (/p/:id) — the
+  // content-rich profile with their notes, photos and articles. Not /profile/:npub,
+  // which is the members-only analytics deep-dive: someone clicking a face wants to
+  // see who this person IS, not read a trust report on them.
+  //
+  // The caption is metadata, not a control — a clickable "Active recently" has no
+  // destination a user could predict. z-10 lifts the cluster above the tile's
+  // stretched overlay so these clicks land here instead of navigating to the list.
   const faceStack = (faces: NetworkFace[]) => {
     if (faces.length === 0) return <span />;
     return (
@@ -120,9 +124,9 @@ export function YourNetworkCard({
               <button
                 key={f.pubkey}
                 type="button"
-                onClick={() => onNavigate(`/profile/${npubFromPubkey(f.pubkey)}`)}
+                onClick={() => onNavigate(`/p/${npubFromPubkey(f.pubkey)}`)}
                 title={`${who} · active ${when}`}
-                aria-label={`${who}, active ${when} — open profile`}
+                aria-label={`${who}, active ${when} — view their page`}
                 className="rounded-full outline-none transition-transform hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                 data-testid="your-network-face"
               >
