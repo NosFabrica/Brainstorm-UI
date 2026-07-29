@@ -296,19 +296,15 @@ function getUserHealth(status: string | null, taStatus: string | null, timesCalc
 
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
-    connected: { bg: "bg-emerald-50 dark:bg-emerald-500/10", border: "border-emerald-200 dark:border-emerald-500/25", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500", ping: "bg-emerald-400", label: "Connected" },
-    degraded: { bg: "bg-amber-50 dark:bg-amber-500/10", border: "border-amber-200 dark:border-amber-500/25", text: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500", ping: "bg-amber-400", label: "Degraded" },
-    disconnected: { bg: "bg-red-50 dark:bg-red-500/10", border: "border-red-200 dark:border-red-500/25", text: "text-red-700 dark:text-red-300", dot: "bg-red-500", ping: "", label: "Not Connected" },
+    connected: { tone: "emerald" as const, label: "Connected" },
+    degraded: { tone: "amber" as const, label: "Degraded" },
+    disconnected: { tone: "red" as const, label: "Not Connected" },
   }[status];
 
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${config.bg} border ${config.border}`} data-testid={`badge-status-${status}`}>
-      <span className="relative flex h-1 w-1">
-        {config.ping && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.ping} opacity-75`} />}
-        <span className={`relative inline-flex rounded-full h-1 w-1 ${config.dot}`} />
-      </span>
-      <span className={`text-[8px] font-semibold uppercase tracking-wider ${config.text} whitespace-nowrap`}>{config.label}</span>
-    </span>
+    <Chip tone={config.tone} size="sm" dot className="uppercase tracking-wider font-semibold" data-testid={`badge-status-${status}`}>
+      {config.label}
+    </Chip>
   );
 }
 
@@ -614,7 +610,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
@@ -627,9 +623,9 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           <Icon className="h-4 w-4 text-brand-deep" />
         </div>
         {scope && (
-          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border border-brand-primary/20 dark:border-brand-primary/25" : "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800"}`}>
+          <Chip tone={scope === "system" ? "brand" : "slate"} size="sm" className="uppercase tracking-wider font-bold">
             {scope === "system" ? "System" : "Your graph"}
-          </span>
+          </Chip>
         )}
         {trend && !scope && (
           <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
@@ -833,8 +829,7 @@ function FailureBreakdownCard({
   }
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-red-200/50 dark:border-red-500/25 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-failure-breakdown">
-      <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
+    <div className="rounded-2xl border border-red-200/70 dark:border-red-500/25 bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-failure-breakdown">
       <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
@@ -2631,13 +2626,12 @@ export default function AdminPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2" data-testid="section-admin-header">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 dark:bg-slate-900/70 border border-amber-500/20 shadow-sm backdrop-blur-sm w-fit">
-                  <div className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
-                  <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 dark:text-amber-300 uppercase">NosFabrica Admin</p>
-                </div>
+                <Chip tone="amber" size="sm" dot className="uppercase tracking-[0.15em] font-bold">
+                  NosFabrica Admin
+                </Chip>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-deep via-brand-accent to-brand-deep bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+                <span className="block pb-1">
                   Admin Dashboard
                 </span>
               </h1>
@@ -2832,8 +2826,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-trend-strip">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-trend-strip">
                 <div className="px-5 py-3 border-b border-brand-accent/10 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-trend-strip-title">{trends.cfg.longLabel}</h3>
@@ -2887,8 +2880,7 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-pipeline-health">
-                <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-pipeline-health">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -3006,8 +2998,7 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-ta-adoption">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="self-start rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-ta-adoption">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">TA adoption and recent calculation activity</p>
@@ -3117,8 +3108,7 @@ export default function AdminPage() {
                 const totalFailures = failedItems.length;
                 const dataUnavailable = overviewActivityQuery.isError || (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
                 return (
-                  <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-red-200/50 dark:border-red-500/25 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-recent-failures">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
+                  <div className="lg:col-span-2 rounded-2xl border border-red-200/70 dark:border-red-500/25 bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-recent-failures">
                     <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -3240,8 +3230,7 @@ export default function AdminPage() {
                 );
               })()}
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-quick-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-fuchsia-500 to-brand-primary" />
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-quick-stats">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">API connectivity</p>
@@ -3275,8 +3264,7 @@ export default function AdminPage() {
 
           {activeTab === "users" && (
             <>
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="panel-users">
-              <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+            <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="panel-users">
               <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
@@ -4278,8 +4266,7 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-policies">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-scheduling-policies">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tier cadences for automatic GrapeRank recalculation</p>
@@ -4288,8 +4275,7 @@ export default function AdminPage() {
                   <SchedulingCard active={activeTab === "scheduling"} />
                 </div>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-scheduling-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-scheduling-stats">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
@@ -4304,8 +4290,7 @@ export default function AdminPage() {
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-api-health">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-api-health">
                 <div className="px-5 py-4 border-b border-brand-accent/10">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Live endpoint status from active queries</p>
@@ -4344,8 +4329,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-relay-status">
-                <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-relay-status">
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Relay Connectivity</h3>
@@ -4479,8 +4463,7 @@ export default function AdminPage() {
                 const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-activity-summary">
-                    <div className="h-1 w-full bg-gradient-to-r from-brand-accent via-brand-deep to-brand-accent" />
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-activity-summary">
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
@@ -4606,8 +4589,7 @@ export default function AdminPage() {
                 }}
               />
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-platform-activity">
-                <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-blue-500 to-brand-primary" />
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-platform-activity">
                 <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
@@ -4891,8 +4873,7 @@ export default function AdminPage() {
                 const statsLoading = assistantStatsQuery.isLoading;
                 const statsUnavailable = !statsLoading && stats === null;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-stats">
-                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary" />
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-assistant-stats">
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
@@ -4952,8 +4933,7 @@ export default function AdminPage() {
                 const total = data?.total ?? 0;
                 const totalPages = data?.pages ?? 1;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900 backdrop-blur-xl border border-brand-accent/20 shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] overflow-hidden" data-testid="card-assistant-list">
-                    <div className="h-1 w-full bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary" />
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-assistant-list">
                     <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
