@@ -1763,7 +1763,7 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        <Footer />
+        <Footer minimal />
       </div>
     </TooltipProvider>
   );

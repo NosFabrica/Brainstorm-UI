@@ -6,7 +6,10 @@ import { Wordmark } from '@/components/Wordmark';
 // tier: the quiet nav links on the left, partner logos closing out the footer
 // on the right (NosFabrica badge → Megistus lockup). White on light, ink on
 // dark; the Megistus black art inverts to white in dark.
-export function Footer() {
+// `minimal` keeps only the brand + version line — used on the signed-in
+// workspace pages (dashboard, network) where the marketing links and partner
+// logos are noise, but the version stamp is still worth keeping.
+export function Footer({ minimal = false }: { minimal?: boolean }) {
   const [, setLocation] = useLocation();
 
   const linkClass =
@@ -35,7 +38,9 @@ export function Footer() {
           <span className="font-mono text-xs text-slate-400 dark:text-slate-600">v0.1.0-alpha</span>
         </div>
 
-        {/* Hairline */}
+        {/* Hairline + Tier 2 (marketing links + partner logos) — hidden in the
+            minimal variant used on the signed-in workspace pages. */}
+        {!minimal && <>
         <div className="h-px w-full bg-slate-200 dark:bg-slate-800/70" />
 
         {/* Tier 2 — links (left) + partner logos (right) */}
@@ -75,6 +80,7 @@ export function Footer() {
             </a>
           </div>
         </div>
+        </>}
       </div>
     </footer>
   );

@@ -1902,7 +1902,7 @@ export default function NetworkPage() {
           20%, 80% { opacity: 0.45; transform: translateY(-6px); }
         }
       `}</style>
-      <Footer />
+      <Footer minimal />
     </div>
   );
 }
