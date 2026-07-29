@@ -48,7 +48,10 @@ export function PublicPageHeader({
     >
       <div className={`${maxWidthClass} mx-auto flex h-14 items-center gap-3 px-4 sm:px-6`}>
         <Link href="/" className="flex shrink-0 items-center" aria-label="Brainstorm home" data-testid="public-brand">
-          <BrainLogo size={26} />
+          {/* White B mark on the dark header; the gradient reads better on the
+              light (frosted white) header, so keep it in light mode. */}
+          <BrainLogo size={26} className="dark:hidden" />
+          <BrainLogo size={26} mono className="hidden text-white dark:block" />
         </Link>
 
         <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />
