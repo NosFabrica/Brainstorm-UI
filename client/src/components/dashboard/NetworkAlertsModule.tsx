@@ -360,7 +360,7 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   );
 
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full" data-testid="card-network-alerts">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full w-full" data-testid="card-network-alerts">
       {header}
 
       {!enabled ? (

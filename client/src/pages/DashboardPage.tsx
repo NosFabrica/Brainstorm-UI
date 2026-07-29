@@ -1653,13 +1653,13 @@ export default function DashboardPage() {
               full Network Health pie; the pie's tier drill-downs now live on
               /network). Flex (not grid) so each column sizes to its own content.
               Stacks on mobile. */}
-          <div className="flex flex-col lg:flex-row gap-4 mb-6 lg:items-start">
+          <div className="flex flex-col lg:flex-row lg:items-stretch gap-4 mb-6">
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:w-2/3">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:w-2/3 flex">
               <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:w-1/3">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:w-1/3 flex">
               <YourNetworkCard
                 isReady={isCalculationComplete}
                 loading={overviewQuery.isLoading || statsQuery.isLoading}

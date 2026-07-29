@@ -60,7 +60,7 @@ export function YourNetworkCard({
   );
 
   return (
-    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full relative" data-testid="card-your-network">
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full w-full relative" data-testid="card-your-network">
       {!isReady && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px]" data-testid="your-network-locked">
           <Loader2 className="mb-2 h-5 w-5 animate-spin text-slate-400 dark:text-slate-500" />
