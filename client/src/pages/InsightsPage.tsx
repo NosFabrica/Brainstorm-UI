@@ -4,7 +4,6 @@ import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2,
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
-import { PovTag } from "@/components/score/TrustScorePov";
 import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -126,7 +125,6 @@ export default function InsightsPage() {
             <Gauge className="h-4 w-4" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
-          <PovTag pov="personalized" />
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your trust scores were computed.</p>
 

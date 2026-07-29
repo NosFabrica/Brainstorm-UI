@@ -9,7 +9,6 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
-import { PovTag } from "@/components/score/TrustScorePov";
 import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
@@ -103,7 +102,6 @@ export default function AlertsPage() {
             <ShieldAlert className="h-4 w-4" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Alerts</h1>
-          <PovTag pov="personalized" />
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Accounts in your network that people you trust have reported or muted.</p>
 
