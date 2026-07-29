@@ -800,7 +800,13 @@ export default function DashboardPage() {
 
   const isRecalculating = recalculating;
   const isCalculationComplete = calcDone || isRecalculating;
-  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
+  // `overviewQuery.isSuccess` is load-bearing, not belt-and-braces: hasNoFollowing
+  // is `overviewQuery.isSuccess && followingCount === 0`, so while overview is
+  // still in flight it reads FALSE — indistinguishable from "this user has
+  // follows". For a brand-new account grapeRank resolves first, every other term
+  // passes, and the onboarding panel flashed on screen for that window before
+  // overview landed and yanked it away. Waiting for overview to settle closes it.
+  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
   // we suppress those right after a fresh follow+calculate.
