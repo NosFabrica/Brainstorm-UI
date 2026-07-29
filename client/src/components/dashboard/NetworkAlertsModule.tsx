@@ -62,7 +62,11 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   useEffect(() => {
     if (!observer || !data) return;
     const { newPubkeys } = computeNewAlerts(observer, flaggedPubkeys);
-    setNewSet(new Set(newPubkeys));
+    const ns = new Set(newPubkeys);
+    setNewSet(ns);
+    // If a newly-flagged account is in the collapsed extended section, open it so
+    // the user can see WHICH one is new — not just a count with nothing tagged.
+    if (extended.some((e) => ns.has(e.pubkey))) setShowExtended(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
 
@@ -72,9 +76,14 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
   const [busy, setBusy] = useState(false);
   const [showExtended, setShowExtended] = useState(false);
 
-  const visibleDirect = direct.filter((e) => !dismissed.has(e.pubkey));
-  const visibleExtended = extended.filter((e) => !dismissed.has(e.pubkey));
+  // New-first within each section so a freshly-flagged account jumps to the top
+  // (and carries the NEW tag) instead of hiding mid-list or in extended.
+  const newFirst = (arr: NetworkAlertEntry[]) =>
+    [...arr].sort((a, b) => (newSet.has(b.pubkey) ? 1 : 0) - (newSet.has(a.pubkey) ? 1 : 0));
+  const visibleDirect = newFirst(direct.filter((e) => !dismissed.has(e.pubkey)));
+  const visibleExtended = newFirst(extended.filter((e) => !dismissed.has(e.pubkey)));
   const newCount = [...visibleDirect, ...visibleExtended].filter((e) => newSet.has(e.pubkey)).length;
+  const newExtendedCount = visibleExtended.filter((e) => newSet.has(e.pubkey)).length;
 
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
@@ -166,6 +175,9 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
               <button type="button" onClick={() => setShowExtended((v) => !v)} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded">
                 <ChevronDown className={`h-3 w-3 transition-transform ${showExtended ? "rotate-180" : ""}`} />
                 Also in your extended reach ({visibleExtended.length})
+                {newExtendedCount > 0 && (
+                  <span className="ml-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold normal-case text-red-600 dark:text-red-400">{newExtendedCount} new</span>
+                )}
               </button>
               {showExtended && (
                 <div className="mt-1.5 space-y-1.5">
