@@ -462,25 +462,24 @@ export default function WhatIsWotPage() {
             </div>
           </section>
 
-          {/* Your network goes with you — brand emphasis callout. Deep-violet
-              solid on light; on dark, --brand-deep flips to a light violet, so
-              use a subtle Aurora-Purple-tinted panel + accent hairline instead. */}
+          {/* Your network goes with you — house accent panel (subtle cyan tint),
+              matching the How-Search-Works callout in both themes. */}
           <section
-            className="rounded-2xl bg-brand-deep dark:bg-brand-primary/[0.15] dark:border dark:border-brand-accent/25 px-6 py-7 sm:px-10 sm:py-9"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.06] px-6 py-7 sm:px-10 sm:py-9"
             data-testid="section-wot-portable"
           >
             <div className="flex items-start gap-4 max-w-3xl">
-              <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
-                <Globe className="h-5 w-5 text-white" />
+              <div className="h-11 w-11 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                <Globe className="h-5 w-5 text-brand-deep dark:text-brand-accent" />
               </div>
               <div>
                 <h2
-                  className="text-xl sm:text-2xl font-bold text-white tracking-tight"
+                  className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   Your network goes with you
                 </h2>
-                <p className="mt-2 text-[15px] sm:text-base text-white/90 leading-relaxed">
+                <p className="mt-2 text-[15px] sm:text-base text-[#0A0E18] dark:text-slate-100 leading-relaxed">
                   Your trusted connections aren't locked inside one app. Your reputation and your
                   network come with you across Brainstorm. Nothing to rebuild, nothing to manage. It
                   just works.
