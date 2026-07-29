@@ -306,22 +306,26 @@ function signWithStoredKey(event: Record<string, unknown>): Record<string, unkno
 export async function signEventLocally(
   event: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
-  if (window.nostr) {
-    try {
-      const signed = await window.nostr.signEvent(event);
-      if (signed && signed.sig) return signed;
-      throw new Error("Extension returned an unsigned event");
-    } catch (err) {
-      if (hasLocalSecretKey()) {
-        await ensureUnlocked();
-        return signWithStoredKey(event);
-      }
-      throw err;
-    }
-  }
+  // Sign with the LOCAL key first when one exists. A stored local key means the
+  // active account is a local / in-app-created (or login-with-key) account, and
+  // its events must be signed with ITS key.
+  //
+  // Preferring window.nostr here was a critical account-isolation bug: with a
+  // signer extension (nos2x/Alby) installed, a local account's publishes —
+  // account-setup auto-follow, profile edits — were signed by the EXTENSION's
+  // identity instead. Because kind-3 (contacts) and kind-0 (profile) are
+  // replaceable, that overwrote the extension account's real follow list and
+  // name with the local account's ~empty setup data. On logout/switch
+  // clearSecretKey() removes the local key, so an extension-only session has no
+  // local key and correctly falls through to window.nostr below.
   if (hasLocalSecretKey()) {
     await ensureUnlocked();
     return signWithStoredKey(event);
+  }
+  if (window.nostr) {
+    const signed = await window.nostr.signEvent(event);
+    if (signed && signed.sig) return signed;
+    throw new Error("Extension returned an unsigned event");
   }
   throw new Error("No signer available. Please sign in again.");
 }
