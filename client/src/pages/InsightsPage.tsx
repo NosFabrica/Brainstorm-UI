@@ -118,7 +118,12 @@ export default function InsightsPage() {
   const lastCalcMs = toMs(history?.last_time_calculated_graperank);
   useEffect(() => {
     if (!pubkey || lastCalcMs == null || globalInfluence == null) return;
-    setJournal(recordScore(pubkey, lastCalcMs, globalInfluence));
+    // Capture the preset this run used, so each history row shows what setting
+    // produced it. Backend value first; fall back to the active preset.
+    const calcPreset = (grapeRank?.graperank_preset_used as string | undefined)
+      ?? (activePreset ? presetToBackend(activePreset) : undefined);
+    setJournal(recordScore(pubkey, lastCalcMs, globalInfluence, calcPreset));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pubkey, lastCalcMs, globalInfluence]);
   const scoreHistory = useMemo(() => withDeltas(journal), [journal]);
 
@@ -253,23 +258,29 @@ export default function InsightsPage() {
                 const up = (e.delta ?? 0) > 0;
                 const flat = e.delta === 0 || e.delta == null;
                 return (
-                  <li key={e.t} className="flex items-center gap-3 py-2" data-testid="insights-score-row">
-                    <span className="min-w-0 flex-1 truncate text-sm text-slate-600 dark:text-slate-300">
-                      {new Date(e.t).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
-                    </span>
-                    {e.previous != null && (
-                      <span className="shrink-0 font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">
-                        {score100(e.previous)} →
+                  // Two columns that hold at every width: date + the preset it ran
+                  // at on the left, the score movement on the right. min-w-0 lets
+                  // the date truncate on narrow phones instead of pushing the numbers off.
+                  <li key={e.t} className="flex items-center justify-between gap-3 py-2" data-testid="insights-score-row">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-slate-600 dark:text-slate-300">
+                        {new Date(e.t).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </p>
+                      {e.preset && <div className="mt-0.5"><PresetBadge preset={e.preset} size="xs" /></div>}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                      {e.previous != null && (
+                        <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
+                      )}
+                      <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
+                      <span
+                        className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
+                          flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                        }`}
+                      >
+                        {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
                       </span>
-                    )}
-                    <span className="shrink-0 font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
-                    <span
-                      className={`shrink-0 w-14 text-right font-mono text-xs font-semibold tabular-nums ${
-                        flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-                      }`}
-                    >
-                      {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
-                    </span>
+                    </div>
                   </li>
                 );
               })}

@@ -28,6 +28,8 @@ export interface ScoreEntry {
   t: number;
   /** Influence 0–1 at that point. */
   score: number;
+  /** Backend preset the run used ("PERMISSIVE" | "DEFAULT" | "RESTRICTIVE"), if known. */
+  preset?: string;
 }
 
 function load(pubkey: string): ScoreEntry[] {
@@ -39,6 +41,7 @@ function load(pubkey: string): ScoreEntry[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((e): e is ScoreEntry => !!e && typeof e.t === "number" && typeof e.score === "number")
+      .map((e) => ({ t: e.t, score: e.score, preset: typeof e.preset === "string" ? e.preset : undefined }))
       .sort((a, b) => b.t - a.t);
   } catch {
     return [];
@@ -69,11 +72,11 @@ export function getScoreJournal(pubkey: string): ScoreEntry[] {
  * timestamp is already journalled, so it's safe to call on every render.
  * Returns the updated journal.
  */
-export function recordScore(pubkey: string, calculatedAtMs: number, score: number): ScoreEntry[] {
+export function recordScore(pubkey: string, calculatedAtMs: number, score: number, preset?: string): ScoreEntry[] {
   const existing = load(pubkey);
   if (!pubkey || !Number.isFinite(calculatedAtMs) || !Number.isFinite(score)) return existing;
   if (existing.some((e) => e.t === calculatedAtMs)) return existing;
-  const next = persist(pubkey, [{ t: calculatedAtMs, score }, ...existing]);
+  const next = persist(pubkey, [{ t: calculatedAtMs, score, preset }, ...existing]);
   void publishAlertPrefs({ entries: next }, SCORE_JOURNAL_D_TAG).catch(() => {});
   return next;
 }
