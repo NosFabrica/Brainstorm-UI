@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { BookOpen, Loader2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
 import { useNetworkArticles } from "@/hooks/useNetworkArticles";
 import { fetchProfileMap } from "@/services/nostr";
-import type { MinimalEvent } from "@/lib/noteRefs";
 
 /**
  * "Reading from your network" — long-form from accounts two-plus hops out,
@@ -18,8 +18,11 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * begs for a reply the product can't offer.
  */
 export function NetworkArticlesModule({ observer, enabled }: { observer: string; enabled: boolean }) {
+  const [, navigate] = useLocation();
   const { articles, isLoading, hasAuthors } = useNetworkArticles(observer, { enabled });
   const top = useMemo(() => articles.slice(0, 4), [articles]);
+  // Only advertise the full list when there's actually more behind the link.
+  const hasMore = articles.length > top.length;
 
   const pubkeys = useMemo(() => top.map((a) => a.event.pubkey), [top]);
   const profilesQuery = useQuery({
@@ -53,28 +56,23 @@ export function NetworkArticlesModule({ observer, enabled }: { observer: string;
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
-          {top.map(({ event, author }) => (
-            // h-full + a flex-1 media slot so both cards in the row share one
-            // height whether or not they have a summary; the attribution is
-            // pinned to the bottom so those baselines line up too.
-            <div key={event.id} className="flex h-full flex-col gap-1" data-testid="network-article">
-              <div className="flex-1 [&>*]:!mt-0 [&>*]:h-full">
-                <EmbeddedArticleCard event={event as MinimalEvent} author={profiles.get(event.pubkey)} />
-              </div>
-              {/* Why you're seeing this — the one line no other client can print.
-                  The count is now literally what it says: how many accounts the
-                  observer FOLLOWS also follow this author (co-follows from real
-                  kind-3 lists), so the claim and the ranking input can't drift. */}
-              <p className="mt-auto px-1 text-[11px] text-slate-500 dark:text-slate-400">
-                {author.trustedFollowerCount > 0
-                  ? `Followed by ${author.trustedFollowerCount} account${author.trustedFollowerCount === 1 ? "" : "s"} you trust`
-                  : "In your extended network"}
-                <span className="text-slate-300 dark:text-slate-600"> · </span>
-                {author.hops} hops away
-              </p>
-            </div>
+          {top.map((article) => (
+            <NetworkArticleCard key={article.event.id} article={article} profile={profiles.get(article.event.pubkey)} />
           ))}
         </div>
+      )}
+
+      {/* Depth lives one click away rather than crowding the dashboard — same move
+          as "View all flagged accounts" on the alerts card. */}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => navigate("/reading")}
+          className="mt-3 inline-flex items-center gap-1 self-start rounded text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="network-articles-see-all"
+        >
+          See all {articles.length} articles <ArrowRight className="h-3 w-3" />
+        </button>
       )}
 
       {!isLoading && !hasAuthors && (

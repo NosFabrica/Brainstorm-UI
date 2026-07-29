@@ -147,8 +147,19 @@ function rankArticle(e: NostrEvent, author: ArticleAuthor, nowSec: number, fresh
   return tier + 45 * trust + 35 * recency + 20 * substanceScore(e);
 }
 
-export function useNetworkArticles(observer: string, opts?: { enabled?: boolean }) {
+/**
+ * "trending" — the composite rank (trust · recency · substance), i.e. what your
+ * network vouches for most. "new" — plain reverse-chronological, for readers who
+ * want the front of the queue rather than a judgement about quality.
+ */
+export type ArticleSort = "trending" | "new";
+
+export function useNetworkArticles(
+  observer: string,
+  opts?: { enabled?: boolean; sort?: ArticleSort },
+) {
   const enabled = opts?.enabled !== false && !!observer;
+  const sort = opts?.sort ?? "trending";
 
   // Two-hop author set, built from real contact lists. One REQ for the sampled
   // follows' kind-3 events rather than N round-trips.
@@ -241,7 +252,11 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
         const author = byPubkey.get(event.pubkey);
         return author ? [{ event, author, rank: rankArticle(event, author, nowSec, freshSince) }] : [];
       })
-      .sort((a, b) => b.rank - a.rank);
+      .sort((a, b) =>
+        sort === "new"
+          ? (b.event.created_at ?? 0) - (a.event.created_at ?? 0)
+          : b.rank - a.rank,
+      );
     for (const { event, author } of ranked) {
       const used = perAuthor.get(event.pubkey) ?? 0;
       if (used >= MAX_PER_AUTHOR) continue;
@@ -249,7 +264,7 @@ export function useNetworkArticles(observer: string, opts?: { enabled?: boolean 
       out.push({ event, author });
     }
     return out;
-  }, [articlesQuery.data, byPubkey]);
+  }, [articlesQuery.data, byPubkey, sort]);
 
   return {
     articles,

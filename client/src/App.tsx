@@ -13,6 +13,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
 import AlertsPage from "@/pages/AlertsPage";
+import ReadingPage from "@/pages/ReadingPage";
 import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
@@ -109,6 +110,7 @@ function Router() {
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
         <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
+        <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
         <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
