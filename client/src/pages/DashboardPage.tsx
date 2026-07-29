@@ -19,6 +19,7 @@ import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
+import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -1673,6 +1674,11 @@ export default function DashboardPage() {
               />
             </motion.div>
           </div>
+
+          {/* Discovery, not a following feed: long-form from accounts two-plus
+              hops out that the graph vouches for. Renders nothing until there's
+              something worth showing. */}
+          <NetworkArticlesModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
 
           <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
