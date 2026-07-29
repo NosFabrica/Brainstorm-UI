@@ -1041,6 +1041,14 @@ export default function DashboardPage() {
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/insights")}
+                    className="mt-1 inline-flex items-center gap-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+                    data-testid="link-view-insights"
+                  >
+                    View insights →
+                  </button>
                 </div>
                 <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
                 <button
