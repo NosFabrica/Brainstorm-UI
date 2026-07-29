@@ -22,6 +22,7 @@ const TIER_LABEL: Record<VerificationTier, string> = {
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
+const isFail = (s: unknown) => typeof s === "string" && s.toLowerCase() === "failure";
 const withZ = (s: string) => (s.endsWith("Z") ? s : s + "Z");
 
 /** Epoch ms for a backend timestamp, or null when unparseable. */
@@ -136,7 +137,18 @@ export default function InsightsPage() {
   const duration = fmtDuration(grapeRank?.created_at, grapeRank?.updated_at);
   const preset = grapeRank?.graperank_preset_used as string | undefined;
   const presetForBadge = preset ?? (activePreset ? presetToBackend(activePreset) : undefined);
-  const published = isDone(grapeRank?.internal_publication_status);
+  // Two INDEPENDENT steps, matching useScoringStatus (the app-wide source of truth):
+  //   internal_publication_status === success  → the CALCULATION finished
+  //   ta_status === success                    → the Trusted Assertions PUBLICATION finished
+  // This page previously read internal_publication_status and labelled it
+  // "Published", collapsing both steps into one binary. So a user whose scores had
+  // finished computing — score journaled, "Last calculated" stamped — still saw a
+  // permanent amber "In progress" under a card titled "Trust calculation", which
+  // reads as "my scores never finished". Report the two separately, and stop
+  // rendering a failed run as eternally optimistic.
+  const calcComplete = isDone(grapeRank?.internal_publication_status);
+  const publishComplete = calcComplete && isDone(grapeRank?.ta_status);
+  const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
   const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
   // Self-scoped calculation history — renders only when /user/history exposes a
@@ -194,12 +206,35 @@ export default function InsightsPage() {
                 <dd className="font-medium text-slate-900 dark:text-slate-100 tabular-nums">{duration}</dd>
               </div>
             )}
+            {/* The CALCULATION — what this card is actually about. */}
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate-500 dark:text-slate-400">Status</dt>
               <dd className="flex items-center gap-1.5 justify-end font-medium">
-                {published ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Published</span></> : <span className="text-amber-600 dark:text-amber-400">In progress</span>}
+                {calcFailed ? (
+                  <span className="text-red-600 dark:text-red-400">Failed</span>
+                ) : calcComplete ? (
+                  <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Complete</span></>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">In progress</span>
+                )}
               </dd>
             </div>
+            {/* Publication is a SEPARATE step (ta_status): the calculation can be
+                finished while the Trusted Assertions publish is still catching up.
+                Only worth a row once the calculation is actually done — before that
+                it's not pending, it simply hasn't started. */}
+            {calcComplete && (
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-slate-500 dark:text-slate-400">Published</dt>
+                <dd className="flex items-center gap-1.5 justify-end font-medium">
+                  {publishComplete ? (
+                    <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> <span className="text-emerald-600 dark:text-emerald-400">Published</span></>
+                  ) : (
+                    <span className="text-slate-500 dark:text-slate-400">Publishing…</span>
+                  )}
+                </dd>
+              </div>
+            )}
             {queueAhead != null && (
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-slate-500 dark:text-slate-400">Queue</dt>
@@ -316,7 +351,15 @@ export default function InsightsPage() {
                     <tr key={r.private_id ?? i} className="border-t border-slate-100 dark:border-slate-800/60">
                       <td className="py-2 pr-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">{fmtWhen(r.created_at) ?? "—"}</td>
                       <td className="py-2 pr-3 text-slate-600 dark:text-slate-400">{r.trigger_source || "—"}</td>
-                      <td className="py-2 pr-3">{isDone(r.internal_publication_status) ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Published</span> : <span className="font-medium text-amber-600 dark:text-amber-400">{r.status || "In progress"}</span>}</td>
+                      {/* Same field semantics as the card above: this column reflects
+                          whether the CALCULATION completed, so don't label it "Published". */}
+                      <td className="py-2 pr-3">
+                        {isFail(r.status) || isFail(r.internal_publication_status)
+                          ? <span className="font-medium text-red-600 dark:text-red-400">Failed</span>
+                          : isDone(r.internal_publication_status)
+                            ? <span className="font-medium text-emerald-600 dark:text-emerald-400">Complete</span>
+                            : <span className="font-medium text-amber-600 dark:text-amber-400">{r.status || "In progress"}</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
