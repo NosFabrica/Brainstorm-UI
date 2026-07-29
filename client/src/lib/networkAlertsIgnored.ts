@@ -95,6 +95,22 @@ export function unignoreAlert(observer: string, pubkey: string): Map<string, num
   return persist(observer, load(observer).filter((e) => e.pubkey !== pubkey));
 }
 
+/**
+ * Ignore many accounts in one shot — a single persist + single NIP-78 publish,
+ * not one per account. Used by the "Ignore all" bulk action; persist() de-dupes
+ * by pubkey so re-ignoring an already-ignored account just refreshes its
+ * escalation baseline.
+ */
+export function ignoreMany(observer: string, items: { pubkey: string; atReports: number }[]): Map<string, number | null> {
+  return persist(observer, [...load(observer), ...items.map((i) => ({ pubkey: i.pubkey, atReports: i.atReports }))]);
+}
+
+/** Un-ignore many accounts in one shot (the Undo for ignoreMany). */
+export function unignoreMany(observer: string, pubkeys: string[]): Map<string, number | null> {
+  const drop = new Set(pubkeys);
+  return persist(observer, load(observer).filter((e) => !drop.has(e.pubkey)));
+}
+
 // ---------------------------------------------------------------------------
 // "Acted-on" store — accounts the user unfollowed / muted / reported. Unlike
 // ignore (a reversible local dismiss), these are real actions, so the account

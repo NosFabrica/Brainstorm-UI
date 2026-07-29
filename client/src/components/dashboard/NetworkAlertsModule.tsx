@@ -18,7 +18,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertMap, ignoreAlert, unignoreAlert, hydrateIgnoredFromNostr, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -112,6 +112,27 @@ export function useAlertActions(observer: string) {
     });
   }
 
+
+  /**
+   * Bulk-ignore a batch (the "Ignore all" action). One persist + one publish,
+   * one toast, with a single Undo that un-ignores the whole batch. Callers scope
+   * the batch (e.g. everything in extended reach) and pass a label for the toast.
+   */
+  function ignoreBatch(items: { pubkey: string; atReports: number }[], scopeLabel?: string) {
+    if (items.length === 0) return;
+    setIgnored(ignoreMany(observer, items));
+    const keys = items.map((i) => i.pubkey);
+    toast({
+      title: `Ignored ${items.length} ${items.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
+      description: "Hidden from your alerts — we'll only raise them again if the reports climb sharply. Nothing was published.",
+      duration: 8000,
+      action: (
+        <ToastAction altText="Undo ignore all" onClick={() => setIgnored(unignoreMany(observer, keys))}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  }
 
   async function runAction() {
     if (!pending) return;
@@ -255,7 +276,7 @@ export function useAlertActions(observer: string) {
     </>
   );
 
-  return { dismissed, ignored, isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs: dialogs as ReactNode };
+  return { dismissed, ignored, isHidden, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, dialogs: dialogs as ReactNode };
 }
 
 /**

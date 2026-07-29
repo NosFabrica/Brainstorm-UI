@@ -5,6 +5,10 @@ import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } fro
 import { AppHeader } from "@/components/AppHeader";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
@@ -43,11 +47,12 @@ export default function AlertsPage() {
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer);
+  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, dialogs } = useAlertActions(observer);
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<SortKey>("reports");
   const [query, setQuery] = useState("");
   const [showIgnored, setShowIgnored] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
 
   // Acted-on accounts (unfollow/mute/report) always drop off; ignored ones drop
   // off too unless the user toggles "Show ignored".
@@ -71,6 +76,26 @@ export default function AlertsPage() {
     return [...list].sort((a, b) => key(b) - key(a));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, scope, query, sort, profiles]);
+
+  // "Ignore all" acts on exactly what's visible (current scope + search), so the
+  // count on the button is always what gets ignored — no hidden surprises.
+  const searching = query.trim().length > 0;
+  const bulkLabel = searching
+    ? `Ignore all ${rows.length} shown`
+    : scope === "extended" ? `Ignore all ${rows.length} in extended reach`
+    : scope === "follows" ? `Ignore all ${rows.length} follows`
+    : `Ignore all ${rows.length}`;
+  const bulkScopeLabel = searching ? undefined
+    : scope === "extended" ? "extended reach"
+    : scope === "follows" ? "your follows"
+    : undefined;
+  // Ignoring accounts you actually follow is higher-stakes than dismissing far-off
+  // extended-reach noise, so a batch that includes any follow gets a confirm first.
+  const bulkHasFollows = rows.some((e) => e.hops <= 1);
+  const runBulkIgnore = () => {
+    ignoreBatch(rows.map((e) => ({ pubkey: e.pubkey, atReports: e.verifiedReporterCount })), bulkScopeLabel);
+    setConfirmBulk(false);
+  };
 
   const handleLogout = () => { logout(); setUser(null); };
 
@@ -132,6 +157,22 @@ export default function AlertsPage() {
           </div>
         </div>
 
+        {/* Bulk ignore — scoped to exactly what's shown. Clears a long batch of
+            reviewed alerts in one move; reversible via "Show ignored" + the toast's
+            Undo. Only worth offering when there's more than one to clear. */}
+        {rows.length > 1 && (
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => (bulkHasFollows ? setConfirmBulk(true) : runBulkIgnore())}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep hover:border-brand-accent/40 dark:hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="alerts-ignore-all"
+            >
+              <EyeOff className="h-3.5 w-3.5" /> {bulkLabel}
+            </button>
+          </div>
+        )}
+
         {/* Ignored accounts are hidden by default; this brings them back so nothing
             an "Ignore" click removed is ever permanently lost. */}
         {ignoredCount > 0 && (
@@ -184,6 +225,28 @@ export default function AlertsPage() {
       </main>
 
       {dialogs}
+
+      {/* Confirm only when the batch sweeps in accounts you follow — extended-reach
+          noise clears with a single click + Undo, but hiding your own follows'
+          warnings deserves a beat. */}
+      <AlertDialog open={confirmBulk} onOpenChange={setConfirmBulk}>
+        <AlertDialogContent data-testid="alerts-ignore-all-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ignore {rows.length} accounts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This batch includes accounts you follow. Ignoring only changes what you
+              see here — nothing is published, it syncs to your account, and any account
+              re-surfaces on its own if its reports climb sharply. You can undo right after.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(ev) => { ev.preventDefault(); runBulkIgnore(); }}>
+              Ignore all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
