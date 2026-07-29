@@ -318,7 +318,27 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
   const isEmpty = enabled && !q.isLoading && !q.isError && visibleDirect.length === 0 && extendedCount === 0;
-  useEffect(() => { onEmptyChange?.(isEmpty); }, [isEmpty, onEmptyChange]);
+  const totalFlagged = visibleDirect.length + extendedCount;
+
+  // User can minimize the card to a slim one-row bar; the choice is remembered
+  // per account. Collapsing also tells the dashboard to give "Your Network" the
+  // full row (same reflow as the all-clear state), so nothing sits half-empty.
+  const COLLAPSE_KEY = `brainstorm_alerts_collapsed:${observer}`;
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(!!localStorage.getItem(COLLAPSE_KEY)); } catch {}
+  }, [COLLAPSE_KEY]);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      try { next ? localStorage.setItem(COLLAPSE_KEY, "1") : localStorage.removeItem(COLLAPSE_KEY); } catch {}
+      return next;
+    });
+  }
+
+  // "Condensed" (empty OR minimized) is what the dashboard reflows on.
+  const condensed = isEmpty || collapsed;
+  useEffect(() => { onEmptyChange?.(condensed); }, [condensed, onEmptyChange]);
 
   // The all-clear can be dismissed. Safe to persist because it ONLY suppresses
   // the empty state — the moment anything is actually flagged, isEmpty goes false
@@ -363,17 +383,32 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
       <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
         Network Alerts
       </span>
-      {enabled && flaggedCount > 0 && (
+      {enabled && totalFlagged > 0 && (
         <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-2 py-0.5 text-[11px] font-bold" data-testid="network-alerts-flagged-count">
           <AlertTriangle className="h-3 w-3" />
-          {flaggedCount} flagged
+          {totalFlagged} flagged
         </span>
       )}
-      {newCount > 0 && (
-        <button type="button" onClick={markAllSeen} className="ml-auto text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="network-alerts-mark-seen">
-          Mark all seen
-        </button>
-      )}
+      <div className="ml-auto flex items-center gap-1.5">
+        {newCount > 0 && !collapsed && (
+          <button type="button" onClick={markAllSeen} className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded" data-testid="network-alerts-mark-seen">
+            Mark all seen
+          </button>
+        )}
+        {enabled && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand network alerts" : "Minimize network alerts"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand" : "Minimize"}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="network-alerts-collapse"
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -381,7 +416,10 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 flex flex-col gap-3 h-full w-full" data-testid="card-network-alerts">
       {header}
 
-      {!enabled ? (
+      {/* Body hidden when minimized — the header bar (with the flagged count and
+          the expand chevron) is all that remains, and the dashboard reflows so
+          "Your Network" takes the full row. */}
+      {!collapsed && (!enabled ? (
         <div className="flex flex-col items-start gap-2 py-2" data-testid="network-alerts-pending">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-accent/10 border border-brand-accent/20">
             <ShieldCheck className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
@@ -464,8 +502,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
             View all flagged accounts →
           </button>
         </>
-      )}
-
+      ))}
 
       {dialogs}
     </Card>
