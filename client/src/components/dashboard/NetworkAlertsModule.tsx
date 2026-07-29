@@ -134,7 +134,15 @@ export function NetworkAlertsModule({ observer, enabled }: { observer: string; e
       {header}
 
       {!enabled ? (
-        <p className="text-xs text-slate-500 dark:text-slate-400">Network alerts unlock once your trust scores are calculated.</p>
+        <div className="flex flex-col items-start gap-2 py-2" data-testid="network-alerts-pending">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-accent/10 border border-brand-accent/20">
+            <ShieldCheck className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
+          </div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Your safety radar is warming up</p>
+          <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            As soon as your trust scores finish calculating, we'll flag anyone in your network that people you trust have reported or muted — so you can act on it right here.
+          </p>
+        </div>
       ) : q.isLoading ? (
         <div className="space-y-2" data-testid="network-alerts-scanning">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -244,8 +252,8 @@ function AlertRow({ entry, name, picture, isNew, onDeepDive, onWhy, onUnfollow, 
       </div>
       <VerificationCoin score01={entry.influence} pov="global" size={22} className="shrink-0" />
       <div className="flex shrink-0 items-center gap-1">
-        <button type="button" onClick={onDeepDive} title="Deep dive" aria-label={`Deep dive on ${name}`} className="inline-flex items-center gap-1 rounded-md border border-brand-accent/30 bg-brand-accent/[0.06] px-2 py-1 text-[11px] font-semibold text-brand-deep dark:text-brand-accent hover:border-brand-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="network-alert-deepdive">
-          Deep dive <ArrowRight className="h-3 w-3" />
+        <button type="button" onClick={onDeepDive} title="View profile" aria-label={`View ${name}'s profile`} className="inline-flex items-center gap-1 rounded-md border border-brand-accent/30 bg-brand-accent/[0.06] px-2 py-1 text-[11px] font-semibold text-brand-deep dark:text-brand-accent hover:border-brand-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="network-alert-deepdive">
+          View <ArrowRight className="h-3 w-3" />
         </button>
         <button type="button" onClick={onUnfollow} title="Unfollow" aria-label={`Unfollow ${name}`} className="rounded-md p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="network-alert-unfollow">
           <UserMinus className="h-3.5 w-3.5" />
