@@ -65,7 +65,7 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
 
   if (notesQuery.isLoading && notes.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-sm dark:shadow-none" data-testid="profile-recent-posts-loading">
+      <div className="mb-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 p-4 shadow-sm dark:shadow-none" data-testid="profile-recent-posts-loading">
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading recent posts…
         </div>
@@ -76,7 +76,11 @@ export function ProfileRecentPosts({ pubkey, limit = 3 }: { pubkey: string; limi
 
   return (
     <ShareNavProvider>
-      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none" data-testid="profile-recent-posts">
+      {/* mb-4 matches the sibling sections on /profile — that page has no
+          space-y on the container, so each section owns its own bottom margin.
+          Without it this card sat flush against Social Reach. Both this and the
+          loading state carry it so the gap doesn't pop in when content arrives. */}
+      <div className="mb-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden shadow-sm dark:shadow-none" data-testid="profile-recent-posts">
         <div className="px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <MessagesSquare className="h-3.5 w-3.5 text-brand-deep dark:text-brand-accent" />
           <h4 className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-widest">Recent posts</h4>
