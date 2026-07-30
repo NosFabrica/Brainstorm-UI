@@ -3,11 +3,11 @@ import { useLocation } from "wouter";
 import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { hasSessionToken } from "@/services/api";
-import { toast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 
-const CALC_ACTIVE_KEY = "brainstorm_calc_active";
-const READY_NUDGE_KEY = "brainstorm_scores_ready_nudge";
+// Per-account. These were global strings, so with more than one account on a device
+// one account's calc/ready state leaked into another's UI.
+const calcActiveKey = (pk?: string) => `brainstorm_calc_active:${pk || "anon"}`;
+const readyNudgeKey = (pk?: string) => `brainstorm_scores_ready_nudge:${pk || "anon"}`;
 
 // After SLOW_MS we soften the copy; after STALL_MS (or on backend failure) we
 // stop the spinner and stand down rather than spin forever. Tunable.
@@ -39,31 +39,23 @@ export function ScoringStatusBar() {
   useEffect(() => {
     try {
       if (isCalculating) {
-        localStorage.setItem(CALC_ACTIVE_KEY, "1");
-      } else if (localStorage.getItem(CALC_ACTIVE_KEY) === "1" && isReady) {
+        localStorage.setItem(calcActiveKey(pubkey), "1");
+      } else if (localStorage.getItem(calcActiveKey(pubkey)) === "1" && isReady) {
         // Just finished — raise a persistent "ready" nudge, clear any stand-down
-        // dismissal so the good news isn't suppressed, and fire a one-shot toast.
+        // dismissal so the good news isn't suppressed.
         // Removing CALC_ACTIVE_KEY here makes this branch fire exactly once per run,
-        // so the toast never repeats on reload/remount even if the user dismissed
+        // so this never repeats on reload/remount even if the user dismissed
         // the "Calculating…" pill.
-        localStorage.removeItem(CALC_ACTIVE_KEY);
-        localStorage.setItem(READY_NUDGE_KEY, String(Date.now()));
+        localStorage.removeItem(calcActiveKey(pubkey));
+        localStorage.setItem(readyNudgeKey(pubkey), String(Date.now()));
         setDismissed(false);
         setStandDownDismissed(false);
         force((n) => n + 1);
-        toast({
-          title: "Your Web of Trust is ready ✓",
-          description: "We've finished scoring your network — see your results on the dashboard.",
-          action: (
-            <ToastAction
-              altText="View dashboard"
-              onClick={() => navigate("/dashboard")}
-              className="bg-brand-primary text-white border-transparent hover:bg-brand-primary-hover hover:text-white"
-            >
-              View dashboard
-            </ToastAction>
-          ),
-        });
+        // No toast here. This fired a toast AND raised the pill below for the same
+        // event, so completion announced itself twice with two competing "go to the
+        // dashboard" CTAs — visible on mobile as a card at the top and a pill at the
+        // bottom saying the same sentence. The pill is the one to keep: it persists
+        // across navigation and has an explicit dismiss that sticks.
       }
     } catch {
       /* ignore */
@@ -91,7 +83,7 @@ export function ScoringStatusBar() {
 
   const readyNudgeFresh = (() => {
     try {
-      const ts = Number(localStorage.getItem(READY_NUDGE_KEY) || 0);
+      const ts = Number(localStorage.getItem(readyNudgeKey(pubkey)) || 0);
       return ts > 0 && Date.now() - ts < 24 * 3600_000;
     } catch {
       return false;
@@ -126,13 +118,13 @@ export function ScoringStatusBar() {
 
   if (phase === "standdown" && standDownDismissed) return null;
   // User chose to hide the active calculating pill for this run — stay hidden.
-  // The completion toast + ready pill still fire, so the promise is kept.
+  // The ready pill still fires, so the promise is kept.
   if ((phase === "spinner" || phase === "soft") && calcPillHidden && !confirming) return null;
   if (!phase) return null;
 
   const dismissReady = () => {
     setDismissed(true);
-    try { localStorage.removeItem(READY_NUDGE_KEY); } catch {}
+    try { localStorage.removeItem(readyNudgeKey(pubkey)); } catch {}
   };
 
   const hideCalcPill = () => {
