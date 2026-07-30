@@ -794,7 +794,14 @@ export default function DashboardPage() {
                 testId="section-dashboard-header-copy"
               />
 
-              {nip85Activated && publishDone ? (
+              {/* Hidden for a brand-new account with no scores yet. Both of its
+                  actions are useless-or-worse at that moment: "Recalculate" while the
+                  first calculation is already running either no-ops or re-queues them
+                  behind other users, and "View insights" opens a page with nothing in
+                  it. All it adds is a fourth "Awaiting calculation" — and on mobile it
+                  stacks directly above the CalculatingNotice, so the duplication is
+                  unmissable. It returns the moment scores land. */}
+              {isFirstSession && !calcDone ? null : nip85Activated && publishDone ? (
               <Card
                 className="relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
