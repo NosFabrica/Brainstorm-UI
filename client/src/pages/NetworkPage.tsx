@@ -1149,7 +1149,12 @@ export default function NetworkPage() {
         data-testid="page-network-gate"
       >
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="network" />
-        <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 sm:px-6">
+        {/* Top-aligned on a phone (where the viewport is mostly filled anyway), but
+            vertically centred from sm: up — on a tall desktop window a short block
+            pinned to the top left the page looking truncated rather than composed.
+            pb-24 offsets the optical weight of the header so it centres on the eye,
+            not the box. */}
+        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-start px-4 py-10 sm:justify-center sm:px-6 sm:pb-24">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-gate-title">
             Your network is being mapped
           </h1>
