@@ -9,6 +9,15 @@ export default {
   safelist: [{ pattern: /^order-([1-9]|1[0-2])$/ }],
   theme: {
     extend: {
+      // Height-based variant for SHORT viewports — a phone in landscape (~390-440px
+      // tall) is 850-960px WIDE, so it receives every `sm:`/`md:` desktop style
+      // while having barely half the vertical room. Width variants can't tell it
+      // apart from a desktop window; height is the only honest signal. 560px sits
+      // above every phone landscape height and well below iPad landscape (744-820),
+      // so tablets and desktops are untouched.
+      screens: {
+        short: { raw: "(max-height: 560px)" },
+      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */

@@ -592,8 +592,16 @@ export default function Landing() {
   const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
+  // Measure the room left below the search box and cap whichever panel is open.
+  // Both panels are `absolute top-full`, so without a cap they run straight off
+  // the bottom of the page — and the page root is `overflow-hidden`, so the
+  // overrun is CLIPPED rather than scrollable (unreachable, not just ugly). This
+  // used to fire for the suggestions dropdown only, which left "Recent" — the
+  // panel a returning visitor sees first, before typing a single character —
+  // uncapped: in landscape it ran ~40px past the viewport with its last rows
+  // buried under the footer links.
   useLayoutEffect(() => {
-    if (!dropdownOpen) return;
+    if (!dropdownOpen && !showRecent) return;
     const recompute = () => {
       const el = searchContainerRef.current;
       if (!el) return;
@@ -625,12 +633,15 @@ export default function Landing() {
       vv?.removeEventListener("resize", recompute);
       vv?.removeEventListener("scroll", recompute);
     };
-  }, [dropdownOpen]);
+  }, [dropdownOpen, showRecent]);
 
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
+  // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
+  // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
+  // bottom of the page sits under the chrome exactly when room is scarcest.
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. */}
@@ -644,7 +655,7 @@ export default function Landing() {
           search box owns it. B symbol left · account actions right — transparent
           over the hero photo, both signed-in/out. The About / How-search-works /
           Developers / Q&A links live in the bottom footer, Google-style. */}
-      <header className="relative z-20 flex items-center px-4 sm:px-8 py-5" data-testid="home-header">
+      <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
         {/* Left: the compact B symbol (mono variant for contrast on the photo). */}
         <button
           type="button"
@@ -667,21 +678,28 @@ export default function Landing() {
         </div>
       </header>
 
-      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10" : "justify-center -mt-10 sm:-mt-16"}`}>
+      {/* `short:` = a phone in landscape. It lands on the desktop side of every
+          width breakpoint, so the optical-centering offset and the generous
+          desktop padding both have to be neutralised by height, not width. `!`
+          because these override `sm:` utilities of equal specificity. */}
+      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
         <div className="w-full max-w-2xl mx-auto text-center" style={prefersReducedMotion ? undefined : { animation: "homeFadeUp 0.5s ease-out" }}>
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
-          <div className="flex flex-col items-center mb-8">
-            <h1 className="mb-2.5" data-testid="text-home-title">
+          <div className="flex flex-col items-center mb-8 short:mb-3.5">
+            <h1 className="mb-2.5 short:mb-1.5" data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
               {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
                   brand moment); it sits over the near-white scrim core, so it
                   stays legible without recoloring as you type. Dark: white mark. */}
-              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden" />
-              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block" />
+              {/* `short:!h-9` needs the bang twice over: to beat `sm:`-level
+                  utilities AND because Wordmark sets its height as an inline
+                  style, which only `!important` can override. */}
+              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
+              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
             </h1>
-            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg font-medium" data-testid="text-home-subtitle">
+            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
               Search through the people you trust.
             </p>
           </div>
@@ -877,6 +895,7 @@ export default function Landing() {
                 role="listbox"
                 aria-label="Recent searches"
                 className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-recent"
               >
                 <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
@@ -892,7 +911,9 @@ export default function Landing() {
                     Clear
                   </button>
                 </div>
-                <div className="pb-1.5">
+                {/* Rows scroll inside the capped panel — the "Recent" header and
+                    Clear stay pinned, matching the suggestions dropdown. */}
+                <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-1.5">
                   {recent.map((item, i) => {
                     // Two row shapes share the hover container + remove button:
                     // a person you opened (avatar → re-open) or a text query
@@ -1210,7 +1231,10 @@ export default function Landing() {
           Hidden on mobile — on a phone the viewport belongs to the search box,
           and these wrap into a block that crowds it. The mobile tab bar already
           carries the primary navigation. */}
-      <footer className="relative z-10 hidden sm:flex flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+      {/* Already hidden on narrow phones for lack of room; a landscape phone has
+          even less of it, and these links were what the Recent panel collided
+          with. Same rationale, height axis — they stay one rotation away. */}
+      <footer className="relative z-10 hidden sm:flex short:!hidden flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
         {[
           { label: "About", path: "/about" },
           { label: "How search works", path: "/how-search-works" },
