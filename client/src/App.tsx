@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
@@ -52,11 +52,46 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
 
+/**
+ * Land every route change at the top of the page.
+ *
+ * A plain `useEffect` + `window.scrollTo(0, 0)` looked right but lost three races,
+ * which is why pages were still opening part-scrolled:
+ *
+ *  1. The browser's own scroll restoration (`history.scrollRestoration` defaults
+ *     to "auto") re-applies the previous offset, sometimes AFTER our effect ran.
+ *     Setting it to "manual" stops the browser competing with us.
+ *  2. These pages fetch their content, so at effect time the document is still
+ *     short — scrolling to 0 is a no-op — and then content arrives, the page grows
+ *     and the old offset is back. A post-paint rAF pass catches that.
+ *  3. Depending on the surface, the scroller is `window`, `documentElement` or
+ *     `body` (notably in an iOS standalone PWA), so reset all three.
+ */
 function ScrollToTop() {
   const [location] = useLocation();
+
   useEffect(() => {
-    window.scrollTo(0, 0);
+    try {
+      if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    } catch { /* ignore */ }
+  }, []);
+
+  useLayoutEffect(() => {
+    const toTop = () => {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+      } catch {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    };
+    toTop();
+    // Again after paint, so late-arriving content can't restore the old offset.
+    const raf = requestAnimationFrame(toTop);
+    return () => cancelAnimationFrame(raf);
   }, [location]);
+
   return null;
 }
 
