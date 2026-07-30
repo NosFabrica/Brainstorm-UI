@@ -725,6 +725,11 @@ export default function DashboardPage() {
   const recalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
   const facesQuery = useNetworkFaces(user?.pubkey ?? "", calcDone || recalculating);
 
+  // Also above the early return, for the same reason. Holds whether this is the
+  // user's first-ever visit; the value is captured further down, once
+  // overviewQuery has actually answered.
+  const firstSessionRef = useRef<boolean | null>(null);
+
   if (!user || isAuthRedirecting()) return null;
 
   const isRecalculating = recalculating;
@@ -737,8 +742,10 @@ export default function DashboardPage() {
   //
   // FROZEN for the session: hadPreviousScores flips true the instant the first
   // calculation lands, which would otherwise swap the heading out from under a
-  // user mid-visit. Captured on the first render where we actually know.
-  const firstSessionRef = useRef<boolean | null>(null);
+  // user mid-visit. Captured on the first render where we actually know. The ref
+  // itself is declared ABOVE the early return — declaring it here made it a hook
+  // called after a conditional return, which changed hook order between renders
+  // and blanked the whole page.
   if (firstSessionRef.current === null && overviewQuery.isSuccess) {
     firstSessionRef.current = !hadPreviousScores;
   }
