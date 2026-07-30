@@ -146,7 +146,7 @@ export function ScoringStatusBar() {
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] px-4 w-full max-w-md pointer-events-none">
+    <div className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] left-1/2 -translate-x-1/2 z-[60] px-4 w-full max-w-md pointer-events-none">
       {phase === "spinner" || phase === "soft" ? (
         confirming ? (
           <div

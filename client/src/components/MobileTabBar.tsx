@@ -25,11 +25,23 @@ export function MobileTabBar() {
   const sheetOpen = useAccountSheetOpen();
 
   // Reserve space so the fixed bar never covers page content or the site footer.
+  //
+  // Body padding only moves DOCUMENT FLOW. `position: fixed` elements are placed
+  // against the viewport, so every floating bottom-anchored thing in the app — the
+  // scoring status pill, the Share page's Customize button and sticky invite bar,
+  // the back-to-top button — landed on top of this bar and covered the tab labels.
+  // Publishing the occupied height as a CSS variable gives them all one number to
+  // offset by, and it self-zeroes on desktop where this component renders nothing.
   useEffect(() => {
     if (!isMobile) return;
     const prev = document.body.style.paddingBottom;
-    document.body.style.paddingBottom = "calc(4rem + env(safe-area-inset-bottom))";
-    return () => { document.body.style.paddingBottom = prev; };
+    const inset = "calc(4rem + env(safe-area-inset-bottom))";
+    document.body.style.paddingBottom = inset;
+    document.documentElement.style.setProperty("--bs-bottom-chrome", inset);
+    return () => {
+      document.body.style.paddingBottom = prev;
+      document.documentElement.style.removeProperty("--bs-bottom-chrome");
+    };
   }, [isMobile]);
 
   if (!isMobile) return null;

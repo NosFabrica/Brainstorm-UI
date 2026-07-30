@@ -1293,7 +1293,7 @@ export default function SharePage() {
       {!loggedIn && (
         <>
           <div className="h-20 sm:hidden" aria-hidden />
-          <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
+          <div className="fixed bottom-[var(--bs-bottom-chrome,0px)] inset-x-0 z-40 sm:hidden border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
             <Link
               href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
               className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors"
@@ -1320,7 +1320,7 @@ export default function SharePage() {
         <button
           type="button"
           onClick={startCustomize}
-          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
+          className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
           data-testid="customize-open"
         >
           <SlidersHorizontal className="h-4 w-4" /> Customize
