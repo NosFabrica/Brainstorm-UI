@@ -18,6 +18,7 @@ import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
 import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
+import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
@@ -77,7 +78,7 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
@@ -124,64 +125,6 @@ import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
 import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
 import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
 
-const ONBOARDING_SLIDES = [
-  {
-    title: "No Algorithm Overlords",
-    subtitle: "Your network, your rules",
-    content: "Traditional platforms use opaque algorithms to decide what you see. Brainstorm gives you algorithmic clarity.",
-    detail: "Every score is explainable, traceable back through your network. You're in control.",
-    tone: "from-emerald-500/20 via-teal-500/10 to-transparent",
-  },
-  {
-    title: "The Extended Follows Network",
-    subtitle: "More than just friends",
-    content: "Your network isn't just who you follow. It's who they follow, and who they follow, ad infinitum.",
-    detail: "We calculate trust across N hops. You'll be amazed at how vast your true network really is when you look beyond the surface.",
-    tone: "from-brand-primary/20 via-brand-primary/10 to-transparent",
-  },
-  {
-    title: "Not A Popularity Contest",
-    subtitle: "A different kind of score",
-    content: "Finally, a metric that isn't about clout. A high score simply means your Grapevine verifies this person is real.",
-    detail: 'Low score \u2260 uncool. It just means "we haven\'t had the pleasure of meeting yet." Trust is earned, not farmed.',
-    tone: "from-fuchsia-500/20 via-brand-primary/10 to-transparent",
-  },
-  {
-    title: "Safety in Numbers",
-    subtitle: "Crowdsourced immunity",
-    content: "Accidentally followed a bot farm? Your network knows things you don't. We'll flag it before it spams you.",
-    detail: "Get alerts if you follow someone highly reported or muted by your trusted peers. It's herd immunity for your feed.",
-    tone: "from-amber-500/20 via-orange-500/10 to-transparent",
-  },
-  {
-    title: "Computation In Progress",
-    subtitle: "Your scores are being prepared",
-    content: "We're calculating your trust graph and generating explainable scores you can use across the Brainstorm experience.",
-    detail: "You can use Brainstorm right now \u2014 this finishes in the background, no waiting. It usually takes a few minutes.",
-    tone: "from-cyan-500/20 via-sky-500/10 to-transparent",
-  },
-  {
-    title: "Trusted Assertions",
-    subtitle: "Technical deep dive",
-    content: "Brainstorm uses cryptographic proofs to deliver trust scores. These 'assertions' can be verified but never forged.",
-    detail: "Each assertion is a kind 3038x event containing your personalized trust scores, signed by you.",
-    tone: "from-rose-500/20 via-pink-500/10 to-transparent",
-  },
-  {
-    title: "What This Unlocks",
-    subtitle: "The future",
-    content: "Spam filtering, content recommendations, reputation systems, marketplace trust \u2014 all powered by your personal web of trust.",
-    detail: "Developers can build on top of your trust scores, creating experiences tailored to your unique social graph.",
-    tone: "from-yellow-500/20 via-amber-500/10 to-transparent",
-  },
-  {
-    title: "You're in control",
-    subtitle: "Last slide \u2014 explore anytime",
-    content: "There's no timer here. Click through at your own pace while your trust graph continues computing in the background.",
-    detail: "When scores are ready, the dashboard will reflect them \u2014 until then, explore and learn how the system works.",
-    tone: "from-fuchsia-500/20 via-brand-primary/10 to-transparent",
-  },
-];
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
 
@@ -225,8 +168,6 @@ export default function DashboardPage() {
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
-  const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
-  const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
@@ -638,18 +579,6 @@ export default function DashboardPage() {
 
 
 
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
-    const { left, top } = currentTarget.getBoundingClientRect();
-    const x = clientX - left;
-    const y = clientY - top;
-    mouseX.set(x);
-    mouseY.set(y);
-    (currentTarget as HTMLElement).style.setProperty("--flash-x", `${x}px`);
-    (currentTarget as HTMLElement).style.setProperty("--flash-y", `${y}px`);
-  }
 
   const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
     if (!countValues || !countValues[tierKey]) return 0;
@@ -800,6 +729,20 @@ export default function DashboardPage() {
 
   const isRecalculating = recalculating;
   const isCalculationComplete = calcDone || isRecalculating;
+
+  // "Welcome back" is a lie to someone who signed up 30 seconds ago, and the
+  // displayName fallback invented "Traveler" for exactly the people least likely
+  // to have set a name — new users. hadPreviousScores is a persisted per-account
+  // flag, so it identifies a genuine first visit with no new storage.
+  //
+  // FROZEN for the session: hadPreviousScores flips true the instant the first
+  // calculation lands, which would otherwise swap the heading out from under a
+  // user mid-visit. Captured on the first render where we actually know.
+  const firstSessionRef = useRef<boolean | null>(null);
+  if (firstSessionRef.current === null && overviewQuery.isSuccess) {
+    firstSessionRef.current = !hadPreviousScores;
+  }
+  const isFirstSession = firstSessionRef.current === true;
   // `overviewQuery.isSuccess` is load-bearing, not belt-and-braces: hasNoFollowing
   // is `overviewQuery.isSuccess && followingCount === 0`, so while overview is
   // still in flight it reads FALSE — indistinguishable from "this user has
@@ -833,8 +776,14 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <PageHeader
                 kicker="Brainstorm Dashboard"
-                title={<>Welcome back, <span className="text-brand-link">{user.displayName || "Traveler"}</span></>}
-                subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
+                title={isFirstSession
+                  ? <>Welcome to <span className="text-brand-link">Brainstorm</span></>
+                  : user.displayName
+                    ? <>Welcome back, <span className="text-brand-link">{user.displayName}</span></>
+                    : <>Welcome back</>}
+                subtitle={isFirstSession
+                  ? "Setting up your trust network."
+                  : hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
                 testId="section-dashboard-header-copy"
               />
 
@@ -1083,7 +1032,7 @@ export default function DashboardPage() {
                       Recalculate GrapeRank?
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-recalculate-dashboard-desc">
-                      This re-runs your full network trust calculation. It typically takes 10–20 minutes and your current scores will be replaced with updated results.
+                      This re-runs your full network trust calculation. It typically takes about 5 minutes and your current scores will be replaced with updated results.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
@@ -1104,7 +1053,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {isGrapeRankFailed && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1205,383 +1154,17 @@ export default function DashboardPage() {
               />
             )}
 
-            {/* Recalculating (established users) no longer gets this full hero —
-                status shows via the top-right Trust signals card + the app-wide
-                ScoringStatusBar pill. Only brand-new onboarding keeps it. */}
+            {/* First run: what's still to set up, plus one line of calc status.
+                Replaces a ~375-line dark marketing hero (a rotating
+                ONBOARDING_SLIDES carousel over a CALCULATING/PUBLISHING stepper)
+                that filled the fold while saying nothing actionable — a new user's
+                first few minutes are spent waiting, so spend them on the setup
+                they still owe. Recalculating users were already excluded here;
+                their status lives in the top-right Trust signals card and the
+                app-wide pill. Failures are carried by the alert above, so the
+                status line stands down rather than promising a time estimate. */}
             {showOnboarding && (
-              <div
-                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-brand-primary border border-white/10 shadow-[0_20px_40px_-12px_rgb(var(--brand-accent)/0.25)] hover:shadow-[0_28px_70px_-20px_rgb(var(--brand-accent)/0.35)] overflow-hidden relative transition-shadow"
-                onMouseMove={handleMouseMove}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "0");
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "1");
-                }}
-                data-testid="container-onboarding-flashlight"
-                style={{
-                  ["--flash-x" as any]: "50%",
-                  ["--flash-y" as any]: "50%",
-                  ["--flash-o" as any]: 0,
-                }}
-              >
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-                  style={{
-                    opacity: "var(--flash-o, 0)" as any,
-                    background: [
-                      "radial-gradient(520px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgb(var(--brand-accent)/0.26), rgb(var(--brand-accent)/0.08) 32%, rgba(2,6,23,0) 66%)",
-                      "radial-gradient(860px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgb(var(--brand-deep)/0.11), rgba(2,6,23,0) 70%)",
-                    ].join(", "),
-                  }}
-                  data-testid="overlay-onboarding-flashlight"
-                />
-
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-                  style={{
-                    opacity: "var(--flash-o, 0)" as any,
-                    WebkitMaskImage:
-                      "radial-gradient(380px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0) 65%)",
-                    maskImage:
-                      "radial-gradient(380px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0) 65%)",
-                  }}
-                  aria-hidden="true"
-                  data-testid="overlay-onboarding-equations"
-                >
-                  <div
-                    className="absolute inset-0 mix-blend-screen"
-                    style={{
-                      opacity: 0.22,
-                      background: "linear-gradient(180deg, rgb(var(--brand-accent)/0.16), rgba(255,255,255,0.03) 55%, rgb(var(--brand-accent)/0.06))",
-                    }}
-                  />
-                  <div
-                    className="absolute inset-x-0 top-[88px] bottom-[280px]"
-                    style={{
-                      opacity: 0.36,
-                      transform: "translateZ(0)",
-                      fontFamily: "var(--font-mono)",
-                      color: "rgba(226,232,240,0.70)",
-                      textShadow: "0 1px 0 rgba(0,0,0,0.22), 0 0 12px rgb(var(--brand-accent)/0.12)",
-                    }}
-                    data-testid="container-onboarding-equations-safe"
-                  >
-                    {[
-                      { x: "18%", y: "20%", r: "-8deg", a: 0.4, lines: ["WOT(u) = \u03a3\u1d65 w(u,v) \u00b7 t(v)", "w(u,v) = 1/(1+dist(u,v))", "trust(u) \u2208 [0,100]"] },
-                      { x: "78%", y: "28%", r: "10deg", a: 0.34, lines: ["id = SHA256(serialized)", "sig = Schnorr(sk, id)", "event = {kind, pubkey, tags}"] },
-                      { x: "22%", y: "72%", r: "7deg", a: 0.32, lines: ["G = (V,E) from follows", "score = f(G, seeds, hops)", "relays = {r\u2081\u2026r\u2099}"] },
-                      { x: "76%", y: "78%", r: "-12deg", a: 0.3, lines: ["compute(graph) \u2192 scores", "verify(sig) \u2192 authentic", "\u0394t \u2248 4\u20135 min"] },
-                    ].map((b, i) => {
-                      const ox = `calc(${b.x} + (var(--flash-x, 50%) - 50%) * 0.05)`;
-                      const oy = `calc(${b.y} + (var(--flash-y, 50%) - 50%) * 0.05)`;
-                      return (
-                        <div
-                          key={i}
-                          className="absolute text-[10px] leading-relaxed tracking-[0.12em] select-none"
-                          style={{
-                            left: ox as any,
-                            top: oy as any,
-                            transform: `translate(-50%, -50%) rotate(${b.r})`,
-                            opacity: b.a,
-                          }}
-                          data-testid={`text-onboarding-equation-block-${i}`}
-                        >
-                          {b.lines.map((l, idx) => (
-                            <div key={idx} className={idx === 0 ? "font-medium" : idx === 1 ? "opacity-75" : "opacity-60"}>
-                              {l}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgb(var(--brand-primary)/0.18),_transparent_55%)]" />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:28px_28px] opacity-25" />
-
-                <div className="relative p-5 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-brand-link" data-testid="text-onboarding-kicker">
-                        {isRecalculation ? "Recalculating" : isErrorState ? "Action needed" : "Brainstorm onboarding"}
-                      </p>
-                      <h2
-                        className="text-xl sm:text-2xl font-bold text-white tracking-tight"
-                        style={{ fontFamily: "var(--font-display)" }}
-                        data-testid="text-onboarding-title"
-                      >
-                        {isRecalculation ? "Refreshing your trust scores" : isErrorState ? "Something went wrong" : "Clarity in a fragmented world"}
-                      </h2>
-                      <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
-                        {isRecalculation
-                          ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
-                          : isErrorState
-                            ? <>Your {isGrapeRankFailed ? "trust score calculation" : "trusted assertion publishing"} didn't complete successfully. You can retry below, or head to <span className="font-semibold text-white">Settings</span> to try again later.</>
-                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4" data-testid="section-onboarding-carousel">
-                    <div className="flex items-center justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-brand-primary/20 shadow-[0_0_0_4px_rgb(var(--brand-primary)/0.06)]" : ""}`}
-                        data-testid="button-toggle-onboarding"
-                        aria-expanded={!isOnboardingCollapsed}
-                      >
-                        {isOnboardingCollapsed ? "Learn More" : "Hide"}
-                        <ChevronRight className={`h-4 w-4 transition-transform ${isOnboardingCollapsed ? "" : "rotate-90"}`} />
-                      </button>
-                      <div
-                        className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
-                        data-testid="badge-queue-position"
-                        aria-label={isErrorState ? "Idle" : calcDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing your scores"}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : calcDone ? "bg-brand-primary animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
-                        <span className="font-semibold" data-testid="text-queue-label">
-                          {isErrorState ? "Idle" : calcDone ? "Processing" : (queuePosition !== null && queuePosition > 0) ? "Queue" : "Processing"}
-                        </span>
-                        {!calcDone && !isErrorState && queuePosition !== null && queuePosition > 0 && (
-                          <span className="font-mono" data-testid="text-queue-value">
-                            {queuePosition} ahead
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3" data-testid="row-onboarding-status">
-                      <div
-                        className="mb-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
-                        data-testid="card-onboarding-progress"
-                        aria-label="Trust score calculation progress"
-                      >
-                        <div className="flex items-center justify-between gap-3" data-testid="row-onboarding-progress-header">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold tracking-[0.22em] uppercase text-slate-300/80" data-testid="text-onboarding-progress-kicker">
-                              Calculation
-                            </p>
-                            <p
-                              className="text-sm font-semibold text-white truncate"
-                              style={{ fontFamily: "var(--font-display)" }}
-                              data-testid="text-onboarding-progress-step"
-                            >
-                              {isGrapeRankFailed
-                                ? "Calculation failed"
-                                : isPublishFailed
-                                  ? "Publishing failed"
-                                  : hasNoFollowing && !triggerGrapeRankMutation.isPending
-                                    ? "Ready to calculate"
-                                    : publishDone
-                                      ? "Calculation complete"
-                                      : calcDone
-                                        ? "Publishing Trusted Assertion"
-                                        : "Computing network trust"}
-                            </p>
-                          </div>
-                          {!isErrorState && (
-                            publishDone ? (
-                              <span
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-400/30 shrink-0 animate-[scale-in_0.3s_ease-out]"
-                                data-testid="check-onboarding-complete"
-                                aria-label="All steps complete"
-                              >
-                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                              </span>
-                            ) : (
-                              <span
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
-                                data-testid="spinner-onboarding-progress"
-                                aria-label="In progress"
-                              >
-                                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
-                              </span>
-                            )
-                          )}
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-2 gap-2" data-testid="grid-onboarding-status">
-                          <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : !calcDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
-                            data-testid="status-onboarding-graph"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {calcDone ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-graph" />
-                              ) : (
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-brand-primary/25 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                  data-testid="dot-onboarding-graph"
-                                />
-                              )}
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-emerald-300" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">{calcDone ? "Calculated" : "Calculating"}</span>
-                            </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-brand-link" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
-                              {calcDone ? "Complete" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
-                            </span>
-                          </div>
-
-                          <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isPublishFailed ? "bg-red-500/10 border-red-500/20" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
-                            data-testid="status-onboarding-scores"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {publishDone ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-scores" />
-                              ) : (
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-brand-primary/25 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                  data-testid="dot-onboarding-scores"
-                                />
-                              )}
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-emerald-300" : isPublishFailed ? "text-red-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">{publishDone ? "Published" : "Publishing"}</span>
-                              <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-emerald-300/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
-                                (Trusted Assertion)
-                              </span>
-                            </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-brand-link" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {publishDone ? "Complete" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 sm:hidden text-center" data-testid="text-onboarding-status-footnote">
-                        <span className="text-xs text-slate-400">
-                          Final step publishes a <span className="text-slate-200 font-semibold">Trusted Assertion</span> event.
-                        </span>
-                      </div>
-
-                      {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && (
-                        <div className="mt-3 flex items-center justify-center gap-3" data-testid="row-onboarding-retry">
-                          {retryCount === 0 ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={triggerGrapeRankMutation.isPending}
-                              onClick={() => {
-                                setRetryCount(1);
-                                triggerGrapeRankMutation.mutate();
-                              }}
-                              data-testid="button-onboarding-retry"
-                            >
-                              {triggerGrapeRankMutation.isPending ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              )}
-                              Try Again
-                            </button>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2">
-                              <p className="text-xs text-slate-400">Still having trouble?</p>
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all"
-                                onClick={() => navigate("/settings")}
-                                data-testid="button-onboarding-go-settings"
-                              >
-                                <SettingsIcon className="w-3.5 h-3.5" />
-                                Go to Settings
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <AnimatePresence initial={false}>
-                      {!isOnboardingCollapsed && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.25, ease: "easeOut" }}
-                          className="mt-4"
-                          data-testid="panel-onboarding"
-                        >
-                          <div
-                            className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden cursor-pointer select-none relative"
-                            data-testid="card-onboarding-carousel"
-                            role="button"
-                            tabIndex={0}
-                            aria-label="Next onboarding slide"
-                            onClick={() => {
-                              setActiveOnboardingIndex((i) => (i + 1) % ONBOARDING_SLIDES.length);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                setActiveOnboardingIndex((i) => (i + 1) % ONBOARDING_SLIDES.length);
-                              }
-                            }}
-                          >
-                            <div className="p-4 sm:p-5">
-                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                                <div className="min-w-0">
-                                  <p className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-400" data-testid="text-onboarding-active-subtitle">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].subtitle}
-                                  </p>
-                                  <h3
-                                    className="text-base sm:text-lg font-semibold text-white mt-1"
-                                    style={{ fontFamily: "var(--font-display)" }}
-                                    data-testid="text-onboarding-active-title"
-                                  >
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].title}
-                                  </h3>
-                                  <p className="text-sm text-slate-200/90 mt-2" data-testid="text-onboarding-active-content">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].content}
-                                  </p>
-                                  <p className="text-xs text-slate-300/90 mt-2" data-testid="text-onboarding-active-detail">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].detail}
-                                  </p>
-                                  <p className="text-xs text-slate-400 mt-3" data-testid="text-onboarding-hint">
-                                    Tap to continue
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div
-                                className="mt-4 flex flex-wrap items-center gap-2"
-                                data-testid="row-onboarding-dots"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {ONBOARDING_SLIDES.map((_, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveOnboardingIndex(idx);
-                                    }}
-                                    className={`h-2 rounded-full transition-all ${idx === activeOnboardingIndex ? "w-6 bg-white" : "w-2 bg-white/25 hover:bg-white/40"}`}
-                                    data-testid={`button-onboarding-dot-${idx}`}
-                                    aria-label={`Go to slide ${idx + 1}`}
-                                  />
-                                ))}
-                              </div>
-
-                              <div
-                                className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur-md"
-                                data-testid="badge-onboarding-step"
-                                aria-label={`Slide ${activeOnboardingIndex + 1} of ${ONBOARDING_SLIDES.length}`}
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" data-testid="dot-onboarding-step" />
-                                <span className="text-xs font-semibold tracking-[0.18em] uppercase" data-testid="text-onboarding-step">
-                                  Slide {activeOnboardingIndex + 1} of {ONBOARDING_SLIDES.length}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
+              <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
             )}
           </div>
 

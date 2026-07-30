@@ -10,7 +10,7 @@ import { useSetupTasks, type SetupTaskKey } from "@/hooks/useSetupTasks";
  *
  * Replaces a ~430-line dark marketing hero (a rotating ONBOARDING_SLIDES carousel
  * over a two-phase CALCULATING/PUBLISHING stepper) that filled the fold while
- * saying nothing actionable. A new user's first 10–20 minutes are spent waiting
+ * saying nothing actionable. A new user's first few minutes are spent waiting
  * for scores, so this spends that time on the setup they still owe instead.
  *
  * Collapses as they go: finish the tasks and the card reduces to just the status
@@ -25,15 +25,23 @@ const TASK_HREF: Record<SetupTaskKey, string> = {
   photo: "/settings?tab=profile",
 };
 
-export function SetupProgressCard({ queueAhead }: { queueAhead?: number | null }) {
+export function SetupProgressCard({
+  queueAhead,
+  showStatus = true,
+}: {
+  queueAhead?: number | null;
+  /** False when the calculation has FAILED — promising a time estimate would be a lie. */
+  showStatus?: boolean;
+}) {
   const [, navigate] = useLocation();
   const { tasks, remaining, doneCount, eligible } = useSetupTasks();
 
   // Returning users who signed in with their own key already own their profile and
   // backup — offering them a setup checklist would be both wrong and alarming.
-  if (!eligible) return <StatusLine queueAhead={queueAhead} standalone />;
-
-  if (remaining.length === 0) return <StatusLine queueAhead={queueAhead} standalone />;
+  const noTasks = !eligible || remaining.length === 0;
+  // Nothing to say: no tasks left AND the failure alert is carrying the status.
+  if (noTasks && !showStatus) return null;
+  if (noTasks) return <StatusLine queueAhead={queueAhead} standalone />;
 
   return (
     <Card className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900" data-testid="card-setup-progress">
@@ -96,7 +104,7 @@ function StatusLine({ queueAhead, standalone = false }: { queueAhead?: number | 
     <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="setup-status-line">
       <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-link" />
       <span>
-        Building your trust scores — usually <span className="font-semibold text-slate-700 dark:text-slate-300">10–20 minutes</span>
+        Building your trust scores — usually <span className="font-semibold text-slate-700 dark:text-slate-300">about 5 minutes</span>
         {typeof queueAhead === "number" && queueAhead > 0 && (
           <> · {queueAhead} ahead of you</>
         )}
