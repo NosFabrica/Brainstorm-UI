@@ -3,7 +3,10 @@ import { useLocation } from "wouter";
 import { Search, X, Clock, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { getRecentItems, recentKey, pushRecentQuery, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
+import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
+import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
+import { useActivePov } from "@/hooks/useActivePov";
+import { getCurrentUser } from "@/services/nostr";
 
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
@@ -34,7 +37,14 @@ export function MobileSearchOverlay() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [recents, setRecents] = useState<RecentItem[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<number | undefined>(undefined);
+  // Bumped on every keystroke so a slow earlier response can never overwrite a
+  // newer one — same race guard the home page uses.
+  const reqRef = useRef(0);
+  const [pov] = useActivePov();
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -65,6 +75,41 @@ export function MobileSearchOverlay() {
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.clearTimeout(timerRef.current);
+    const reqId = ++reqRef.current;
+    const term = q.trim();
+    // Direct identifiers resolve straight to a profile on submit, so suggesting
+    // against them is noise. Under 2 chars there's nothing worth querying.
+    if (term.length < 2 || isLikelyNpub(term) || isHexPubkey(term) || isNip05Handle(term)) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    timerRef.current = window.setTimeout(async () => {
+      try {
+        const { results: hits } = await searchByText(term, pov, getCurrentUser()?.pubkey, 10);
+        if (reqRef.current !== reqId) return;
+        setResults(hits.slice(0, 8));
+      } catch {
+        if (reqRef.current !== reqId) return;
+        setResults([]);
+      } finally {
+        if (reqRef.current === reqId) setSearching(false);
+      }
+    }, 140);
+    return () => window.clearTimeout(timerRef.current);
+  }, [q, open, pov]);
+
+  const openResult = (r: SearchResult) => {
+    const label = r.displayName || r.name || r.npub.slice(0, 12) + "…";
+    pushRecentProfile({ pubkey: r.pubkey, npub: r.npub, label, picture: r.picture, nip05: r.nip05 });
+    setOpen(false);
+    navigate(`/p/${r.npub}`);
+  };
 
   const submit = (value: string) => {
     const term = value.trim();
@@ -121,7 +166,56 @@ export function MobileSearchOverlay() {
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-        {visible.length === 0 ? (
+        {/* Typing REPLACES the recents. Leaving "Recent" visible under a query made
+            the list read as stale results for what you'd just typed — worse than
+            showing nothing. */}
+        {q.trim().length > 0 ? (
+          <>
+            {results.map((r) => {
+              const label = r.displayName || r.name || `${r.npub.slice(0, 12)}…`;
+              const score = typeof r.wotRank === "number" ? Math.round(r.wotRank * 100) : null;
+              return (
+                <button
+                  key={r.pubkey}
+                  type="button"
+                  onClick={() => openResult(r)}
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                  data-testid="mobile-search-result"
+                >
+                  <Avatar className="h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
+                    {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</span>
+                    {r.nip05 && <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{r.nip05.replace(/^_@/, "")}</span>}
+                  </span>
+                  {score != null && (
+                    <span className="shrink-0 rounded-full bg-brand-primary/[0.08] px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums text-brand-primary dark:text-brand-link" data-testid="mobile-search-result-score">
+                      {score}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {searching && results.length === 0 && (
+              <p className="px-2 py-4 text-xs text-slate-400 dark:text-slate-500" data-testid="mobile-search-searching">Searching…</p>
+            )}
+            {!searching && results.length === 0 && q.trim().length >= 2 && (
+              <p className="px-2 py-4 text-xs text-slate-400 dark:text-slate-500" data-testid="mobile-search-no-results">No people matched — try the full search below.</p>
+            )}
+            {/* Always available, so a query that suggests nothing is never a dead end
+                and the full ranked page stays one tap away. */}
+            <button
+              type="button"
+              onClick={() => submit(q)}
+              className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-slate-100 px-2 py-3 text-left text-sm font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-900"
+              data-testid="mobile-search-see-all"
+            >
+              <Search className="h-4 w-4 shrink-0" /> See all results for “{q.trim()}”
+            </button>
+          </>
+        ) : visible.length === 0 ? (
           <p className="px-1 py-6 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="mobile-search-empty">
             Search anyone on Nostr — results are ranked by your web of trust.
           </p>
