@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "wouter";
+import { openMobileSearch } from "@/components/MobileSearchOverlay";
 import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
@@ -57,14 +58,18 @@ export function PublicPageHeader({
         <HeaderSearchBox className="hidden max-w-md flex-1 sm:block" />
 
         <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
-          <Link
-            href="/"
+          {/* Opens search OVER the page. This was a <Link href="/">, which navigated
+              away and cost the user the thread/profile they were reading — search is
+              a lookup, not a destination. */}
+          <button
+            type="button"
+            onClick={openMobileSearch}
             aria-label="Search"
             className="rounded-full p-2 text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep sm:hidden"
             data-testid="public-search-mobile"
           >
             <Search className="h-5 w-5" />
-          </Link>
+          </button>
           {actions}
           {user && <AccountMenu user={user} onLogout={handleLogout} />}
         </div>

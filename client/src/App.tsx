@@ -49,6 +49,7 @@ import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
 
@@ -198,6 +199,7 @@ function App() {
         <PovAutoDefault />
         <MobileTabBar />
         <CommandPalette />
+        <MobileSearchOverlay />
         <ScoringStatusBar />
         <AutoScoreReturning />
         <AutoActivateBrainstorm />
