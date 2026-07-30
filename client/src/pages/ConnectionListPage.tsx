@@ -223,33 +223,44 @@ export default function ConnectionListPage() {
 
           {filtersOpen && (
             <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mr-1">Trust level</span>
-                {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setTierFilter(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                    data-testid={`conn-filter-${value}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              {/* Five tier chips plus an inline label can't fit 390px, so they used
+                  to wrap onto a second (and ragged third) line. The label now sits
+                  above and the chips ride a single horizontally-scrollable line —
+                  the familiar mobile filter-chip pattern, and it can't re-wrap on a
+                  narrower phone. `-mx-3 px-3` bleeds the scroll area to the card
+                  edge so it reads as scrollable; from `sm:` up there's room, so it
+                  reverts to a plain wrapping row. Scrollbars are hidden app-wide. */}
+              <div>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
+                <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                  {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTierFilter(value)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      data-testid={`conn-filter-${value}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mr-1">Sort</span>
-                {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setSortOrder(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
-                    data-testid={`conn-sort-${value}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sort</span>
+                <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                  {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSortOrder(value)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      data-testid={`conn-sort-${value}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
