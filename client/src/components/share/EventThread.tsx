@@ -12,6 +12,10 @@ import { TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -66,6 +70,10 @@ export function EventThread({
   const myPubkey = getCurrentUser()?.pubkey || "";
   const myFollows = myPubkey ? knownFollowCount(myPubkey) : 0;
   const [calcTriggered, setCalcTriggered] = useState(false);
+  // Kicking off a calculation is a ~5-minute, queue-consuming operation, so it
+  // asks first — same contract as the dashboard's Recalculate. This link used to
+  // fire triggerScoringAndAnchor on the first tap with no confirmation.
+  const [confirmCalc, setConfirmCalc] = useState(false);
 
   const relays = useMemo(() => Array.from(new Set([...relayHints, ...PROFILE_RELAYS])), [relayHints]);
 
@@ -215,7 +223,7 @@ export function EventThread({
             <>Filtering by the Brainstorm network.{" "}
               <button
                 type="button"
-                onClick={() => { if (myPubkey) { void triggerScoringAndAnchor(myPubkey); setCalcTriggered(true); } }}
+                onClick={() => setConfirmCalc(true)}
                 className="font-semibold text-brand-link hover:underline"
                 data-testid="thread-calc-wot"
               >
@@ -272,6 +280,34 @@ export function EventThread({
           </p>
         </div>
       )}
+      <AlertDialog open={confirmCalc} onOpenChange={setConfirmCalc}>
+        <AlertDialogContent data-testid="modal-confirm-thread-calc">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Calculate your Web of Trust?</AlertDialogTitle>
+            {/* Deliberately NOT the dashboard's wording: nothing is being replaced
+                here, this is a first run. What it shares is the honest cost — the
+                wait — and the same ask-before-you-start contract. */}
+            <AlertDialogDescription>
+              This builds your personal trust scores from the accounts you follow. It takes
+              about 5 minutes, and this filter switches to your own perspective as soon as
+              it's ready.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-thread-calc-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(ev) => {
+                ev.preventDefault();
+                setConfirmCalc(false);
+                if (myPubkey) { void triggerScoringAndAnchor(myPubkey); setCalcTriggered(true); }
+              }}
+              data-testid="button-thread-calc-confirm"
+            >
+              Calculate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
