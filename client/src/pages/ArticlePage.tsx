@@ -220,8 +220,10 @@ export default function ArticlePage() {
             {/* More from this author — keep readers inside Brainstorm. */}
             {ptr?.pubkey && <MoreFromAuthor pubkey={ptr.pubkey} authorName={authorName} author={profile} relayHints={ptr?.relays ?? []} excludeId={ev?.id} />}
 
-            {/* WoT signup funnel — hidden when the thread's own signup gate is showing. */}
-            {!threadGated && (
+            {/* WoT signup funnel — hidden when the thread's own signup gate is
+                showing, and hidden from SIGNED-IN users (it sells them what they
+                already have). */}
+            {!threadGated && !loggedIn && (
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="article-funnel">
               <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">

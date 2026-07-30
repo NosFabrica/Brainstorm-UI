@@ -375,8 +375,11 @@ export default function EventPage() {
             {authorPk && <MoreFromAuthor pubkey={authorPk} authorName={authorName} author={profile} relayHints={relayHints} excludeId={note.id} excludeContent={note.content} />}
 
             {/* Anonymous signup funnel — same WoT hook as the profile page. Hidden
-                when the thread's own signup gate is already showing (no duplicate). */}
-            {!threadGated && (
+                when the thread's own signup gate is already showing (no duplicate),
+                and hidden from SIGNED-IN users: it pitches a Web of Trust to people
+                who already have one, mid-feed. The comment always said "anonymous",
+                but the gate never actually checked. */}
+            {!threadGated && !loggedIn && (
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="event-funnel">
               <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
