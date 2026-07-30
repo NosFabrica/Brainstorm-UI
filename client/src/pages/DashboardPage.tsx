@@ -1255,12 +1255,22 @@ export default function DashboardPage() {
               three separate tiles (Social Graph, Extended Reach and the full
               Network Health pie; the pie's tier drill-downs now live on /network)
               and always renders in its wide four-cell row. */}
-          <div className="flex flex-col gap-4 mb-6">
+          {/* Nothing here can hold real data before the first calculation, so before
+              then we render NOTHING rather than shells. Previously a brand-new user
+              got Network Alerts' "your safety radar is warming up" AND a full-height
+              greyed-out Your Network with a "Scores calculating…" overlay — so the
+              page said "wait" four or five times over and looked broken. The single
+              CalculatingNotice above is the one statement; these appear when they
+              have something to show. */}
+          <div className={`flex flex-col gap-4 ${isCalculationComplete ? "mb-6" : ""}`}>
 
+            {isCalculationComplete && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="w-full flex">
               <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
+            )}
 
+            {isCalculationComplete && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="w-full flex">
               <YourNetworkCard
                 isReady={isCalculationComplete}
@@ -1278,6 +1288,7 @@ export default function DashboardPage() {
                 followingFaces={facesQuery.data?.following ?? []}
               />
             </motion.div>
+            )}
           </div>
 
           {/* Discovery, not a following feed: long-form from accounts two-plus
