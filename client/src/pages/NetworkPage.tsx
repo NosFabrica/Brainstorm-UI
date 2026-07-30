@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
+import { CalculatingNotice } from "@/components/CalculatingNotice";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -1138,38 +1139,49 @@ export default function NetworkPage() {
 
   if (!calcDone && !grapeRankLoading) {
     return (
+      // Same page shell tokens as the real view below. The old gate hardcoded
+      // bg-slate-950 + text-white with NO light variant, so a light-mode user got a
+      // black full-screen page. It also returned before the header rendered, which
+      // left "Back to Dashboard" as the only way out — and the dashboard is itself
+      // a waiting screen, so a new user just bounced between two of them.
       <div
-        className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4"
+        className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col"
         data-testid="page-network-gate"
       >
-        <div className="max-w-md w-full text-center">
-          <div className="mb-6 flex justify-center">
-            <BrainLogo size={64} className="text-brand-link animate-pulse" />
-          </div>
-          <h1
-            className="text-2xl font-bold text-white mb-3"
-            data-testid="text-network-gate-title"
-          >
-            Your network is being calculated
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="network" />
+        <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 sm:px-6">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-gate-title">
+            Your network is being mapped
           </h1>
-          <p
-            className="text-slate-400 mb-8 text-sm leading-relaxed"
-            data-testid="text-network-gate-description"
-          >
-            We're crunching the numbers on your social graph. Once the
-            calculation completes, you'll be able to explore your full network
-            here.
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400" data-testid="text-network-gate-description">
+            Trust tiers, extended reach and network health all need your scores. They'll
+            appear here as soon as the first calculation lands.
           </p>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
-            onClick={() => navigate("/dashboard")}
-            data-testid="button-back-to-dashboard"
-          >
-            <Home className="h-4 w-4" />
-            Back to Dashboard
-          </button>
-        </div>
+          <div className="mt-5">
+            {/* The one shared way the app states this — same component the dashboard
+                uses, so the wait looks like one product rather than three screens. */}
+            <CalculatingNotice standalone className="" searchHint>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
+                  data-testid="button-network-gate-search"
+                >
+                  <SearchIcon className="h-3.5 w-3.5" /> Search Brainstorm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard")}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  data-testid="button-back-to-dashboard"
+                >
+                  <Home className="h-3.5 w-3.5" /> Dashboard
+                </button>
+              </div>
+            </CalculatingNotice>
+          </div>
+        </main>
       </div>
     );
   }

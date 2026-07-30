@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
-import { Check, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { CalculatingNotice } from "@/components/CalculatingNotice";
 import { useSetupTasks, type SetupTaskKey } from "@/hooks/useSetupTasks";
 
 /**
@@ -41,7 +42,7 @@ export function SetupProgressCard({
   const noTasks = !eligible || remaining.length === 0;
   // Nothing to say: no tasks left AND the failure alert is carrying the status.
   if (noTasks && !showStatus) return null;
-  if (noTasks) return <StatusLine queueAhead={queueAhead} standalone />;
+  if (noTasks) return <CalculatingNotice queueAhead={queueAhead} standalone />;
 
   return (
     <Card className="mb-6 rounded-xl border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900" data-testid="card-setup-progress">
@@ -86,35 +87,8 @@ export function SetupProgressCard({
       </div>
 
       <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800/60">
-        <StatusLine queueAhead={queueAhead} />
+        <CalculatingNotice queueAhead={queueAhead} />
       </div>
-    </Card>
-  );
-}
-
-/**
- * The calc status, in one line. Both facts are here to fight the "it's broken"
- * read: the estimate sets expectations, and the queue position proves the thing is
- * moving rather than hung. The CALCULATING → PUBLISHING stepper it replaces was
- * internal machinery, and status is already carried by the top-right Trust Signals
- * card and the app-wide pill.
- */
-function StatusLine({ queueAhead, standalone = false }: { queueAhead?: number | null; standalone?: boolean }) {
-  const line = (
-    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="setup-status-line">
-      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand-link" />
-      <span>
-        Building your trust scores — usually <span className="font-semibold text-slate-700 dark:text-slate-300">about 5 minutes</span>
-        {typeof queueAhead === "number" && queueAhead > 0 && (
-          <> · {queueAhead} ahead of you</>
-        )}
-      </span>
-    </div>
-  );
-  if (!standalone) return line;
-  return (
-    <Card className="mb-6 rounded-xl border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900" data-testid="card-setup-status-only">
-      {line}
     </Card>
   );
 }
