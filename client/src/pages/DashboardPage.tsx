@@ -1118,20 +1118,30 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="mb-6"
+                // No mb-6: the parent column already applies gap-6, so adding a
+                // margin double-spaced this one child and made it read as detached
+                // from the rest of the page.
               >
-                <Card className="relative flex items-center gap-3 rounded-xl pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
-                  <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
-                    <Users className="h-4 w-4" />
+                {/* Stacks on mobile. It used to be a single row with `truncate` on the
+                    text AND the description hidden below sm:, so on a phone even the
+                    short title clipped to "Your network i…" — the message was the
+                    point and it was unreadable. Text now wraps and the full sentence
+                    shows at every width; the dismiss X is pinned to the corner so it
+                    never competes with the button for horizontal room. */}
+                <Card className="relative flex flex-col gap-3 rounded-xl p-3 pr-10 sm:flex-row sm:items-center sm:py-2.5 sm:pl-3.5 sm:pr-12" data-testid="card-invite-grow">
+                  <div className="flex items-start gap-3 sm:items-center">
+                    <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <p className="min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
+                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                    </p>
                   </div>
-                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug truncate">
-                    <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                    <span className="hidden sm:inline text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
-                  </p>
                   <button
                     type="button"
                     onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                    className="shrink-0 h-9 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    className="h-9 w-full shrink-0 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5 sm:ml-auto sm:w-auto"
                     data-testid="button-invite-grow"
                   >
                     <Users className="h-4 w-4" />
@@ -1140,7 +1150,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={markInviteCardSeen}
-                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="absolute right-2 top-2 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors sm:top-1/2 sm:h-9 sm:w-9 sm:-translate-y-1/2"
                     aria-label="Dismiss"
                     data-testid="button-invite-grow-dismiss"
                   >
