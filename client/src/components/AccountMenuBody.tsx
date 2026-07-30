@@ -224,7 +224,11 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
         })}
       </div>
 
-      <div className="mx-3 border-t border-slate-900/[0.08] dark:border-white/10" />
+      {/* 8%/10% read as a smudge rather than a rule on this frosted surface,
+          especially on a phone where the panel sits over a bright wallpaper.
+          ~16% is the point where the line looks deliberate in both themes without
+          turning into a hard border. */}
+      <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
 
       {/* Grouped actions — Settings sits under Help & FAQ */}
       <div className="p-1.5">
@@ -253,7 +257,11 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
         </div>
       )}
 
-      <div className="mx-3 border-t border-slate-900/[0.08] dark:border-white/10" />
+      {/* 8%/10% read as a smudge rather than a rule on this frosted surface,
+          especially on a phone where the panel sits over a bright wallpaper.
+          ~16% is the point where the line looks deliberate in both themes without
+          turning into a hard border. */}
+      <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
 
       {/* Account switcher + sign out */}
       <div className="p-1.5">
