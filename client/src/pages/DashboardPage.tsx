@@ -21,6 +21,7 @@ import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
 import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
+import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
@@ -1319,35 +1320,9 @@ export default function DashboardPage() {
           <NetworkThreadModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
 
-          {/* The dashboard is a workspace, so it ends on the user's own content.
-              What was a full-bleed marketing band plus a ~420px client carousel is
-              now one quiet row: education stays one click away for anyone who wants
-              it, without a billboard between the feed and the footer. */}
-          {/* Stacks centered on mobile (no awkward left/right split), settles into
-              one spaced row on desktop. The client list is its own centered line
-              so it never collides with the two links. */}
-          <div className="mb-8 flex flex-col items-center gap-3 border-t border-slate-200/70 dark:border-slate-800/60 pt-4 text-xs sm:flex-row sm:justify-between sm:gap-6" data-testid="dashboard-footer-strip">
-            <button
-              type="button"
-              onClick={() => navigate("/what-is-wot")}
-              className="inline-flex items-center gap-1.5 font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-              data-testid="button-learn-wot"
-            >
-              How trust works <ArrowRight className="h-3 w-3" />
-            </button>
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-slate-400 dark:text-slate-500">
-              <span>Works with</span>
-              <span className="font-medium text-slate-500 dark:text-slate-400">Amethyst · Ditto · Nostria · Primal</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/nostr")}
-              className="font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-              data-testid="link-supported-clients"
-            >
-              See all clients →
-            </button>
-          </div>
+          {/* Expands to fill the gap while the modules above are still gated off,
+              and tightens to one row once scores land. See ClientShelf. */}
+          <ClientShelf expanded={!isCalculationComplete} onNavigate={navigate} />
 
 
 

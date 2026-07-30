@@ -1,8 +1,5 @@
 import { useState } from "react";
-import amethystLogoImg from "@/assets/amethyst-logo.png";
-import nostriaIconImg from "@/assets/nostria-icon.png";
-import dittoLogoImg from "@/assets/ditto-logo.png";
-import primalLogoImg from "@/assets/primal-logo.png";
+import { SupportedClientsGrid } from "@/components/SupportedClientsGrid";
 import { useLocation } from "wouter";
 import {
   Plane,
@@ -247,29 +244,7 @@ export default function NostrPage() {
               </span>
               <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { name: "Amethyst", note: "Android", href: "https://github.com/vitorpamplona/amethyst", logo: amethystLogoImg },
-                { name: "Ditto", note: "Web", href: "https://ditto.pub", logo: dittoLogoImg },
-                { name: "Nostria", note: "Web", href: "https://nostria.app", logo: nostriaIconImg },
-                { name: "Primal", note: "iOS · Android · Web", href: "https://primal.net/downloads", logo: primalLogoImg },
-              ].map((c) => (
-                <a
-                  key={c.name}
-                  href={c.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex items-center gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 hover:border-brand-accent/40 hover:shadow-sm transition-all"
-                  data-testid={`nostr-app-${c.name.toLowerCase()}`}
-                >
-                  <img src={c.logo} alt="" className="h-5 w-5 shrink-0 rounded-md object-contain" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{c.name}</p>
-                    <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{c.note}</p>
-                  </div>
-                </a>
-              ))}
-            </div>
+            <SupportedClientsGrid testIdPrefix="nostr-app" />
           </section>
 
           {/* Learn more — outbound resources */}
