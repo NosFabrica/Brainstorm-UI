@@ -41,7 +41,20 @@ export function MobileTabBar() {
     <>
       <nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/70 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl backdrop-saturate-150"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          // iOS Safari (worst in a standalone PWA) mis-composites a `position:
+          // fixed` element that also has a backdrop-filter: during momentum scroll
+          // the bar can paint at a STALE scroll offset, leaving it stranded
+          // mid-screen with page content torn through it. Forcing it onto its own
+          // compositing layer makes WebKit repaint it against the viewport.
+          //
+          // Safe here: a transform on this element creates a containing block for
+          // its DESCENDANTS only, and the nav's children are just the tab buttons —
+          // the account sheet is a sibling, not a child.
+          transform: "translateZ(0)",
+          WebkitBackfaceVisibility: "hidden",
+        }}
         aria-label="Primary"
         data-testid="mobile-tab-bar"
       >
