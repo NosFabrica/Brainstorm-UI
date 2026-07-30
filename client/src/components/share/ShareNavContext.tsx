@@ -100,26 +100,36 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
           className="sm:max-w-[400px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 p-0 overflow-hidden [&>button]:text-slate-400 dark:[&>button]:text-slate-500 [&>button]:hover:text-slate-700 dark:[&>button]:hover:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 dark:[&>button]:hover:bg-slate-800 [&>button]:rounded-md [&>button]:p-1"
           data-testid="modal-share-nav-confirm"
         >
-          <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
-            <DialogHeader>
-              {isProfile && intent?.picture ? (
-                <Avatar className="h-10 w-10 rounded-xl border border-brand-accent/20 mb-3">
-                  <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
-                  <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
-                </Avatar>
-              ) : (
-                <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep mb-3">
-                  {isProfile ? <UserRound className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+          <div className="px-5 sm:px-6 pt-5 pb-2">
+            {/* One left axis, and the avatar shares the title's row.
+                DialogHeader defaults to `text-center sm:text-left`, so on a phone
+                the copy centred while the block-level avatar stayed hard-left —
+                two competing alignments in a 3-line dialog. Forcing text-left and
+                setting the avatar beside the text fixes the axis AND reclaims the
+                row the avatar used to own, which is most of the excess height. */}
+            <DialogHeader className="space-y-0 text-left">
+              <div className="flex items-start gap-3">
+                {isProfile && intent?.picture ? (
+                  <Avatar className="h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20">
+                    <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
+                    <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-accent/20 bg-brand-accent/10 text-brand-deep">
+                    {isProfile ? <UserRound className="h-5 w-5" /> : <Search className="h-5 w-5" />}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100 leading-snug tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                    {isProfile ? "View this profile on Brainstorm?" : "Explore on Brainstorm?"}
+                  </DialogTitle>
+                  <DialogDescription className="mt-0.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {isProfile
+                      ? <>You'll see <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>'s full profile and connections.</>
+                      : <>Search the Brainstorm network for people related to <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>.</>}
+                  </DialogDescription>
                 </div>
-              )}
-              <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                {isProfile ? "View this profile on Brainstorm?" : "Explore on Brainstorm?"}
-              </DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                {isProfile
-                  ? <>You'll see <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>'s full profile and connections.</>
-                  : <>Search the Brainstorm network for people related to <span className="font-semibold text-slate-700 dark:text-slate-200">{intent?.label}</span>.</>}
-              </DialogDescription>
+              </div>
             </DialogHeader>
             {isProfile && (scoreQuery.isLoading || tier) && (
               <div className="mt-3">
@@ -146,11 +156,15 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
-          <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-2 flex gap-2.5">
+          {/* Equal-width actions. The primary was flex-1 against a fixed-width
+              Cancel, so the pair sat lopsided; emphasis now comes from colour
+              alone, which is the stronger signal anyway, and both are full-size
+              thumb targets on a phone. */}
+          <div className="flex gap-2.5 px-5 sm:px-6 pb-5 pt-3">
             <button
               type="button"
               onClick={confirm}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-primary text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
               data-testid="button-share-nav-continue"
             >
               {isProfile ? "View profile" : "Search Brainstorm"} <ArrowRight className="h-4 w-4" />
@@ -158,7 +172,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={() => setIntent(null)}
-              className="h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-semibold transition-colors"
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
               data-testid="button-share-nav-cancel"
             >
               Cancel
