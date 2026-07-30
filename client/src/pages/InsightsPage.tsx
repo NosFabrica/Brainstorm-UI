@@ -83,7 +83,10 @@ export default function InsightsPage() {
     staleTime: 60_000,
   });
   // Your OWN perspective always scores you 100 — meaningless here. Fetch the
-  // GLOBAL (house) score: how the network actually rates you (what others see).
+  // GLOBAL (house) score instead: Brainstorm's own vantage point, which is the
+  // default a viewer gets before their personal web of trust applies. It is NOT
+  // "what others see" — every observer with their own graph computes a different
+  // number for you.
   const houseQuery = useQuery({
     queryKey: ["insights-house-influence", pubkey],
     queryFn: () => apiClient.getHouseInfluence(pubkey!),
@@ -372,13 +375,22 @@ export default function InsightsPage() {
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <ShieldCheck className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Your standing</span>
+            {/* Not "Your standing" — that implies a single ranking everyone agrees
+                on, which is the one thing a web of trust deliberately doesn't have. */}
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>How Brainstorm sees you</span>
           </div>
           <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
             <VerificationCoin score01={globalInfluence} pov="global" size={40} />
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? TIER_LABEL[tier] : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">How the network scores you — the number others see on your profile</p>
+              {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not
+                  a universal verdict. It used to claim "the number others see on
+                  your profile", which is exactly wrong: anyone with their own web
+                  of trust computes a different number for you. Saying so is also
+                  the product thesis, not a caveat. */}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Brainstorm's own perspective. There's no universal score — everyone computes their own number for you from their own network.
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

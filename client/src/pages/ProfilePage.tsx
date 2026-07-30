@@ -2004,8 +2004,10 @@ export default function ProfilePage() {
 
   // Viewing your OWN profile, the personalized score is always self-POV (you
   // trust yourself → 100), which is meaningless. So on your own profile we show
-  // the network/house score instead — the same number others see on your
-  // shareable /p page — framed as "how others see you".
+  // the network/house score instead — Brainstorm's own vantage point, the same
+  // default shown on your shareable /p page. Framed as "how Brainstorm sees you",
+  // NOT "how others see you": every viewer with their own web of trust computes a
+  // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
   const houseInfluence01 = useMemo(() => {
     const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
@@ -2564,11 +2566,17 @@ export default function ProfilePage() {
                       <Eye className="h-4 w-4 text-brand-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs sm:text-sm font-bold text-brand-primary dark:text-brand-link">This is how others see you</span>
+                      {/* Was "This is how others see you" / "the score people see",
+                          which promises a single universal number. The card shows the
+                          HOUSE score — Brainstorm's vantage point, the default before
+                          a viewer's own web of trust applies. The old copy even
+                          contradicted itself by adding "trust scores are
+                          personalized" one sentence later. */}
+                      <span className="text-xs sm:text-sm font-bold text-brand-primary dark:text-brand-link">This is how Brainstorm sees you</span>
                       <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                         {houseInfluence01 != null
-                          ? "Your public trust card — the score people see when you share your profile. Trust scores are personalized, so to yourself you always score 100."
-                          : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so others can see your standing."}
+                          ? "Your public trust card — the default view before someone's own web of trust applies. Everyone computes their own number for you, and to yourself you always score 100."
+                          : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
                       </p>
                       {houseInfluence01 == null && (
                         <button
@@ -2861,8 +2869,8 @@ export default function ProfilePage() {
                         })()}
                         {(() => {
                           if (profileResult.influence === undefined) return null;
-                          // Own profile shows the NETWORK influence (how others see
-                          // you), not the self-POV 1.00. Null = not yet scored →
+                          // Own profile shows the NETWORK influence (Brainstorm's
+                          // vantage point), not the self-POV 1.00. Null = not yet scored →
                           // skip the row (the banner already explains).
                           const inf = isOwnProfile
                             ? houseInfluence01
