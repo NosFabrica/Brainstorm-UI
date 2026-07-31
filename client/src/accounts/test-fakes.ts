@@ -5,6 +5,7 @@
  */
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
+import { npubEncode } from "nostr-tools/nip19";
 
 import { createMemoryStorage, type StorageSeam } from "./persist";
 import type { UnlockCache } from "./unlock-cache";
@@ -49,6 +50,11 @@ export function createFakeUnlockCache(): FakeUnlockCache {
 
 export function createTestStorage(): StorageSeam {
   return { device: createMemoryStorage(), tab: createMemoryStorage() };
+}
+
+/** v1's `nostr_user` blob, as the old build wrote it. */
+export function v1UserBlob(pubkey: string, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ pubkey, npub: npubEncode(pubkey), ...extra });
 }
 
 /** A key with both at-rest forms already minted, plus the cache that holds one. */

@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
+import { AccountsProvider } from "applesauce-react/providers";
+import { accountManager } from "@/accounts";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -193,22 +195,24 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-        <Toaster />
-        <PovAutoDefault />
-        <MobileTabBar />
-        <CommandPalette />
-        <MobileSearchOverlay />
-        <ScoringStatusBar />
-        <AutoScoreReturning />
-        <AutoActivateBrainstorm />
-        <AutoPublishAssistant />
-        <LightboxProvider>
-          <Router />
-        </LightboxProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AccountsProvider manager={accountManager}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+          <Toaster />
+          <PovAutoDefault />
+          <MobileTabBar />
+          <CommandPalette />
+          <MobileSearchOverlay />
+          <ScoringStatusBar />
+          <AutoScoreReturning />
+          <AutoActivateBrainstorm />
+          <AutoPublishAssistant />
+          <LightboxProvider>
+            <Router />
+          </LightboxProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AccountsProvider>
   );
 }
 

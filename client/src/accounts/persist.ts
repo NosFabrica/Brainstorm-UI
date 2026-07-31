@@ -8,6 +8,7 @@
 import { AccountManager, BaseAccount, type IAccount } from "applesauce-accounts";
 import { map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
+import { LocalAccount } from "./local-account";
 import { isRemembered, type AccountMetadata } from "./metadata";
 
 export const ACCOUNTS_KEY = "brainstorm_accounts_v2";
@@ -67,6 +68,28 @@ export function browserStorage(): StorageSeam {
     device: guard(has ? window.localStorage : undefined),
     tab: guard(has ? window.sessionStorage : undefined),
   };
+}
+
+/**
+ * Whether either blob already holds an Account.
+ *
+ * "Holds an Account", not "a blob exists": bootstrap writes an empty blob on
+ * every anonymous visit, so existence alone would read as "v2 owns this browser"
+ * for someone who has never signed in. An unreadable blob counts as holding one —
+ * `load` quarantines it, and whatever is in there is an identity.
+ */
+export function hasStoredAccounts(storage: StorageSeam): boolean {
+  const holds = (store: StorageLike) => {
+    const raw = store.getItem(ACCOUNTS_KEY);
+    if (raw === null) return false;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return !Array.isArray(parsed) || parsed.length > 0;
+    } catch {
+      return true;
+    }
+  };
+  return holds(storage.device) || holds(storage.tab);
 }
 
 export type Persistence = {
@@ -167,6 +190,10 @@ export function createPersistence(
     const remembered: unknown[] = [];
     const perTab: unknown[] = [];
     for (const account of manager.accounts) {
+      // A key with no at-rest form yet — it stays usable in this tab, but writing
+      // it would park a row nothing can open *and* make the blob non-empty, which
+      // is what tells migration this browser is already v2's.
+      if (account instanceof LocalAccount && !account.persistable) continue;
       const json = serialise(account);
       if (json === null) continue;
       (isRemembered(account) ? remembered : perTab).push(json);

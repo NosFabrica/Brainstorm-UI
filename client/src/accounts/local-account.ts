@@ -20,6 +20,16 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     return !this.signer.unlocked;
   }
 
+  /**
+   * Whether this Account survives a reload. False only in the window between a
+   * key arriving and its first at-rest form being written — and permanently on a
+   * browser with no Unlock cache and no Backup, where writing the row would park
+   * an identity nothing can ever open.
+   */
+  get persistable(): boolean {
+    return !!(this.signer.data.envelope || this.signer.data.ncryptsec);
+  }
+
   /** Unlock and populate the Unlock cache. The first unlock on a device writes it. */
   async unlock(password?: string): Promise<void> {
     await this.signer.unlock(password);

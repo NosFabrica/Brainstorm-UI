@@ -1,4 +1,5 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
+import { ExtensionAccount } from "applesauce-accounts/accounts";
 
 import { LocalAccount } from "./local-account";
 import type { LocalSignerData, LocalSignerOptions } from "./local-signer";
@@ -52,6 +53,9 @@ export function createManager({
 }: CreateManagerOptions = {}): ManagedAccounts {
   const manager = new AccountManager<AccountMetadata>();
   manager.registerType(localAccountType({ unlockCache }));
+  // Unregistered types are quarantined on load, so an extension user's Account
+  // has to be restorable here or they'd be signed out on the next reload.
+  manager.registerType(ExtensionAccount);
 
   const persistence = createPersistence(manager, storage);
 
@@ -69,10 +73,4 @@ export function createManager({
       stopSaving = undefined;
     },
   };
-}
-
-let singleton: ManagedAccounts | undefined;
-
-export function getAccounts(): ManagedAccounts {
-  return (singleton ??= createManager());
 }
