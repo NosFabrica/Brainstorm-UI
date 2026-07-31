@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { apiClient, type SchedulingUserItem } from "@/services/api";
 import { fetchProfileMap } from "@/services/nostr";
+import type { ProfileContent } from "applesauce-core/helpers/profile";
 
 const PREFERRED_SIZE = 100; // fewer round-trips when the backend allows it
 const FALLBACK_SIZE = 20; // known-good size if the endpoint caps page size
@@ -105,10 +106,9 @@ export function usePolicyMembers(policyId: number, enabled = true) {
       for (let i = 0; i < target.length; i += ENRICH_CHUNK) {
         if (cancelled) return;
         const chunk = target.slice(i, i + ENRICH_CHUNK);
-        let map: Map<string, { name?: string; display_name?: string; picture?: string }> =
-          new Map();
+        let map = new Map<string, ProfileContent>();
         try {
-          map = (await fetchProfileMap(chunk)) as typeof map;
+          map = await fetchProfileMap(chunk);
         } catch {
           /* best-effort — leave names unresolved */
         }
