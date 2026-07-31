@@ -105,22 +105,38 @@ export class LocalSigner implements ISigner {
     return this.pending;
   }
 
+  /**
+   * Unlock from the Unlock cache alone, never asking for anything. False when
+   * only the Recovery password would do — which a caller that must not prompt
+   * (a background re-auth) can only learn by trying: a stale envelope is
+   * indistinguishable from a good one until it is opened, and that costs ~ms.
+   */
+  unlockSilently(): Promise<boolean> {
+    if (this.inner) return Promise.resolve(true);
+    // an unlock already in flight may be a prompt; wait on its outcome rather than open a second
+    if (this.pending) return this.pending.then(() => !!this.inner, () => !!this.inner);
+    return this.fromCache();
+  }
+
+  private async fromCache(): Promise<boolean> {
+    if (!this.data.envelope || !this.unlockCache.isSupported()) return false;
+    try {
+      // AAD is the pubkey — an envelope minted for another Account fails closed.
+      this.inner = new PrivateKeySigner(
+        await this.unlockCache.decrypt(this.data.envelope, this.pubkey),
+      );
+      return true;
+    } catch {
+      // A stale cache holds no authority the Backup doesn't; drop it and fall through.
+      this.data.envelope = undefined;
+      this.changed$.next();
+      return false;
+    }
+  }
+
   private async doUnlock(password?: string): Promise<void> {
     if (this.inner) return;
-
-    if (this.data.envelope && this.unlockCache.isSupported()) {
-      try {
-        // AAD is the pubkey — an envelope minted for another Account fails closed.
-        this.inner = new PrivateKeySigner(
-          await this.unlockCache.decrypt(this.data.envelope, this.pubkey),
-        );
-        return;
-      } catch {
-        // A stale cache holds no authority the Backup doesn't; drop it and fall through.
-        this.data.envelope = undefined;
-        this.changed$.next();
-      }
-    }
+    if (await this.fromCache()) return;
 
     if (!this.data.ncryptsec) throw new NoUnlockPathError();
 

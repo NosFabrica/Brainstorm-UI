@@ -26,6 +26,11 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     await this.signer.cache();
   }
 
+  /** Unlock from the Unlock cache alone. False when only a Recovery password would do. */
+  unlockSilently(): Promise<boolean> {
+    return this.signer.unlockSilently();
+  }
+
   protected async operation<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.signer.unlocked) await this.unlock();
     return super.operation(operation);

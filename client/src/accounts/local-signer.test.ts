@@ -149,6 +149,41 @@ describe("LocalSigner stale Unlock cache", () => {
   });
 });
 
+describe("LocalSigner silent unlock", () => {
+  it("opens the Unlock cache and reports success, never prompting", async () => {
+    const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
+    const requestPassword = vi.fn(async () => PASSWORD);
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword });
+
+    expect(await signer.unlockSilently()).toBe(true);
+    expect(signer.unlocked).toBe(true);
+    expect(requestPassword).not.toHaveBeenCalled();
+  });
+
+  it("reports failure rather than prompting when only the Backup is left", async () => {
+    const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
+    const requestPassword = vi.fn(async () => PASSWORD);
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache, requestPassword });
+    unlockCache.wipe(); // the envelope is now stale
+
+    expect(await signer.unlockSilently()).toBe(false);
+    expect(signer.unlocked).toBe(false);
+    expect(requestPassword).not.toHaveBeenCalled();
+    expect(signer.data.envelope).toBeUndefined(); // and the stale cache is discarded
+  });
+
+  it("waits on an unlock already in flight instead of opening a second", async () => {
+    const { pubkey, unlockCache, ncryptsec } = await keyFixture();
+    const requestPassword = vi.fn(async () => PASSWORD);
+    const signer = new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword });
+
+    const [, silent] = await Promise.all([signer.unlock(), signer.unlockSilently()]);
+
+    expect(silent).toBe(true);
+    expect(requestPassword).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("LocalSigner concurrency", () => {
   it("shares one in-flight unlock, so two callers produce one password request", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();

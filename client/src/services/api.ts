@@ -1,5 +1,6 @@
 import { extractAdminFlag } from "@/lib/jwt";
 import { env } from "@/lib/runtimeEnv";
+import { loginTemplate } from "@/accounts/session";
 import { clearUserCache, signEventLocally, hasLocalSecretKey } from "./nostr";
 
 const RAW_API_URL = env.VITE_API_URL;
@@ -100,16 +101,7 @@ async function silentReauth(): Promise<boolean> {
       const challenge = challengeData?.data?.challenge;
       if (!challenge) return false;
 
-      const event = {
-        kind: 22242,
-        tags: [
-          ["t", "brainstorm_login"],
-          ["challenge", challenge],
-        ],
-        content: "",
-        created_at: Math.floor(Date.now() / 1000),
-        pubkey: user.pubkey,
-      };
+      const event = { ...loginTemplate(challenge), pubkey: user.pubkey };
 
       const signedEvent = await signEventLocally(event);
 

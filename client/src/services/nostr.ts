@@ -50,6 +50,7 @@ import {
 } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { apiClient } from "./api";
+import { loginTemplate } from "@/accounts/session";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
@@ -1435,16 +1436,7 @@ export async function handleLogin(): Promise<NostrUser> {
     throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
   }
 
-  const event: Record<string, unknown> = {
-    kind: 22242,
-    tags: [
-      ["t", "brainstorm_login"],
-      ["challenge", challenge],
-    ],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey,
-  };
+  const event: Record<string, unknown> = { ...loginTemplate(challenge), pubkey };
 
   let signedEvent: Record<string, unknown>;
   try {
@@ -1499,17 +1491,7 @@ async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: b
     throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
   }
 
-  const eventTemplate = {
-    kind: 22242,
-    tags: [
-      ["t", "brainstorm_login"],
-      ["challenge", challenge],
-    ],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-  };
-
-  const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
+  const signedEvent = finalizeEvent(loginTemplate(challenge), sk) as unknown as Record<string, unknown>;
 
   await storeSecretKey(sk, opts);
   try {
@@ -1844,16 +1826,7 @@ export async function createAccount(
     throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
   }
 
-  const eventTemplate = {
-    kind: 22242,
-    tags: [
-      ["t", "brainstorm_login"],
-      ["challenge", challenge],
-    ],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-  };
-  const signedEvent = finalizeEvent(eventTemplate, sk) as unknown as Record<string, unknown>;
+  const signedEvent = finalizeEvent(loginTemplate(challenge), sk) as unknown as Record<string, unknown>;
 
   await storeSecretKey(sk, { persistent: true });
   let user: NostrUser;
