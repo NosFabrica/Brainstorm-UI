@@ -655,18 +655,50 @@ export default function Landing() {
           search box owns it. B symbol left · account actions right — transparent
           over the hero photo, both signed-in/out. The About / How-search-works /
           Developers / Q&A links live in the bottom footer, Google-style. */}
+      {/* No height floor needed for the hide/show below: the right-hand control
+          (36px) is taller than the B (28px), so the header measures 76px either
+          way and the hero never shifts. */}
       <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
-        {/* Left: the compact B symbol (mono variant for contrast on the photo). */}
-        <button
-          type="button"
-          onClick={() => setLocation("/")}
-          aria-label="Brainstorm home"
-          className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-          data-testid="home-brand"
-        >
-          <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
-          <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
-        </button>
+        {/* Left: the compact B symbol — the way back to a clean search page, and
+            ONLY shown once there's something to come back FROM.
+
+            This mirrors how search engines actually behave, which is not what
+            this was doing. On a results page (verified on DuckDuckGo and Bing)
+            the top-left mark is a plain `<a href="/">`: a real navigation that
+            lands you on a fresh homepage. On the pristine homepage there is no
+            such control at all — DuckDuckGo's homepage mark points at /about,
+            Google's homepage has no top-left logo, because the logo IS the
+            centred hero. Ours had one, wired to `setLocation("/")` from a page
+            that already IS "/", so clicking it did precisely nothing — and it
+            duplicated the wordmark sitting a couple of hundred pixels below it.
+
+            The reset can't be a bare anchor the way theirs is: their results
+            live at a DIFFERENT url from their homepage (/search?q= vs /), so
+            navigating genuinely changes the page. Our home is one route holding
+            both states — searching only pushState's `?q=` and re-renders in
+            place — so `href="/"` is a same-route link that wouldn't remount
+            anything and would leave the results on screen. `clearSearch` does by
+            hand what their navigation gets for free. The href stays real so
+            cmd/middle-click still opens a clean home in a new tab. */}
+        {hasSearched && (
+          <a
+            href="/"
+            onClick={(e) => {
+              // Modifier / non-primary clicks belong to the browser — that's the
+              // whole point of keeping this an anchor rather than a button.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              clearSearch();
+              window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+            }}
+            aria-label="Brainstorm home"
+            className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+            data-testid="home-brand"
+          >
+            <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
+            <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
+          </a>
+        )}
 
         {/* Right: actions — apps + avatar when signed in, else Sign in. */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
