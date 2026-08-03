@@ -66,6 +66,112 @@ function load(observer: string): IgnoredEntry[] {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Sync state.
+//
+// The NIP-78 copy is what makes this list follow you between devices, and it
+// used to be published fire-and-forget with the result discarded. When it
+// failed, this device still showed its local copy and looked completely normal —
+// the user only found out when ignored accounts reappeared somewhere else.
+//
+// The failures are not equivalent, so they aren't treated as such:
+//   • transient (relays refused) — retrying fixes it, so retry and say nothing.
+//   • persistent (no signer, can't encrypt) — retrying can't fix it; the UI says
+//     so once, and the list surfaces standing "on this device only" wording.
+//   • not logged in — there's no account to sync to and nobody to tell.
+// ---------------------------------------------------------------------------
+export type IgnoreSyncState = "ok" | "retrying" | "local-only";
+
+let syncState: IgnoreSyncState = "ok";
+const syncListeners = new Set<(s: IgnoreSyncState) => void>();
+
+export function getIgnoreSyncState(): IgnoreSyncState {
+  return syncState;
+}
+
+export function onIgnoreSyncChange(fn: (s: IgnoreSyncState) => void): () => void {
+  syncListeners.add(fn);
+  return () => { syncListeners.delete(fn); };
+}
+
+function setSyncState(next: IgnoreSyncState) {
+  if (next === syncState) return;
+  syncState = next;
+  for (const fn of syncListeners) { try { fn(next); } catch { /* a listener must not break the others */ } }
+}
+
+/** Errors that another attempt cannot fix — worth telling the user about. */
+function isPermanentFailure(error?: string): boolean {
+  return error === "No signer available" || error === "Could not encrypt";
+}
+
+const dirtyKey = (observer: string) => `brainstorm_alert_prefs_dirty:${observer}`;
+const isDirty = (observer: string) => {
+  try { return !!observer && localStorage.getItem(dirtyKey(observer)) === "1"; } catch { return false; }
+};
+const setDirty = (observer: string, on: boolean) => {
+  try {
+    if (!observer) return;
+    if (on) localStorage.setItem(dirtyKey(observer), "1");
+    else localStorage.removeItem(dirtyKey(observer));
+  } catch { /* private mode */ }
+};
+
+let inFlight: Promise<IgnoreSyncState> = Promise.resolve("ok");
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Publish the CURRENT stored list — deliberately re-read rather than taking a
+ * caller's snapshot. kind-30078 is replaceable, so a retry is idempotent and
+ * always ships the newest state instead of resurrecting whatever was pending
+ * when the failure happened.
+ */
+export function flushIgnoredToNostr(observer: string): Promise<IgnoreSyncState> {
+  inFlight = (async () => {
+    const res = await publishAlertPrefs({ entries: load(observer) }).catch(() => ({
+      success: false as const,
+      error: "All relays failed",
+    }));
+    if (res.success) {
+      setDirty(observer, false);
+      setSyncState("ok");
+      return "ok" as const;
+    }
+    if (res.error === "Not logged in") return syncState; // nothing to sync to
+    if (isPermanentFailure(res.error)) {
+      setDirty(observer, true);
+      setSyncState("local-only");
+      return "local-only" as const;
+    }
+    // Transient: keep it quiet, mark it dirty, and try again shortly. The next
+    // mutation or app open retries too, so a missed timer isn't fatal.
+    setDirty(observer, true);
+    setSyncState("retrying");
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer); }, 15_000);
+    return "retrying" as const;
+  })();
+  return inFlight;
+}
+
+/** Resolves when the publish kicked off by the last mutation has settled. */
+export function whenIgnoreSyncSettles(): Promise<IgnoreSyncState> {
+  return inFlight;
+}
+
+/**
+ * True when this account has changes that never reached the relays.
+ *
+ * `syncState` lives in module memory, so it resets to "ok" on every reload —
+ * fine for surfaces that hydrate on mount (they re-flush and the truth comes
+ * back), wrong for one loaded cold like Settings, which would go back to
+ * claiming "saved to your account" on a device where it never was. The dirty
+ * flag is persisted precisely so that claim can be checked without a round trip.
+ */
+export function hasUnsyncedIgnores(observer: string): boolean {
+  return isDirty(observer);
+}
+
 function persist(observer: string, entries: IgnoredEntry[]): Map<string, number | null> {
   const byKey = new Map<string, IgnoredEntry>();
   for (const e of entries) byKey.set(e.pubkey, e);
@@ -77,7 +183,7 @@ function persist(observer: string, entries: IgnoredEntry[]): Map<string, number 
       // ignore (private mode / SSR)
     }
   }
-  void publishAlertPrefs({ entries: next }).catch(() => {});
+  void flushIgnoredToNostr(observer);
   return new Map(next.map((e) => [e.pubkey, e.atReports]));
 }
 
@@ -178,6 +284,11 @@ export function markActed(observer: string, pubkey: string): Set<string> {
 export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<string, number | null>> {
   const local = load(observer);
   if (!observer) return new Map(local.map((e) => [e.pubkey, e.atReports]));
+  // "Next app open" retry: a change made while the relays were unreachable is
+  // still only on this device, and this runs on mount, so it's the natural place
+  // to try again. Fire-and-forget — a stale local copy shouldn't delay the read
+  // below, and a second failure just re-arms the flag.
+  if (isDirty(observer)) void flushIgnoredToNostr(observer);
   const prefs = await fetchAlertPrefs();
   const remote = normalize(prefs);
   if (remote.length === 0) return new Map(local.map((e) => [e.pubkey, e.atReports]));

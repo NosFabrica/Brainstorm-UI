@@ -10,6 +10,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
@@ -68,6 +69,7 @@ export default function AlertsPage() {
   const [sort, setSort] = useState<SortKey>("reports");
   const [query, setQuery] = useState("");
   const [confirmBulk, setConfirmBulk] = useState(false);
+  const ignoreSync = useIgnoreSyncState();
 
   // Acted-on accounts (unfollow/mute/report) always drop off. Ignored ones move
   // to the Ignored tab rather than vanishing — which is the whole point of that
@@ -238,6 +240,15 @@ export default function AlertsPage() {
               Ignoring just hides them from your alerts. It doesn't report them, mute them,
               or tell anyone. If a lot more people report them, they'll show up again.
             </p>
+            {/* Standing correction, shown wherever the list is described. The
+                toast says this once at the moment it happens; this is for
+                everyone who wasn't looking, or who comes back later wondering
+                why their phone disagrees. */}
+            {ignoreSync === "local-only" && (
+              <p className="mt-1 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500" data-testid="alerts-local-only">
+                Saved on this device only — we couldn't save your ignore list to your account, so it won't follow you to your other devices.
+              </p>
+            )}
           </div>
         )}
 

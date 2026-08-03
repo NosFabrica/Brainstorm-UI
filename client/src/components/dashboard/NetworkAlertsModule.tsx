@@ -18,7 +18,13 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, backfillIgnoredBaselines, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, backfillIgnoredBaselines, whenIgnoreSyncSettles, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+
+// Module scope, not per-hook: the point is to say this ONCE, not once per hook
+// instance and certainly not once per ignored account. The likeliest cause (a
+// signer that can't do NIP-44) fails on every single write, so a per-action
+// warning would fire eight times while someone clears eight alerts.
+let warnedLocalOnlyThisSession = false;
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -108,9 +114,28 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     ignored.has(pk) && hasEscalated(ignored.get(pk) ?? null, currentReports);
   const ignoredBaseline = (pk: string) => ignored.get(pk) ?? null;
 
+  /**
+   * Show the toast immediately, then correct it if the account copy didn't land.
+   *
+   * Amends the toast already on screen rather than firing a second one: the
+   * action itself SUCCEEDED — the row is hidden right here — so a separate red
+   * "something went wrong" would misreport it, and would drop a second toast on
+   * top of the first a beat after the user moved on. Only the cross-device copy
+   * failed, so only that sentence changes.
+   */
+  function toastWithSync(opts: Parameters<typeof toast>[0], localOnlyDescription: string) {
+    const t = toast(opts);
+    void whenIgnoreSyncSettles().then((state) => {
+      if (state !== "local-only" || warnedLocalOnlyThisSession) return;
+      warnedLocalOnlyThisSession = true;
+      t.update({ ...opts, id: t.id, description: localOnlyDescription });
+    });
+    return t;
+  }
+
   function handleIgnore(pubkey: string, name: string, atReports: number) {
     setIgnored(ignoreAlert(observer, pubkey, atReports));
-    toast({
+    toastWithSync({
       // The main barrier to using Ignore is fear that it does something public —
       // so the toast leads with what it does NOT do.
       title: `Ignored ${name}`,
@@ -121,7 +146,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
           Undo
         </ToastAction>
       ),
-    });
+    }, "Hidden on this device. We couldn't save it to your account, so it won't follow you to your other devices.");
   }
 
 
@@ -136,7 +161,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
   function handleUnignore(pubkey: string, name: string, currentReports: number) {
     const baseline = ignored.get(pubkey) ?? currentReports;
     setIgnored(unignoreAlert(observer, pubkey));
-    toast({
+    toastWithSync({
       title: `Un-ignored ${name}`,
       description: "Back in your alerts. Nothing was reported, muted, or shared.",
       duration: 6000,
@@ -145,7 +170,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
           Undo
         </ToastAction>
       ),
-    });
+    }, "Back in your alerts on this device. We couldn't save the change to your account.");
   }
 
   /** Bulk inverse of `ignoreBatch` — same baseline-preserving Undo. */
@@ -153,7 +178,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     if (pubkeys.length === 0) return;
     const restore = pubkeys.map((pk) => ({ pubkey: pk, atReports: ignored.get(pk) ?? 0 }));
     setIgnored(unignoreMany(observer, pubkeys));
-    toast({
+    toastWithSync({
       title: `Un-ignored ${pubkeys.length} ${pubkeys.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
       description: "Back in your alerts. Nothing was reported, muted, or shared.",
       duration: 8000,
@@ -162,7 +187,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
           Undo
         </ToastAction>
       ),
-    });
+    }, "Back in your alerts on this device. We couldn't save the change to your account.");
   }
 
   /**
@@ -174,7 +199,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     if (items.length === 0) return;
     setIgnored(ignoreMany(observer, items));
     const keys = items.map((i) => i.pubkey);
-    toast({
+    toastWithSync({
       title: `Ignored ${items.length} ${items.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
       description: "Hidden from your alerts. Nothing was reported, muted, or shared — and they'll show up again if a lot more people report them.",
       duration: 8000,
@@ -183,7 +208,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
           Undo
         </ToastAction>
       ),
-    });
+    }, "Hidden on this device. We couldn't save them to your account, so they won't follow you to your other devices.");
   }
 
   async function runAction() {

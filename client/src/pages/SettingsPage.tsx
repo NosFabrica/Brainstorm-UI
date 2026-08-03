@@ -62,7 +62,8 @@ import {
   ShieldAlert,
   ChevronRight,
 } from "lucide-react";
-import { ignoredAlertMap } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
+import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
@@ -1180,6 +1181,15 @@ export default function SettingsPage() {
   // TAB counts what's currently hidden, which differs once something escalates)
   // — hence "on your ignore list" rather than repeating the tab's wording.
   const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
+  // The "saved to your account" half of this subtitle was an unconditional
+  // claim. When the NIP-78 write can't happen it's simply untrue, and this card
+  // is exactly where someone checks what they've ignored — so it has to say
+  // which of the two is actually the case.
+  const ignoreSync = useIgnoreSyncState();
+  // Also consult the persisted flag: this page can be loaded cold, where the
+  // in-memory state has reset to "ok" but the list still never left the device.
+  const ignoresUnsynced = ignoreSync === "local-only" || (pubkey ? hasUnsyncedIgnores(pubkey) : false);
+  const savedWhere = ignoresUnsynced ? "saved on this device only" : "saved to your account";
   const networkAlertsCard = (
     <button
       type="button"
@@ -1196,7 +1206,7 @@ export default function SettingsPage() {
           <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-summary">
             {ignoredListCount === 0
               ? "Accounts people you trust have reported — the people you follow, your wider network, and anything you've ignored."
-              : `Accounts people you trust have reported — the people you follow, your wider network, and ${ignoredListCount} you've ignored, saved to your account.`}
+              : `Accounts people you trust have reported — the people you follow, your wider network, and ${ignoredListCount} you've ignored, ${savedWhere}.`}
           </p>
         </div>
       </div>
