@@ -1515,8 +1515,16 @@ export default function SettingsPage() {
             testId="section-settings-header"
           />
 
-          {/* Tab navigation — segmented pill, matching the FAQ page */}
-          <div className="max-w-full overflow-x-auto scrollbar-hide" data-testid="settings-tab-bar">
+          {/* Tab navigation — segmented pill, matching the FAQ page.
+              The three labels measure 367px against a 339px track at 375px wide,
+              so "About & support" was being sliced mid-word at the container's
+              padding edge — which reads as broken layout, not as a scroller.
+              Two fixes: tighter horizontal padding below `sm` buys back ~48px so
+              all three fit on a normal phone, and the scroll track bleeds to the
+              true screen edge (-mx-4 cancelling the page's px-4, re-padded
+              inside) so on a narrow device like an SE the cut lands at the edge
+              of the display, which is the universal "this scrolls" cue. */}
+          <div className="-mx-4 max-w-[100vw] overflow-x-auto px-4 scrollbar-hide sm:mx-0 sm:max-w-full sm:px-0" data-testid="settings-tab-bar">
             <div className="inline-flex rounded-full p-1 bg-white/70 dark:bg-slate-900/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm">
               {TABS.map((tab) => {
                 const active = activeTab === tab.key;
@@ -1525,7 +1533,7 @@ export default function SettingsPage() {
                     key={tab.key}
                     onClick={() => goTab(tab.key)}
                     aria-current={active ? "page" : undefined}
-                    className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
+                    className={`px-3 py-2 sm:px-5 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
                       active
                         ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
                         : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
