@@ -5,7 +5,7 @@ import { ArrowLeft, BookOpen, Loader2, Flame, Clock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Footer } from "@/components/Footer";
 import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkArticles, type ArticleSort } from "@/hooks/useNetworkArticles";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  */
 export default function ReadingPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";
   const [sort, setSort] = useState<ArticleSort>("trending");
 
@@ -40,7 +40,7 @@ export default function ReadingPage() {
   });
   const profiles = profilesQuery.data ?? new Map();
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   const tab = (val: ArticleSort, label: string, Icon: typeof Flame) => (
     <button

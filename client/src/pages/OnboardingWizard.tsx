@@ -4,7 +4,8 @@ import { Loader2, ArrowRight, Check, Download } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
 import { ImageUpload } from "@/components/ImageUpload";
 import { FollowPicker } from "@/components/FollowPicker";
-import { getCurrentUser, publishProfile, triggerScoringAndAnchor } from "@/services/nostr";
+import { publishProfile, triggerScoringAndAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { downloadAccountBackup } from "@/lib/accountBackup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
@@ -28,7 +29,7 @@ const STEPS: { key: Step; label: string }[] = [
 export default function OnboardingWizard() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
 
   const returnPath = useMemo(() => {
     try {
@@ -42,7 +43,7 @@ export default function OnboardingWizard() {
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   // --- Profile step (prefilled with the name entered at signup) ---
-  const [name, setName] = useState(() => getCurrentUser()?.displayName || "");
+  const [name, setName] = useState(() => user?.displayName || "");
   const [about, setAbout] = useState("");
   const [picture, setPicture] = useState("");
   const [banner, setBanner] = useState("");
@@ -64,8 +65,7 @@ export default function OnboardingWizard() {
   // --- Follow step → publish kind-3 + trigger scoring in background, advance ---
   const followAndNext = (pks: string[]) => {
     if (!pks.length) return;
-    const u = getCurrentUser();
-    if (u?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${u.pubkey}`, String(Date.now())); } catch {} }
+    if (user?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${user.pubkey}`, String(Date.now())); } catch {} }
     void (async () => {
       try {
         const res = await followPubkeys(pks);
@@ -73,7 +73,7 @@ export default function OnboardingWizard() {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;
         }
-        if (u?.pubkey) await triggerScoringAndAnchor(u.pubkey);
+        if (user?.pubkey) await triggerScoringAndAnchor(user.pubkey);
       } catch { /* the status chip reflects the outcome */ }
     })();
     setStep("backup");
@@ -94,7 +94,7 @@ export default function OnboardingWizard() {
     if (!canBackup) return;
     try {
       downloadAccountBackup(pass);
-      const pk = getCurrentUser()?.pubkey;
+      const pk = user?.pubkey;
       if (pk) localStorage.setItem(`brainstorm_backup_done:${pk}`, "true");
       toast({ title: "Backup saved", description: "Keep that file safe — it's the only way back into your account." });
     } catch {

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { X, Download, Check, ArrowRight, Users } from "lucide-react";
-import { getCurrentUser, hasPersistentKey } from "@/services/nostr";
+import { hasPersistentKey } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
 import { downloadAccountBackup, downloadRawKeyBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
@@ -41,7 +42,7 @@ function BackupLockIcon({ className }: { className?: string }) {
  */
 export function PostSignupCard() {
   const [, navigate] = useLocation();
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey ?? "";
   const backupFlag = pubkey ? `brainstorm_backup_done:${pubkey}` : "";
   const dismissFlag = pubkey ? `brainstorm_postsignup_dismissed:${pubkey}` : "";

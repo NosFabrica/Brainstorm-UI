@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { ShieldCheck, ArrowRight, X } from "lucide-react";
-import { getCurrentUser, hasPersistentKey } from "@/services/nostr";
+import { hasPersistentKey } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 // Re-surface roughly every couple of days until backed up — present, not naggy.
 const SNOOZE_MS = 2.5 * 24 * 3600_000;
@@ -19,7 +20,7 @@ const SNOOZE_MS = 2.5 * 24 * 3600_000;
 export function BackupReminder() {
   const [, navigate] = useLocation();
   const [hidden, setHidden] = useState(false);
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey || "";
 
   if (!pubkey || !hasPersistentKey() || hidden) return null;

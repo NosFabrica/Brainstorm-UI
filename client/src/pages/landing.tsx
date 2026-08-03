@@ -26,8 +26,8 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfile, logout } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
@@ -144,10 +144,9 @@ export default function Landing() {
   const didInitFromUrlRef = useRef(false);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
-  // Live current-user state: re-reads when the profile metadata (avatar/name)
-  // arrives shortly after login, so the header avatar appears on first load
-  // without needing a refresh. See useCurrentUser.
-  const [user, setUser] = useCurrentUser();
+  // Live identity: the header avatar appears as soon as the profile metadata
+  // lands after login, without a refresh.
+  const user = useActiveAccountDisplay();
   const [pov, setPov] = useActivePov();
   const { hasMywot } = useHasMywot();
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
@@ -166,7 +165,6 @@ export default function Landing() {
 
   const handleLogout = useCallback(() => {
     logout();
-    setUser(null);
   }, []);
 
   // Gate the Network app tile until a trust graph has been calculated. We read

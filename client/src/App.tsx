@@ -52,7 +52,8 @@ import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
-import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
+import { ensureUnlocked } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ComponentType } from "react";
 
 /**
@@ -127,7 +128,10 @@ function SearchRedirect() {
 // /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
-  if (!getCurrentUser()) {
+  // Identity is known synchronously on the first render — accounts bootstrap at
+  // module load precisely so this guard never bounces a signed-in user.
+  const signedIn = useActiveAccountDisplay();
+  if (!signedIn) {
     const next =
       location && location.startsWith("/") && location !== "/login"
         ? `?next=${encodeURIComponent(location)}`
@@ -191,7 +195,7 @@ function App() {
   // synchronous reveal/backup paths correct. Only for signed-in users (the decrypt
   // is bound to the account pubkey); anonymous visitors skip the IndexedDB open.
   useEffect(() => {
-    if (getCurrentUser()) void ensureUnlocked();
+    if (accountManager.active) void ensureUnlocked();
   }, []);
 
   return (

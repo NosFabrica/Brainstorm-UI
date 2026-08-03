@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { hasSessionToken } from "@/services/api";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { useSelfHistory } from "@/hooks/useSelf";
@@ -21,7 +21,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
  * Renders nothing; mount once at the app root.
  */
 export function AutoPublishAssistant() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pk = hasSessionToken() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);

@@ -9,7 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout, fetchProfileMap } from "@/services/nostr";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
@@ -29,7 +29,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
  */
 export default function AlertsPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";
 
   const q = useNetworkAlerts(observer, { enabled: !!observer, limit: 100 });
@@ -102,7 +102,7 @@ export default function AlertsPage() {
     setConfirmBulk(false);
   };
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   const scopeTab = (val: Scope, label: string, count: number) => (
     <button

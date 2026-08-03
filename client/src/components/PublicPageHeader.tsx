@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/services/nostr";
 
 /**
@@ -22,11 +22,11 @@ export function PublicPageHeader({
   actions?: ReactNode;
   maxWidthClass?: string;
 }) {
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const calcDone = (() => {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   })();
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   // Frost-on-scroll: transparent at the very top so the bar blends with the
   // hero/banner, then a clean frosted surface + hairline + soft shadow once the

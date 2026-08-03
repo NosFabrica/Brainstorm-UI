@@ -45,12 +45,11 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
-  getCurrentUser,
   logout,
   fetchProfiles,
   eventStore,
-  type NostrUser,
 } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import {
   getProfileContent,
   isValidProfile,
@@ -226,7 +225,7 @@ function prefetchProfileOverview(pk: string): void {
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -362,13 +361,8 @@ export default function NetworkPage() {
   }, []);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 

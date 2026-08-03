@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, hasSessionToken } from "@/services/api";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "failed";
 
@@ -24,7 +24,7 @@ export function useScoringStatus(): {
   triggeredAt: number;
   pubkey?: string;
 } {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const enabled = hasSessionToken() && !!user?.pubkey;
 
   const q = useQuery({

@@ -3,12 +3,11 @@ import { Wordmark } from "@/components/Wordmark";
 import { AdminBadge } from "@/components/AdminBadge";
 import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { type NostrUser } from "@/services/nostr";
+import { type AccountDisplay } from "@/accounts/display";
 import { type ReactNode } from "react";
 
 interface AppHeaderProps {
-  user: NostrUser;
+  user: AccountDisplay;
   onLogout: () => void;
   calcDone?: boolean;
   active?: AppKey;
@@ -31,7 +30,7 @@ interface AppHeaderProps {
  */
 export function AppHeader({ user, onLogout, calcDone = false, active, actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user.isAdmin;
 
   return (
     <nav className="sticky top-0 z-40 backdrop-blur-md" data-testid="nav-app-header">

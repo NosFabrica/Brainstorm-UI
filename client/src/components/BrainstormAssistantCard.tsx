@@ -7,7 +7,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile, fetchAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { fetchProfile, fetchAssistantPointer } from "@/services/nostr";
+import { activePubkey } from "@/accounts/display";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followUser } from "@/services/socialActions";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
@@ -16,7 +18,6 @@ import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   readAssistantProfile,
   writeAssistantProfile,
   readPublishedAssistant,
@@ -74,7 +75,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
   const reduceMotion = useReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
   const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
-  const [userPubkey, setUserPubkey] = useState<string | null>(() => getCurrentUser()?.pubkey ?? null);
+  const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -83,7 +84,6 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     const refresh = () => {
       setPublished(readPublishedAssistant());
       setProfile(readAssistantProfile());
-      setUserPubkey(getCurrentUser()?.pubkey ?? null);
     };
     // Cross-tab key changes still arrive via the legacy `storage` listener,
     // and the per-user keys we now use share the same `brainstorm_assistant:`
@@ -91,15 +91,14 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) refresh();
     };
+    refresh();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
-    window.addEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
-      window.removeEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     };
-  }, []);
+  }, [userPubkey]);
 
   // Cross-device sync (Task #86): when this device has no local pointer for
   // the current user, query Nostr for the user's NIP-78 assistant pointer
@@ -114,8 +113,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       // Re-check local in case a publish raced us.
       if (readPublishedAssistant()) return;
       // Make sure the user hasn't changed while we were awaiting.
-      const stillCurrent = getCurrentUser()?.pubkey ?? null;
-      if (stillCurrent !== userPubkey) return;
+      if (activePubkey() !== userPubkey) return;
       let npub = remote.pubkey;
       try { npub = nip19.npubEncode(remote.pubkey); } catch {}
       const state: PublishedState = {

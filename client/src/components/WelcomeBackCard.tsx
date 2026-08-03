@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { X, UserPlus, Check, Loader2, Users, ArrowRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNewJoiners } from "@/hooks/useNewJoiners";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
@@ -152,7 +152,7 @@ export function WelcomeBackCard() {
 
 /** Empty-state growth loop: prompt the sender to invite more people. */
 function InviteCta() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const demo = isDemo();
   // Real logged-in sender; in QA-demo (no session) fall back to a placeholder id.
   const npub = user?.npub || (demo ? nip19.npubEncode(DEMO_PK) : "");

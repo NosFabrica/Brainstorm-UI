@@ -83,7 +83,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
@@ -113,9 +112,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { logout, cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { toPubkeys } from "../services/graphHelpers";
@@ -163,7 +162,7 @@ function nip85DismissedRecently(pubkey?: string): boolean {
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
@@ -171,8 +170,8 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
-  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
-  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
+  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
+  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
   // In-app-created accounts auto-activate Brainstorm silently (see
   // AutoActivateBrainstorm) — they never get the consent card.
   const nip85CreatedInApp = (() => {
@@ -184,34 +183,29 @@ export default function DashboardPage() {
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
-    try { const pk = getCurrentUser()?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
+    try { const pk = user?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
   });
   const markInviteCardSeen = () => {
-    try { const pk = getCurrentUser()?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    try { const pk = user?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
     setInviteCardSeen(true);
   };
   useEffect(() => {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
       setAssistantDismissed(readAssistantDismissed());
-      // Keep the local user copy in sync with late-arriving profile metadata
-      // (e.g. the avatar/name fetched right after login) so the header updates
-      // reactively and the profile fallback query below stays suppressed.
-      const fresh = getCurrentUser();
-      if (fresh) setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
+    // The assistant's storage is namespaced per owner, so a switch re-reads it.
+    sync();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-    window.addEventListener(USER_CHANGED_EVENT, sync as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-      window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
-  }, []);
+  }, [user?.pubkey]);
 
   // Inline "Publish your assistant" prompt (existing users): publish in place
   // rather than navigating to the wrong settings page. Explicit click = consent,
@@ -242,35 +236,22 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
   const needsProfile = !!user && !user.displayName && !user.picture;
-  const profileQuery = useQuery({
+  useQuery({
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
-      // The login-time profile fetch may have resolved after this query was
-      // already enabled (React Query won't cancel an in-flight query). If the
-      // metadata is already present, reuse it instead of re-hitting relays.
-      const fresh = getCurrentUser();
-      if (fresh && (fresh.picture || fresh.displayName)) {
-        setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
-        return fresh.profile ?? null;
-      }
       await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
-        const updates = applyProfileToUser(content);
-        updateCurrentUser(updates);
-        setUser((prev) => prev ? { ...prev, ...updates } : prev);
+        // Caching it on the Account is what re-renders the header — this query's
+        // own result is only the profile page's fallback copy.
+        cacheProfile(content, user.pubkey);
         return content;
       }
       throw new Error("Profile not found");
@@ -384,7 +365,7 @@ export default function DashboardPage() {
     // so we never downgrade here (that caused the badge to flicker right after an
     // auto-publish). Deactivation is explicit, via Settings.
     if (trustServiceProvider.data !== true) return;
-    markNip85Activated(getCurrentUser()?.pubkey);
+    markNip85Activated(user?.pubkey);
     if (!nip85Activated) setNip85Activated(true);
   }, [trustServiceProvider.data, nip85Activated]);
 
@@ -1170,7 +1151,7 @@ export default function DashboardPage() {
                 npub={user.npub}
                 displayName={user.displayName || "You"}
                 picture={user.picture}
-                nip05={user.profile?.nip05}
+                nip05={user.nip05}
                 canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
@@ -1233,7 +1214,7 @@ export default function DashboardPage() {
                       type="button"
                       onClick={() => {
                         try {
-                          const pk = getCurrentUser()?.pubkey;
+                          const pk = user?.pubkey;
                           if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);

@@ -8,7 +8,7 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
@@ -54,7 +54,7 @@ export function HeaderSearchBox({
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const effectivePov = pov === "mywot" && hasMywot && isSearchObserver ? "mywot" : "nosfabrica";
-  const observerPubkey = getCurrentUser()?.pubkey;
+  const observerPubkey = useActiveAccountDisplay()?.pubkey;
 
   // Live suggestions, debounced. A request token is bumped every keystroke so a
   // slow earlier response can't overwrite newer results. Direct identifiers

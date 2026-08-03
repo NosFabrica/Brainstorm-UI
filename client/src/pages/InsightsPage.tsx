@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -70,7 +70,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
  */
 export default function InsightsPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
   const overviewQuery = useSelfOverview(pubkey);
@@ -164,7 +164,7 @@ export default function InsightsPage() {
       ? (history as any).records
       : [];
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">

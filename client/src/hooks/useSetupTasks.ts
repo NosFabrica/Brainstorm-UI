@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { getCurrentUser, hasPersistentKey } from "@/services/nostr";
+import { hasPersistentKey } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
 
 /**
@@ -42,7 +43,7 @@ export interface SetupState {
 }
 
 export function useSetupTasks(): SetupState {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey ?? "";
   const picture = user?.picture;
 

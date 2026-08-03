@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
 import { useSelfHistory } from "@/hooks/useSelf";
 
@@ -19,7 +20,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
 const AUTO_KICK_KEY = (pk: string) => `brainstorm_auto_score_kicked:${pk}`;
 
 export function AutoScoreReturning() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pk = hasSessionToken() ? user?.pubkey : undefined;
   // Only decide once the /user/history query has actually settled, so we never
   // mistake "still loading" for "unscored".

@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
+import { useActiveAccount } from "applesauce-react/hooks";
+
+import { accountManager } from "@/accounts";
+import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/metadata";
 
 export type ActivePov = "nosfabrica" | "mywot";
 
-const STORAGE_KEY = "brainstorm_active_pov";
+/** Anonymous browsing has no Account to hang a Perspective on, so it keeps this row. */
+const ANON_KEY = "brainstorm_active_pov:anon";
 const EVENT_NAME = "brainstorm-pov-changed";
 
-// Per-account (or "anon") so a second account on the same browser keeps its own
-// perspective instead of inheriting the previous account's. Pubkey read from the
-// stored session directly to avoid a service import cycle.
-function scopedKey(): string {
-  let who = "anon";
-  try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || "anon"; } catch {}
-  return `${STORAGE_KEY}:${who}`;
+function isPov(value: unknown): value is ActivePov {
+  return value === "nosfabrica" || value === "mywot";
 }
 
+// Each Account keeps its own Perspective, so it rides on that Account's metadata
+// rather than a pubkey-namespaced localStorage row — a second Account on the
+// same browser can't inherit or overwrite the first one's.
 function readStored(): ActivePov | null {
+  const account = accountManager.active as BrainstormAccount | undefined;
+  if (account) return getMetadata(account).perspective ?? null;
   try {
-    const v = localStorage.getItem(scopedKey());
-    return v === "nosfabrica" || v === "mywot" ? v : null;
+    const stored = localStorage.getItem(ANON_KEY);
+    return isPov(stored) ? stored : null;
   } catch {
     return null;
   }
@@ -32,26 +37,28 @@ export function hasStoredPov(): boolean {
 }
 
 export function setActivePov(pov: ActivePov): void {
-  try {
-    localStorage.setItem(scopedKey(), pov);
-    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: pov }));
-  } catch {}
+  const account = accountManager.active as BrainstormAccount | undefined;
+  if (account) updateMetadata(account, { perspective: pov });
+  else {
+    try { localStorage.setItem(ANON_KEY, pov); } catch { /* private browsing */ }
+  }
+  try { window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: pov })); } catch {}
 }
 
 export function useActivePov(): [ActivePov, (p: ActivePov) => void] {
+  const account = useActiveAccount();
   const [pov, setPov] = useState<ActivePov>(() => getActivePov());
 
   useEffect(() => {
+    // Switching Account switches Perspective with it.
+    setPov(getActivePov());
+
     const onCustom = (e: Event) => {
       const detail = (e as CustomEvent).detail as ActivePov | undefined;
-      if (detail === "nosfabrica" || detail === "mywot") {
-        setPov(detail);
-      } else {
-        setPov(getActivePov());
-      }
+      setPov(isPov(detail) ? detail : getActivePov());
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === scopedKey()) setPov(getActivePov());
+      if (e.key === ANON_KEY) setPov(getActivePov());
     };
     window.addEventListener(EVENT_NAME, onCustom);
     window.addEventListener("storage", onStorage);
@@ -59,7 +66,7 @@ export function useActivePov(): [ActivePov, (p: ActivePov) => void] {
       window.removeEventListener(EVENT_NAME, onCustom);
       window.removeEventListener("storage", onStorage);
     };
-  }, []);
+  }, [account?.id]);
 
   const update = useCallback((p: ActivePov) => setActivePov(p), []);
   return [pov, update];

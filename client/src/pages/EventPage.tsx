@@ -5,7 +5,8 @@ import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -237,7 +238,7 @@ export default function EventPage() {
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
   // a backup yet — surface a slim, dismissible safety + discovery nudge.
-  const me = getCurrentUser();
+  const me = useActiveAccountDisplay();
   const [setupDismissed, setSetupDismissed] = useState(false);
   const showSetupNudge = (() => {
     try {

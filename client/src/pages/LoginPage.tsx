@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   AlertCircle,
@@ -7,7 +7,8 @@ import {
   KeyRound,
   ArrowRight,
 } from "lucide-react";
-import { handleLogin, LoginError, type LoginErrorCode, getCurrentUser } from "@/services/nostr";
+import { handleLogin, LoginError, type LoginErrorCode } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
@@ -48,13 +49,16 @@ export default function LoginPage() {
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
   const [failureMessage, setFailureMessage] = useState("");
 
+  const signedIn = useActiveAccountDisplay();
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
+  // Mount-only: signing in *here* routes through the handlers below (a new
+  // account goes to the wizard, not to `next`), so this must not fire the moment
+  // the created account becomes active.
+  const signedInOnArrival = useRef(signedIn !== null);
   useEffect(() => {
-    if (getCurrentUser()) {
-      navigate(nextPath, { replace: true });
-    }
+    if (signedInOnArrival.current) navigate(nextPath, { replace: true });
   }, [navigate, nextPath]);
 
   // Returning users (extension/nsec) land where they intended (home, or ?next=) —

@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { BrainLogo } from "@/components/BrainLogo";
-import { getCurrentUser, fetchProfile, triggerScoringAndAnchor } from "@/services/nostr";
+import { fetchProfile, triggerScoringAndAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { apiClient } from "@/services/api";
 import { knownFollowCount } from "@/lib/followStore";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -20,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function ActivatePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey || "";
   const { hasMywot } = useHasMywot();
 

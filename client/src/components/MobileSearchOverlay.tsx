@@ -6,7 +6,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePov } from "@/hooks/useActivePov";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
@@ -45,6 +45,7 @@ export function MobileSearchOverlay() {
   // newer one — same race guard the home page uses.
   const reqRef = useRef(0);
   const [pov] = useActivePov();
+  const observerPubkey = useActiveAccountDisplay()?.pubkey;
 
   useEffect(() => {
     const onOpen = () => setOpen(true);
@@ -91,7 +92,7 @@ export function MobileSearchOverlay() {
     setSearching(true);
     timerRef.current = window.setTimeout(async () => {
       try {
-        const { results: hits } = await searchByText(term, pov, getCurrentUser()?.pubkey, 10);
+        const { results: hits } = await searchByText(term, pov, observerPubkey, 10);
         if (reqRef.current !== reqId) return;
         setResults(hits.slice(0, 8));
       } catch {
@@ -102,7 +103,7 @@ export function MobileSearchOverlay() {
       }
     }, 140);
     return () => window.clearTimeout(timerRef.current);
-  }, [q, open, pov]);
+  }, [q, open, pov, observerPubkey]);
 
   const openResult = (r: SearchResult) => {
     const label = r.displayName || r.name || r.npub.slice(0, 12) + "…";

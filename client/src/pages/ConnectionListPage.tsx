@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal 
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { getVerifiedThreshold } from "@/services/trustThreshold";
@@ -39,8 +39,8 @@ const PAGE = 20;
 
 export default function ConnectionListPage() {
   const [, params] = useRoute("/p/:id/:type");
-  const [me, setMe] = useCurrentUser();
-  const handleLogout = () => { logout(); setMe(null); };
+  const me = useActiveAccountDisplay();
+  const handleLogout = () => logout();
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);

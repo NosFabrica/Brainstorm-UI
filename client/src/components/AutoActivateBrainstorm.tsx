@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, ensureBrainstormTrustAnchor } from "@/services/nostr";
+import { ensureBrainstormTrustAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";
 
@@ -21,7 +22,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
  * Renders nothing; mount once at the app root.
  */
 export function AutoActivateBrainstorm() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const pk = hasSessionToken() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);

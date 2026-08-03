@@ -1,5 +1,5 @@
 import { nip19 } from "nostr-tools";
-import { getCurrentUser } from "@/services/nostr";
+import { activePubkey } from "@/accounts/display";
 
 export interface PublishedAssistantState {
   pubkey: string;
@@ -28,12 +28,10 @@ const SUFFIX_DISMISSED = "dismissed";
 const SUFFIX_PICTURE_SET = "picture_set";
 
 export const ASSISTANT_UPDATED_EVENT = "brainstorm-assistant-updated";
-export const USER_CHANGED_EVENT = "brainstorm-user-changed";
 
 function ownerHex(): string | null {
   try {
-    const u = getCurrentUser();
-    return u?.pubkey ? u.pubkey.toLowerCase() : null;
+    return activePubkey()?.toLowerCase() ?? null;
   } catch {
     return null;
   }

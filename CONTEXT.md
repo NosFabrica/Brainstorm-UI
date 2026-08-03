@@ -21,6 +21,12 @@ The one Account the app currently acts as. Changing it changes whose data is
 shown and who publishes.
 _Avoid_: current user, logged-in user, session
 
+**Account display**:
+The Active Account as the UI shows it — npub, name, picture, nip05, and whether
+its Session claims admin. Cached on the Account, so a screen renders it rather
+than deriving it.
+_Avoid_: current user, identity, profile
+
 **Signer**:
 The thing that produces signatures for an Account's pubkey. Most live outside the
 app — a browser extension, a remote signer reached over NIP-46. One lives inside

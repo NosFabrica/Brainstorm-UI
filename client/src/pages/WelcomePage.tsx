@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { BrainLogo } from "@/components/BrainLogo";
 import { FollowPicker } from "@/components/FollowPicker";
-import { getCurrentUser, triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function WelcomePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
 
   useEffect(() => {
     if (!user) navigate("/login", { replace: true });
@@ -37,8 +38,7 @@ export default function WelcomePage() {
   // into the backend before returning, so scoring runs on fresh follows.
   const finish = (pks: string[]) => {
     if (!pks.length) return;
-    const u = getCurrentUser();
-    if (u?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${u.pubkey}`, String(Date.now())); } catch {} }
+    if (user?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${user.pubkey}`, String(Date.now())); } catch {} }
     toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
     navigate(returnPath, { replace: true });
     void (async () => {
@@ -48,7 +48,7 @@ export default function WelcomePage() {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;
         }
-        if (u?.pubkey) await triggerScoringAndAnchor(u.pubkey);
+        if (user?.pubkey) await triggerScoringAndAnchor(user.pubkey);
       } catch {
         /* the status chip + dashboard reflect the outcome */
       }

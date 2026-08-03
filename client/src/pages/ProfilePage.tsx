@@ -70,9 +70,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -932,7 +932,7 @@ export default function ProfilePage() {
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
 
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1014,7 +1014,7 @@ export default function ProfilePage() {
     staleTime: 30_000,
   });
 
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user?.isAdmin === true;
 
   const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
     queryKey: ["/api/admin/users", hexPubkey, "history"],
@@ -1031,11 +1031,6 @@ export default function ProfilePage() {
     }
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
-
-  useEffect(() => {
-    // Capture the signed-in user so personalized sections + the account menu render.
-    setUser(getCurrentUser());
-  }, [navigate]);
 
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
@@ -1379,13 +1374,11 @@ export default function ProfilePage() {
   // so your own avatar shows immediately instead of the initials fallback.
   const ownProfileFallback = useMemo<ProfileContent | null>(() => {
     if (!user || !hexPubkey || user.pubkey !== hexPubkey) return null;
-    if (user.profile) return user.profile;
     if (user.picture || user.displayName) {
       return {
         name: user.displayName,
         display_name: user.displayName,
         picture: user.picture,
-        about: user.about,
         nip05: user.nip05,
       } as ProfileContent;
     }

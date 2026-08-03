@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
@@ -19,7 +20,7 @@ const QUERY_KEY = "invite/new-joiners";
 const DEMO_PUBKEY = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff";
 
 export function useNewJoiners() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 

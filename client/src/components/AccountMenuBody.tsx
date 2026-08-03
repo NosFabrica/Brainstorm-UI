@@ -21,7 +21,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
-import { hasPersistentKey, type NostrUser } from "@/services/nostr";
+import { hasPersistentKey } from "@/services/nostr";
+import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
 import {
   AlertDialog,
@@ -49,7 +50,7 @@ export const NAV_TILES: { key: AppKey; label: string; path: string; icon: React.
  *
  * `close` dismisses the host surface; navigations/invites fire after it.
  */
-export function useAccountMenu(user: NostrUser, onLogout: () => void, close: () => void) {
+export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close: () => void) {
   const [, navigate] = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -92,7 +93,7 @@ export function useAccountMenu(user: NostrUser, onLogout: () => void, close: () 
         npub={user.npub}
         displayName={user.displayName || "You"}
         picture={user.picture}
-        nip05={user.profile?.nip05}
+        nip05={user.nip05}
         canonicalUrl={inviteUrl}
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
@@ -130,7 +131,7 @@ export function useAccountMenu(user: NostrUser, onLogout: () => void, close: () 
 }
 
 interface AccountMenuBodyProps {
-  user: NostrUser;
+  user: AccountDisplay;
   isAdmin: boolean;
   active?: AppKey;
   onNavigate: (path: string) => void;
@@ -147,7 +148,7 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
   const { toast } = useToast();
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
-  const rawNip05 = user.profile?.nip05?.trim();
+  const rawNip05 = user.nip05?.trim();
   const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
 
   return (

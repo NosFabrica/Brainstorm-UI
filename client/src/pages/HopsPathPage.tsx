@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, Chevro
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileForShare, fetchProfileMap, logout } from "@/services/nostr";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient, hasSessionToken } from "@/services/api";
@@ -33,8 +33,8 @@ export default function HopsPathPage() {
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const relayHints = decoded?.relays || [];
 
-  const [me, setMe] = useCurrentUser();
-  const handleLogout = () => { logout(); setMe(null); };
+  const me = useActiveAccountDisplay();
+  const handleLogout = () => logout();
   const fromPubkey = me?.pubkey || "";
   const toPubkey = decoded?.pubkey || "";
   const signedIn = hasSessionToken();

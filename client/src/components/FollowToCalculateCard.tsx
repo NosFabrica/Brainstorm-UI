@@ -4,7 +4,8 @@ import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-reac
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
-import { getCurrentUser, fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -18,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
  * and calls onDone so the dashboard can flip to its "Calculating…" state.
  */
 export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () => void; className?: string }) {
+  const identity = useActiveAccountDisplay();
   const { toast } = useToast();
 
   // NosFabrica is preselected (low friction so scoring can run); the rest are
@@ -115,10 +117,9 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
       return;
     }
-    const u = getCurrentUser();
-    if (u?.pubkey) {
-      try { localStorage.setItem(`brainstorm_calc_triggered_at:${u.pubkey}`, String(Date.now())); } catch { /* ignore */ }
-      void triggerScoringAndAnchor(u.pubkey);
+    if (identity?.pubkey) {
+      try { localStorage.setItem(`brainstorm_calc_triggered_at:${identity.pubkey}`, String(Date.now())); } catch { /* ignore */ }
+      void triggerScoringAndAnchor(identity.pubkey);
     }
     toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
     onDone?.();

@@ -67,13 +67,12 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec, type NostrUser } from "@/services/nostr";
+import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec } from "@/services/nostr";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
@@ -144,9 +143,8 @@ export default function SettingsPage() {
     navigate(t === "profile" ? "/settings" : `/settings?tab=${t}`);
   };
 
-  // Live current user: re-reads on `brainstorm-user-changed` so the header avatar
-  // updates instantly after saving the profile (no refresh needed).
-  const [user] = useCurrentUser();
+  // Live identity: the header avatar updates the moment a profile save lands.
+  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
@@ -206,10 +204,8 @@ export default function SettingsPage() {
   const nip85Activated = isNip85Activated(user?.pubkey);
 
   useEffect(() => {
-    if (!getCurrentUser()) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -306,8 +302,7 @@ export default function SettingsPage() {
     setRepublishState("signing");
     setRepublishError("");
 
-    const currentUser = getCurrentUser();
-    if (!currentUser?.pubkey) {
+    if (!user?.pubkey) {
       setRepublishState("error");
       setRepublishError("Not logged in.");
       return;
@@ -343,7 +338,7 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      markNip85Activated(currentUser.pubkey);
+      markNip85Activated(user.pubkey);
       setRepublishState("success");
       toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
       setTimeout(() => setRepublishState("idle"), 3000);
@@ -357,8 +352,7 @@ export default function SettingsPage() {
     setDeactivateState("signing");
     setDeactivateError("");
 
-    const currentUser = getCurrentUser();
-    if (!currentUser?.pubkey) {
+    if (!user?.pubkey) {
       setDeactivateState("error");
       setDeactivateError("Not logged in.");
       return;
@@ -377,7 +371,7 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      clearNip85Activated(currentUser.pubkey);
+      clearNip85Activated(user.pubkey);
       setDeactivateState("success");
       toast({ title: "Provider deactivated", description: "Brainstorm has been removed as your WoT service provider.", duration: 4000 });
       setTimeout(() => {

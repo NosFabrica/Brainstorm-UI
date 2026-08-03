@@ -9,7 +9,8 @@ import {
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { publishToRelays, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { markNip85Activated } from "@/lib/nip85Activation";
 
 interface ActivateBrainstormModalProps {
@@ -24,6 +25,7 @@ const NIP85_URL = "https://github.com/nostr-protocol/nips/blob/master/85.md";
 type ActivateState = "idle" | "signing" | "publishing" | "success" | "cancelled" | "error";
 
 export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActivated }: ActivateBrainstormModalProps) {
+  const user = useActiveAccountDisplay();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [activateState, setActivateState] = useState<ActivateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -37,7 +39,6 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     let cancelled = false;
     (async () => {
       try {
-        const user = getCurrentUser();
         if (!user?.pubkey) return;
         const event = await fetchTrustProviderList(user.pubkey);
         if (cancelled || !event) return;
@@ -57,7 +58,6 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     setActivateState("signing");
     setErrorMessage("");
 
-    const user = getCurrentUser();
     if (!user?.pubkey) {
       setActivateState("error");
       setErrorMessage("Not logged in.");

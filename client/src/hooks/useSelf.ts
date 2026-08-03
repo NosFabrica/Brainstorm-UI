@@ -32,9 +32,9 @@ export function useSelfHistory(pubkey: string | undefined) {
   return useQuery({
     queryKey: ["/user/history", pubkey],
     queryFn: () => apiClient.getUserHistory(),
-    // `/user/history` is auth-required; gating on a stale `nostr_user` (which
-    // getCurrentUser accepts) alone would fire authenticatedFetch → 401 →
-    // storage wipe + hard-redirect to "/". Require a real session token.
+    // `/user/history` is auth-required; an Account can be active with no
+    // Session, and firing anyway means authenticatedFetch → 401 → storage wipe
+    // + hard-redirect to "/". Require a real session token.
     enabled: !!pubkey && hasSessionToken(),
     staleTime: 60_000,
   });

@@ -4,10 +4,10 @@ import { Search, Home, Users, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { AccountMenuBody, useAccountMenu } from "@/components/AccountMenuBody";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { logout, type NostrUser } from "@/services/nostr";
+import { logout } from "@/services/nostr";
+import type { AccountDisplay } from "@/accounts/display";
 import { useAccountSheetOpen, openAccountSheet, closeAccountSheet, setAccountSheet } from "@/lib/accountSheetStore";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  */
 export function MobileTabBar() {
   const isMobile = useIsMobile();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const [location, navigate] = useLocation();
   const sheetOpen = useAccountSheetOpen();
 
@@ -88,7 +88,7 @@ export function MobileTabBar() {
       </nav>
 
       {user && (
-        <MobileAccountSheet user={user} onLogout={() => { logout(); setUser(null); navigate("/"); }} />
+        <MobileAccountSheet user={user} onLogout={() => { logout(); navigate("/"); }} />
       )}
     </>
   );
@@ -124,7 +124,7 @@ function TabButton({
   );
 }
 
-function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; onClick: () => void }) {
+function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -149,9 +149,9 @@ function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; o
   );
 }
 
-function MobileAccountSheet({ user, onLogout }: { user: NostrUser; onLogout: () => void }) {
+function MobileAccountSheet({ user, onLogout }: { user: AccountDisplay; onLogout: () => void }) {
   const open = useAccountSheetOpen();
-  const isAdmin = isAdminPubkey(user.pubkey);
+  const isAdmin = user.isAdmin;
   const { onNavigate, onInvite, onRequestLogout, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
 
   return (

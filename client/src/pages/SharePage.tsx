@@ -49,7 +49,7 @@ import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
@@ -129,7 +129,7 @@ export default function SharePage() {
   const publishedPrefs = useMemo(() => parseProfilePrefs(prefsQuery.data ?? {}), [prefsQuery.data]);
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
-  const [currentUser] = useCurrentUser();
+  const currentUser = useActiveAccountDisplay();
   // Owner = the Account that signs IS this profile — which is also what makes
   // publishing prefs possible, so there is nothing else to check.
   const isOwner = useActiveAccount()?.pubkey === pubkey;

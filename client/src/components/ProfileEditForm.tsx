@@ -1,7 +1,8 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X, UserRound, AtSign } from "lucide-react";
-import { publishProfile, getCurrentUser, fetchProfile, fetchProfileEvent } from "@/services/nostr";
+import { publishProfile, fetchProfile, fetchProfileEvent } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { IDENTITY_PLATFORMS, splitIdentityClaim, formatIdentityClaim } from "@/lib/externalIdentity";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +32,7 @@ const inputViewCls =
  * kind-0.
  */
 export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: ProfileEditFormProps) {
+  const display = useActiveAccountDisplay();
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [picture, setPicture] = useState("");
@@ -90,19 +92,22 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     setEditing(false);
   };
 
-  // Prefill from the cached user, then fill any gaps from the live kind-0.
+  // Prefill from the account's display cache, then fill every gap from the
+  // live kind-0 (which is also where the fields the cache doesn't hold —
+  // about, banner, website, lud16 — come from).
   useEffect(() => {
-    const user = getCurrentUser();
-    const p = (user?.profile ?? {}) as Record<string, string | undefined>;
-    setName(p.display_name || p.name || user?.displayName || "");
-    setAbout(p.about || user?.about || "");
-    setPicture(p.picture || p.image || user?.picture || "");
-    setBanner(p.banner || "");
-    setNip05(p.nip05 || user?.nip05 || "");
-    setWebsite(p.website || "");
-    setLud16(p.lud16 || p.lud06 || "");
-    if (user?.pubkey) {
-      fetchProfile(user.pubkey)
+    // Every field resets, not just the cached three: a switch must not leave the
+    // previous Account's bio or banner in the form for this one to publish.
+    setName(display?.displayName || "");
+    setPicture(display?.picture || "");
+    setNip05(display?.nip05 || "");
+    setAbout("");
+    setBanner("");
+    setWebsite("");
+    setLud16("");
+    setIdentities([]);
+    if (display?.pubkey) {
+      fetchProfile(display.pubkey)
         .then((c) => {
           if (!c) return;
           const x = c as Record<string, string | undefined>;
@@ -117,7 +122,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
         .catch(() => {});
       // Capture the raw kind-0 (content + tags) so save MERGES, and pre-fill the
       // linked-accounts editor from the existing NIP-39 `i` tags.
-      fetchProfileEvent(user.pubkey)
+      fetchProfileEvent(display.pubkey)
         .then((ev) => {
           if (!ev) return;
           setBaseLoaded(true);
@@ -131,7 +136,9 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
         })
         .catch(() => {});
     }
-  }, []);
+    // Re-prefills on an account switch; metadata changes alone don't disturb
+    // whatever the user is currently typing.
+  }, [display?.pubkey]);
 
   const busy = state === "saving";
 
@@ -152,7 +159,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     let mergeTags = baseTags;
     if (!baseLoaded) {
       try {
-        const pk = getCurrentUser()?.pubkey;
+        const pk = display?.pubkey;
         const ev = pk ? await fetchProfileEvent(pk) : undefined;
         if (ev) {
           mergeTags = ev.tags || [];
@@ -184,7 +191,7 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
       // Seed the profile page's kind-0 cache so your own /profile/:npub shows the
       // new info immediately (it otherwise serves a 5-min-stale cached copy).
       try {
-        const pk = getCurrentUser()?.pubkey;
+        const pk = display?.pubkey;
         if (pk) queryClient.setQueryData(["nostr-profile", pk], content);
       } catch {}
       setState("success");

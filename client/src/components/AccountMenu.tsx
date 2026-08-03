@@ -2,13 +2,12 @@ import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AccountMenuBody, useAccountMenu } from "@/components/AccountMenuBody";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { NostrUser } from "@/services/nostr";
+import type { AccountDisplay } from "@/accounts/display";
 import type { AppKey } from "@/components/AppsLauncher";
 
 interface AccountMenuProps {
-  user: NostrUser;
+  user: AccountDisplay;
   onLogout: () => void;
   /** Highlights the matching nav tile (Search/Dashboard/Network). */
   active?: AppKey;
@@ -24,7 +23,7 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const { onNavigate, onInvite, onRequestLogout, modals } = useAccountMenu(user, onLogout, () => setOpen(false));
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user.isAdmin;
 
   // Phones use the bottom tab bar + sheet instead of a top-anchored popover.
   if (isMobile) return null;

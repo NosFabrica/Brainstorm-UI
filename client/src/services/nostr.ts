@@ -63,6 +63,7 @@ import {
 } from "@/accounts/signing";
 import { adoptAccount, extensionAccount, localAccount, releaseActiveAccount } from "@/accounts/login";
 import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
+import { activePubkey, rememberProfile } from "@/accounts/display";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
@@ -174,7 +175,7 @@ async function doUnlock(): Promise<void> {
   // account's pubkey (AAD). A foreign/corrupt envelope throws → treated as "no
   // key" (the user re-authenticates).
   if (encEnvelope) {
-    const pubkey = getCurrentUser()?.pubkey;
+    const pubkey = activePubkey();
     if (pubkey && isVaultSupported()) {
       try {
         memSk = await decryptSecret(encEnvelope, pubkey);
@@ -383,9 +384,8 @@ function setCurrentUser(user: NostrUser | null) {
   }
   const nextPubkey = user?.pubkey ?? null;
   const pubkeyChanged = prevPubkey !== nextPubkey;
-  // Also notify listeners when the same user's profile metadata fills in
-  // (e.g. the avatar/name fetched right after login), so the header and
-  // mobile menu re-render instead of waiting for the next page render.
+  // v1 shadow: nothing listens any more — the header reads the Active Account's
+  // metadata (ticket 06). The dispatch goes with the cache, in ticket 17.
   const profileChanged =
     !!user &&
     !!prev &&
@@ -1242,6 +1242,19 @@ export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> 
   };
 }
 
+/**
+ * Cache a fetched kind-0 on the Account it belongs to. The Account's metadata is
+ * what the header reads, so this is what makes an avatar appear moments after
+ * login — and it persists, so the next load renders it before any relay answers.
+ */
+export function cacheProfile(content: ProfileContent, pubkey?: string): void {
+  const account = activeAccount();
+  // A switch mid-fetch means this profile belongs to whoever we were before.
+  if (!account || (pubkey !== undefined && account.pubkey !== pubkey)) return;
+  const { displayName, picture, nip05 } = applyProfileToUser(content);
+  rememberProfile(account, { name: displayName, picture, nip05 });
+}
+
 /** Did the signer's own UI turn us down, rather than something breaking? */
 function refusedBySigner(err: unknown): boolean {
   const message = (err instanceof Error ? err.message : "").toLowerCase();
@@ -1300,7 +1313,9 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
   // as soon as the metadata arrives.
   void fetchProfile(pubkey)
     .then((content) => {
-      if (content) updateCurrentUser(applyProfileToUser(content));
+      if (!content) return;
+      cacheProfile(content, pubkey);
+      updateCurrentUser(applyProfileToUser(content));
     })
     .catch(() => {});
 
@@ -1442,7 +1457,7 @@ export function logout() {
   // Brainstorm Assistant data is namespaced per owner, so logging out does
   // not need to wipe it — switching accounts naturally isolates state and
   // the user's own assistant identity should still be there next login.
-  const prevPubkey = getCurrentUser()?.pubkey;
+  const prevPubkey = activePubkey();
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
   // The Account goes with the key: nothing may still sign as an identity this
@@ -1550,7 +1565,9 @@ export async function publishProfile(
   }
   if (res.success) {
     try {
-      updateCurrentUser(applyProfileToUser(content as unknown as ProfileContent));
+      const profile = content as unknown as ProfileContent;
+      cacheProfile(profile);
+      updateCurrentUser(applyProfileToUser(profile));
     } catch {}
     // Keep the outbox list fresh (the signup publish may have silently failed),
     // so other clients can locate this kind-0. Best-effort.
@@ -1718,6 +1735,7 @@ export async function createAccount(
   // just typed right away so the header/profile show it immediately, instead of
   // waiting for the relay round-trip after runInitialSetup publishes.
   if (name) {
+    rememberProfile(account, { name });
     updateCurrentUser({ displayName: name });
     user = { ...user, displayName: name };
   }

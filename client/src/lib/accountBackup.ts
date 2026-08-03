@@ -1,4 +1,5 @@
-import { exportEncryptedKey, exportNsec, getCurrentUser } from "@/services/nostr";
+import { exportEncryptedKey, exportNsec } from "@/services/nostr";
+import { activeDisplay } from "@/accounts/display";
 
 /**
  * Build the human-readable contents of the account backup `.txt`. The file is
@@ -57,7 +58,7 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
  */
 export function getEncryptedBackupCredential(password: string): { npub: string; ncryptsec: string } {
   return {
-    npub: getCurrentUser()?.npub ?? "",
+    npub: activeDisplay()?.npub ?? "",
     ncryptsec: exportEncryptedKey(password),
   };
 }
@@ -69,7 +70,7 @@ export function getEncryptedBackupCredential(password: string): { npub: string; 
  * back to the bare `${base}.txt` when there's no usable name.
  */
 function backupFileName(base: string): string {
-  const slug = (getCurrentUser()?.displayName ?? "")
+  const slug = (activeDisplay()?.displayName ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-") // spaces/punctuation/emoji/non-ASCII → hyphen
     .replace(/^-+|-+$/g, "")
@@ -140,7 +141,7 @@ export function buildRawKeyBackupFileContent(nsec: string, npub: string): string
  */
 export function downloadRawKeyBackup(): boolean {
   const nsec = exportNsec();
-  const npub = getCurrentUser()?.npub ?? "";
+  const npub = activeDisplay()?.npub ?? "";
   const content = buildRawKeyBackupFileContent(nsec, npub);
 
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });

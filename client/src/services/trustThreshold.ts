@@ -1,3 +1,5 @@
+import { activePubkey } from "@/accounts/display";
+
 export type TrustPreset = "relax" | "default" | "strict";
 
 const STORAGE_KEY = "brainstorm_trust_preset";
@@ -70,11 +72,10 @@ export function presetToBackend(preset: TrustPreset): "PERMISSIVE" | "DEFAULT" |
 
 // Scope the preference per signed-in pubkey (or "anon" when logged out) so a
 // second account on the same browser doesn't inherit or overwrite the first
-// one's filter setting. Pubkey read straight from the stored session to avoid a
-// service import cycle.
+// one's filter setting.
 function scopedKey(): string {
   let who = "anon";
-  try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || "anon"; } catch {}
+  try { who = activePubkey() || "anon"; } catch {}
   return `${STORAGE_KEY}:${who}`;
 }
 
