@@ -25,7 +25,8 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
+import { useActiveAccount } from "applesauce-react/hooks";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, PROFILE_RELAYS } from "@/services/nostr";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
@@ -129,9 +130,9 @@ export default function SharePage() {
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
   const [currentUser] = useCurrentUser();
-  // Owner = the logged-in user IS this profile and can sign (publish prefs).
-  const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
-    (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // Owner = the Account that signs IS this profile — which is also what makes
+  // publishing prefs possible, so there is nothing else to check.
+  const isOwner = useActiveAccount()?.pubkey === pubkey;
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
   // viewer — drives the at-a-glance badges next to the actions (which now live
   // here on /p; /profile is the tucked-away advanced view).

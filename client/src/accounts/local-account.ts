@@ -62,7 +62,12 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
   /** A new Account from a raw key: unlocked, cached, and with a Backup if a password is given. */
   static async fromKey(
     key: Uint8Array,
-    options: LocalSignerOptions & { password?: string; logn?: number } = {},
+    options: LocalSignerOptions & {
+      password?: string;
+      logn?: number;
+      /** Throw rather than hand back an Account nothing can store. On by default. */
+      requirePersistable?: boolean;
+    } = {},
   ): Promise<LocalAccount> {
     const signer = LocalSigner.fromKey(key, options);
     if (options.password) await signer.setRecoveryPassword(options.password, options.logn);
@@ -71,7 +76,7 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     // No Unlock cache and no Backup means the key would exist only until this page
     // unloads, and would persist as a row nothing can ever open. Where the cache is
     // unavailable, a Recovery password is the only at-rest form there is.
-    if (!signer.data.ncryptsec && !signer.data.envelope) {
+    if ((options.requirePersistable ?? true) && !signer.data.ncryptsec && !signer.data.envelope) {
       throw new NoUnlockPathError("This browser cannot store a key without a recovery password");
     }
 

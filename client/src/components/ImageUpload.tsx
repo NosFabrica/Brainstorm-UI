@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Upload, X, Loader2, ImageIcon, Camera } from "lucide-react";
-import { signEventLocally, getCurrentUser } from "@/services/nostr";
+import { activeAccount, signAs } from "@/accounts/signing";
 
 interface ImageUploadProps {
   value?: string;
@@ -65,13 +65,12 @@ function resizeImage(file: File, maxW: number, maxH: number, quality: number): P
 }
 
 // Build an `Authorization: Nostr <base64-signed-event>` header (used by both
-// NIP-98 — nostr.build — and Blossom). Signs locally with the in-app key or the
-// extension, so uploads work without exposing the key.
+// NIP-98 — nostr.build — and Blossom). Signed by the active account's signer, so
+// uploads work whether the key is in the app, an extension or a remote signer.
 async function nostrAuthHeader(template: { kind: number; tags: string[][]; content: string }): Promise<string> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) throw new Error("Sign in to upload an image.");
-  const event = { ...template, created_at: Math.floor(Date.now() / 1000), pubkey: user.pubkey };
-  const signed = await signEventLocally(event);
+  const account = activeAccount();
+  if (!account) throw new Error("Sign in to upload an image.");
+  const signed = await signAs(account, template);
   return `Nostr ${btoa(JSON.stringify(signed))}`;
 }
 

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
+import type { NostrEvent } from "applesauce-core/helpers";
 import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
 import { markNip85Activated } from "@/lib/nip85Activation";
 
@@ -72,7 +73,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85(serviceKey, nip85Relay);
     } catch (err: any) {

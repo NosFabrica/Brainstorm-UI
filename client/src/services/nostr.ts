@@ -1,4 +1,4 @@
-import { nip19, nip44, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
+import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
 import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
@@ -49,22 +49,25 @@ import {
   isValidProfile,
 } from "applesauce-core/helpers/profile";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
+import { ExtensionMissingError } from "applesauce-signers";
 import { apiClient } from "./api";
-import { loginTemplate } from "@/accounts/session";
+import { sessions, SessionTransportError } from "@/accounts/session";
+import { LocalAccount } from "@/accounts/local-account";
+import {
+  activeAccount,
+  canSignSilently,
+  decryptFromSelf,
+  encryptToSelf,
+  requireActiveAccount,
+  signAs,
+} from "@/accounts/signing";
+import { adoptAccount, extensionAccount, localAccount, releaseActiveAccount } from "@/accounts/login";
+import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { NostrEvent } from "applesauce-core/helpers";
-
-declare global {
-  interface Window {
-    nostr?: {
-      getPublicKey(): Promise<string>;
-      signEvent(event: Record<string, unknown>): Promise<Record<string, unknown>>;
-    };
-  }
-}
 
 // Ephemeral session copy for non-persistent logins (nsec paste without "remember
 // me", extension fallback) — plaintext, cleared when the tab closes.
@@ -101,12 +104,12 @@ let memSk: Uint8Array | null = null;
 let unlockPromise: Promise<void> | null = null;
 
 /**
- * Synchronous read of the raw secret key for signing. Returns the in-memory copy
- * if present; otherwise reconstructs it from the two PLAINTEXT sources that are
- * safe to read synchronously — the ephemeral session key and the legacy plaintext
- * persist key. The ENCRYPTED persistent key (`SK_ENC_KEY`) cannot be read here
- * (decryption is async) — call `await ensureUnlocked()` first; every real sign
- * path does, via `signEventLocally`.
+ * Synchronous read of the raw secret key, for the backup/export paths that still
+ * hold it (ticket 07). Returns the in-memory copy if present; otherwise the two
+ * PLAINTEXT sources safe to read synchronously — the ephemeral session key and
+ * the legacy plaintext persist key. The ENCRYPTED persistent key (`SK_ENC_KEY`)
+ * cannot be read here (decryption is async) — call `await ensureUnlocked()`
+ * first. Signing no longer comes through here at all: it goes to the Account.
  */
 function getStoredSecretKey(): Uint8Array | null {
   if (memSk) return memSk;
@@ -269,10 +272,6 @@ function hasAnyStoredKey(): boolean {
   }
 }
 
-export function hasLocalSecretKey(): boolean {
-  return hasAnyStoredKey();
-}
-
 /** True when an in-app–created account's key is persisted locally ("stay signed in"). */
 export function hasPersistentKey(): boolean {
   try {
@@ -290,45 +289,6 @@ export function hasPersistentKey(): boolean {
  */
 export function hasStoredSecretKey(): boolean {
   return hasAnyStoredKey();
-}
-
-function signWithStoredKey(event: Record<string, unknown>): Record<string, unknown> {
-  const sk = getStoredSecretKey();
-  if (!sk) throw new Error("No local secret key available.");
-  const eventToSign = {
-    kind: event.kind as number,
-    tags: (event.tags as string[][]) ?? [],
-    content: (event.content as string) ?? "",
-    created_at: (event.created_at as number) ?? Math.floor(Date.now() / 1000),
-  };
-  return finalizeEvent(eventToSign, sk) as unknown as Record<string, unknown>;
-}
-
-export async function signEventLocally(
-  event: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-  // Sign with the LOCAL key first when one exists. A stored local key means the
-  // active account is a local / in-app-created (or login-with-key) account, and
-  // its events must be signed with ITS key.
-  //
-  // Preferring window.nostr here was a critical account-isolation bug: with a
-  // signer extension (nos2x/Alby) installed, a local account's publishes —
-  // account-setup auto-follow, profile edits — were signed by the EXTENSION's
-  // identity instead. Because kind-3 (contacts) and kind-0 (profile) are
-  // replaceable, that overwrote the extension account's real follow list and
-  // name with the local account's ~empty setup data. On logout/switch
-  // clearSecretKey() removes the local key, so an extension-only session has no
-  // local key and correctly falls through to window.nostr below.
-  if (hasLocalSecretKey()) {
-    await ensureUnlocked();
-    return signWithStoredKey(event);
-  }
-  if (window.nostr) {
-    const signed = await window.nostr.signEvent(event);
-    if (signed && signed.sig) return signed;
-    throw new Error("Extension returned an unsigned event");
-  }
-  throw new Error("No signer available. Please sign in again.");
 }
 
 /**
@@ -766,26 +726,19 @@ export async function fetchAssistantPointer(
 export async function publishAssistantPointer(
   pointer: AssistantPointer,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (!window.nostr && !hasLocalSecretKey()) {
-    return { success: false, error: "No signer available" };
-  }
-
-  const event = {
-    kind: 30078,
-    tags: [["d", ASSISTANT_POINTER_D_TAG]],
-    content: JSON.stringify({
-      pubkey: pointer.pubkey,
-      event_id: pointer.eventId,
-      published_at: pointer.publishedAt,
-    }),
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
 
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 30078,
+      tags: [["d", ASSISTANT_POINTER_D_TAG]],
+      content: JSON.stringify({
+        pubkey: pointer.pubkey,
+        event_id: pointer.eventId,
+        published_at: pointer.publishedAt,
+      }),
+    });
     return await publishToRelays(signed);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
@@ -834,20 +787,14 @@ export async function fetchProfilePrefs(
 export async function publishProfilePrefs(
   prefs: unknown,
 ): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (!window.nostr && !hasLocalSecretKey()) {
-    return { success: false, error: "No signer available" };
-  }
-  const event = {
-    kind: 30078,
-    tags: [["d", PROFILE_PREFS_D_TAG]],
-    content: JSON.stringify(prefs),
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 30078,
+      tags: [["d", PROFILE_PREFS_D_TAG]],
+      content: JSON.stringify(prefs),
+    });
     return await publishToRelays(signed);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
@@ -862,57 +809,20 @@ export async function publishProfilePrefs(
 // portable across your devices/clients, readable only by your key.
 export const ALERT_PREFS_D_TAG = "brainstorm.world/alert-prefs";
 
-/** NIP-44 encrypt to self — extension path first (we never see the key), else
- *  the locally-held key. Returns null when no signer can encrypt. */
-async function encryptToSelf(plaintext: string): Promise<string | null> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return null;
-  const ext = (window as any).nostr?.nip44;
-  if (ext?.encrypt) {
-    try { return await ext.encrypt(user.pubkey, plaintext); } catch { /* fall through */ }
-  }
-  try {
-    await ensureUnlocked();
-    const sk = getStoredSecretKey();
-    if (!sk) return null;
-    return nip44.v2.encrypt(plaintext, nip44.v2.utils.getConversationKey(sk, user.pubkey));
-  } catch {
-    return null;
-  }
-}
-
-/** Inverse of `encryptToSelf`. Returns null when it can't be decrypted. */
-async function decryptFromSelf(ciphertext: string): Promise<string | null> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return null;
-  const ext = (window as any).nostr?.nip44;
-  if (ext?.decrypt) {
-    try { return await ext.decrypt(user.pubkey, ciphertext); } catch { /* fall through */ }
-  }
-  try {
-    await ensureUnlocked();
-    const sk = getStoredSecretKey();
-    if (!sk) return null;
-    return nip44.v2.decrypt(ciphertext, nip44.v2.utils.getConversationKey(sk, user.pubkey));
-  } catch {
-    return null;
-  }
-}
-
 /** Fetch + decrypt the logged-in user's alert prefs (or null if none/unreadable). */
 export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
 
 /** Fetch + decrypt one of the user's private app-data blobs (or null). */
 export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PREFS_D_TAG): Promise<Record<string, unknown> | null> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return null;
+  const account = activeAccount();
+  if (!account) return null;
   try {
-    const relays = loadOutboxRelayListFromDb(user.pubkey, PROFILE_RELAYS);
+    const relays = loadOutboxRelayListFromDb(account.pubkey, PROFILE_RELAYS);
     const newest = await new Promise<any | null>((resolve) => {
       let best: any = null;
       const sub = pool.request(relays, {
         kinds: [30078],
-        authors: [user.pubkey],
+        authors: [account.pubkey],
         "#d": [dTag],
       }).subscribe({
         next: (event: any) => {
@@ -925,7 +835,7 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
     });
     const content = (newest as any)?.content;
     if (!content) return null;
-    const plain = await decryptFromSelf(content);
+    const plain = await decryptFromSelf(account, content);
     if (!plain) return null;
     return JSON.parse(plain);
   } catch {
@@ -935,20 +845,16 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
 
 /** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
 export async function publishAlertPrefs(prefs: unknown, dTag: string = ALERT_PREFS_D_TAG): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (!window.nostr && !hasLocalSecretKey()) return { success: false, error: "No signer available" };
-  const ciphertext = await encryptToSelf(JSON.stringify(prefs));
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  const ciphertext = await encryptToSelf(account, JSON.stringify(prefs));
   if (!ciphertext) return { success: false, error: "Could not encrypt" };
-  const event = {
-    kind: 30078,
-    tags: [["d", dTag]],
-    content: ciphertext,
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 30078,
+      tags: [["d", dTag]],
+      content: ciphertext,
+    });
     return await publishToRelays(signed);
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
@@ -1336,34 +1242,40 @@ export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> 
   };
 }
 
-async function waitForNostrExtension(maxWaitMs = 800, intervalMs = 200): Promise<boolean> {
-  if (window.nostr) return true;
-  const start = Date.now();
-  return new Promise((resolve) => {
-    const check = setInterval(() => {
-      if (window.nostr) {
-        clearInterval(check);
-        resolve(true);
-      } else if (Date.now() - start >= maxWaitMs) {
-        clearInterval(check);
-        resolve(false);
-      }
-    }, intervalMs);
-  });
+/** Did the signer's own UI turn us down, rather than something breaking? */
+function refusedBySigner(err: unknown): boolean {
+  const message = (err instanceof Error ? err.message : "").toLowerCase();
+  return message.includes("denied") || message.includes("rejected") || message.includes("cancel");
 }
 
-async function completeLogin(pubkey: string, signedEvent: Record<string, unknown>): Promise<NostrUser> {
-  let result;
-  try {
-    result = await apiClient.verifyAuthChallenge(pubkey, signedEvent);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Server error during login.";
-    throw new LoginError("SERVER_ERROR", msg);
-  }
-  const token = result.data?.token || (result as any).token;
-  if (!token) {
-    throw new LoginError("SERVER_ERROR", "No token received from server. Please try again.");
-  }
+/**
+ * Authenticate an Account, adopt it as the one that signs, and fold in the v1
+ * caches every reader still expects. The Account is only adopted once the
+ * backend has accepted it, so a failed login leaves nothing behind.
+ */
+async function signIn(account: BrainstormAccount, metadata: AccountMetadata): Promise<NostrUser> {
+  const token = await sessions.authenticate(account);
+  // Signing in still *replaces* the previous identity, keys and all, as v1's did:
+  // until the picker lands (ticket 11) nothing could show or remove an Account
+  // that piled up here.
+  releaseActiveAccount();
+  adoptAccount(account, { ...metadata, npub: nip19.npubEncode(account.pubkey) });
+
+  // v1 shadow: the backup nags and the onboarding cards still read these
+  // pubkey-namespaced flags, so they carry the same answer as the metadata does.
+  if (metadata.backedUp) writeV1Flag("brainstorm_backup_done", account.pubkey);
+  if (metadata.createdInApp) writeV1Flag("brainstorm_created_inapp", account.pubkey);
+
+  return completeLogin(account, token);
+}
+
+function writeV1Flag(name: string, pubkey: string): void {
+  try { localStorage.setItem(`${name}:${pubkey}`, "true"); } catch { /* ignore */ }
+}
+
+async function completeLogin(account: BrainstormAccount, token: string): Promise<NostrUser> {
+  const pubkey = account.pubkey;
+  // v1 shadow: `api.ts` and `getCurrentUser` still read these (tickets 06, 17).
   localStorage.setItem("brainstorm_session_token", token);
 
   const isAdmin = extractAdminFlag(token);
@@ -1396,21 +1308,20 @@ async function completeLogin(pubkey: string, signedEvent: Record<string, unknown
 }
 
 export async function handleLogin(): Promise<NostrUser> {
-  const extensionFound = await waitForNostrExtension();
-  if (!extensionFound) {
-    throw new LoginError(
-      "NO_EXTENSION",
-      "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension."
-    );
-  }
-
-  let pubkey: string;
+  let account: BrainstormAccount;
   try {
-    pubkey = await window.nostr!.getPublicKey();
+    // Also the extension wait: the constructor asks for a pubkey, so an extension
+    // that never appears or refuses fails here rather than at the first publish.
+    account = await extensionAccount();
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    const lower = msg.toLowerCase();
-    if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
+    if (err instanceof ExtensionMissingError) {
+      throw new LoginError(
+        "NO_EXTENSION",
+        "No sign-in extension detected. You can use your key instead, or add a browser sign-in extension."
+      );
+    }
+    if (refusedBySigner(err)) {
       throw new LoginError(
         "PERMISSION_DENIED",
         "Your extension denied the request. Unlock it and approve access, or use your key."
@@ -1422,29 +1333,18 @@ export async function handleLogin(): Promise<NostrUser> {
     );
   }
 
-  if (!pubkey || typeof pubkey !== "string") {
-    throw new LoginError(
-      "EXTENSION_FAILED",
-      "Your extension returned an invalid public key. Unlock it and try again, or use your key."
-    );
-  }
-
-  let challenge: string;
   try {
-    challenge = await apiClient.getAuthChallenge(pubkey);
-  } catch (err) {
-    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
-  }
-
-  const event: Record<string, unknown> = { ...loginTemplate(challenge), pubkey };
-
-  let signedEvent: Record<string, unknown>;
-  try {
-    signedEvent = await window.nostr!.signEvent(event);
+    // The extension holds the key → recoverable, so the backup nags leave it alone.
+    const user = await signIn(account, { remembered: true, backedUp: true });
+    // Only now: a cancelled extension prompt must not cost the previous user their key.
+    clearSecretKey();
+    return user;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
-    const lower = msg.toLowerCase();
-    if (lower.includes("denied") || lower.includes("rejected") || lower.includes("cancel")) {
+    if (err instanceof SessionTransportError) {
+      throw new LoginError("SERVER_ERROR", msg || "Failed to reach server.");
+    }
+    if (refusedBySigner(err)) {
       throw new LoginError(
         "SIGN_CANCELLED",
         "Signing was cancelled. Approve the request in your extension, or use your key."
@@ -1455,56 +1355,37 @@ export async function handleLogin(): Promise<NostrUser> {
       `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
     );
   }
-
-  if (!signedEvent || !signedEvent.sig) {
-    throw new LoginError(
-      "EXTENSION_FAILED",
-      "Your extension couldn't complete sign-in. Try again, or use your key."
-    );
-  }
-
-  clearSecretKey();
-  const user = await completeLogin(pubkey, signedEvent);
-  // The extension holds the key → recoverable; mark backed up so a returning user
-  // isn't nagged to "back up" a key the extension already keeps.
-  try { localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true"); } catch { /* ignore */ }
-  return user;
 }
 
 /**
- * Shared login core: take a raw secret key, sign the server's challenge LOCALLY
- * (the key never leaves the device), and complete the session. `opts.persistent`
- * stores the key in localStorage so a restored/created account stays signed in.
+ * Shared login core: take a raw secret key, hand it to an Account that signs the
+ * server's challenge LOCALLY (the key never leaves the device), and complete the
+ * session. `opts.persistent` is "stay signed in" — a Remembered Account.
  */
 async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): Promise<NostrUser> {
-  let pubkey: string;
+  let account: LocalAccount;
   try {
-    pubkey = getPublicKey(sk);
+    account = await localAccount(sk);
   } catch {
     throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
 
-  let challenge: string;
+  await storeSecretKey(sk, opts); // v1 shadow, until ticket 17 retires it
   try {
-    challenge = await apiClient.getAuthChallenge(pubkey);
-  } catch (err) {
-    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
-  }
-
-  const signedEvent = finalizeEvent(loginTemplate(challenge), sk) as unknown as Record<string, unknown>;
-
-  await storeSecretKey(sk, opts);
-  try {
-    const user = await completeLogin(pubkey, signedEvent);
-    // The user supplied their own nsec → they demonstrably hold the key, so the
-    // account is recoverable. Mark it backed up so onboarding/backup nudges don't
-    // nag a returning user about a key they already have.
-    try { localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true"); } catch { /* ignore */ }
-    return user;
+    // The user supplied their own key → they demonstrably hold it, so the account
+    // is recoverable and the backup nags leave it alone.
+    return await signIn(account, { remembered: !!opts?.persistent, backedUp: true });
   } catch (err) {
     clearSecretKey();
-    throw err;
+    throw asLoginError(err);
   }
+}
+
+/** A failed exchange in v1's taxonomy. A key we hold can only fail at the server. */
+function asLoginError(err: unknown): LoginError {
+  if (err instanceof LoginError) return err;
+  const message = err instanceof Error ? err.message : "";
+  return new LoginError("SERVER_ERROR", message || "Server error during login.");
 }
 
 export async function loginWithNsec(nsec: string, opts?: { persistent?: boolean }): Promise<NostrUser> {
@@ -1564,6 +1445,9 @@ export function logout() {
   const prevPubkey = getCurrentUser()?.pubkey;
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
+  // The Account goes with the key: nothing may still sign as an identity this
+  // browser has just been told to forget.
+  releaseActiveAccount();
   clearSecretKey();
   queryClient.clear();
 
@@ -1588,10 +1472,10 @@ export function logout() {
 }
 
 export async function publishToRelays(
-  signedEvent: Record<string, unknown>,
+  signedEvent: NostrEvent,
   relays: string[] = PROFILE_RELAYS
 ): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
-  const writeRelays = loadOutboxRelayListFromDb((signedEvent as any).pubkey, PROFILE_RELAYS)
+  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, PROFILE_RELAYS)
 
   try {
     const responses = await pool.publish(writeRelays, signedEvent as any);
@@ -1624,26 +1508,18 @@ try {
 const initialSetupFlag = (pubkey: string) => `brainstorm_initial_setup_done:${pubkey}`;
 
 /**
- * Build → locally sign → publish an event, verifying the signer didn't mutate
- * the kind before broadcasting. Returns the publish result.
+ * Build → sign as the Active Account → publish, verifying the signer didn't
+ * mutate the kind before broadcasting. Returns the publish result.
  */
 async function signAndPublish(
   template: { kind: number; tags: string[][]; content: string },
   expectedKind: number,
 ): Promise<{ success: boolean; error?: string; relay?: string; accepted?: number; total?: number }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (!window.nostr && !hasLocalSecretKey()) {
-    return { success: false, error: "No signer available" };
-  }
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
   try {
-    const event = {
-      ...template,
-      created_at: Math.floor(Date.now() / 1000),
-      pubkey: user.pubkey,
-    };
-    const signed = await signEventLocally(event);
-    if ((signed as { kind?: number }).kind !== expectedKind) {
+    const signed = await signAs(account, template);
+    if (signed.kind !== expectedKind) {
       return { success: false, error: "Signer returned an unexpected event kind" };
     }
     return await publishToRelays(signed);
@@ -1725,6 +1601,12 @@ export async function triggerScoringAndAnchor(pubkey: string): Promise<void> {
 export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: string): Promise<void> {
   if (!pubkey || !taPubkey) return;
   if (isNip85Activated(pubkey)) return;
+  // Nobody asked for this publish, so it must never raise the unlock modal. A
+  // Locked Account that can't open silently is left alone; the effect re-runs on
+  // every app load, and `ensureBrainstormTrustAnchor` is idempotent.
+  const account = activeAccount();
+  if (!account || account.pubkey !== pubkey) return;
+  if (!(await canSignSilently(account))) return;
   // Already declared Brainstorm on relays (e.g. published from another device)?
   // Record it locally and stop — nothing to publish.
   try {
@@ -1818,23 +1700,17 @@ export async function createAccount(
   const name = displayName.trim();
   const sk = generateSecretKey();
   const pubkey = getPublicKey(sk);
+  const account = await localAccount(sk);
 
-  let challenge: string;
-  try {
-    challenge = await apiClient.getAuthChallenge(pubkey);
-  } catch (err) {
-    throw new LoginError("SERVER_ERROR", err instanceof Error ? err.message : "Failed to reach server.");
-  }
-
-  const signedEvent = finalizeEvent(loginTemplate(challenge), sk) as unknown as Record<string, unknown>;
-
-  await storeSecretKey(sk, { persistent: true });
+  await storeSecretKey(sk, { persistent: true }); // v1 shadow, until ticket 17 retires it
   let user: NostrUser;
   try {
-    user = await completeLogin(pubkey, signedEvent);
+    // A brand-new key exists only in this browser, so it is emphatically not
+    // backed up — `createdInApp` is what points the onboarding nags at it.
+    user = await signIn(account, { remembered: true, createdInApp: true });
   } catch (err) {
     clearSecretKey();
-    throw err;
+    throw asLoginError(err);
   }
 
   // A brand-new account has no kind-0 on relays yet, so completeLogin returns a
@@ -1845,11 +1721,6 @@ export async function createAccount(
     updateCurrentUser({ displayName: name });
     user = { ...user, displayName: name };
   }
-
-  // Mark this as a brand-new in-app account (key generated by us, exists only in
-  // this browser) — the one signal that distinguishes a first-timer from a
-  // returning login-with-key user, so onboarding only targets genuine new accounts.
-  try { localStorage.setItem(`brainstorm_created_inapp:${pubkey}`, "true"); } catch { /* ignore */ }
 
   // Don't block the UI on relay/scoring work.
   void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});
@@ -1876,47 +1747,19 @@ export function exportNsec(): string {
 export async function signNip85(
   serviceKey: string,
   relayHint: string
-): Promise<Record<string, unknown>> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) {
-    throw new Error("Not logged in");
-  }
-  if (!window.nostr && !hasLocalSecretKey()) {
-    throw new Error("No signer available. Please sign in again.");
-  }
-
-  const event = {
+): Promise<NostrEvent> {
+  return signAs(requireActiveAccount(), {
     kind: 10040,
     tags: [
       ["30382:rank", serviceKey, relayHint],
       ["30382:followers", serviceKey, relayHint],
     ],
     content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  return await signEventLocally(event);
+  });
 }
 
-export async function signNip85Deactivation(): Promise<Record<string, unknown>> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) {
-    throw new Error("Not logged in");
-  }
-  if (!window.nostr && !hasLocalSecretKey()) {
-    throw new Error("No signer available. Please sign in again.");
-  }
-
-  const event = {
-    kind: 10040,
-    tags: [],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  return await signEventLocally(event);
+export async function signNip85Deactivation(): Promise<NostrEvent> {
+  return signAs(requireActiveAccount(), { kind: 10040, tags: [], content: "" });
 }
 
 export interface ReportMetadata {

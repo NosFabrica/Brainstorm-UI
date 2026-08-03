@@ -1,7 +1,8 @@
-import { extractAdminFlag } from "@/lib/jwt";
 import { env } from "@/lib/runtimeEnv";
-import { loginTemplate } from "@/accounts/session";
-import { clearUserCache, signEventLocally, hasLocalSecretKey } from "./nostr";
+import { isAdmin, refreshSession } from "@/accounts/session";
+import { waitForExtension } from "@/accounts/login";
+import { activeAccount } from "@/accounts/signing";
+import { clearUserCache } from "./nostr";
 
 const RAW_API_URL = env.VITE_API_URL;
 const API_BASE_URL = RAW_API_URL.replace(/\/+$/, "");
@@ -33,8 +34,6 @@ try {
   // ignore
 }
 
-let isReauthenticating = false;
-let reauthPromise: Promise<boolean> | null = null;
 let isRedirectingToLogin = false;
 
 export function isAuthRedirecting(): boolean {
@@ -65,79 +64,36 @@ function handleUnauthorized() {
   window.location.href = "/";
 }
 
-async function waitForNostrExtension(maxWait = 3000): Promise<boolean> {
-  if (window.nostr) return true;
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    await new Promise((r) => setTimeout(r, 100));
-    if (window.nostr) return true;
-  }
-  return false;
-}
-
+/**
+ * Mint a fresh Session for the Active Account, in the background: this is a 401
+ * from whatever query happened to fire, not something the user asked for. A
+ * Locked Account that would have to ask for a password defers instead — the next
+ * user-initiated action mints one. Concurrent 401s share one exchange, so a
+ * signer is asked to approve at most once.
+ */
 async function silentReauth(): Promise<boolean> {
-  if (isReauthenticating && reauthPromise) return reauthPromise;
-
-  isReauthenticating = true;
-  reauthPromise = (async () => {
+  const account = activeAccount();
+  if (!account) return false;
+  // A 401 on a cold boot can beat the extension's own injection; v1 waited here too.
+  if (account.type === "extension") await waitForExtension();
+  try {
+    const token = await refreshSession(account, { background: true });
+    // v1 shadow: this module's own token read, plus `nostr_user`'s admin flag,
+    // both of which ticket 17 retires along with the keys they live in.
+    localStorage.setItem("brainstorm_session_token", token);
     try {
-      const storedUser = localStorage.getItem("nostr_user");
-      if (!storedUser) return false;
-
-      const user = JSON.parse(storedUser);
-      if (!user?.pubkey) return false;
-
-      const hasSk = hasLocalSecretKey();
-      if (!hasSk) {
-        const extensionReady = await waitForNostrExtension();
-        if (!extensionReady) return false;
+      const storedUserStr = localStorage.getItem("nostr_user");
+      if (storedUserStr) {
+        const storedUserObj = JSON.parse(storedUserStr);
+        storedUserObj.isAdmin = isAdmin(account);
+        localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
+        clearUserCache();
       }
-
-      const challengeResponse = await fetch(
-        `${getBrainstormApi()}/authChallenge/${user.pubkey}`,
-      );
-      if (!challengeResponse.ok) return false;
-      const challengeData = await challengeResponse.json();
-      const challenge = challengeData?.data?.challenge;
-      if (!challenge) return false;
-
-      const event = { ...loginTemplate(challenge), pubkey: user.pubkey };
-
-      const signedEvent = await signEventLocally(event);
-
-      const verifyResponse = await fetch(
-        `${getBrainstormApi()}/authChallenge/${user.pubkey}/verify`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signed_event: signedEvent }),
-        },
-      );
-      if (!verifyResponse.ok) return false;
-      const verifyData = await verifyResponse.json();
-      const token = verifyData?.data?.token;
-      if (!token) return false;
-
-      localStorage.setItem("brainstorm_session_token", token);
-      try {
-        const storedUserStr = localStorage.getItem("nostr_user");
-        if (storedUserStr) {
-          const storedUserObj = JSON.parse(storedUserStr);
-          storedUserObj.isAdmin = extractAdminFlag(token);
-          localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
-          clearUserCache();
-        }
-      } catch {}
-      return true;
-    } catch {
-      return false;
-    } finally {
-      isReauthenticating = false;
-      reauthPromise = null;
-    }
-  })();
-
-  return reauthPromise;
+    } catch {}
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function authenticatedFetch(

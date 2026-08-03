@@ -66,6 +66,7 @@ import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
+import type { NostrEvent } from "applesauce-core/helpers";
 import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec, type NostrUser } from "@/services/nostr";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -329,7 +330,7 @@ export default function SettingsPage() {
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85(taPubkey, nip85Relay);
     } catch {
@@ -363,7 +364,7 @@ export default function SettingsPage() {
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85Deactivation();
     } catch {

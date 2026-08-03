@@ -1,4 +1,6 @@
-import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb, signEventLocally } from "./nostr";
+import { pool, PROFILE_RELAYS, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { activeAccount, signAs } from "@/accounts/signing";
+import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, hasSessionToken } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
 
@@ -144,22 +146,19 @@ async function resolveContactBase(
 }
 
 async function publishContactList(
-  user: { pubkey: string },
+  account: BrainstormAccount,
   base: NostrEvent | null,
   newTags: string[][],
 ): Promise<{ success: boolean; error?: string }> {
-  const event: Record<string, unknown> = {
-    kind: 3,
-    tags: withClientTag(newTags),
-    content: base?.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 3,
+      tags: withClientTag(newTags),
+      content: base?.content || "",
+    });
     const res = await publishToRelays(signed);
     if (res.success) {
-      recordFollowList(user.pubkey, signed as any, { authoritative: true });
+      recordFollowList(account.pubkey, signed as any, { authoritative: true });
       // GATE: ingest the follows server-side and WAIT for it before returning, so
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
       // relay-propagation state). Best-effort — never fails the follow.
@@ -172,37 +171,37 @@ async function publishContactList(
 }
 
 export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+  const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  if (base) recordFollowList(user.pubkey, base as any); // remember the largest seen
+  if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
   const baseTags = base?.tags ?? []; // brand-new account: genuinely empty list
 
   if (baseTags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
 
   const newTags = [...baseTags, ["p", targetPubkey]];
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, newTags);
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+  const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe || !base) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  recordFollowList(user.pubkey, base as any);
+  recordFollowList(account.pubkey, base as any);
 
   if (!base.tags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
 
   const newTags = base.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, newTags);
 }
 
 /**
@@ -212,47 +211,44 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  * existing list.
  */
 export async function followPubkeys(targetPubkeys: string[]): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== user.pubkey);
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey);
+  const { base, unsafe } = await resolveContactBase(account.pubkey);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  if (base) recordFollowList(user.pubkey, base as any);
+  if (base) recordFollowList(account.pubkey, base as any);
   const baseTags = base?.tags ?? [];
   const have = new Set(baseTags.filter(t => t[0] === "p").map(t => t[1]));
   const additions = wanted.filter(pk => !have.has(pk)).map(pk => ["p", pk]);
   if (!additions.length) return { success: true };
 
   const newTags = [...baseTags, ...additions];
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, newTags);
 }
 
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
-  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
+  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
   const alreadyMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
   if (alreadyMuted) return { success: true };
 
   const newTags = [...current.tags, ["p", targetPubkey]];
-  const event: Record<string, unknown> = {
-    kind: 10000,
-    tags: withClientTag(newTags),
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
 
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 10000,
+      tags: withClientTag(newTags),
+      content: current.content || "",
+    });
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -260,26 +256,23 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
 }
 
 export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
 
-  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
+  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
   const wasMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
   if (!wasMuted) return { success: true };
 
   const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  const event: Record<string, unknown> = {
-    kind: 10000,
-    tags: withClientTag(newTags),
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
 
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 10000,
+      tags: withClientTag(newTags),
+      content: current.content || "",
+    });
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -287,24 +280,18 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
 }
 
 export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
-
-  // NIP-56: the report `reason` is the machine-readable type on the p-tag; any
-  // free-text the reporter adds goes in `content`.
-  const event: Record<string, unknown> = {
-    kind: 1984,
-    tags: [
-      ["p", targetPubkey, reason],
-    ],
-    content: (note ?? "").trim(),
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
 
   try {
-    const signed = await signEventLocally(event);
+    // NIP-56: the report `reason` is the machine-readable type on the p-tag; any
+    // free-text the reporter adds goes in `content`.
+    const signed = await signAs(account, {
+      kind: 1984,
+      tags: [["p", targetPubkey, reason]],
+      content: (note ?? "").trim(),
+    });
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };
@@ -327,13 +314,13 @@ export interface MyReport {
  * user hasn't reported them — drives the "you reported this" state + unreport.
  */
 export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Promise<MyReport | null> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return null;
+  const account = activeAccount();
+  if (!account) return null;
   const events: any[] = [];
   const seen = new Set<string>();
   const collected = await new Promise<any[]>((resolve) => {
     const timer = setTimeout(() => resolve(events), timeoutMs);
-    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [user.pubkey], "#p": [targetPubkey] }).subscribe({
+    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] }).subscribe({
       next: (ev: any) => { const id = ev?.id; if (id && !seen.has(id)) { seen.add(id); events.push(ev); } },
       error: () => { clearTimeout(timer); resolve(events); },
       complete: () => { clearTimeout(timer); resolve(events); },
@@ -361,22 +348,16 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
  * trust-score effect may lag until the backend re-ingests it (surfaced in copy).
  */
 export async function unreportUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
   const mine = await fetchMyReport(targetPubkey);
   if (!mine || !mine.eventIds.length) return { success: true }; // nothing to undo
-  const event: Record<string, unknown> = {
-    kind: 5,
-    tags: [
-      ...mine.eventIds.map((id) => ["e", id]),
-      ["k", "1984"],
-    ],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 5,
+      tags: [...mine.eventIds.map((id) => ["e", id]), ["k", "1984"]],
+      content: "",
+    });
     return await publishToRelays(signed);
   } catch (e: any) {
     return { success: false, error: e?.message || "Signing failed" };

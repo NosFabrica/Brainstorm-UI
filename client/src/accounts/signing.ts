@@ -1,0 +1,83 @@
+/**
+ * One answer to "who signs this?": the Active Account.
+ *
+ * v1 guessed — it preferred a stored local key, then `window.nostr`, at every
+ * call site. Guessing is what let an extension sign a local Account's kind-3 and
+ * overwrite the extension identity's real follow list. Here the Signer comes from
+ * the Account the user chose, so there is nothing left to guess.
+ */
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import type { EventTemplate } from "applesauce-accounts";
+
+import { accountManager } from "@/accounts";
+import { LocalAccount } from "./local-account";
+import type { BrainstormAccount } from "./metadata";
+
+/** Thrown where an event must be signed and no Account is active. */
+export class NoSignerError extends Error {
+  constructor(message = "No signer available. Please sign in again.") {
+    super(message);
+    this.name = "NoSignerError";
+  }
+}
+
+/** What a caller builds: the signer stamps `pubkey`, `id` and `sig` itself. */
+export type UnsignedTemplate = Omit<EventTemplate, "created_at"> & { created_at?: number };
+
+/** The Account every user-published event is signed by, or undefined when signed out. */
+export function activeAccount(): BrainstormAccount | undefined {
+  return accountManager.active;
+}
+
+/** The Active Account, for paths that have nothing to publish without one. */
+export function requireActiveAccount(): BrainstormAccount {
+  const account = accountManager.active;
+  if (!account) throw new NoSignerError();
+  return account;
+}
+
+/** Sign as `account`. A Locked local key unlocks on the way through. */
+export function signAs(account: BrainstormAccount, template: UnsignedTemplate): Promise<NostrEvent> {
+  return account.signEvent({ created_at: Math.floor(Date.now() / 1000), ...template });
+}
+
+/**
+ * NIP-44 encrypt to the Account's own key. Through the Account, never
+ * `window.nostr` — reaching for the extension directly silently fails for a
+ * remote signer, and signs as the wrong identity when both are present.
+ */
+export async function encryptToSelf(
+  account: BrainstormAccount,
+  plaintext: string,
+): Promise<string | null> {
+  try {
+    return (await account.nip44?.encrypt(account.pubkey, plaintext)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Inverse of `encryptToSelf`. Null when this Account can't read it. */
+export async function decryptFromSelf(
+  account: BrainstormAccount,
+  ciphertext: string,
+): Promise<string | null> {
+  try {
+    return (await account.nip44?.decrypt(account.pubkey, ciphertext)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether this Account can sign without raising the Recovery-password modal. A
+ * Locked local key is asked to unlock from its Unlock cache — silent, ~ms, and
+ * the only way to find out. Extension and bunker Accounts may prompt in their own
+ * app, which their users expect and their signers normally remember. Background
+ * work asks first and skips when the answer is no, so nothing the user didn't
+ * start can ever raise our modal.
+ */
+export function canSignSilently(account: BrainstormAccount): Promise<boolean> {
+  if (!(account instanceof LocalAccount) || !account.locked) return Promise.resolve(true);
+  return account.unlockSilently();
+}

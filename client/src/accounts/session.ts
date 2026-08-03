@@ -8,8 +8,8 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventTemplate } from "applesauce-accounts";
 
 import { extractAdminFlag } from "@/lib/jwt";
-import { LocalAccount } from "./local-account";
 import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
+import { canSignSilently } from "./signing";
 
 export const LOGIN_KIND = 22242;
 
@@ -59,17 +59,6 @@ export function hasSession(account: BrainstormAccount): boolean {
 /** Per Account: the claim is minted with the token and dies with it. */
 export function isAdmin(account: BrainstormAccount): boolean {
   return getMetadata(account).session?.isAdmin === true;
-}
-
-/**
- * Whether this Account can be authenticated without raising the Recovery-password
- * modal. A Locked local key is asked to unlock from its Unlock cache — silent, and
- * the only way to find out. Extension and bunker Accounts may prompt in their own
- * app, which their users expect and their signers normally remember.
- */
-function canSignSilently(account: BrainstormAccount): Promise<boolean> {
-  if (!(account instanceof LocalAccount) || !account.locked) return Promise.resolve(true);
-  return account.unlockSilently();
 }
 
 export type Sessions = {
@@ -138,17 +127,33 @@ export function createSessions(transport: SessionTransport): Sessions {
 }
 
 /**
+ * A failure from the backend half of the exchange. Typed so a caller can tell a
+ * server that didn't answer from a signer that refused — the two are the same
+ * rejection otherwise, and the login screen says something different for each.
+ */
+export class SessionTransportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionTransportError";
+  }
+}
+
+function asTransportError(err: unknown): never {
+  throw new SessionTransportError(err instanceof Error ? err.message : "Failed to reach server.");
+}
+
+/**
  * The app's sessions, over the real backend. The transport is imported lazily so
  * this module stays cheap to pull in — `services/api` reaches for the DOM at load.
  */
 export const sessions: Sessions = createSessions({
   async challenge(pubkey) {
     const { apiClient } = await import("@/services/api");
-    return apiClient.getAuthChallenge(pubkey);
+    return apiClient.getAuthChallenge(pubkey).catch(asTransportError);
   },
   async verify(pubkey, signed) {
     const { apiClient } = await import("@/services/api");
-    const result = await apiClient.verifyAuthChallenge(pubkey, signed);
+    const result = await apiClient.verifyAuthChallenge(pubkey, signed).catch(asTransportError);
     return result.data.token as string;
   },
 });
