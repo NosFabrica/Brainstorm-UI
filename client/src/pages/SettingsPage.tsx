@@ -59,7 +59,10 @@ import {
   AlertTriangle,
   IdCard,
   SlidersHorizontal,
+  EyeOff,
+  ChevronRight,
 } from "lucide-react";
+import { ignoredAlertMap } from "@/lib/networkAlertsIgnored";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
@@ -1163,6 +1166,40 @@ export default function SettingsPage() {
     </div>
   );
 
+  // Second door to the ignored list. The list itself lives on /alerts (one
+  // implementation, not two) — this exists because "things I've hidden" is
+  // something people look for in Settings alongside muted/blocked, not in a
+  // triage screen they only open when something is wrong.
+  //
+  // The count is the raw persisted ignore list, which is what "your ignore list"
+  // means here. The Ignored TAB counts what's currently hidden, so an account
+  // that escalated back shows there under its own scope instead — the two can
+  // differ by design, hence the deliberately different wording.
+  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
+  const ignoredAccountsCard = (
+    <button
+      type="button"
+      onClick={() => navigate("/alerts?scope=ignored")}
+      className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      data-testid="button-ignored-accounts"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
+          <EyeOff className="h-4 w-4 text-brand-deep" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Ignored accounts</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-ignored-count">
+            {ignoredListCount === 0
+              ? "Nothing ignored yet. Accounts you hide from Network Alerts appear here."
+              : `${ignoredListCount} on your ignore list — review or put any of them back.`}
+          </p>
+        </div>
+      </div>
+      <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+    </button>
+  );
+
   const advancedSection = (
     <div className="space-y-4" data-testid="section-advanced">
       <button
@@ -1512,6 +1549,7 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+              {ignoredAccountsCard}
               {advancedSection}
             </div>
           )}

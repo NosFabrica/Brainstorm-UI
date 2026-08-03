@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, ChevronDown, EyeOff, Flag, AlertTriangle, X } from "lucide-react";
+import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, ChevronDown, Eye, EyeOff, Flag, AlertTriangle, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -112,6 +112,46 @@ export function useAlertActions(observer: string) {
     });
   }
 
+
+  /**
+   * Put an ignored account back in the alerts list.
+   *
+   * Undo re-ignores at the ORIGINAL baseline, not today's report count: the
+   * baseline is what the escalation check measures against, so re-ignoring at a
+   * higher number would quietly raise the bar for resurfacing and make Undo
+   * lossy. Falls back to the current count for legacy entries with no baseline.
+   */
+  function handleUnignore(pubkey: string, name: string, currentReports: number) {
+    const baseline = ignored.get(pubkey) ?? currentReports;
+    setIgnored(unignoreAlert(observer, pubkey));
+    toast({
+      title: `Un-ignored ${name}`,
+      description: "Back in your alerts. Nothing was published.",
+      duration: 6000,
+      action: (
+        <ToastAction altText="Undo un-ignore" onClick={() => setIgnored(ignoreAlert(observer, pubkey, baseline))}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  }
+
+  /** Bulk inverse of `ignoreBatch` — same baseline-preserving Undo. */
+  function unignoreBatch(pubkeys: string[], scopeLabel?: string) {
+    if (pubkeys.length === 0) return;
+    const restore = pubkeys.map((pk) => ({ pubkey: pk, atReports: ignored.get(pk) ?? 0 }));
+    setIgnored(unignoreMany(observer, pubkeys));
+    toast({
+      title: `Un-ignored ${pubkeys.length} ${pubkeys.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
+      description: "Back in your alerts. Nothing was published.",
+      duration: 8000,
+      action: (
+        <ToastAction altText="Undo un-ignore all" onClick={() => setIgnored(ignoreMany(observer, restore))}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  }
 
   /**
    * Bulk-ignore a batch (the "Ignore all" action). One persist + one publish,
@@ -276,7 +316,7 @@ export function useAlertActions(observer: string) {
     </>
   );
 
-  return { dismissed, ignored, isHidden, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, dialogs: dialogs as ReactNode };
+  return { dismissed, ignored, isHidden, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, handleUnignore, unignoreBatch, dialogs: dialogs as ReactNode };
 }
 
 /**
@@ -545,16 +585,31 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   );
 }
 
-export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom = null, onDeepDive, onWhy, onIgnore, onUnfollow, onMute, onReport }: {
+export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom = null, onUnignore, onDeepDive, onWhy, onIgnore, onUnfollow, onMute, onReport }: {
   entry: NetworkAlertEntry; name: string; picture?: string; isNew: boolean; following: boolean;
   /** Reports at the time this was ignored — set only when it came back worse. */
   escalatedFrom?: number | null;
+  /**
+   * Present only in the Ignored list. Switches the row to its neutral variant:
+   * you already decided this account doesn't need you, so re-running the alarm
+   * treatment at it is wrong, and its "Ignore" button would be a no-op. The row
+   * drops the red accent and wash, mutes the reported chip to context, and
+   * offers exactly two things — put it back, or look at who it was.
+   */
+  onUnignore?: () => void;
   onDeepDive: () => void; onWhy: () => void; onIgnore: () => void; onUnfollow: () => void; onMute: () => void; onReport: () => void;
 }) {
   const actionBtn = "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const ignoredView = !!onUnignore;
   return (
-    // Red left-edge accent + faint wash marks the whole row as a flagged/negative event.
-    <div className="flex flex-col gap-2 rounded-lg border border-slate-100 dark:border-slate-800/60 border-l-[3px] border-l-red-500/70 bg-red-500/[0.03] dark:bg-red-500/[0.05] p-2.5" data-testid={`network-alert-row-${entry.pubkey.slice(0, 8)}`}>
+    // Red left-edge accent + faint wash marks the whole row as a flagged/negative
+    // event — dropped in the ignored view, which is a record, not an alert.
+    <div
+      className={`flex flex-col gap-2 rounded-lg border border-slate-100 p-2.5 dark:border-slate-800/60 ${
+        ignoredView ? "bg-slate-50/60 dark:bg-slate-900/40" : "border-l-[3px] border-l-red-500/70 bg-red-500/[0.03] dark:bg-red-500/[0.05]"
+      }`}
+      data-testid={`network-alert-row-${entry.pubkey.slice(0, 8)}`}
+    >
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={onDeepDive} className="relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" aria-label={`View ${name}'s profile`}>
           <Avatar className="h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800">
@@ -569,7 +624,14 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
             {escalatedFrom != null && (
               <span className="shrink-0 rounded-full bg-red-500 text-white px-1.5 py-0.5 text-[9px] font-bold leading-none" data-testid="network-alert-escalated">WORSE</span>
             )}
-            <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-1.5 py-0.5 text-[9px] font-bold" data-testid="network-alert-reported">
+            <span
+              className={`shrink-0 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                ignoredView
+                  ? "bg-slate-500/10 text-slate-500 dark:text-slate-400"
+                  : "bg-red-500/15 text-red-600 dark:text-red-400"
+              }`}
+              data-testid="network-alert-reported"
+            >
               <AlertTriangle className="h-2.5 w-2.5" />Reported · {entry.verifiedReporterCount}
             </span>
             {isWidelyMuted(entry) && <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 text-[9px] font-bold"><VolumeX className="h-2.5 w-2.5" />muted</span>}
@@ -584,20 +646,30 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 pl-10">
-        <button type="button" onClick={onIgnore} title="Ignore this alert (no changes published)" aria-label={`Ignore ${name}`} className={`${actionBtn} border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200`} data-testid="network-alert-ignore">
-          <EyeOff className="h-3 w-3" /> Ignore
-        </button>
-        {following && (
+        {ignoredView ? (
+          <button type="button" onClick={onUnignore} title="Show this in your alerts again" aria-label={`Un-ignore ${name}`} className={`${actionBtn} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/50 hover:text-brand-deep dark:hover:text-white`} data-testid="network-alert-unignore">
+            <Eye className="h-3 w-3" /> Un-ignore
+          </button>
+        ) : (
+          <button type="button" onClick={onIgnore} title="Ignore this alert (no changes published)" aria-label={`Ignore ${name}`} className={`${actionBtn} border-transparent text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200`} data-testid="network-alert-ignore">
+            <EyeOff className="h-3 w-3" /> Ignore
+          </button>
+        )}
+        {!ignoredView && following && (
           <button type="button" onClick={onUnfollow} title="Unfollow" aria-label={`Unfollow ${name}`} className={`${actionBtn} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-red-300 hover:text-red-600`} data-testid="network-alert-unfollow">
             <UserMinus className="h-3 w-3" /> Unfollow
           </button>
         )}
-        <button type="button" onClick={onMute} title="Mute" aria-label={`Mute ${name}`} className={`${actionBtn} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-300 hover:text-amber-600`} data-testid="network-alert-mute">
-          <VolumeX className="h-3 w-3" /> Mute
-        </button>
-        <button type="button" onClick={onReport} title="Report (publishes a NIP-56 report)" aria-label={`Report ${name}`} className={`${actionBtn} border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white hover:border-red-600`} data-testid="network-alert-report">
-          <Flag className="h-3 w-3" /> Report
-        </button>
+        {!ignoredView && (
+          <>
+            <button type="button" onClick={onMute} title="Mute" aria-label={`Mute ${name}`} className={`${actionBtn} border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-amber-300 hover:text-amber-600`} data-testid="network-alert-mute">
+              <VolumeX className="h-3 w-3" /> Mute
+            </button>
+            <button type="button" onClick={onReport} title="Report (publishes a NIP-56 report)" aria-label={`Report ${name}`} className={`${actionBtn} border-red-300 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white hover:border-red-600`} data-testid="network-alert-report">
+              <Flag className="h-3 w-3" /> Report
+            </button>
+          </>
+        )}
         <button type="button" onClick={onDeepDive} title="View profile" aria-label={`View ${name}'s profile`} className={`${actionBtn} ml-auto border-brand-accent/30 bg-brand-accent/[0.06] text-brand-deep dark:text-brand-accent hover:border-brand-accent/50`} data-testid="network-alert-deepdive">
           View <ArrowRight className="h-3 w-3" />
         </button>

@@ -17,12 +17,16 @@ import type { NetworkAlertEntry } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { cn } from "@/lib/utils";
 
-// Two scopes, not three. "All" used to be the default, which is what made this
-// page a dump: it mixed the handful of flagged accounts you actually follow in
-// with 100+ strangers two hops out. Keeping it as a tab would have restored that
-// view one click from the new default, and left "Ignore all" ambiguous about
-// which population it was about to act on.
-type Scope = "follows" | "extended";
+// Two scopes plus the ignored list. There used to be an "All" tab, and it was
+// the default — which is what made this page a dump: it mixed the handful of
+// flagged accounts you actually follow in with 100+ strangers two hops out.
+// Keeping it would have restored that view one click from the new default, and
+// left "Ignore all" ambiguous about which population it was about to act on.
+//
+// "ignored" is a different axis (state, not distance), but it earns a tab: the
+// list is cross-scope, "Ignore all" can fill it with 100 accounts in one click,
+// and it needs the same search/sort as everything else here.
+type Scope = "follows" | "extended" | "ignored";
 type SortKey = "reports" | "muted" | "influence";
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -52,39 +56,47 @@ export default function AlertsPage() {
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, dialogs } = useAlertActions(observer);
+  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, handleUnignore, unignoreBatch, dialogs } = useAlertActions(observer);
   // Seeded from `?scope=`, defaulting to your follows. The dashboard's extended
   // footnote has always linked to /alerts?scope=extended, but nothing read the
   // param, so that deliberate step silently landed on the wrong list. Read-on-
   // mount with no writeback matches SettingsPage/EventPage/SharePage, and means
   // a plain /alerts always opens on the population you can actually act on.
-  const initialScope: Scope = new URLSearchParams(useSearch()).get("scope") === "extended" ? "extended" : "follows";
+  const scopeParam = new URLSearchParams(useSearch()).get("scope");
+  const initialScope: Scope = scopeParam === "extended" || scopeParam === "ignored" ? scopeParam : "follows";
   const [scope, setScope] = useState<Scope>(initialScope);
   const [sort, setSort] = useState<SortKey>("reports");
   const [query, setQuery] = useState("");
-  const [showIgnored, setShowIgnored] = useState(false);
   const [confirmBulk, setConfirmBulk] = useState(false);
 
-  // Acted-on accounts (unfollow/mute/report) always drop off; ignored ones drop
-  // off too unless the user toggles "Show ignored".
+  // Acted-on accounts (unfollow/mute/report) always drop off. Ignored ones move
+  // to the Ignored tab rather than vanishing — which is the whole point of that
+  // tab, since "Ignore all" can send 100 accounts there in one click.
   // Ignored accounts reappear on their own once reports climb sharply, so an
-  // escalated one counts as live even while it sits in the ignored set.
+  // escalated one counts as live even while it sits in the ignored set — and it
+  // is therefore NOT listed under Ignored, where it would be double-counted
+  // while already demanding attention in its own scope tab.
   const isSuppressed = (e: NetworkAlertEntry) =>
     ignored.has(e.pubkey) && !isEscalated(e.pubkey, e.verifiedReporterCount);
-  const live = flagged.filter((e) => !dismissed.has(e.pubkey) && (showIgnored || !isSuppressed(e)));
-  const ignoredCount = flagged.filter((e) => isSuppressed(e) && !dismissed.has(e.pubkey)).length;
+  const live = flagged.filter((e) => !dismissed.has(e.pubkey) && !isSuppressed(e));
+  const ignoredList = flagged.filter((e) => !dismissed.has(e.pubkey) && isSuppressed(e));
+  const ignoredCount = ignoredList.length;
   const followsCount = live.filter((e) => e.hops <= 1).length;
   const extendedCount = live.filter((e) => e.hops >= 2).length;
 
   const rows = useMemo(() => {
-    let list = live.filter((e) => (scope === "follows" ? e.hops <= 1 : e.hops >= 2));
+    let list =
+      scope === "ignored" ? ignoredList
+      : live.filter((e) => (scope === "follows" ? e.hops <= 1 : e.hops >= 2));
     const qq = query.trim().toLowerCase();
     if (qq) list = list.filter((e) => nameFor(e.pubkey).toLowerCase().includes(qq));
     const key = (e: NetworkAlertEntry) =>
       sort === "reports" ? e.verifiedReporterCount : sort === "muted" ? e.verifiedMuterCount : e.influence ?? 0;
     return [...list].sort((a, b) => key(b) - key(a));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, scope, query, sort, profiles]);
+  }, [live, ignoredList, scope, query, sort, profiles]);
+
+  const viewingIgnored = scope === "ignored";
 
   // "Ignore all" acts on exactly what's visible (current scope + search), so the
   // count on the button is always what gets ignored — no hidden surprises.
@@ -95,17 +107,22 @@ export default function AlertsPage() {
   // be ignored — the two sit side by side on desktop, stacked on mobile.
   const countLabel = searching
     ? `${rows.length} matching “${query.trim()}”`
+    : viewingIgnored ? `${rows.length} ignored`
     : scope === "extended" ? `${rows.length} in extended reach`
     : `${rows.length} of your follows`;
-  const bulkLabel = `Ignore all ${rows.length}`;
+  const bulkLabel = viewingIgnored ? `Un-ignore all ${rows.length}` : `Ignore all ${rows.length}`;
   const bulkScopeLabel = searching ? undefined
     : scope === "extended" ? "extended reach"
+    : viewingIgnored ? undefined
     : "your follows";
   // Ignoring accounts you actually follow is higher-stakes than dismissing far-off
   // extended-reach noise, so a batch that includes any follow gets a confirm first.
-  const bulkHasFollows = rows.some((e) => e.hops <= 1);
+  // Un-ignoring never needs one: it only ever shows you MORE, so the destructive
+  // direction is the only one worth interrupting.
+  const bulkHasFollows = !viewingIgnored && rows.some((e) => e.hops <= 1);
   const runBulkIgnore = () => {
-    ignoreBatch(rows.map((e) => ({ pubkey: e.pubkey, atReports: e.verifiedReporterCount })), bulkScopeLabel);
+    if (viewingIgnored) unignoreBatch(rows.map((e) => e.pubkey));
+    else ignoreBatch(rows.map((e) => ({ pubkey: e.pubkey, atReports: e.verifiedReporterCount })), bulkScopeLabel);
     setConfirmBulk(false);
   };
 
@@ -151,6 +168,9 @@ export default function AlertsPage() {
           <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" role="group" aria-label="Scope">
             {scopeTab("follows", "Your follows", followsCount)}
             {scopeTab("extended", "Extended reach", extendedCount)}
+            {/* Always rendered, including at 0 — the other two show 0 too, and a
+                tab that appears and disappears reshuffles the row under you. */}
+            {scopeTab("ignored", "Ignored", ignoredCount)}
           </div>
           <div className="sm:ml-auto flex items-center gap-2">
             <div className="relative flex-1 sm:flex-none">
@@ -183,21 +203,11 @@ export default function AlertsPage() {
                 <span className="text-xs font-semibold tabular-nums text-slate-600 dark:text-slate-300" data-testid="alerts-count">
                   {countLabel}
                 </span>
-                {/* Ignored accounts are hidden by default; this brings them back so
-                    nothing an "Ignore" click removed is ever permanently lost. */}
-                {ignoredCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowIgnored((v) => !v)}
-                    className="inline-flex items-center gap-1.5 rounded text-xs font-semibold text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
-                    data-testid="alerts-show-ignored"
-                  >
-                    {showIgnored ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                    {showIgnored ? "Hide ignored" : `Show ignored (${ignoredCount})`}
-                  </button>
-                )}
               </div>
 
+              {/* Same slot, inverted on the Ignored tab. Recovery has to match the
+                  way the problem is created: "Ignore all 100" is one click, so
+                  undoing it can't be 100. */}
               {rows.length > 1 && (
                 <button
                   type="button"
@@ -205,7 +215,7 @@ export default function AlertsPage() {
                   className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white sm:w-auto sm:py-1.5"
                   data-testid="alerts-ignore-all"
                 >
-                  <EyeOff className="h-3.5 w-3.5" /> {bulkLabel}
+                  {viewingIgnored ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />} {bulkLabel}
                 </button>
               )}
             </div>
@@ -237,12 +247,14 @@ export default function AlertsPage() {
             <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
               <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
               {searching
-                ? `No matches for “${query.trim()}” in ${scope === "extended" ? "extended reach" : "your follows"}.`
-                : ignoredCount > 0
-                  ? `Nothing needs your attention — ${ignoredCount} ignored ${ignoredCount === 1 ? "account is" : "accounts are"} hidden.`
-                  : scope === "extended"
-                    ? "Nothing flagged in your extended reach."
-                    : "None of the people you follow are flagged."}
+                ? `No matches for “${query.trim()}” in ${viewingIgnored ? "your ignored list" : scope === "extended" ? "extended reach" : "your follows"}.`
+                : viewingIgnored
+                  ? "You haven't ignored anyone."
+                  : ignoredCount > 0
+                    ? `Nothing needs your attention — ${ignoredCount} ignored ${ignoredCount === 1 ? "account is" : "accounts are"} in the Ignored tab.`
+                    : scope === "extended"
+                      ? "Nothing flagged in your extended reach."
+                      : "None of the people you follow are flagged."}
             </div>
             {!searching && scope === "follows" && extendedCount > 0 && (
               <button
@@ -266,6 +278,8 @@ export default function AlertsPage() {
                   picture: profiles.get(e.pubkey)?.picture,
                   nip05: profiles.get(e.pubkey)?.nip05,
                 })}
+                // Presence of this switches AlertRow to its neutral variant.
+                onUnignore={viewingIgnored ? () => handleUnignore(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount) : undefined}
               />
             ))}
           </div>
