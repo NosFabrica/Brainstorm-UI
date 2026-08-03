@@ -120,6 +120,9 @@ export class LocalSigner implements ISigner {
   /** Emits whenever `data` changes, so persistence can write the new at-rest form. */
   readonly changed$ = new Subject<void>();
 
+  /** Emits when the key becomes available — whatever asked for it, this Account is no longer Locked. */
+  readonly unlocked$ = new Subject<void>();
+
   readonly nip04 = {
     encrypt: async (pubkey: string, plaintext: string) => {
       await this.unlock();
@@ -163,9 +166,11 @@ export class LocalSigner implements ISigner {
   unlock(password?: string): Promise<void> {
     if (this.inner) return Promise.resolve();
     if (this.pending) return this.pending;
-    this.pending = this.doUnlock(password).finally(() => {
-      this.pending = null;
-    });
+    this.pending = this.doUnlock(password)
+      .then(() => void this.unlocked$.next())
+      .finally(() => {
+        this.pending = null;
+      });
     return this.pending;
   }
 

@@ -1,5 +1,11 @@
 import { env } from "@/lib/runtimeEnv";
-import { isAdmin, refreshSession } from "@/accounts/session";
+import {
+  ensureSession,
+  isAdmin,
+  isSessionDeferredError,
+  refreshSession,
+  SessionDeferredError,
+} from "@/accounts/session";
 import { waitForExtension } from "@/accounts/login";
 import { activeAccount } from "@/accounts/signing";
 import { clearUserCache } from "./nostr";
@@ -65,35 +71,54 @@ function handleUnauthorized() {
 }
 
 /**
+ * v1 shadow: this module's own token read, plus `nostr_user`'s admin flag, both
+ * of which ticket 17 retires along with the keys they live in.
+ */
+function adoptToken(account: NonNullable<ReturnType<typeof activeAccount>>, token: string): void {
+  localStorage.setItem("brainstorm_session_token", token);
+  try {
+    const storedUserStr = localStorage.getItem("nostr_user");
+    if (storedUserStr) {
+      const storedUserObj = JSON.parse(storedUserStr);
+      storedUserObj.isAdmin = isAdmin(account);
+      localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
+      clearUserCache();
+    }
+  } catch {}
+}
+
+/** Healed, waiting for the user, or genuinely unusable — three different answers. */
+type ReauthResult = "ok" | "deferred" | "failed";
+
+/**
  * Mint a fresh Session for the Active Account, in the background: this is a 401
  * from whatever query happened to fire, not something the user asked for. A
  * Locked Account that would have to ask for a password defers instead — the next
  * user-initiated action mints one. Concurrent 401s share one exchange, so a
  * signer is asked to approve at most once.
  */
-async function silentReauth(): Promise<boolean> {
+async function silentReauth(): Promise<ReauthResult> {
   const account = activeAccount();
-  if (!account) return false;
+  if (!account) return "failed";
   // A 401 on a cold boot can beat the extension's own injection; v1 waited here too.
   if (account.type === "extension") await waitForExtension();
   try {
-    const token = await refreshSession(account, { background: true });
-    // v1 shadow: this module's own token read, plus `nostr_user`'s admin flag,
-    // both of which ticket 17 retires along with the keys they live in.
-    localStorage.setItem("brainstorm_session_token", token);
-    try {
-      const storedUserStr = localStorage.getItem("nostr_user");
-      if (storedUserStr) {
-        const storedUserObj = JSON.parse(storedUserStr);
-        storedUserObj.isAdmin = isAdmin(account);
-        localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
-        clearUserCache();
-      }
-    } catch {}
-    return true;
-  } catch {
-    return false;
+    adoptToken(account, await refreshSession(account, { background: true }));
+    return "ok";
+  } catch (err) {
+    return isSessionDeferredError(err) ? "deferred" : "failed";
   }
+}
+
+/**
+ * Mint the Session the deferred path skipped — the unlock card and the "sign in
+ * again" query state both end here. User-initiated, so unlocking on the way
+ * through is exactly what was asked for; a declined unlock travels back out.
+ */
+export async function resumeSession(): Promise<void> {
+  const account = activeAccount();
+  if (!account) return;
+  adoptToken(account, await ensureSession(account));
 }
 
 async function authenticatedFetch(
@@ -102,8 +127,12 @@ async function authenticatedFetch(
 ): Promise<Response> {
   let token = localStorage.getItem("brainstorm_session_token");
   if (!token) {
-    const reauthOk = await silentReauth();
-    if (!reauthOk) {
+    const reauth = await silentReauth();
+    // Deferred is not expired: the Account is fine and the key is simply asleep,
+    // so nothing is wiped and nobody is redirected. The caller renders the
+    // "sign in again to see this" state instead.
+    if (reauth === "deferred") throw new SessionDeferredError();
+    if (reauth === "failed") {
       handleUnauthorized();
       throw new Error("No session token found");
     }
@@ -116,8 +145,9 @@ async function authenticatedFetch(
   if (response.status === 401) {
     const data = await response.json().catch(() => null);
     const detail = data?.detail || data?.message || "";
-    const reauthOk = await silentReauth();
-    if (reauthOk) {
+    const reauth = await silentReauth();
+    if (reauth === "deferred") throw new SessionDeferredError();
+    if (reauth === "ok") {
       const newToken = localStorage.getItem("brainstorm_session_token");
       const retryResponse = await fetch(url, {
         ...options,
@@ -157,7 +187,14 @@ async function optionalAuthFetch(
     !!localStorage.getItem("brainstorm_session_token") ||
     !!localStorage.getItem("nostr_user");
   if (hasSession) {
-    return authenticatedFetch(url, options);
+    try {
+      return await authenticatedFetch(url, options);
+    } catch (err) {
+      // A deferred Session says nothing about public data. Serve it anonymously
+      // rather than leaving a signed-in reader worse off than a signed-out one.
+      if (isSessionDeferredError(err)) return fetch(url, options);
+      throw err;
+    }
   }
   return fetch(url, options);
 }

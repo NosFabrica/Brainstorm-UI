@@ -97,6 +97,7 @@ import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
 import { logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrSearchResult } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { hasSession } from "@/accounts/session";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -2638,6 +2639,7 @@ export default function AdminPage() {
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+        <DeferredSessionNotice className="mb-6" />
         <div className="space-y-6 animate-fade-up">
 
           <div className="flex items-start justify-between gap-4">

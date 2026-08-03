@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { logout } from "@/services/nostr";
 import { apiClient } from "@/services/api";
@@ -186,6 +187,8 @@ export default function InsightsPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your trust scores were computed.</p>
+
+        <DeferredSessionNotice className="mb-6" />
 
         {/* Calculation */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">

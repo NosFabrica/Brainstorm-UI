@@ -48,6 +48,18 @@ export class SessionDeferredError extends Error {
   }
 }
 
+/**
+ * Whether a failure is "the Session is waiting for the user", rather than
+ * anything being wrong. Name-based, so it survives a module reload and the trip
+ * out through a query's `error`.
+ */
+export function isSessionDeferredError(error: unknown): boolean {
+  return (
+    error instanceof SessionDeferredError ||
+    (error as { name?: string })?.name === "SessionDeferredError"
+  );
+}
+
 export function getSessionToken(account: BrainstormAccount): string | undefined {
   return getMetadata(account).session?.token;
 }

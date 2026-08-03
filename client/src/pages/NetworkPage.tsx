@@ -50,6 +50,7 @@ import {
   eventStore,
 } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import {
   getProfileContent,
   isValidProfile,
@@ -1206,6 +1207,7 @@ export default function NetworkPage() {
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
+        <DeferredSessionNotice className="mb-8" />
         <div className="space-y-8 animate-fade-up">
           <div
             className="text-left relative z-10 mb-8 pt-2"

@@ -71,6 +71,7 @@ import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85Rela
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { downloadAccountBackup } from "@/lib/accountBackup";
 import { keyAccessMessage, revealSecretKey } from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
@@ -1486,6 +1487,7 @@ export default function SettingsPage() {
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="settings" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+        <DeferredSessionNotice className="mb-6" />
         <div className="space-y-6" data-testid="container-settings">
           <PageHeader
             kicker="Brainstorm Settings"

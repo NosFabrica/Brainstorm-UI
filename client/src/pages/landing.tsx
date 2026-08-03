@@ -33,8 +33,7 @@ import { apiClient } from "@/services/api";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
-import { PostSignupCard } from "@/components/PostSignupCard";
-import { BackupReminder } from "@/components/BackupReminder";
+import { AccountCards } from "@/components/AccountCards";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -1075,7 +1074,8 @@ export default function Landing() {
           )}
         </div>
 
-        <PostSignupCard />
+        {/* One account-level card at a time: unlock → backup → post-signup. */}
+        <AccountCards />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
             New users still auto-follow the profile they join from (see SharePage) —
             that connection is benign. But this owner-facing notification was the scam
@@ -1083,7 +1083,6 @@ export default function Landing() {
             edge that carries the owner's weight. It fired for ANY brand-new inbound
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
-        <BackupReminder />
 
         {isSearching && (
           <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">

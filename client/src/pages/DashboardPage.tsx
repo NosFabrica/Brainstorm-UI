@@ -114,6 +114,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { logout, cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -760,6 +761,8 @@ export default function DashboardPage() {
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+
+          <DeferredSessionNotice className="mb-6" />
 
           <div className="flex flex-col gap-6 mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

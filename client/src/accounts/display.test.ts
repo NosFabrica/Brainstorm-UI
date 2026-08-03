@@ -5,7 +5,7 @@ import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { npubEncode } from "nostr-tools/nip19";
 
-import type { AccountMetadata, BrainstormAccount } from "./metadata";
+import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import {
   displayNameOf,
   displayOf,
@@ -153,6 +153,24 @@ describe("the active account's display", () => {
     a.metadata = { ...a.metadata!, initialSetupDone: true };
 
     expect(seen.length).toBe(before);
+    stop();
+  });
+
+  // The admin nav is rendered from this claim, so a deferred Session takes it
+  // away and unlocking gives it straight back — with the unlock card as the
+  // explanation in between.
+  it("drops the admin claim when the session goes, and returns it when one is minted", () => {
+    const { manager, seen, stop } = watch();
+    const a = account({ session: { token: "t", isAdmin: true } });
+    manager.addAccount(a as any);
+    manager.setActive(a as any);
+    expect(seen.at(-1)?.isAdmin).toBe(true);
+
+    updateMetadata(a, { session: undefined });
+    expect(seen.at(-1)?.isAdmin).toBe(false);
+
+    updateMetadata(a, { session: { token: "t2", isAdmin: true } });
+    expect(seen.at(-1)?.isAdmin).toBe(true);
     stop();
   });
 
